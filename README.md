@@ -1,154 +1,156 @@
 # Obsidian Knowledge Base Skill
 
-**Turn any AI coding agent into your personal knowledge management assistant.**
+**让任何 AI 编程助手变成你的个人知识管理助手。**
 
-A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
+一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
+
+[English Version](README_EN.md)
 
 ---
 
-## The Problem
+## 解决什么问题
 
-We talk to AI assistants every day — brainstorming ideas, analyzing articles, reviewing meetings, debugging problems. These conversations produce genuinely valuable knowledge, but it almost always evaporates the moment you close the chat window.
+我们每天都在跟 AI 助手对话——头脑风暴、分析文章、评审会议、排查问题。这些对话会产生大量有价值的知识，但几乎总是在你关闭聊天窗口的那一刻就蒸发了。
 
-Manually copying insights into a note-taking app is tedious and inconsistent. The friction is too high: you need to decide where to put it, how to format it, what tags to use, and how it connects to existing notes. So most of the time, you just... don't.
+手动把洞察复制到笔记工具里，既繁琐又不持续。摩擦成本太高：你要想清楚放在哪个文件夹、用什么格式、打什么标签、跟已有笔记怎么关联。所以大多数时候，你干脆就不记了。
 
-## The Solution
+## 怎么解决的
 
-This skill eliminates that friction by teaching your AI agent a complete knowledge management workflow. You just say things like *"save this to my knowledge base"* or *"record this meeting"*, and the agent handles everything:
+这个 Skill 通过教会 AI 智能体一整套知识管理工作流来消除这个摩擦。你只需要说「沉淀到知识库」或「记录一下这个会议」，AI 就会自动处理一切：
 
-- Picks the right note type and template
-- Fills in structured metadata (date, tags, source)
-- Writes to the correct folder in your Obsidian vault
-- Updates the folder index
-- Cross-links related notes with `[[wikilinks]]`
+- 选择正确的笔记类型和模板
+- 填写结构化元数据（日期、标签、来源）
+- 写入 Obsidian 知识库中对应的文件夹
+- 更新文件夹索引
+- 用 `[[wikilinks]]` 关联相关笔记
 
-Your knowledge accumulates automatically, in a structured format that scales from 10 notes to 10,000.
+你的知识以结构化的方式自动积累，从 10 条笔记到 10000 条都能轻松管理。
 
-## How It Works
+## 工作原理
 
 ```
-You: "Save the key insights from our microservices discussion"
+你：「把微服务讨论的关键洞察沉淀到知识库」
 
-AI Agent:
-  1. Reads vault path from ~/.obsidian-kb-config
-  2. Reads the "Insight Note" template from your vault
-  3. Fills in YAML frontmatter + analysis content
-  4. Writes to 30-Insights/2026-06-09 微服务架构洞察.md
-  5. Appends link to 30-Insights/INDEX.md
-  6. Confirms: "Saved to 30-Insights/2026-06-09 微服务架构洞察.md"
+AI 智能体：
+  1. 从 ~/.obsidian-kb-config 读取知识库路径
+  2. 从你的知识库读取「洞察笔记」模板
+  3. 填写 YAML frontmatter + 分析内容
+  4. 写入 30-Insights/2026-06-09 微服务架构洞察.md
+  5. 在 30-Insights/INDEX.md 追加链接
+  6. 确认：「已保存到 30-Insights/2026-06-09 微服务架构洞察.md」
 ```
 
-The skill is **just a Markdown instruction file** that teaches the agent the conventions. No plugins, no APIs, no servers — your Obsidian vault is a folder of Markdown files, and the agent reads and writes them directly.
+这个 Skill 本质上**只是一个 Markdown 指令文件**，教会 AI 智能体你的知识管理规范。不需要插件、不需要 API、不需要服务器——你的 Obsidian 知识库就是一堆 Markdown 文件，AI 直接读写它们。
 
-## Supported Platforms
+## 支持的平台
 
-| Platform | Config File | Install Location |
-|----------|------------|-----------------|
+| 平台 | 配置文件 | 安装位置 |
+|------|---------|---------|
 | **QoderWork / Qoder CLI** | `SKILL.md` | `~/.qoderwork/skills/obsidian-knowledge-base/` |
 | **Claude Code** | `CLAUDE.md` | `~/.claude/CLAUDE.md` |
 | **OpenAI Codex** | `AGENTS.md` | `~/AGENTS.md` |
 | **Cursor** | `obsidian-kb.mdc` | `~/.cursor/rules/obsidian-kb.mdc` |
 
-All four platform files contain **identical instructions** — same folder routing, same templates, same YAML conventions, same tagging conventions. Only the file format differs to match each platform's convention.
+四个平台的文件包含**完全一致的指令**——同样的文件夹路由、同样的模板、同样的 YAML 规范、同样的标签体系。只是文件格式遵循各平台的约定。
 
-## Quick Start
+## 快速开始
 
-### 1. Configure your vault path
+### 1. 配置知识库路径
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your vault path:
+编辑 `.env`，填入你的知识库路径：
 
 ```env
 OBSIDIAN_KB_VAULT=D:\MyKnowledgeBase
 ```
 
-### 2. Run the installer
+### 2. 运行安装脚本
 
-**Windows (PowerShell):**
+**Windows (PowerShell)：**
 ```powershell
 .\install.ps1
 ```
 
-**macOS / Linux:**
+**macOS / Linux：**
 ```bash
 chmod +x install.sh
 ./install.sh
 ```
 
-That's it. The installer will:
+安装脚本会自动完成以下工作：
 
-- Create the vault folder structure (if it doesn't exist)
-- Copy 7 note templates into your vault
-- Create INDEX.md navigation files in each folder
-- Write your vault path to `~/.obsidian-kb-config`
-- Install the skill file to your chosen AI platform
+- 创建知识库文件夹结构（如果不存在）
+- 复制 7 个笔记模板到你的知识库
+- 在每个文件夹中创建 INDEX.md 导航文件
+- 将知识库路径写入 `~/.obsidian-kb-config`
+- 将 Skill 文件安装到对应 AI 平台
 
-### 3. Open in Obsidian
+### 3. 用 Obsidian 打开
 
-Open your vault folder in Obsidian. You'll see the folder structure, templates, and index pages ready to go.
+在 Obsidian 中打开你的知识库文件夹，你会看到文件夹结构、模板和索引页都已就绪。
 
-### 4. Start capturing
+### 4. 开始沉淀
 
-Tell your AI assistant:
+对你的 AI 助手说：
 
-- *"Save this discussion about system design to my knowledge base"*
-- *"Record the Q2 planning meeting"*
-- *"Clip this article: https://example.com/article"*
-- *"Create a project note for the dashboard redesign"*
+- 「把系统设计的讨论沉淀到知识库」
+- 「记录一下 Q2 规划会议」
+- 「剪藏这篇文章：https://example.com/article」
+- 「创建一个仪表盘重构的项目笔记」
 
-## Vault Structure
+## 知识库结构
 
 ```
 YourVault/
-├── 00-Inbox/          Quick capture — drop anything here, sort later
-├── 10-Work/           Meeting notes, work documents, team discussions
-├── 20-Learning/       Articles, study notes, web clips, course materials
-├── 30-Insights/       Analysis, ideas, AI-generated insights
-├── 40-Projects/       Active project context and progress logs
-├── 50-People/         Contacts, team members, interaction logs
-├── 90-Archive/        Completed or inactive items
-├── Templates/         7 pre-built note templates
-├── Attachments/       Images and file attachments
-└── INDEX.md           Main navigation hub (Map of Content)
+├── 00-Inbox/          收件箱 —— 快速捕获，稍后整理
+├── 10-Work/           工作 —— 会议记录、工作文档、团队讨论
+├── 20-Learning/       学习 —— 文章、笔记、网页剪藏、课程资料
+├── 30-Insights/       洞察 —— 分析、想法、AI 生成的洞察
+├── 40-Projects/       项目 —— 活跃项目的上下文和进展日志
+├── 50-People/         人物 —— 联系人、团队成员、互动记录
+├── 90-Archive/        归档 —— 已完成或不活跃的内容
+├── Templates/         7 个预置笔记模板
+├── Attachments/       图片和文件附件
+└── INDEX.md           主导航页（Map of Content）
 ```
 
-## Note Templates
+## 笔记模板
 
-| Template | Use Case | Key Fields |
-|----------|----------|------------|
-| **Daily Note** | Journaling, daily planning | Today's focus, tasks, reflections |
-| **Meeting Note** | Meetings, standups, reviews | Participants, agenda, action items, decisions |
-| **Learning Note** | Articles, books, courses | Source, key takeaways, connections to work |
-| **Web Clip** | Web pages, blog posts | URL, highlights, key quotes |
-| **Insight Note** | Analysis, ideas, AI conversations | One-line insight, context, implications |
-| **Project Note** | Active projects | Goal, timeline, progress log, risks |
-| **Person Note** | Contacts, team members | Role, interaction log, follow-up items |
+| 模板 | 使用场景 | 关键字段 |
+|------|---------|---------|
+| **Daily Note** | 日记、每日规划 | 今日焦点、任务、反思 |
+| **Meeting Note** | 会议、站会、评审 | 参会人、议程、待办事项、决策 |
+| **Learning Note** | 文章、书籍、课程 | 来源、核心收获、与工作的关联 |
+| **Web Clip** | 网页、博客文章 | URL、高亮、关键引文 |
+| **Insight Note** | 分析、想法、AI 对话 | 一句话洞察、上下文、影响 |
+| **Project Note** | 活跃项目 | 目标、时间线、进展日志、风险 |
+| **Person Note** | 联系人、团队成员 | 角色、互动日志、跟进事项 |
 
-All templates use YAML frontmatter for structured metadata, making notes easy to filter, search, and query with Obsidian plugins like Dataview.
+所有模板使用 YAML frontmatter 作为结构化元数据，便于用 Dataview 等 Obsidian 插件进行过滤、搜索和查询。
 
-## Configuration
+## 配置
 
-### Vault Path Resolution
+### 知识库路径查找顺序
 
-The installer and skill look for your vault path in this priority order:
+安装脚本和 Skill 按以下优先级查找知识库路径：
 
-| Priority | Source | Example |
-|----------|--------|---------|
-| 1 | CLI argument | `--vault /path/to/vault` |
-| 2 | `.env` file | `OBSIDIAN_KB_VAULT=/path/to/vault` |
-| 3 | Environment variable | `export OBSIDIAN_KB_VAULT=/path/to/vault` |
-| 4 | Config file | `~/.obsidian-kb-config` |
+| 优先级 | 来源 | 示例 |
+|--------|------|------|
+| 1 | 命令行参数 | `--vault /path/to/vault` |
+| 2 | `.env` 文件 | `OBSIDIAN_KB_VAULT=/path/to/vault` |
+| 3 | 环境变量 | `export OBSIDIAN_KB_VAULT=/path/to/vault` |
+| 4 | 配置文件 | `~/.obsidian-kb-config` |
 
-### Changing Your Vault Path
+### 修改知识库路径
 
-Edit `.env` and re-run the installer, or update the config directly:
+编辑 `.env` 后重新运行安装脚本，或直接修改配置文件：
 
 ```bash
 # macOS / Linux
-echo "/new/vault/path" > ~/.obsidian-kb-config
+echo "/新的/知识库/路径" > ~/.obsidian-kb-config
 
 # Windows PowerShell
 [System.IO.File]::WriteAllText(
@@ -158,70 +160,70 @@ echo "/new/vault/path" > ~/.obsidian-kb-config
 )
 ```
 
-### Install for Specific Platforms
+### 只安装特定平台
 
 ```bash
-# Only QoderWork and Claude Code
+# 只装 QoderWork 和 Claude Code
 ./install.sh --platforms qoderwork,claude-code
 
-# Only Cursor
+# 只装 Cursor
 .\install.ps1 -Platforms "cursor"
 ```
 
-## Sharing
+## 分享给别人
 
-This skill is designed to be shared. When distributing to others:
+这个 Skill 就是设计来分享的。分享给别人时：
 
-1. Share the entire `obsidian-kb-skill/` folder (or point them to this repo)
-2. **Do not** include your `.env` file (it's already in `.gitignore`)
-3. They copy `.env.example` to `.env`, set their own vault path, and run the installer
+1. 把整个 `obsidian-kb-skill/` 文件夹发给对方（或指向这个仓库）
+2. **不要**包含你的 `.env` 文件（已在 `.gitignore` 中排除）
+3. 对方复制 `.env.example` 为 `.env`，填自己的知识库路径，运行安装脚本
 
-## Customization
+## 自定义
 
-**Add templates:** Create new `.md` files in your vault's `Templates/` folder with the same YAML frontmatter pattern.
+**添加模板：** 在知识库的 `Templates/` 文件夹中创建新的 `.md` 文件，使用相同的 YAML frontmatter 格式。
 
-**Add folders:** Create a new numbered folder (e.g., `60-Research/`), add an `INDEX.md` inside, and the agents will discover it.
+**添加文件夹：** 创建新的编号文件夹（如 `60-Research/`），在里面放一个 `INDEX.md`，AI 会自动发现。
 
-**Change tags:** Edit the platform instruction file's tagging section to add domain-specific tags.
+**修改标签：** 编辑平台指令文件中的标签部分，添加领域特定的标签。
 
-**Change routing:** Modify the folder routing table to redirect certain trigger keywords to different folders.
+**修改路由：** 修改文件夹路由表，把特定触发词重定向到不同文件夹。
 
-## Project Structure
+## 项目结构
 
 ```
 obsidian-kb-skill/
-├── .env.example                Config template (commit to git)
-├── .env                        Your local config (gitignored)
+├── .env.example                配置模板（提交到 git）
+├── .env                        你的本地配置（gitignored）
 ├── .gitignore
 ├── core/
-│   ├── OBSIDIAN_KB.md          Source of truth — agent-agnostic instructions
-│   └── templates/              7 portable note templates
+│   ├── OBSIDIAN_KB.md          通用指令（agent 无关）
+│   └── templates/              7 个可移植的笔记模板
 ├── platforms/
-│   ├── qoderwork/SKILL.md      QoderWork adapter
-│   ├── claude-code/CLAUDE.md   Claude Code adapter
-│   ├── codex/AGENTS.md         OpenAI Codex adapter
-│   └── cursor/obsidian-kb.mdc  Cursor adapter
-├── install.sh                  macOS / Linux installer
-├── install.ps1                 Windows installer
+│   ├── qoderwork/SKILL.md      QoderWork 适配器
+│   ├── claude-code/CLAUDE.md   Claude Code 适配器
+│   ├── codex/AGENTS.md         OpenAI Codex 适配器
+│   └── cursor/obsidian-kb.mdc  Cursor 适配器
+├── install.sh                  macOS / Linux 安装脚本
+├── install.ps1                 Windows 安装脚本
 └── README.md
 ```
 
-## Design Principles
+## 设计原则
 
-- **Just Markdown.** No databases, no APIs, no vendor lock-in. Your knowledge is plain text files that will outlive any app.
-- **Agent-agnostic.** The core logic is platform-independent. Each AI tool gets a thin adapter file in its native format.
-- **Convention over configuration.** Sensible defaults for folder structure, naming, tags, and templates. Customize only what you need.
-- **Self-contained at runtime.** After installation, each platform file has everything it needs — no external dependencies.
+- **纯 Markdown。** 没有数据库、没有 API、没有厂商锁定。你的知识就是纯文本文件，比任何 App 都持久。
+- **智能体无关。** 核心逻辑与平台无关。每个 AI 工具只得到一个薄薄的适配器文件。
+- **约定优于配置。** 文件夹结构、命名、标签、模板都有合理的默认值。只自定义你需要的部分。
+- **运行时自包含。** 安装后，每个平台文件包含所需的一切——没有外部依赖。
 
-## Recommended Obsidian Plugins
+## 推荐的 Obsidian 插件
 
-These are optional but enhance the experience:
+以下是可选的，但能增强体验：
 
-- **[Dataview](https://github.com/blacksmithgu/obsidian-dataview)** — Query your notes like a database (e.g., "show all meeting notes from this week")
-- **[Calendar](https://github.com/liamcain/obsidian-calendar-plugin)** — Visual calendar for daily notes
-- **[Kanban](https://github.com/mgmeyers/obsidian-kanban)** — Project boards that read from your vault
-- **[Templater](https://github.com/SilentVoid13/Templater)** — Advanced template processing for manual note creation
+- **[Dataview](https://github.com/blacksmithgu/obsidian-dataview)** —— 像数据库一样查询笔记（如「列出本周所有会议记录」）
+- **[Calendar](https://github.com/liamcain/obsidian-calendar-plugin)** —— 日历视图浏览日记
+- **[Kanban](https://github.com/mgmeyers/obsidian-kanban)** —— 读取知识库的项目看板
+- **[Templater](https://github.com/SilentVoid13/Templater)** —— 高级模板处理，用于手动创建笔记
 
-## License
+## 许可证
 
-MIT — use freely, modify, share.
+MIT —— 自由使用、修改、分享。
