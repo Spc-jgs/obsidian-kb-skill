@@ -26,21 +26,121 @@ This skill eliminates that friction by teaching your AI agent a complete knowled
 
 Your knowledge accumulates automatically, in a structured format that scales from 10 notes to 10,000.
 
+## Download
+
+### Option 1: Git Clone (Recommended)
+
+```bash
+git clone https://github.com/Spc-jgs/obsidian-kb-skill.git
+cd obsidian-kb-skill
+```
+
+### Option 2: Download ZIP
+
+1. Go to https://github.com/Spc-jgs/obsidian-kb-skill
+2. Click the green **Code** button
+3. Select **Download ZIP**
+4. Extract to your preferred directory
+
+### Option 3: Grab Only Your Platform File
+
+If you don't want to clone the entire repo, you can copy just the instruction file for your platform:
+
+| AI Tool | File Needed | Direct Link |
+|---------|-------------|-------------|
+| QoderWork | `platforms/qoderwork/SKILL.md` | [SKILL.md](platforms/qoderwork/SKILL.md) |
+| Claude Code | `platforms/claude-code/CLAUDE.md` | [CLAUDE.md](platforms/claude-code/CLAUDE.md) |
+| OpenAI Codex | `platforms/codex/AGENTS.md` | [AGENTS.md](platforms/codex/AGENTS.md) |
+| Cursor | `platforms/cursor/obsidian-kb.mdc` | [obsidian-kb.mdc](platforms/cursor/obsidian-kb.mdc) |
+
+Each platform file is **self-contained** — a single file with instructions, templates, and routing rules. Copy and it works.
+
+## Usage Scenarios
+
+### Scenario 1: Auto-Capture Knowledge from AI Conversations
+
+You discuss a technical topic with AI, say "microservices vs monolith trade-offs." When the discussion wraps up, you say *"save this to my knowledge base."* The AI distills the key insights into a structured note in `30-Insights/`, complete with tags, context, and links to related notes.
+
+### Scenario 2: Auto-Generated Meeting Notes
+
+After a requirements review meeting, you tell the AI: *"Record the requirements review — attendees were Alice and Bob, we discussed the V2 auth plan, decided on OAuth2."* The AI creates a meeting note in `10-Work/` using the meeting template, with structured fields for participants, decisions, and action items.
+
+### Scenario 3: One-Click Web Clipping
+
+You find a great article and send it to the AI: *"Clip this article https://example.com/article."* The AI uses the web clip template to extract highlights, capture key quotes, save the original URL, and store it in `20-Learning/`.
+
+### Scenario 4: Continuous Learning Notes
+
+While studying a course or reading a book, you share your thoughts with the AI and say *"record my learning notes on Redis persistence."* The AI organizes core concepts, your understanding, and open questions using the learning note template.
+
+### Scenario 5: Long-Term Project Tracking
+
+When starting a new project, tell the AI *"create a project note for the dashboard redesign."* The AI creates a project note in `40-Projects/` with goals, timeline, and risks. As the project progresses, the AI appends updates to the same note's progress log.
+
+### Scenario 6: Unified Knowledge Base Across AI Tools
+
+You use Cursor at work, QoderWork for research at home, and Claude Code for quick questions on the go — all knowledge flows into **one Obsidian vault** with **the same folder structure and templates**, regardless of which AI tool generated it.
+
 ## How It Works
+
+### Core Idea: Teach AI with Markdown Instructions
+
+This skill is fundamentally a **Markdown-formatted behavior instruction file**. It contains no code, calls no APIs, and runs no services. It simply tells the AI agent in natural language:
+
+1. Where your knowledge base is (path)
+2. What it looks like (folder structure)
+3. How each type of note should be written (templates + YAML frontmatter)
+4. Which content goes to which folder (routing rules)
+5. How to tag notes (tagging conventions)
+6. How to maintain folder indexes (INDEX.md updates)
+
+After reading this instruction file, the AI agent has "learned" your knowledge management conventions. When you say "save to knowledge base," it follows the rules and directly reads/writes your Obsidian vault using standard file operations.
+
+### Architecture: One Core, Multiple Adapters
+
+```
+                  ┌──────────────────────────┐
+                  │  core/OBSIDIAN_KB.md     │
+                  │  (universal instructions, │
+                  │   platform-agnostic)      │
+                  └────────┬─────────────────┘
+                           │
+            ┌──────────────┼──────────────────┐
+            │              │                  │
+    ┌───────▼──────┐ ┌────▼────────┐ ┌───────▼───────┐
+    │  SKILL.md    │ │ CLAUDE.md   │ │  AGENTS.md    │ ...
+    │ (QoderWork)  │ │(Claude Code)│ │ (Codex)       │
+    └──────────────┘ └─────────────┘ └───────────────┘
+```
+
+The core instruction file `core/OBSIDIAN_KB.md` is the "single source of truth" defining all knowledge management rules. Platform adapter files are derived from it, containing **identical rules** in each platform's native format.
+
+### Why No Plugins or APIs Are Needed
+
+An Obsidian vault is just a **folder full of .md files**. No database, no proprietary format. AI agents are naturally good at reading and writing files. So:
+
+- **Creating a note** = writing a .md file at the right path
+- **Updating an index** = appending a link to INDEX.md
+- **Cross-linking notes** = inserting `[[filename|display text]]` in the content
+- **Structured metadata** = writing YAML frontmatter at the top of the file
+
+Every action the AI takes is a standard file operation. This means zero dependencies, zero network requests, zero extra cost. Your knowledge base stays entirely local — privacy by design.
+
+### Runtime Flow
 
 ```
 You: "Save the key insights from our microservices discussion"
 
-AI Agent:
-  1. Reads vault path from ~/.obsidian-kb-config
-  2. Reads the "Insight Note" template from your vault
-  3. Fills in YAML frontmatter + analysis content
-  4. Writes to 30-Insights/2026-06-09 微服务架构洞察.md
-  5. Appends link to 30-Insights/INDEX.md
-  6. Confirms: "Saved to 30-Insights/2026-06-09 微服务架构洞察.md"
+AI Agent internally executes:
+  1. Reads ~/.obsidian-kb-config → gets vault path D:\MyKnowledgeBase
+  2. Identifies trigger word "insights" → routes to 30-Insights/
+  3. Reads Templates/insight-note.md → loads the insight note template
+  4. Fills YAML frontmatter (date, tags, one-line insight)
+  5. Generates body content (context, analysis, implications, next steps)
+  6. Writes to 30-Insights/2026-06-10 Microservices Insights.md
+  7. Reads 30-Insights/INDEX.md → appends new note link
+  8. Replies: "Saved to 30-Insights/2026-06-10 Microservices Insights.md"
 ```
-
-The skill is **just a Markdown instruction file** that teaches the agent the conventions. No plugins, no APIs, no servers — your Obsidian vault is a folder of Markdown files, and the agent reads and writes them directly.
 
 ## Supported Platforms
 
@@ -55,7 +155,14 @@ All four platform files contain **identical instructions** — same folder routi
 
 ## Quick Start
 
-### 1. Configure your vault path
+### 1. Download the project
+
+```bash
+git clone https://github.com/Spc-jgs/obsidian-kb-skill.git
+cd obsidian-kb-skill
+```
+
+### 2. Configure your vault path
 
 ```bash
 cp .env.example .env
@@ -67,7 +174,9 @@ Edit `.env` with your vault path:
 OBSIDIAN_KB_VAULT=D:\MyKnowledgeBase
 ```
 
-### 2. Run the installer
+If your vault doesn't exist yet, the installer will create the full folder structure automatically.
+
+### 3. Run the installer
 
 **Windows (PowerShell):**
 ```powershell
@@ -85,14 +194,14 @@ That's it. The installer will:
 - Create the vault folder structure (if it doesn't exist)
 - Copy 7 note templates into your vault
 - Create INDEX.md navigation files in each folder
-- Write your vault path to `~/.obsidian-kb-config`
-- Install the skill file to your chosen AI platform
+- Write your vault path to `~/.obsidian-kb-config` (runtime config)
+- Install the skill file to your chosen AI platform's convention location
 
-### 3. Open in Obsidian
+### 4. Open in Obsidian
 
 Open your vault folder in Obsidian. You'll see the folder structure, templates, and index pages ready to go.
 
-### 4. Start capturing
+### 5. Start capturing
 
 Tell your AI assistant:
 
@@ -100,6 +209,28 @@ Tell your AI assistant:
 - *"Record the Q2 planning meeting"*
 - *"Clip this article: https://example.com/article"*
 - *"Create a project note for the dashboard redesign"*
+
+### Manual Installation (Without the Installer)
+
+If you prefer manual control or the installer doesn't fit your needs:
+
+```bash
+# 1. Create the config file with your vault path
+echo "D:\MyKnowledgeBase" > ~/.obsidian-kb-config
+
+# 2. Copy the platform instruction file to the convention location
+# QoderWork:
+cp platforms/qoderwork/SKILL.md ~/.qoderwork/skills/obsidian-knowledge-base/SKILL.md
+
+# Claude Code:
+cp platforms/claude-code/CLAUDE.md ~/.claude/CLAUDE.md
+
+# Cursor:
+cp platforms/cursor/obsidian-kb.mdc ~/.cursor/rules/obsidian-kb.mdc
+
+# 3. Copy templates to your vault
+cp -r core/templates/* /your/vault/path/Templates/
+```
 
 ## Vault Structure
 
@@ -214,6 +345,21 @@ obsidian-kb-skill/
 - **Agent-agnostic.** The core logic is platform-independent. Each AI tool gets a thin adapter file in its native format.
 - **Convention over configuration.** Sensible defaults for folder structure, naming, tags, and templates. Customize only what you need.
 - **Self-contained at runtime.** After installation, each platform file has everything it needs — no external dependencies.
+- **Local-first.** All data stays on your machine, no cloud services involved, privacy by design.
+
+## FAQ
+
+**Q: Do I need to pay for Obsidian?**
+A: No. Obsidian is completely free for personal use.
+
+**Q: Is it safe for AI to read/write my files?**
+A: The AI only operates within your specified vault path and doesn't touch other files. All operations are local.
+
+**Q: Can I use multiple AI tools simultaneously?**
+A: Yes! That's exactly what this project is designed for — all AI tools share one vault with the same conventions.
+
+**Q: Will the installer overwrite my existing notes?**
+A: No. The installer only creates missing folders and files. It never modifies existing content.
 
 ## Recommended Obsidian Plugins
 
