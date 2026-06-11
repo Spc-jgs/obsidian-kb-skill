@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.1.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.2.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -238,6 +238,7 @@ cp -r core/templates/* /your/vault/path/Templates/
 YourVault/
 ├── 00-Inbox/          Quick capture — drop anything here, sort later
 ├── 10-Work/           Meeting notes, work documents, team discussions
+├── 15-Daily/          Daily notes, journals, morning plans, reviews
 ├── 20-Learning/       Articles, study notes, web clips, course materials
 ├── 30-Insights/       Analysis, ideas, AI-generated insights
 ├── 40-Projects/       Active project context and progress logs
@@ -303,15 +304,17 @@ echo "/new/vault/path" > ~/.obsidian-kb-config
 
 ### Upgrading Templates
 
-Re-running the installer won't overwrite existing templates by default. Use `--force` to update:
+Re-running the installer won't overwrite existing templates by default. Use `--force` to update templates and replace the marker-wrapped skill block inside `CLAUDE.md` / `AGENTS.md` with the new version:
 
 ```bash
 # macOS / Linux
 ./install.sh --force
 
 # Windows
-$env:OBSIDIAN_KB_UPGRADE = "1"; .\install.ps1
+.\install.ps1 -Force
 ```
+
+> The installer wraps injected content in `<!-- BEGIN obsidian-kb-skill -->` / `<!-- END obsidian-kb-skill -->` markers. Re-running replaces the block in place without touching your other instructions in those files.
 
 ### Uninstalling
 
@@ -323,7 +326,7 @@ $env:OBSIDIAN_KB_UPGRADE = "1"; .\install.ps1
 .\install.ps1 -Uninstall
 ```
 
-Uninstall removes skill files and config, but does **not** delete your vault folder or note contents. Claude Code and Codex appended content is not auto-removed (may contain other content).
+Uninstall removes the QoderWork skill, Cursor rule, and config file, and **automatically strips the marker-wrapped skill block from `CLAUDE.md` / `AGENTS.md`** while preserving the rest of those files. Your Obsidian vault and note contents are never deleted.
 
 ## Sharing
 

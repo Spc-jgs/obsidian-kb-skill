@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-06-11
+
+### Added
+- **Marker-wrapped skill blocks** in `CLAUDE.md` / `AGENTS.md`: Both installers now wrap injected content in `<!-- BEGIN obsidian-kb-skill -->` / `<!-- END obsidian-kb-skill -->` markers. Re-running the installer replaces the block in place (true upgrade), and `--uninstall` strips the block while preserving the user's other content. If the file ends up empty after strip, it's removed entirely.
+- **`--Force` switch on install.ps1**: First-class upgrade flag matching install.sh's `--force`. Legacy `OBSIDIAN_KB_UPGRADE=1` env var still works.
+- **15-Daily/ folder**: Daily notes, journals, and morning plans now route to their own dedicated folder instead of being mixed into 10-Work. Both installers create the folder and its INDEX, and the main INDEX has a navigation entry for it.
+- **GitHub Actions workflow** (`.github/workflows/check.yml`): Runs `python build.py --check` on every push and PR. Fails CI if a contributor edited `core/OBSIDIAN_KB.md` or a platform `header.md` without re-running `build.py`.
+- **Verified marker logic**: Manual round-trip tests confirm install / upgrade / append-into-existing-file / strip-keep-user-content / strip-and-delete all work correctly on both PowerShell and bash implementations.
+
+### Changed
+- **Daily Note routing**: `core/OBSIDIAN_KB.md` routing table now sends "daily, today, diary, journal, morning plan" triggers to `15-Daily/` (was `10-Work/`). Generated adapters regenerated.
+- **install.ps1 refactored**: Centralized UTF-8 (no BOM) write helper; removed the brittle "is the Platforms string `--force`" sniff; consolidated marker logic into two reusable functions (`Set-MarkerBlock`, `Remove-MarkerBlock`).
+- **install.sh refactored**: Mirrors the PowerShell function shape with portable awk implementations of `set_marker_block` / `remove_marker_block`. Force upgrade is now a proper `--force` flag handled at the top, not scanned from `$@` mid-loop.
+
+### Fixed
+- **Claude/Codex upgrade gap**: Previously the installer's "already installed?" check used `grep "Obsidian Personal Knowledge Base"` and silently skipped — meaning v1.0.0 → v1.1.0 upgrades never touched `CLAUDE.md` / `AGENTS.md`. Now `--force` does a real in-place replacement via markers.
+- **Claude/Codex uninstall gap**: Previously the uninstaller refused to touch `CLAUDE.md` / `AGENTS.md` because it had no way to identify its own content. With markers, the skill block can be safely removed in isolation.
+- **PowerShell BOM inconsistency**: All file writes in install.ps1 now go through the shared `Write-Utf8NoBom` helper; the previously stray `Add-Content` (which writes with BOM on PS 5.1) is gone.
+
 ## [1.1.0] - 2026-06-11
 
 ### Added

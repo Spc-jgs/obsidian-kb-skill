@@ -17,39 +17,103 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VAULT_PATH=""
 PLATFORMS="qoderwork,claude-code,codex,cursor"
+FORCE_UPGRADE=false
+DO_UNINSTALL=false
+
+# Markers used to wrap injected content in shared files (CLAUDE.md, AGENTS.md).
+# Idempotent upgrade and clean uninstall both rely on these markers.
+MARKER_BEGIN="<!-- BEGIN obsidian-kb-skill -->"
+MARKER_END="<!-- END obsidian-kb-skill -->"
+
+# Insert or replace a marker-wrapped block in a target file.
+# Args: $1 = target file, $2 = source file containing the body to inject
+# Echoes one of: installed | upgraded | appended
+set_marker_block() {
+  local target="$1"
+  local src="$2"
+  local body
+  body=$(cat "$src")
+  local wrapped
+  wrapped=$'\n'"$MARKER_BEGIN"$'\n'"$body"$'\n'"$MARKER_END"$'\n'
+
+  if [ ! -f "$target" ]; then
+    printf '%s' "${wrapped#$'\n'}" > "$target"
+    echo "installed"
+    return
+  fi
+
+  if grep -qF "$MARKER_BEGIN" "$target"; then
+    # Replace existing block via awk (portable; no GNU-specific sed flags).
+    local tmp
+    tmp=$(mktemp)
+    awk -v begin="$MARKER_BEGIN" -v end="$MARKER_END" -v repl_file="$src" '
+      BEGIN { in_block = 0; printed = 0 }
+      {
+        if (!in_block && index($0, begin)) {
+          in_block = 1
+          if (!printed) {
+            print begin
+            while ((getline line < repl_file) > 0) print line
+            close(repl_file)
+            print end
+            printed = 1
+          }
+          next
+        }
+        if (in_block) {
+          if (index($0, end)) { in_block = 0 }
+          next
+        }
+        print
+      }
+    ' "$target" > "$tmp"
+    mv "$tmp" "$target"
+    echo "upgraded"
+    return
+  fi
+
+  # No existing block: append, separated by a blank line.
+  printf '\n%s\n%s\n%s\n' "$MARKER_BEGIN" "$body" "$MARKER_END" >> "$target"
+  echo "appended"
+}
+
+# Remove a marker-wrapped block (and trailing blank line) from a file.
+# If the file becomes empty afterwards, delete it.
+# Args: $1 = target file
+# Returns 0 if file was modified, 1 otherwise.
+remove_marker_block() {
+  local target="$1"
+  if [ ! -f "$target" ]; then return 1; fi
+  if ! grep -qF "$MARKER_BEGIN" "$target"; then return 1; fi
+  local tmp
+  tmp=$(mktemp)
+  awk -v begin="$MARKER_BEGIN" -v end="$MARKER_END" '
+    BEGIN { in_block = 0 }
+    {
+      if (!in_block && index($0, begin)) { in_block = 1; next }
+      if (in_block) {
+        if (index($0, end)) { in_block = 0 }
+        next
+      }
+      print
+    }
+  ' "$target" > "$tmp"
+  # Strip trailing blank lines, then ensure single terminating newline.
+  awk 'NF { last = NR } { lines[NR] = $0 } END { for (i = 1; i <= last; i++) print lines[i] }' "$tmp" > "$target"
+  rm -f "$tmp"
+  if [ ! -s "$target" ]; then
+    rm -f "$target"
+  fi
+  return 0
+}
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
   case $1 in
     --vault) VAULT_PATH="$2"; shift 2 ;;
     --platforms) PLATFORMS="$2"; shift 2 ;;
-    --uninstall)
-      echo ""
-      echo "=== Obsidian Knowledge Base Skill Uninstaller ==="
-      echo ""
-      # Remove QoderWork skill
-      QODERWORK_SKILLS="$HOME/.qoderwork/skills/obsidian-knowledge-base"
-      if [ -d "$QODERWORK_SKILLS" ]; then
-        rm -rf "$QODERWORK_SKILLS"
-        echo "→ Removed: QoderWork skill ($QODERWORK_SKILLS)"
-      fi
-      # Remove Cursor rule
-      CURSOR_FILE="$HOME/.cursor/rules/obsidian-kb.mdc"
-      if [ -f "$CURSOR_FILE" ]; then
-        rm -f "$CURSOR_FILE"
-        echo "→ Removed: Cursor rule ($CURSOR_FILE)"
-      fi
-      # Remove config
-      if [ -f "$HOME/.obsidian-kb-config" ]; then
-        rm -f "$HOME/.obsidian-kb-config"
-        echo "→ Removed: Config ($HOME/.obsidian-kb-config)"
-      fi
-      echo ""
-      echo "Note: Vault folder and its contents are NOT deleted."
-      echo "Note: Claude Code and Codex entries are NOT auto-removed (may contain other content)."
-      echo "Uninstall complete."
-      exit 0
-      ;;
+    --force) FORCE_UPGRADE=true; shift ;;
+    --uninstall) DO_UNINSTALL=true; shift ;;
     --help)
       echo "Usage:"
       echo "  ./install.sh --vault /path/to/vault"
@@ -58,9 +122,8 @@ while [[ $# -gt 0 ]]; do
       echo "Options:"
       echo "  --vault PATH       Path to your Obsidian vault"
       echo "  --platforms LIST   Comma-separated: qoderwork,claude-code,codex,cursor (default: all)"
-      echo ""
-      echo "  --uninstall        Remove installed skill files"
-      echo "  --force            Overwrite existing templates during install"
+      echo "  --force            Overwrite existing templates and replace marker-wrapped skill blocks"
+      echo "  --uninstall        Remove installed skill files (strips marker blocks from CLAUDE.md / AGENTS.md)"
       echo ""
       echo "Configuration sources (checked in order):"
       echo "  1. --vault argument"
@@ -73,6 +136,41 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [ "$DO_UNINSTALL" = true ]; then
+  echo ""
+  echo "=== Obsidian Knowledge Base Skill Uninstaller ==="
+  echo ""
+  # Remove QoderWork skill
+  QODERWORK_SKILLS="$HOME/.qoderwork/skills/obsidian-knowledge-base"
+  if [ -d "$QODERWORK_SKILLS" ]; then
+    rm -rf "$QODERWORK_SKILLS"
+    echo "-> Removed: QoderWork skill ($QODERWORK_SKILLS)"
+  fi
+  # Remove Cursor rule
+  CURSOR_FILE="$HOME/.cursor/rules/obsidian-kb.mdc"
+  if [ -f "$CURSOR_FILE" ]; then
+    rm -f "$CURSOR_FILE"
+    echo "-> Removed: Cursor rule ($CURSOR_FILE)"
+  fi
+  # Strip marker-wrapped block from Claude Code CLAUDE.md
+  if remove_marker_block "$HOME/.claude/CLAUDE.md"; then
+    echo "-> Cleaned: Claude Code skill block removed from $HOME/.claude/CLAUDE.md"
+  fi
+  # Strip marker-wrapped block from Codex AGENTS.md
+  if remove_marker_block "$HOME/AGENTS.md"; then
+    echo "-> Cleaned: Codex skill block removed from $HOME/AGENTS.md"
+  fi
+  # Remove config
+  if [ -f "$HOME/.obsidian-kb-config" ]; then
+    rm -f "$HOME/.obsidian-kb-config"
+    echo "-> Removed: Config ($HOME/.obsidian-kb-config)"
+  fi
+  echo ""
+  echo "Note: Vault folder and its contents are NOT deleted."
+  echo "Uninstall complete."
+  exit 0
+fi
+
 # Resolve vault path from multiple sources
 if [ -z "$VAULT_PATH" ]; then
   # Try .env file in skill directory
@@ -81,25 +179,28 @@ if [ -z "$VAULT_PATH" ]; then
     VAULT_PATH=$(grep -E '^OBSIDIAN_KB_VAULT=' "$ENV_FILE" | head -1 | cut -d'=' -f2-)
     # Trim whitespace
     VAULT_PATH=$(echo "$VAULT_PATH" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    # Strip surrounding quotes if present
+    VAULT_PATH="${VAULT_PATH%\"}"
+    VAULT_PATH="${VAULT_PATH#\"}"
+    VAULT_PATH="${VAULT_PATH%\'}"
+    VAULT_PATH="${VAULT_PATH#\'}"
     if [ -n "$VAULT_PATH" ]; then
-      echo "→ Read vault path from .env: $VAULT_PATH"
+      echo "-> Read vault path from .env: $VAULT_PATH"
     fi
   fi
 fi
 
 if [ -z "$VAULT_PATH" ]; then
-  # Try environment variable
   if [ -n "$OBSIDIAN_KB_VAULT" ]; then
     VAULT_PATH="$OBSIDIAN_KB_VAULT"
-    echo "→ Read vault path from env var: $VAULT_PATH"
+    echo "-> Read vault path from env var: $VAULT_PATH"
   fi
 fi
 
 if [ -z "$VAULT_PATH" ]; then
-  # Try previous config
   if [ -f "$HOME/.obsidian-kb-config" ]; then
     VAULT_PATH=$(cat "$HOME/.obsidian-kb-config")
-    echo "→ Read vault path from ~/.obsidian-kb-config: $VAULT_PATH"
+    echo "-> Read vault path from ~/.obsidian-kb-config: $VAULT_PATH"
   fi
 fi
 
@@ -114,22 +215,23 @@ fi
 if [ -d "$VAULT_PATH" ]; then
   VAULT_PATH="$(cd "$VAULT_PATH" && pwd)"
 else
-  echo "→ Vault path does not exist, creating: $VAULT_PATH"
+  echo "-> Vault path does not exist, creating: $VAULT_PATH"
   mkdir -p "$VAULT_PATH"
 fi
 
 echo "=== Obsidian Knowledge Base Skill Installer ==="
 echo "Vault path: $VAULT_PATH"
 echo "Platforms:  $PLATFORMS"
+if [ "$FORCE_UPGRADE" = true ]; then echo "Mode:       FORCE (overwrite existing templates and skill blocks)"; fi
 echo ""
 
 # Step 1: Save vault config
-echo "→ Saving vault config to ~/.obsidian-kb-config"
+echo "-> Saving vault config to ~/.obsidian-kb-config"
 echo "$VAULT_PATH" > "$HOME/.obsidian-kb-config"
 
 # Step 2: Initialize vault structure if not exists
-echo "→ Checking vault structure..."
-FOLDERS=("00-Inbox" "10-Work" "20-Learning" "30-Insights" "40-Projects" "50-People" "90-Archive" "Templates" "Attachments")
+echo "-> Checking vault structure..."
+FOLDERS=("00-Inbox" "10-Work" "15-Daily" "20-Learning" "30-Insights" "40-Projects" "50-People" "90-Archive" "Templates" "Attachments")
 for folder in "${FOLDERS[@]}"; do
   mkdir -p "$VAULT_PATH/$folder"
 done
@@ -137,10 +239,10 @@ done
 # Copy templates if not exists
 TEMPLATE_FILES=("daily-note.md" "meeting-note.md" "learning-note.md" "project-note.md" "web-clip.md" "insight-note.md" "person-note.md")
 TEMPLATE_NAMES=("Daily Note.md" "Meeting Note.md" "Learning Note.md" "Project Note.md" "Web Clip.md" "Insight Note.md" "Person Note.md")
-FORCE_UPGRADE=false
-for arg in "$@"; do
-  if [ "$arg" = "--force" ]; then FORCE_UPGRADE=true; echo "→ Upgrade mode: will overwrite existing templates"; fi
-done
+
+if [ "$FORCE_UPGRADE" = true ]; then
+  echo "-> Upgrade mode: will overwrite existing templates"
+fi
 
 for i in "${!TEMPLATE_FILES[@]}"; do
   src="$SCRIPT_DIR/core/templates/${TEMPLATE_FILES[$i]}"
@@ -182,6 +284,7 @@ INDEXEOF
 
 create_index "00-Inbox" "Inbox" "Quick capture zone. Process later."
 create_index "10-Work" "Work" "Meeting notes and work documents."
+create_index "15-Daily" "Daily" "Daily notes, journals, morning plans."
 create_index "20-Learning" "Learning" "Articles, courses, and study materials."
 create_index "30-Insights" "Insights" "Analysis and AI-generated insights."
 create_index "40-Projects" "Projects" "Active project context documents."
@@ -201,6 +304,7 @@ tags: [index, moc]
 
 - [[00-Inbox/INDEX|Inbox]] — Quick capture
 - [[10-Work/INDEX|Work]] — Meeting notes, work docs
+- [[15-Daily/INDEX|Daily]] — Daily notes, journals
 - [[20-Learning/INDEX|Learning]] — Articles, study notes
 - [[30-Insights/INDEX|Insights]] — Analysis, AI insights
 - [[40-Projects/INDEX|Projects]] — Active projects
@@ -227,7 +331,7 @@ OBSEOF
   echo "  Created .obsidian/app.json"
 fi
 
-echo "→ Vault structure ready."
+echo "-> Vault structure ready."
 echo ""
 
 # Step 3: Install platform files
@@ -240,58 +344,29 @@ for platform in "${PLATFORM_LIST[@]}"; do
       QODERWORK_SKILLS="$HOME/.qoderwork/skills/obsidian-knowledge-base"
       mkdir -p "$QODERWORK_SKILLS"
       cp "$SCRIPT_DIR/platforms/qoderwork/SKILL.md" "$QODERWORK_SKILLS/SKILL.md"
-      echo "→ Installed: QoderWork skill → $QODERWORK_SKILLS/SKILL.md"
+      echo "-> Installed: QoderWork skill -> $QODERWORK_SKILLS/SKILL.md"
       ;;
     claude-code)
       CLAUDE_DIR="$HOME/.claude"
       mkdir -p "$CLAUDE_DIR"
-      # Append to existing CLAUDE.md if it exists, otherwise create new
       CLAUDE_FILE="$CLAUDE_DIR/CLAUDE.md"
-      if [ -f "$CLAUDE_FILE" ]; then
-        # Check if already installed
-        if grep -q "Obsidian Personal Knowledge Base" "$CLAUDE_FILE"; then
-          echo "→ Skipped: Claude Code (already installed in $CLAUDE_FILE)"
-        else
-          echo "" >> "$CLAUDE_FILE"
-          echo "---" >> "$CLAUDE_FILE"
-          echo "" >> "$CLAUDE_FILE"
-          cat "$SCRIPT_DIR/platforms/claude-code/CLAUDE.md" >> "$CLAUDE_FILE"
-          echo "→ Installed: Claude Code (appended to $CLAUDE_FILE)"
-        fi
-      else
-        cp "$SCRIPT_DIR/platforms/claude-code/CLAUDE.md" "$CLAUDE_FILE"
-        echo "→ Installed: Claude Code → $CLAUDE_FILE"
-      fi
+      result=$(set_marker_block "$CLAUDE_FILE" "$SCRIPT_DIR/platforms/claude-code/CLAUDE.md")
+      echo "-> Installed: Claude Code ($result) -> $CLAUDE_FILE"
       ;;
     codex)
-      CODEX_DIR="$HOME"
-      CODEX_FILE="$CODEX_DIR/AGENTS.md"
-      if [ -f "$CODEX_FILE" ]; then
-        if grep -q "Obsidian Personal Knowledge Base" "$CODEX_FILE"; then
-          echo "→ Skipped: Codex (already installed in $CODEX_FILE)"
-        else
-          echo "" >> "$CODEX_FILE"
-          echo "---" >> "$CODEX_FILE"
-          echo "" >> "$CODEX_FILE"
-          cat "$SCRIPT_DIR/platforms/codex/AGENTS.md" >> "$CODEX_FILE"
-          echo "→ Installed: Codex (appended to $CODEX_FILE)"
-        fi
-      else
-        cp "$SCRIPT_DIR/platforms/codex/AGENTS.md" "$CODEX_FILE"
-        echo "→ Installed: Codex → $CODEX_FILE"
-      fi
+      CODEX_FILE="$HOME/AGENTS.md"
+      result=$(set_marker_block "$CODEX_FILE" "$SCRIPT_DIR/platforms/codex/AGENTS.md")
+      echo "-> Installed: Codex ($result) -> $CODEX_FILE"
       ;;
     cursor)
-      # For Cursor, the .mdc file goes in the project's .cursor/rules/ directory
-      # We'll install it globally and let the user copy it to projects
       CURSOR_DIR="$HOME/.cursor/rules"
       mkdir -p "$CURSOR_DIR"
       cp "$SCRIPT_DIR/platforms/cursor/obsidian-kb.mdc" "$CURSOR_DIR/obsidian-kb.mdc"
-      echo "→ Installed: Cursor → $CURSOR_DIR/obsidian-kb.mdc"
+      echo "-> Installed: Cursor -> $CURSOR_DIR/obsidian-kb.mdc"
       echo "  (Copy this to your project's .cursor/rules/ for project-level use)"
       ;;
     *)
-      echo "→ Unknown platform: $platform"
+      echo "-> Unknown platform: $platform"
       ;;
   esac
 done

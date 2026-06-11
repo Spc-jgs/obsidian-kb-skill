@@ -16,10 +16,76 @@ param(
 
     [string]$Platforms = "qoderwork,claude-code,codex,cursor",
 
+    [switch]$Force,
+
     [switch]$Help,
 
     [switch]$Uninstall
 )
+
+# Markers used to wrap injected content in shared files (CLAUDE.md, AGENTS.md).
+# These let us upgrade and uninstall idempotently without touching the user's other content.
+$MarkerBegin = "<!-- BEGIN obsidian-kb-skill -->"
+$MarkerEnd   = "<!-- END obsidian-kb-skill -->"
+
+# UTF-8 (no BOM) encoder reused by every text write below.
+$Utf8NoBom = New-Object System.Text.UTF8Encoding $false
+
+function Write-Utf8NoBom {
+    param([string]$Path, [string]$Content)
+    [System.IO.File]::WriteAllText($Path, $Content, $Utf8NoBom)
+}
+
+function Read-Text {
+    param([string]$Path)
+    return [System.IO.File]::ReadAllText($Path)
+}
+
+# Insert or replace a marker-wrapped block inside an existing file.
+# - If file does not exist: write the block as the entire file.
+# - If file exists and contains the markers: replace the block in place.
+# - If file exists without markers: append the block (separated by a blank line).
+function Set-MarkerBlock {
+    param(
+        [string]$TargetFile,
+        [string]$BlockBody
+    )
+    $wrapped = "$MarkerBegin`n$BlockBody`n$MarkerEnd"
+    if (-not (Test-Path $TargetFile)) {
+        Write-Utf8NoBom -Path $TargetFile -Content "$wrapped`n"
+        return "installed"
+    }
+    $existing = Read-Text -Path $TargetFile
+    $pattern = [regex]::Escape($MarkerBegin) + "[\s\S]*?" + [regex]::Escape($MarkerEnd)
+    if ([regex]::IsMatch($existing, $pattern)) {
+        # Use a MatchEvaluator so the wrapped block is treated as a literal string
+        # (avoids $1 / $& substitution surprises inside the replacement text).
+        $updated = [regex]::Replace($existing, $pattern, { param($m) $wrapped })
+        Write-Utf8NoBom -Path $TargetFile -Content $updated
+        return "upgraded"
+    }
+    $trimmed = $existing.TrimEnd("`r","`n")
+    $combined = "$trimmed`n`n$wrapped`n"
+    Write-Utf8NoBom -Path $TargetFile -Content $combined
+    return "appended"
+}
+
+# Remove a marker-wrapped block (and any single trailing blank line it leaves behind).
+# Returns $true if the file was modified.
+function Remove-MarkerBlock {
+    param([string]$TargetFile)
+    if (-not (Test-Path $TargetFile)) { return $false }
+    $existing = Read-Text -Path $TargetFile
+    $pattern = "(\r?\n)*" + [regex]::Escape($MarkerBegin) + "[\s\S]*?" + [regex]::Escape($MarkerEnd) + "(\r?\n)*"
+    if (-not [regex]::IsMatch($existing, $pattern)) { return $false }
+    $stripped = [regex]::Replace($existing, $pattern, "`n").TrimEnd("`r","`n") + "`n"
+    if ($stripped.Trim().Length -eq 0) {
+        Remove-Item $TargetFile -Force
+    } else {
+        Write-Utf8NoBom -Path $TargetFile -Content $stripped
+    }
+    return $true
+}
 
 if ($Help) {
     Write-Host ""
@@ -32,7 +98,8 @@ if ($Help) {
     Write-Host "Parameters:"
     Write-Host "  -VaultPath PATH    Path to your Obsidian vault"
     Write-Host "  -Platforms LIST    Comma-separated: qoderwork,claude-code,codex,cursor (default: all)"
-    Write-Host "  -Uninstall         Remove installed skill files"
+    Write-Host "  -Force             Overwrite existing templates and replace skill content in CLAUDE.md / AGENTS.md"
+    Write-Host "  -Uninstall         Remove installed skill files (also strips marker-wrapped blocks from CLAUDE.md / AGENTS.md)"
     Write-Host "  -Help              Show this help message"
     Write-Host ""
     Write-Host "Configuration sources (checked in order):"
@@ -62,6 +129,18 @@ if ($Uninstall) {
         Write-Host "-> Removed: Cursor rule ($cursorFile)" -ForegroundColor Green
     }
 
+    # Strip marker-wrapped block from Claude Code CLAUDE.md
+    $claudeFile = Join-Path $env:USERPROFILE ".claude\CLAUDE.md"
+    if (Remove-MarkerBlock -TargetFile $claudeFile) {
+        Write-Host "-> Cleaned: Claude Code skill block removed from $claudeFile" -ForegroundColor Green
+    }
+
+    # Strip marker-wrapped block from Codex AGENTS.md
+    $codexFile = Join-Path $env:USERPROFILE "AGENTS.md"
+    if (Remove-MarkerBlock -TargetFile $codexFile) {
+        Write-Host "-> Cleaned: Codex skill block removed from $codexFile" -ForegroundColor Green
+    }
+
     # Remove config file
     $configFile = Join-Path $env:USERPROFILE ".obsidian-kb-config"
     if (Test-Path $configFile) {
@@ -71,7 +150,6 @@ if ($Uninstall) {
 
     Write-Host ""
     Write-Host "Note: Vault folder and its contents are NOT deleted." -ForegroundColor Yellow
-    Write-Host "Note: Claude Code and Codex entries are NOT auto-removed (may contain other content)." -ForegroundColor Yellow
     Write-Host "Uninstall complete." -ForegroundColor Cyan
     exit 0
 }
@@ -121,7 +199,7 @@ if (-not $VaultPath) {
 if (-not $VaultPath) {
     Write-Host "No vault path configured." -ForegroundColor Red
     Write-Host "Provide via -VaultPath, .env file, or OBSIDIAN_KB_VAULT env var."
-    Write-Host "Run .\install.ps1 -? for help."
+    Write-Host "Run .\install.ps1 -Help for help."
     exit 1
 }
 
@@ -129,6 +207,7 @@ Write-Host ""
 Write-Host "=== Obsidian Knowledge Base Skill Installer ===" -ForegroundColor Cyan
 Write-Host "Vault path: $VaultPath"
 Write-Host "Platforms:  $Platforms"
+if ($Force) { Write-Host "Mode:       FORCE (overwrite existing templates and skill blocks)" -ForegroundColor Yellow }
 Write-Host ""
 
 # Resolve vault path (compatible with Windows PowerShell 5.1+)
@@ -145,12 +224,11 @@ if ($resolvedPath) {
 # Step 1: Save vault config
 $configFile = Join-Path $env:USERPROFILE ".obsidian-kb-config"
 Write-Host "-> Saving vault config to $configFile"
-# Use [System.IO.File]::WriteAllText for UTF-8 without BOM (compatible with PS 5.1+)
-[System.IO.File]::WriteAllText($configFile, $VaultPath, (New-Object System.Text.UTF8Encoding $false))
+Write-Utf8NoBom -Path $configFile -Content $VaultPath
 
 # Step 2: Initialize vault structure
 Write-Host "-> Checking vault structure..."
-$folders = @("00-Inbox", "10-Work", "20-Learning", "30-Insights", "40-Projects", "50-People", "90-Archive", "Templates", "Attachments")
+$folders = @("00-Inbox", "10-Work", "15-Daily", "20-Learning", "30-Insights", "40-Projects", "50-People", "90-Archive", "Templates", "Attachments")
 foreach ($folder in $folders) {
     $path = Join-Path $VaultPath $folder
     if (-not (Test-Path $path)) {
@@ -169,10 +247,13 @@ $templateMap = @{
     "person-note.md" = "Person Note.md"
 }
 
-$forceUpgrade = $false
-if ($env:OBSIDIAN_KB_UPGRADE -eq "1" -or $Platforms -match "^--force") {
+# Legacy upgrade flag support (env var or string sentinel) — superseded by -Force switch.
+$forceUpgrade = $Force.IsPresent
+if (-not $forceUpgrade -and ($env:OBSIDIAN_KB_UPGRADE -eq "1")) {
     $forceUpgrade = $true
-    Write-Host "-> Upgrade mode: will overwrite existing templates" -ForegroundColor Yellow
+}
+if ($forceUpgrade -and -not $Force.IsPresent) {
+    Write-Host "-> Upgrade mode (legacy OBSIDIAN_KB_UPGRADE=1)" -ForegroundColor Yellow
 }
 
 foreach ($src in $templateMap.Keys) {
@@ -207,13 +288,14 @@ $desc
 
 ---
 "@
-        [System.IO.File]::WriteAllText($indexPath, $content, (New-Object System.Text.UTF8Encoding $false))
+        Write-Utf8NoBom -Path $indexPath -Content $content
         Write-Host "  Created index: $folder\INDEX.md"
     }
 }
 
 New-IndexFile "00-Inbox" "Inbox" "Quick capture zone. Process later."
 New-IndexFile "10-Work" "Work" "Meeting notes and work documents."
+New-IndexFile "15-Daily" "Daily" "Daily notes, journals, morning plans."
 New-IndexFile "20-Learning" "Learning" "Articles, courses, and study materials."
 New-IndexFile "30-Insights" "Insights" "Analysis and AI-generated insights."
 New-IndexFile "40-Projects" "Projects" "Active project context documents."
@@ -234,12 +316,13 @@ tags: [index, moc]
 
 - [[00-Inbox/INDEX|Inbox]] — Quick capture
 - [[10-Work/INDEX|Work]] — Meeting notes, work docs
+- [[15-Daily/INDEX|Daily]] — Daily notes, journals
 - [[20-Learning/INDEX|Learning]] — Articles, study notes
 - [[30-Insights/INDEX|Insights]] — Analysis, AI insights
 - [[40-Projects/INDEX|Projects]] — Active projects
 - [[50-People/INDEX|People]] — Contacts, team notes
 "@
-    [System.IO.File]::WriteAllText($mainIndex, $mainContent, (New-Object System.Text.UTF8Encoding $false))
+    Write-Utf8NoBom -Path $mainIndex -Content $mainContent
     Write-Host "  Created main INDEX.md"
 }
 
@@ -260,7 +343,7 @@ if (-not (Test-Path $appJson)) {
   "defaultViewMode": "preview"
 }
 "@
-    [System.IO.File]::WriteAllText($appJson, $obsidianConfig, (New-Object System.Text.UTF8Encoding $false))
+    Write-Utf8NoBom -Path $appJson -Content $obsidianConfig
     Write-Host "  Created .obsidian/app.json"
 }
 
@@ -284,36 +367,16 @@ foreach ($platform in $platformList) {
             New-Item -ItemType Directory -Path $claudeDir -Force | Out-Null
             $claudeFile = Join-Path $claudeDir "CLAUDE.md"
             $srcFile = Join-Path $ScriptDir "platforms\claude-code\CLAUDE.md"
-            if (Test-Path $claudeFile) {
-                $existing = Get-Content $claudeFile -Raw
-                if ($existing -notmatch "Obsidian Personal Knowledge Base") {
-                    Add-Content -Path $claudeFile -Value "`n---`n"
-                    Add-Content -Path $claudeFile -Value (Get-Content $srcFile -Raw)
-                    Write-Host "-> Installed: Claude Code (appended to $claudeFile)" -ForegroundColor Green
-                } else {
-                    Write-Host "-> Skipped: Claude Code (already installed)" -ForegroundColor Yellow
-                }
-            } else {
-                Copy-Item $srcFile $claudeFile
-                Write-Host "-> Installed: Claude Code -> $claudeFile" -ForegroundColor Green
-            }
+            $body = Read-Text -Path $srcFile
+            $result = Set-MarkerBlock -TargetFile $claudeFile -BlockBody $body
+            Write-Host "-> Installed: Claude Code ($result) -> $claudeFile" -ForegroundColor Green
         }
         "codex" {
             $codexFile = Join-Path $env:USERPROFILE "AGENTS.md"
             $srcFile = Join-Path $ScriptDir "platforms\codex\AGENTS.md"
-            if (Test-Path $codexFile) {
-                $existing = Get-Content $codexFile -Raw
-                if ($existing -notmatch "Obsidian Personal Knowledge Base") {
-                    Add-Content -Path $codexFile -Value "`n---`n"
-                    Add-Content -Path $codexFile -Value (Get-Content $srcFile -Raw)
-                    Write-Host "-> Installed: Codex (appended to $codexFile)" -ForegroundColor Green
-                } else {
-                    Write-Host "-> Skipped: Codex (already installed)" -ForegroundColor Yellow
-                }
-            } else {
-                Copy-Item $srcFile $codexFile
-                Write-Host "-> Installed: Codex -> $codexFile" -ForegroundColor Green
-            }
+            $body = Read-Text -Path $srcFile
+            $result = Set-MarkerBlock -TargetFile $codexFile -BlockBody $body
+            Write-Host "-> Installed: Codex ($result) -> $codexFile" -ForegroundColor Green
         }
         "cursor" {
             $cursorDir = Join-Path $env:USERPROFILE ".cursor\rules"

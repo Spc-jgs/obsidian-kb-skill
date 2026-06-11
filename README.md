@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.1.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.2.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -237,6 +237,7 @@ cp -r core/templates/* /你的知识库路径/Templates/
 YourVault/
 ├── 00-Inbox/          收件箱 —— 快速捕获，稍后整理
 ├── 10-Work/           工作 —— 会议记录、工作文档、团队讨论
+├── 15-Daily/          日记 —— 每日记录、晨间规划、复盘
 ├── 20-Learning/       学习 —— 文章、笔记、网页剪藏、课程资料
 ├── 30-Insights/       洞察 —— 分析、想法、AI 生成的洞察
 ├── 40-Projects/       项目 —— 活跃项目的上下文和进展日志
@@ -302,15 +303,17 @@ echo "/新的/知识库/路径" > ~/.obsidian-kb-config
 
 ### 升级模板
 
-重新运行安装脚本时，已有模板默认不会被覆盖。使用 `--force` 强制更新：
+重新运行安装脚本时，已有模板默认不会被覆盖。使用 `--force` 强制更新模板，并把 CLAUDE.md / AGENTS.md 里 marker 包裹的 skill 块替换成新版：
 
 ```bash
 # macOS / Linux
 ./install.sh --force
 
 # Windows
-$env:OBSIDIAN_KB_UPGRADE = "1"; .\install.ps1
+.\install.ps1 -Force
 ```
+
+> 安装脚本会把 skill 内容放在 `<!-- BEGIN obsidian-kb-skill -->` / `<!-- END obsidian-kb-skill -->` marker 之间。再次运行安装脚本时会原地替换这段内容，不会影响你在 `CLAUDE.md` / `AGENTS.md` 里写的其他指令。
 
 ### 卸载
 
@@ -322,7 +325,7 @@ $env:OBSIDIAN_KB_UPGRADE = "1"; .\install.ps1
 .\install.ps1 -Uninstall
 ```
 
-卸载会移除 Skill 文件和配置文件，但**不会删除**你的知识库文件夹和笔记内容。Claude Code 和 Codex 的追加内容也不会自动移除（因为可能包含其他内容）。
+卸载会移除 QoderWork skill 目录、Cursor 规则、配置文件，并且**自动从 `CLAUDE.md` / `AGENTS.md` 中删除 marker 包裹的 skill 块**（保留你的其他内容）。Obsidian vault 文件夹和笔记内容不会被删除。
 
 ## 分享给别人
 

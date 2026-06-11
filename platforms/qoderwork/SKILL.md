@@ -46,6 +46,7 @@ If any check fails, **stop and report** — do not silently create files in a no
 {VAULT}/
 ├── 00-Inbox/          # Quick capture, unsorted notes
 ├── 10-Work/           # Meeting notes, work documents
+├── 15-Daily/          # Daily notes, journals, morning plans
 ├── 20-Learning/       # Articles, study notes, web clips
 ├── 30-Insights/       # Analysis, AI-generated insights
 ├── 40-Projects/       # Active project context
@@ -62,7 +63,7 @@ Each folder (except 90-Archive, Templates, Attachments) has an `INDEX.md` that s
 
 | Trigger Pattern | Target Folder | Template |
 |---|---|---|
-| Daily, today, diary, journal, morning plan | `10-Work/` | Daily Note |
+| Daily, today, diary, journal, morning plan | `15-Daily/` | Daily Note |
 | Meeting, standup, review, sync | `10-Work/` | Meeting Note |
 | Article, learning, book, course, tutorial | `20-Learning/` | Learning Note |
 | Web page, URL, blog post, clip | `20-Learning/` | Web Clip |
