@@ -274,7 +274,21 @@ tags: [$folder]
 
 $desc
 
-## Notes
+## Notes <!-- managed by obsidian-kb-skill: dataview -->
+
+> If the [Dataview plugin](https://github.com/blacksmithgu/obsidian-dataview) is installed, the table below auto-refreshes from this folder's notes. Otherwise, you'll see the code block as plain text — install Dataview to activate, or replace this block with a manual list.
+
+\`\`\`dataview
+TABLE date, tags
+FROM "$folder"
+WHERE file.name != "INDEX"
+SORT date DESC
+LIMIT 50
+\`\`\`
+
+## Manual Notes (fallback)
+
+<!-- Agents append here when no Dataview block is present above. -->
 
 ---
 INDEXEOF

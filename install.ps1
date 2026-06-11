@@ -271,23 +271,42 @@ foreach ($src in $templateMap.Keys) {
 }
 
 # Create INDEX files
+$IndexTemplate = @'
+---
+type: folder-index
+tags: [__FOLDER__]
+---
+
+# __TITLE__
+
+__DESC__
+
+## Notes <!-- managed by obsidian-kb-skill: dataview -->
+
+> If the [Dataview plugin](https://github.com/blacksmithgu/obsidian-dataview) is installed, the table below auto-refreshes from this folder's notes. Otherwise, you'll see the code block as plain text — install Dataview to activate, or replace this block with a manual list.
+
+```dataview
+TABLE date, tags
+FROM "__FOLDER__"
+WHERE file.name != "INDEX"
+SORT date DESC
+LIMIT 50
+```
+
+## Manual Notes (fallback)
+
+<!-- Agents append here when no Dataview block is present above. -->
+
+---
+'@
+
 function New-IndexFile($folder, $title, $desc) {
     $indexPath = Join-Path $VaultPath "$folder\INDEX.md"
     if (-not (Test-Path $indexPath)) {
-        $content = @"
----
-type: folder-index
-tags: [$folder]
----
-
-# $title
-
-$desc
-
-## Notes
-
----
-"@
+        $content = $IndexTemplate.
+            Replace('__FOLDER__', $folder).
+            Replace('__TITLE__', $title).
+            Replace('__DESC__', $desc)
         Write-Utf8NoBom -Path $indexPath -Content $content
         Write-Host "  Created index: $folder\INDEX.md"
     }

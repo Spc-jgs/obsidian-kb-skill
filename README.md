@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.2.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.3.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -391,9 +391,13 @@ python build.py
 
 # 4. 校验产物与源头一致（CI / pre-commit 用）
 python build.py --check
+
+# 5. 跑单元测试（GitHub Actions 也会跑）
+pip install -e ".[dev]"
+python -m pytest tests/
 ```
 
-这样一处改动，四个平台自动同步，避免「改一处忘三处」的维护噩梦。
+这样一处改动，四个平台自动同步，避免「改一处忘三处」的维护噩梦。GitHub Actions 在每次 push / PR 都会跑 `build.py --check` 和 `pytest`，源头和产物不一致就直接挂掉，没法蒙混过关。
 
 ## 设计原则
 
@@ -419,10 +423,8 @@ A：不会。安装脚本只创建缺失的文件夹和文件，不会修改已�
 
 ## 推荐的 Obsidian 插件
 
-以下是可选的，但能增强体验：
-
-- **[Dataview](https://github.com/blacksmithgu/obsidian-dataview)** —— 像数据库一样查询笔记（如「列出本周所有会议记录」）
-- **[Calendar](https://github.com/liamcain/obsidian-calendar-plugin)** —— 日历视图浏览日记
+- **[Dataview](https://github.com/blacksmithgu/obsidian-dataview)** —— **强烈推荐**。本 Skill 安装时生成的 `INDEX.md` 默认包含 Dataview 查询，能动态列出文件夹内所有笔记（按日期倒序、含标签）。没装 Dataview 也能用，只是看到的是代码块原文；装了之后立刻渲染成表格。
+- **[Calendar](https://github.com/liamcain/obsidian-calendar-plugin)** —— 日历视图浏览 `15-Daily/` 下的日记
 - **[Kanban](https://github.com/mgmeyers/obsidian-kanban)** —— 读取知识库的项目看板
 - **[Templater](https://github.com/SilentVoid13/Templater)** —— 高级模板处理，用于手动创建笔记
 

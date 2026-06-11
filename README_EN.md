@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.2.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.3.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -392,6 +392,10 @@ python build.py
 
 # 4. Verify generated files match the source (use in CI / pre-commit)
 python build.py --check
+
+# 5. Run the test suite (installs pytest via dev extras)
+pip install -e ".[dev]"
+pytest
 ```
 
 One edit → four platforms stay in sync. No more "change one place, sync four places" maintenance pain.
@@ -420,12 +424,10 @@ A: No. The installer only creates missing folders and files. It never modifies e
 
 ## Recommended Obsidian Plugins
 
-These are optional but enhance the experience:
-
-- **[Dataview](https://github.com/blacksmithgu/obsidian-dataview)** — Query your notes like a database (e.g., "show all meeting notes from this week")
-- **[Calendar](https://github.com/liamcain/obsidian-calendar-plugin)** — Visual calendar for daily notes
-- **[Kanban](https://github.com/mgmeyers/obsidian-kanban)** — Project boards that read from your vault
-- **[Templater](https://github.com/SilentVoid13/Templater)** — Advanced template processing for manual note creation
+- **[Dataview](https://github.com/blacksmithgu/obsidian-dataview)** — **Strongly recommended.** Starting with v1.3.0 the installer seeds every `INDEX.md` with a Dataview query block, so the listings stay fresh automatically. Without Dataview the file still works — you'll see a manual fallback section instead.
+- **[Calendar](https://github.com/liamcain/obsidian-calendar-plugin)** — Visual calendar for daily notes.
+- **[Kanban](https://github.com/mgmeyers/obsidian-kanban)** — Project boards that read from your vault.
+- **[Templater](https://github.com/SilentVoid13/Templater)** — Advanced template processing for manual note creation.
 
 ## License
 

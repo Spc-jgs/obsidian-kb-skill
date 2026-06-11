@@ -17,3 +17,14 @@ ehthumbs.db
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
 .obsidian/plugins/
+
+# Skill auto-backup directory (created by Update workflow inside the vault)
+.obsidian-kb-backups/
+
+# Python build / test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/

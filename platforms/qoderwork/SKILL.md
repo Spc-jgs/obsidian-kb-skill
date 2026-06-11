@@ -44,20 +44,21 @@ If any check fails, **stop and report** — do not silently create files in a no
 
 ```
 {VAULT}/
-├── 00-Inbox/          # Quick capture, unsorted notes
-├── 10-Work/           # Meeting notes, work documents
-├── 15-Daily/          # Daily notes, journals, morning plans
-├── 20-Learning/       # Articles, study notes, web clips
-├── 30-Insights/       # Analysis, AI-generated insights
-├── 40-Projects/       # Active project context
-├── 50-People/         # Contacts, team notes
-├── 90-Archive/        # Completed/inactive items
-├── Templates/         # Note templates
-├── Attachments/       # Images, files
-└── INDEX.md           # Main navigation hub
+├── 00-Inbox/                  # Quick capture, unsorted notes
+├── 10-Work/                   # Meeting notes, work documents
+├── 15-Daily/                  # Daily notes, journals, morning plans
+├── 20-Learning/               # Articles, study notes, web clips
+├── 30-Insights/               # Analysis, AI-generated insights
+├── 40-Projects/               # Active project context
+├── 50-People/                 # Contacts, team notes
+├── 90-Archive/                # Completed/inactive items
+├── Templates/                 # Note templates
+├── Attachments/               # Images, files
+├── .obsidian-kb-backups/      # Auto-backups created by the Update workflow
+└── INDEX.md                   # Main navigation hub
 ```
 
-Each folder (except 90-Archive, Templates, Attachments) has an `INDEX.md` that serves as its table of contents.
+Each folder (except 90-Archive, Templates, Attachments, .obsidian-kb-backups) has an `INDEX.md` that serves as its table of contents. The `.obsidian-kb-backups/` folder is created lazily on first Update; users can periodically prune it.
 
 ## Note Types and Routing
 
@@ -135,15 +136,21 @@ If nothing obvious turns up after the cheap passes, **skip wikilinks** — do no
 
 Save to `{VAULT}/{FOLDER}/YYYY-MM-DD Short Title.md` with **UTF-8 encoding** (no BOM). If the filename already exists, add a numeric suffix (e.g. `-2`) or ask the user — **never overwrite**.
 
-### Step 8: Update Folder INDEX
+### Step 8: Update Folder INDEX (Dataview-Aware)
 
-After creating a note, append a link in the folder's `INDEX.md`:
+INDEX files installed by this skill already contain a Dataview query block that **dynamically lists notes in the folder** — no manual append needed in that case.
 
-```markdown
-- [[YYYY-MM-DD Short Title|Short Title]] (YYYY-MM-DD)
-```
+Before appending anything, **read the target `INDEX.md`** and detect what's there:
 
-Insert under the "Recent Notes" / "Recent Insights" section, replacing any placeholder text. If the folder has subfolders (e.g. `20-Learning/Python/`), also update the subfolder's INDEX.md and then the parent folder's INDEX.md.
+1. **If you see a fenced code block tagged `dataview`** (or `dataviewjs`) — the listing is auto-generated. Skip the append. Optionally update the Dataview query's `LIMIT` if the folder has grown a lot, but otherwise leave the file alone.
+2. **If you see a placeholder section like `<!-- managed by obsidian-kb-skill: dataview -->`** — same as above: skip the append.
+3. **Otherwise** (legacy INDEX or user-customized) — fall back to appending a link under the "Recent Notes" / "Recent Insights" section:
+
+   ```markdown
+   - [[YYYY-MM-DD Short Title|Short Title]] (YYYY-MM-DD)
+   ```
+
+If the folder has subfolders (e.g. `20-Learning/Python/`), apply the same detection logic to both the subfolder's INDEX and the parent folder's INDEX.
 
 ### Step 9: Confirm to User
 
@@ -178,12 +185,18 @@ Match the new content to the most appropriate section:
 - `daily-note`: append to the time-block section matching the current time
 - If no obvious section exists, append a new `## YYYY-MM-DD Update` subsection at the end
 
-### Step 5: Apply the Edit
+### Step 5: Backup, Then Apply the Edit
 
-1. **Preserve** YAML frontmatter (only bump `updated:` field if present)
-2. **Insert** new content at the chosen point — do not rewrite unrelated sections
-3. Re-emit the file with **UTF-8 (no BOM)** encoding
-4. If the edit removes or rewrites more than a few lines, ask the user to confirm first
+1. **Always back up first.** Copy the original file (as bytes — preserve content exactly) to:
+   ```
+   {VAULT}/.obsidian-kb-backups/YYYY-MM-DD-HHMMSS/{original-relative-path}
+   ```
+   Example: editing `40-Projects/2026-Q3-OKR.md` at 14:32:07 creates `{VAULT}/.obsidian-kb-backups/2026-06-11-143207/40-Projects/2026-Q3-OKR.md`. The folder structure under the timestamp mirrors the vault so multiple files in one session stay organized. Create parent directories as needed.
+2. **Preserve** YAML frontmatter (only bump `updated:` field if present)
+3. **Insert** new content at the chosen point — do not rewrite unrelated sections
+4. Re-emit the file with **UTF-8 (no BOM)** encoding
+5. If the edit removes or rewrites more than a few lines, ask the user to confirm first
+6. **Tell the user** where the backup landed so they can roll back manually if needed
 
 ### Step 6: Refresh INDEX (Only If Needed)
 

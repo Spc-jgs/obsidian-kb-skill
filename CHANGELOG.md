@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-06-11
+
+### Added
+- **pytest test suite** (`tests/test_build.py`): 10 tests covering `extract_body` (line-anchored marker, false-match guard, missing marker, first-line marker) and `build_adapter` (frontmatter ordering, banner placement after `---`, plain-header banner-at-top, body verbatim, platform name in banner), plus an end-to-end test that loads the real repo files and asserts every checked-in adapter matches `build_adapter()`'s output. Tests are loaded via `importlib.util` so importing `build.py` doesn't trigger `main()`.
+- **`pyproject.toml`**: Declares the project, `[project.optional-dependencies] dev = ["pytest>=7"]`, and `[tool.pytest.ini_options] testpaths = ["tests"]`. Install with `pip install -e ".[dev]"`.
+- **CI runs pytest**: `.github/workflows/check.yml` installs the `dev` extra and runs `python -m pytest tests/ -v` after `build.py --check`. CI now catches both "you forgot to rebuild adapters" and "you broke the build logic" in a single push.
+- **Backup requirement in the Update Workflow**: Step 5 of `core/OBSIDIAN_KB.md` now mandates copying the original file (as bytes) to `{VAULT}/.obsidian-kb-backups/YYYY-MM-DD-HHMMSS/{original-relative-path}` before any in-place edit. `.gitignore` excludes the backup folder; both installers create it during setup and a routing entry documents it in the vault structure section.
+- **Dataview-first INDEX templates**: New folder `INDEX.md` files seeded by both installers now contain a `dataview` code block (auto-listing recently modified notes in that folder) wrapped by `<!-- managed by obsidian-kb-skill: dataview -->` markers, followed by a `## Manual Notes` fallback section for users without the Dataview plugin. Solves the unbounded-append problem in the previous template.
+- **Dataview-aware Step 8** in `core/OBSIDIAN_KB.md`: When an INDEX already contains a dataview block (or the managed marker), the agent skips the append step entirely; only legacy / user-customized INDEX files still get a manual link appended. Eliminates duplicate entries when Dataview is in use.
+
+### Changed
+- **install.ps1 / install.sh INDEX templates**: Re-templated using single-quoted PowerShell here-strings + `.Replace()` (avoiding backtick-escape pitfalls inside `@""`) and escaped-backtick bash heredocs respectively. Output bytes verified UTF-8 (no BOM) on both platforms.
+- **README.md / README_EN.md**: Bumped to v1.3.0; "Recommended Obsidian Plugins" now promotes Dataview to **strongly recommended** with explanation of the new INDEX behavior; Contributing section documents `pip install -e ".[dev]"` and `pytest`.
+
+### Fixed
+- **`extract_body` false match on quoted text**: The body marker (`## Overview`) was being matched against the first occurrence of that string anywhere in the file, including inside quoted prose. Fixed by searching for `"\n## Overview\n"` (line-anchored only), with a separate first-line acceptance for the edge case where the file starts with the marker. Covered by `TestExtractBody::test_inline_text_does_not_match`.
+
 ## [1.2.0] - 2026-06-11
 
 ### Added
