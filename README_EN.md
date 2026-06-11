@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.0.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.1.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -350,18 +350,48 @@ obsidian-kb-skill/
 ├── .env.example                Config template (commit to git)
 ├── .env                        Your local config (gitignored)
 ├── .gitignore
+├── build.py                    Adapter generator (core + header → 4 adapters)
 ├── core/
-│   ├── OBSIDIAN_KB.md          Source of truth — agent-agnostic instructions
+│   ├── OBSIDIAN_KB.md          Single source of truth — agent-agnostic instructions
 │   └── templates/              7 portable note templates
 ├── platforms/
-│   ├── qoderwork/SKILL.md      QoderWork adapter
-│   ├── claude-code/CLAUDE.md   Claude Code adapter
-│   ├── codex/AGENTS.md         OpenAI Codex adapter
-│   └── cursor/obsidian-kb.mdc  Cursor adapter
+│   ├── qoderwork/
+│   │   ├── header.md           QoderWork-specific YAML frontmatter
+│   │   └── SKILL.md            Generated artifact (do NOT edit)
+│   ├── claude-code/
+│   │   ├── header.md
+│   │   └── CLAUDE.md           Generated artifact
+│   ├── codex/
+│   │   ├── header.md
+│   │   └── AGENTS.md           Generated artifact
+│   └── cursor/
+│       ├── header.md
+│       └── obsidian-kb.mdc     Generated artifact
 ├── install.sh                  macOS / Linux installer
 ├── install.ps1                 Windows installer
+├── CHANGELOG.md
 └── README.md
 ```
+
+## Editing the Skill / Contributing
+
+All four platform adapters are generated from a single source of truth by `build.py`. **Never edit `platforms/*/SKILL.md` or other generated artifacts directly** — your changes will be wiped on the next build.
+
+```bash
+# 1. Edit the shared rules
+$EDITOR core/OBSIDIAN_KB.md
+
+# 2. Or edit a platform-specific header (frontmatter / trigger description)
+$EDITOR platforms/qoderwork/header.md
+
+# 3. Regenerate all four adapters
+python build.py
+
+# 4. Verify generated files match the source (use in CI / pre-commit)
+python build.py --check
+```
+
+One edit → four platforms stay in sync. No more "change one place, sync four places" maintenance pain.
 
 ## Design Principles
 

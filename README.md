@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.0.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.1.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -349,18 +349,48 @@ obsidian-kb-skill/
 ├── .env.example                配置模板（提交到 git）
 ├── .env                        你的本地配置（gitignored）
 ├── .gitignore
+├── build.py                    适配器生成脚本（核心 + header → 4 个适配器）
 ├── core/
-│   ├── OBSIDIAN_KB.md          通用指令（agent 无关）
+│   ├── OBSIDIAN_KB.md          通用指令唯一真相来源（agent 无关）
 │   └── templates/              7 个可移植的笔记模板
 ├── platforms/
-│   ├── qoderwork/SKILL.md      QoderWork 适配器
-│   ├── claude-code/CLAUDE.md   Claude Code 适配器
-│   ├── codex/AGENTS.md         OpenAI Codex 适配器
-│   └── cursor/obsidian-kb.mdc  Cursor 适配器
+│   ├── qoderwork/
+│   │   ├── header.md           QoderWork 平台头部（YAML frontmatter）
+│   │   └── SKILL.md            生成产物（请勿手动编辑）
+│   ├── claude-code/
+│   │   ├── header.md
+│   │   └── CLAUDE.md           生成产物
+│   ├── codex/
+│   │   ├── header.md
+│   │   └── AGENTS.md           生成产物
+│   └── cursor/
+│       ├── header.md
+│       └── obsidian-kb.mdc     生成产物
 ├── install.sh                  macOS / Linux 安装脚本
 ├── install.ps1                 Windows 安装脚本
+├── CHANGELOG.md
 └── README.md
 ```
+
+## 修改 Skill / 贡献代码
+
+四个平台的指令文件由 `build.py` 从单一源头生成。**不要直接编辑 `platforms/*/SKILL.md` 等生成产物**，否则下次构建会覆盖你的改动。
+
+```bash
+# 1. 修改通用规则
+$EDITOR core/OBSIDIAN_KB.md
+
+# 2. 或修改某平台的头部（YAML frontmatter / trigger 描述）
+$EDITOR platforms/qoderwork/header.md
+
+# 3. 重新生成四个适配器
+python build.py
+
+# 4. 校验产物与源头一致（CI / pre-commit 用）
+python build.py --check
+```
+
+这样一处改动，四个平台自动同步，避免「改一处忘三处」的维护噩梦。
 
 ## 设计原则
 
