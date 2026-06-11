@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.1] - 2026-06-11
+
+### Fixed
+- **install.ps1 em-dash corruption on PowerShell 5.1**: The Dataview INDEX template, main INDEX bullets, and several comments contained U+2014 (em-dash). Windows PowerShell 5.1 reads `.ps1` files without a BOM using the system default codepage (GBK on Chinese Windows), which mangles UTF-8 multi-byte sequences. New `15-Daily/INDEX.md` files were generated with corrupted bytes (`e9 88 a5 3f` instead of the expected `e2 80 94`). All 10 em-dashes in `install.ps1` are now replaced with ASCII `--`, so the installer produces clean output on every Windows PowerShell version. Discovered while end-to-end testing v1.3.0 against a real vault. `install.sh` and `core/OBSIDIAN_KB.md` are unaffected because bash and the build pipeline read UTF-8 sources correctly.
+
 ## [1.3.0] - 2026-06-11
 
 ### Added

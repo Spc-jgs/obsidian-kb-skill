@@ -1,4 +1,4 @@
-# Obsidian Knowledge Base Skill — PowerShell Installer
+# Obsidian Knowledge Base Skill -- PowerShell Installer
 #
 # Usage:
 #   .\install.ps1 -VaultPath "D:\MyKnowledgeBase"
@@ -247,7 +247,7 @@ $templateMap = @{
     "person-note.md" = "Person Note.md"
 }
 
-# Legacy upgrade flag support (env var or string sentinel) — superseded by -Force switch.
+# Legacy upgrade flag support (env var or string sentinel) -- superseded by -Force switch.
 $forceUpgrade = $Force.IsPresent
 if (-not $forceUpgrade -and ($env:OBSIDIAN_KB_UPGRADE -eq "1")) {
     $forceUpgrade = $true
@@ -283,7 +283,7 @@ __DESC__
 
 ## Notes <!-- managed by obsidian-kb-skill: dataview -->
 
-> If the [Dataview plugin](https://github.com/blacksmithgu/obsidian-dataview) is installed, the table below auto-refreshes from this folder's notes. Otherwise, you'll see the code block as plain text — install Dataview to activate, or replace this block with a manual list.
+> If the [Dataview plugin](https://github.com/blacksmithgu/obsidian-dataview) is installed, the table below auto-refreshes from this folder's notes. Otherwise, you'll see the code block as plain text -- install Dataview to activate, or replace this block with a manual list.
 
 ```dataview
 TABLE date, tags
@@ -333,13 +333,13 @@ tags: [index, moc]
 
 ## Quick Navigation
 
-- [[00-Inbox/INDEX|Inbox]] — Quick capture
-- [[10-Work/INDEX|Work]] — Meeting notes, work docs
-- [[15-Daily/INDEX|Daily]] — Daily notes, journals
-- [[20-Learning/INDEX|Learning]] — Articles, study notes
-- [[30-Insights/INDEX|Insights]] — Analysis, AI insights
-- [[40-Projects/INDEX|Projects]] — Active projects
-- [[50-People/INDEX|People]] — Contacts, team notes
+- [[00-Inbox/INDEX|Inbox]] -- Quick capture
+- [[10-Work/INDEX|Work]] -- Meeting notes, work docs
+- [[15-Daily/INDEX|Daily]] -- Daily notes, journals
+- [[20-Learning/INDEX|Learning]] -- Articles, study notes
+- [[30-Insights/INDEX|Insights]] -- Analysis, AI insights
+- [[40-Projects/INDEX|Projects]] -- Active projects
+- [[50-People/INDEX|People]] -- Contacts, team notes
 "@
     Write-Utf8NoBom -Path $mainIndex -Content $mainContent
     Write-Host "  Created main INDEX.md"
