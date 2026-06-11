@@ -1,1 +1,19 @@
 .env
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# Editor artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Obsidian workspace (if vault is in repo)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/plugins/

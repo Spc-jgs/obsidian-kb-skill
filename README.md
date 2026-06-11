@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.0.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -299,6 +299,30 @@ echo "/新的/知识库/路径" > ~/.obsidian-kb-config
 # 只装 Cursor
 .\install.ps1 -Platforms "cursor"
 ```
+
+### 升级模板
+
+重新运行安装脚本时，已有模板默认不会被覆盖。使用 `--force` 强制更新：
+
+```bash
+# macOS / Linux
+./install.sh --force
+
+# Windows
+$env:OBSIDIAN_KB_UPGRADE = "1"; .\install.ps1
+```
+
+### 卸载
+
+```bash
+# macOS / Linux
+./install.sh --uninstall
+
+# Windows
+.\install.ps1 -Uninstall
+```
+
+卸载会移除 Skill 文件和配置文件，但**不会删除**你的知识库文件夹和笔记内容。Claude Code 和 Codex 的追加内容也不会自动移除（因为可能包含其他内容）。
 
 ## 分享给别人
 

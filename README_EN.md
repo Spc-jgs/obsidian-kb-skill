@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.0.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -300,6 +300,30 @@ echo "/new/vault/path" > ~/.obsidian-kb-config
 # Only Cursor
 .\install.ps1 -Platforms "cursor"
 ```
+
+### Upgrading Templates
+
+Re-running the installer won't overwrite existing templates by default. Use `--force` to update:
+
+```bash
+# macOS / Linux
+./install.sh --force
+
+# Windows
+$env:OBSIDIAN_KB_UPGRADE = "1"; .\install.ps1
+```
+
+### Uninstalling
+
+```bash
+# macOS / Linux
+./install.sh --uninstall
+
+# Windows
+.\install.ps1 -Uninstall
+```
+
+Uninstall removes skill files and config, but does **not** delete your vault folder or note contents. Claude Code and Codex appended content is not auto-removed (may contain other content).
 
 ## Sharing
 

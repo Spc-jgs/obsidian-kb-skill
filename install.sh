@@ -23,6 +23,33 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     --vault) VAULT_PATH="$2"; shift 2 ;;
     --platforms) PLATFORMS="$2"; shift 2 ;;
+    --uninstall)
+      echo ""
+      echo "=== Obsidian Knowledge Base Skill Uninstaller ==="
+      echo ""
+      # Remove QoderWork skill
+      QODERWORK_SKILLS="$HOME/.qoderwork/skills/obsidian-knowledge-base"
+      if [ -d "$QODERWORK_SKILLS" ]; then
+        rm -rf "$QODERWORK_SKILLS"
+        echo "→ Removed: QoderWork skill ($QODERWORK_SKILLS)"
+      fi
+      # Remove Cursor rule
+      CURSOR_FILE="$HOME/.cursor/rules/obsidian-kb.mdc"
+      if [ -f "$CURSOR_FILE" ]; then
+        rm -f "$CURSOR_FILE"
+        echo "→ Removed: Cursor rule ($CURSOR_FILE)"
+      fi
+      # Remove config
+      if [ -f "$HOME/.obsidian-kb-config" ]; then
+        rm -f "$HOME/.obsidian-kb-config"
+        echo "→ Removed: Config ($HOME/.obsidian-kb-config)"
+      fi
+      echo ""
+      echo "Note: Vault folder and its contents are NOT deleted."
+      echo "Note: Claude Code and Codex entries are NOT auto-removed (may contain other content)."
+      echo "Uninstall complete."
+      exit 0
+      ;;
     --help)
       echo "Usage:"
       echo "  ./install.sh --vault /path/to/vault"
@@ -31,6 +58,9 @@ while [[ $# -gt 0 ]]; do
       echo "Options:"
       echo "  --vault PATH       Path to your Obsidian vault"
       echo "  --platforms LIST   Comma-separated: qoderwork,claude-code,codex,cursor (default: all)"
+      echo ""
+      echo "  --uninstall        Remove installed skill files"
+      echo "  --force            Overwrite existing templates during install"
       echo ""
       echo "Configuration sources (checked in order):"
       echo "  1. --vault argument"
@@ -107,12 +137,22 @@ done
 # Copy templates if not exists
 TEMPLATE_FILES=("daily-note.md" "meeting-note.md" "learning-note.md" "project-note.md" "web-clip.md" "insight-note.md" "person-note.md")
 TEMPLATE_NAMES=("Daily Note.md" "Meeting Note.md" "Learning Note.md" "Project Note.md" "Web Clip.md" "Insight Note.md" "Person Note.md")
+FORCE_UPGRADE=false
+for arg in "$@"; do
+  if [ "$arg" = "--force" ]; then FORCE_UPGRADE=true; echo "→ Upgrade mode: will overwrite existing templates"; fi
+done
+
 for i in "${!TEMPLATE_FILES[@]}"; do
   src="$SCRIPT_DIR/core/templates/${TEMPLATE_FILES[$i]}"
   dst="$VAULT_PATH/Templates/${TEMPLATE_NAMES[$i]}"
-  if [ ! -f "$dst" ] && [ -f "$src" ]; then
-    cp "$src" "$dst"
-    echo "  Created template: ${TEMPLATE_NAMES[$i]}"
+  if [ -f "$src" ]; then
+    if [ ! -f "$dst" ]; then
+      cp "$src" "$dst"
+      echo "  Created template: ${TEMPLATE_NAMES[$i]}"
+    elif [ "$FORCE_UPGRADE" = true ]; then
+      cp "$src" "$dst"
+      echo "  Updated template: ${TEMPLATE_NAMES[$i]}"
+    fi
   fi
 done
 

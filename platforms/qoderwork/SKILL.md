@@ -34,6 +34,7 @@ Each folder (except 90-Archive, Templates, Attachments) has an `INDEX.md` as its
 
 | Trigger Keywords | Target Folder | Template |
 |---|---|---|
+| daily, today, diary, journal, morning plan | `10-Work/` | `Templates/Daily Note.md` |
 | meeting, standup, review, sync | `10-Work/` | `Templates/Meeting Note.md` |
 | article, learning, book, course, tutorial | `20-Learning/` | `Templates/Learning Note.md` |
 | web page, URL, blog post, clip | `20-Learning/` | `Templates/Web Clip.md` |
@@ -41,6 +42,8 @@ Each folder (except 90-Archive, Templates, Attachments) has an `INDEX.md` as its
 | project, milestone, sprint | `40-Projects/` | `Templates/Project Note.md` |
 | person, contact, team member | `50-People/` | `Templates/Person Note.md` |
 | unsure, quick capture | `00-Inbox/` | None |
+
+> **Subfolders**: Large folders (e.g. `20-Learning/`) may have topic subfolders like `20-Learning/Python/`. Route to the appropriate subfolder if one exists.
 
 ## Workflow
 
@@ -68,6 +71,7 @@ Extra fields by type:
 
 | Type | Extra Fields |
 |------|-------------|
+| `daily-note` | *(base fields only)* |
 | `meeting-note` | `participants: []`, `project: ""` |
 | `learning-note` | `source: ""`, `category: ""` |
 | `web-clip` | `source_url: ""`, `title: ""` |
@@ -75,9 +79,11 @@ Extra fields by type:
 | `insight` | `source_conversation: ""` |
 | `person-note` | `role: ""`, `organization: ""` |
 
+Templates use `{{date}}` — replace all occurrences with current date (`YYYY-MM-DD`). Never leave `{{date}}` in the final note.
+
 ## File Naming
 
-`YYYY-MM-DD Short Title.md` — use user's language for title. Never overwrite existing files.
+`YYYY-MM-DD Short Title.md` — use user's language for title. Never overwrite — if filename exists, add numeric suffix (e.g. `-2`) or ask user.
 
 ## Tagging
 
@@ -86,11 +92,20 @@ Domain tags (add as needed): `frontend`, `backend`, `design`, `devops`, `managem
 
 ## Rules
 
-- UTF-8 encoding always
+- UTF-8 encoding always (no BOM)
 - Use current system date, never hardcode
 - Create new notes rather than appending to existing ones
 - Use `[[wikilinks]]` for internal links, not markdown links
 - One topic per note — keep focused
 - Match user's language
-- Never overwrite — if filename exists, add suffix or ask user
+- Never overwrite — if filename exists, add numeric suffix (e.g. `-2`) or ask user
 - Batch: create separate notes for distinct knowledge items, cross-link with `[[wikilinks]]`
+- Subfolder INDEX: when a note goes into a subfolder, update both subfolder INDEX and parent folder INDEX
+
+## Error Handling
+
+- **Vault not found**: Offer to create it and initialize the folder structure
+- **Template missing**: Use base YAML frontmatter + standard sections; warn the user
+- **Permission denied**: Report clearly, suggest checking file permissions
+- **INDEX.md missing**: Create a basic one before appending the note link
+- **Filename conflict**: Append `-2` (or next number), inform user of actual filename

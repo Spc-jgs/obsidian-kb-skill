@@ -14,8 +14,67 @@ param(
     [Parameter(Mandatory=$false)]
     [string]$VaultPath,
 
-    [string]$Platforms = "qoderwork,claude-code,codex,cursor"
+    [string]$Platforms = "qoderwork,claude-code,codex,cursor",
+
+    [switch]$Help,
+
+    [switch]$Uninstall
 )
+
+if ($Help) {
+    Write-Host ""
+    Write-Host "Obsidian Knowledge Base Skill Installer" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Usage:"
+    Write-Host "  .\install.ps1 -VaultPath `"D:\MyKnowledgeBase`""
+    Write-Host "  .\install.ps1    # reads vault path from .env or config"
+    Write-Host ""
+    Write-Host "Parameters:"
+    Write-Host "  -VaultPath PATH    Path to your Obsidian vault"
+    Write-Host "  -Platforms LIST    Comma-separated: qoderwork,claude-code,codex,cursor (default: all)"
+    Write-Host "  -Uninstall         Remove installed skill files"
+    Write-Host "  -Help              Show this help message"
+    Write-Host ""
+    Write-Host "Configuration sources (checked in order):"
+    Write-Host "  1. -VaultPath parameter"
+    Write-Host "  2. OBSIDIAN_KB_VAULT in .env (skill directory)"
+    Write-Host "  3. OBSIDIAN_KB_VAULT environment variable"
+    Write-Host "  4. ~/.obsidian-kb-config (from previous install)"
+    exit 0
+}
+
+if ($Uninstall) {
+    Write-Host ""
+    Write-Host "=== Obsidian Knowledge Base Skill Uninstaller ===" -ForegroundColor Yellow
+    Write-Host ""
+
+    # Remove QoderWork skill
+    $skillDir = Join-Path $env:USERPROFILE ".qoderwork\skills\obsidian-knowledge-base"
+    if (Test-Path $skillDir) {
+        Remove-Item $skillDir -Recurse -Force
+        Write-Host "-> Removed: QoderWork skill ($skillDir)" -ForegroundColor Green
+    }
+
+    # Remove Cursor rule
+    $cursorFile = Join-Path $env:USERPROFILE ".cursor\rules\obsidian-kb.mdc"
+    if (Test-Path $cursorFile) {
+        Remove-Item $cursorFile -Force
+        Write-Host "-> Removed: Cursor rule ($cursorFile)" -ForegroundColor Green
+    }
+
+    # Remove config file
+    $configFile = Join-Path $env:USERPROFILE ".obsidian-kb-config"
+    if (Test-Path $configFile) {
+        Remove-Item $configFile -Force
+        Write-Host "-> Removed: Config ($configFile)" -ForegroundColor Green
+    }
+
+    Write-Host ""
+    Write-Host "Note: Vault folder and its contents are NOT deleted." -ForegroundColor Yellow
+    Write-Host "Note: Claude Code and Codex entries are NOT auto-removed (may contain other content)." -ForegroundColor Yellow
+    Write-Host "Uninstall complete." -ForegroundColor Cyan
+    exit 0
+}
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -110,12 +169,23 @@ $templateMap = @{
     "person-note.md" = "Person Note.md"
 }
 
+$forceUpgrade = $false
+if ($env:OBSIDIAN_KB_UPGRADE -eq "1" -or $Platforms -match "^--force") {
+    $forceUpgrade = $true
+    Write-Host "-> Upgrade mode: will overwrite existing templates" -ForegroundColor Yellow
+}
+
 foreach ($src in $templateMap.Keys) {
     $srcPath = Join-Path $ScriptDir "core\templates\$src"
     $dstPath = Join-Path $VaultPath "Templates\$($templateMap[$src])"
-    if ((Test-Path $srcPath) -and -not (Test-Path $dstPath)) {
-        Copy-Item $srcPath $dstPath
-        Write-Host "  Created template: $($templateMap[$src])"
+    if (Test-Path $srcPath) {
+        if (-not (Test-Path $dstPath)) {
+            Copy-Item $srcPath $dstPath
+            Write-Host "  Created template: $($templateMap[$src])"
+        } elseif ($forceUpgrade) {
+            Copy-Item $srcPath $dstPath -Force
+            Write-Host "  Updated template: $($templateMap[$src])"
+        }
     }
 }
 
@@ -137,7 +207,7 @@ $desc
 
 ---
 "@
-        Set-Content -Path $indexPath -Value $content -Encoding UTF8
+        [System.IO.File]::WriteAllText($indexPath, $content, (New-Object System.Text.UTF8Encoding $false))
         Write-Host "  Created index: $folder\INDEX.md"
     }
 }
@@ -169,7 +239,7 @@ tags: [index, moc]
 - [[40-Projects/INDEX|Projects]] — Active projects
 - [[50-People/INDEX|People]] — Contacts, team notes
 "@
-    Set-Content -Path $mainIndex -Value $mainContent -Encoding UTF8
+    [System.IO.File]::WriteAllText($mainIndex, $mainContent, (New-Object System.Text.UTF8Encoding $false))
     Write-Host "  Created main INDEX.md"
 }
 
@@ -190,7 +260,7 @@ if (-not (Test-Path $appJson)) {
   "defaultViewMode": "preview"
 }
 "@
-    Set-Content -Path $appJson -Value $obsidianConfig -Encoding UTF8
+    [System.IO.File]::WriteAllText($appJson, $obsidianConfig, (New-Object System.Text.UTF8Encoding $false))
     Write-Host "  Created .obsidian/app.json"
 }
 

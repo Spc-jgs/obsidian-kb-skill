@@ -4,6 +4,9 @@ globs:
   - "**/knowledge*"
   - "**/notes*"
   - "**/obsidian*"
+  - "**/vault*"
+  - "**/INDEX*"
+  - "**/*.md"
 alwaysApply: false
 ---
 
@@ -38,24 +41,28 @@ Each folder (except 90-Archive, Templates, Attachments) has an `INDEX.md` as its
 
 | Trigger Keywords | Target Folder | Template |
 |---|---|---|
-| meeting, standup, review, sync | `10-Work/` | Meeting Note |
-| article, learning, book, course, tutorial | `20-Learning/` | Learning Note |
-| web page, URL, blog post, clip | `20-Learning/` | Web Clip |
-| analysis, insight, idea, takeaway | `30-Insights/` | Insight Note |
-| project, milestone, sprint | `40-Projects/` | Project Note |
-| person, contact, team member | `50-People/` | Person Note |
+| daily, today, diary, journal | `10-Work/` | `Templates/Daily Note.md` |
+| meeting, standup, review, sync | `10-Work/` | `Templates/Meeting Note.md` |
+| article, learning, book, course, tutorial | `20-Learning/` | `Templates/Learning Note.md` |
+| web page, URL, blog post, clip | `20-Learning/` | `Templates/Web Clip.md` |
+| analysis, insight, idea, takeaway | `30-Insights/` | `Templates/Insight Note.md` |
+| project, milestone, sprint | `40-Projects/` | `Templates/Project Note.md` |
+| person, contact, team member | `50-People/` | `Templates/Person Note.md` |
 | unsure, quick capture | `00-Inbox/` | None |
+
+> **Subfolders**: Large folders may have topic subfolders (e.g. `20-Learning/Python/`). Route to subfolder if one exists.
 
 ## Workflow
 
-1. Resolve vault path from env var or config file
+1. Resolve vault path from env var `OBSIDIAN_KB_VAULT` or `~/.obsidian-kb-config`
 2. Determine note type from context
 3. Read template from `{VAULT}/Templates/`
-4. Fill YAML frontmatter: `date` (today), `type`, `tags` always required
-5. Fill body content, use `[[wikilinks]]` for related notes
-6. Write to `{VAULT}/{FOLDER}/YYYY-MM-DD Title.md` (UTF-8)
-7. Append link to folder's `INDEX.md`
-8. Confirm to user
+4. Fill YAML frontmatter: `date` (current system date — never hardcode), `type`, `tags`
+5. Fill body content with actual information
+6. Use `[[wikilinks]]` to link to related existing notes
+7. Write file: `{VAULT}/{FOLDER}/YYYY-MM-DD Title.md` (UTF-8, no BOM). Never overwrite — add suffix or ask user
+8. Update folder INDEX: append `- [[filename|title]] (date)` to folder's `INDEX.md`. If subfolder, update both subfolder and parent INDEX
+9. Confirm to user: where saved, what captured, follow-up suggestions
 
 ## YAML Frontmatter
 
@@ -71,6 +78,7 @@ Extra fields by type:
 
 | Type | Extra Fields |
 |------|-------------|
+| `daily-note` | *(base fields only)* |
 | `meeting-note` | `participants: []`, `project: ""` |
 | `learning-note` | `source: ""`, `category: ""` |
 | `web-clip` | `source_url: ""`, `title: ""` |
@@ -78,9 +86,11 @@ Extra fields by type:
 | `insight` | `source_conversation: ""` |
 | `person-note` | `role: ""`, `organization: ""` |
 
+Templates use `{{date}}` — replace all with current date (`YYYY-MM-DD`).
+
 ## File Naming
 
-`YYYY-MM-DD Short Title.md` — use user's language. Never overwrite.
+`YYYY-MM-DD Short Title.md` — use user's language. Never overwrite — if filename exists, add numeric suffix (e.g. `-2`) or ask user.
 
 ## Tagging
 
@@ -89,10 +99,19 @@ Domain tags (add as needed): `frontend`, `backend`, `design`, `devops`, `managem
 
 ## Rules
 
-- UTF-8 always
-- Current system date
-- New notes over appending
-- `[[wikilinks]]` not markdown links
+- UTF-8 encoding always (no BOM)
+- Use current system date, never hardcode
+- Create new notes rather than appending
+- Use `[[wikilinks]]` not markdown links
 - One topic per note
 - Match user's language
+- Never overwrite — if filename exists, add numeric suffix (e.g. `-2`) or ask user
 - Batch distinct items into separate cross-linked notes
+- Subfolder INDEX: update both subfolder and parent INDEX
+
+## Error Handling
+
+- Vault not found → offer to create and initialize
+- Template missing → use base YAML + standard sections
+- INDEX.md missing → create basic one first
+- Filename conflict → append `-2` or next number
