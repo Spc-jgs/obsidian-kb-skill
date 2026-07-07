@@ -16,6 +16,9 @@ param(
 
     [string]$Platforms = "qoderwork,claude-code,codex,cursor",
 
+    [ValidateSet("zh-CN", "en")]
+    [string]$Locale = "zh-CN",
+
     [switch]$Force,
 
     [switch]$Help,
@@ -98,6 +101,7 @@ if ($Help) {
     Write-Host "Parameters:"
     Write-Host "  -VaultPath PATH    Path to your Obsidian vault"
     Write-Host "  -Platforms LIST    Comma-separated: qoderwork,claude-code,codex,cursor (default: all)"
+    Write-Host "  -Locale LOCALE     Template language: zh-CN or en (default: zh-CN)"
     Write-Host "  -Force             Overwrite existing templates and replace skill content in CLAUDE.md / AGENTS.md"
     Write-Host "  -Uninstall         Remove installed skill files (also strips marker-wrapped blocks from CLAUDE.md / AGENTS.md)"
     Write-Host "  -Help              Show this help message"
@@ -207,6 +211,7 @@ Write-Host ""
 Write-Host "=== Obsidian Knowledge Base Skill Installer ===" -ForegroundColor Cyan
 Write-Host "Vault path: $VaultPath"
 Write-Host "Platforms:  $Platforms"
+Write-Host "Locale:     $Locale"
 if ($Force) { Write-Host "Mode:       FORCE (overwrite existing templates and skill blocks)" -ForegroundColor Yellow }
 Write-Host ""
 
@@ -257,7 +262,11 @@ if ($forceUpgrade -and -not $Force.IsPresent) {
 }
 
 foreach ($src in $templateMap.Keys) {
-    $srcPath = Join-Path $ScriptDir "core\templates\$src"
+    if ($Locale -eq "en") {
+        $srcPath = Join-Path $ScriptDir "core\templates\en\$src"
+    } else {
+        $srcPath = Join-Path $ScriptDir "core\templates\$src"
+    }
     $dstPath = Join-Path $VaultPath "Templates\$($templateMap[$src])"
     if (Test-Path $srcPath) {
         if (-not (Test-Path $dstPath)) {

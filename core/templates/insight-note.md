@@ -1,23 +1,23 @@
 ---
 date: "{{date}}"
-type: insight
-tags: [insight, ai-generated]
-source_conversation: ""
+type: insight-note
+tags: [insight]
+source: ""
+related: []
 ---
 
-## Insight
+# 洞察标题
 
-> One-sentence summary of the key insight
+## 核心洞察
 
-## Context
+> 用一句话概括最重要的结论。
 
-> How did this insight come about? What was the conversation about?
+## 背景与上下文
 
-## Analysis
+## 分析与推导
 
-## Implications
+## 影响与后续行动
 
-## Related Topics
+- [ ]
 
-## Next Steps
-- [ ] 
+## 关联笔记

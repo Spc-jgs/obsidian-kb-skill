@@ -22,6 +22,7 @@ ehthumbs.db
 .obsidian-kb-backups/
 
 # Python build / test artifacts
+.venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/

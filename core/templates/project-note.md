@@ -1,30 +1,36 @@
 ---
 date: "{{date}}"
+updated: "{{date}}"
 type: project-note
 tags: [project]
 status: active
+related: []
 ---
 
-## Project Overview
+# 项目名称
 
-- **Goal**: 
-- **Timeline**: 
-- **Team**: 
+## 项目概览
 
-## Context
+- **目标**：
+- **时间范围**：
+- **参与人**：
 
-> Why does this project exist? What problem are we solving?
+## 背景与价值
 
-## Key Documents
+## 里程碑
 
-## Progress Log
+## 进展记录
 
-| Date | Update |
-|------|--------|
-|      |        |
+| 日期 | 进展 |
+|---|---|
+| {{date}} | |
 
-## Risks & Blockers
+## 风险与阻塞
 
-## Decisions Log
+## 决策记录
 
-## Related Notes
+## 下一步行动
+
+- [ ]
+
+## 关联笔记

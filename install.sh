@@ -17,6 +17,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VAULT_PATH=""
 PLATFORMS="qoderwork,claude-code,codex,cursor"
+LOCALE="zh-CN"
 FORCE_UPGRADE=false
 DO_UNINSTALL=false
 
@@ -112,6 +113,7 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     --vault) VAULT_PATH="$2"; shift 2 ;;
     --platforms) PLATFORMS="$2"; shift 2 ;;
+    --locale) LOCALE="$2"; shift 2 ;;
     --force) FORCE_UPGRADE=true; shift ;;
     --uninstall) DO_UNINSTALL=true; shift ;;
     --help)
@@ -122,6 +124,7 @@ while [[ $# -gt 0 ]]; do
       echo "Options:"
       echo "  --vault PATH       Path to your Obsidian vault"
       echo "  --platforms LIST   Comma-separated: qoderwork,claude-code,codex,cursor (default: all)"
+      echo "  --locale LOCALE    Template language: zh-CN or en (default: zh-CN)"
       echo "  --force            Overwrite existing templates and replace marker-wrapped skill blocks"
       echo "  --uninstall        Remove installed skill files (strips marker blocks from CLAUDE.md / AGENTS.md)"
       echo ""
@@ -135,6 +138,11 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
+
+case "$LOCALE" in
+  zh-CN|en) ;;
+  *) echo "Unsupported locale: $LOCALE (expected zh-CN or en)"; exit 1 ;;
+esac
 
 if [ "$DO_UNINSTALL" = true ]; then
   echo ""
@@ -222,6 +230,7 @@ fi
 echo "=== Obsidian Knowledge Base Skill Installer ==="
 echo "Vault path: $VAULT_PATH"
 echo "Platforms:  $PLATFORMS"
+echo "Locale:     $LOCALE"
 if [ "$FORCE_UPGRADE" = true ]; then echo "Mode:       FORCE (overwrite existing templates and skill blocks)"; fi
 echo ""
 
@@ -245,7 +254,11 @@ if [ "$FORCE_UPGRADE" = true ]; then
 fi
 
 for i in "${!TEMPLATE_FILES[@]}"; do
-  src="$SCRIPT_DIR/core/templates/${TEMPLATE_FILES[$i]}"
+  if [ "$LOCALE" = "en" ]; then
+    src="$SCRIPT_DIR/core/templates/en/${TEMPLATE_FILES[$i]}"
+  else
+    src="$SCRIPT_DIR/core/templates/${TEMPLATE_FILES[$i]}"
+  fi
   dst="$VAULT_PATH/Templates/${TEMPLATE_NAMES[$i]}"
   if [ -f "$src" ]; then
     if [ ! -f "$dst" ]; then

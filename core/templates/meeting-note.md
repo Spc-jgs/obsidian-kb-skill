@@ -4,23 +4,25 @@ type: meeting-note
 tags: [meeting]
 participants: []
 project: ""
+related: []
 ---
 
-## Meeting Info
+# 会议主题
 
-- **Date**: {{date}}
-- **Participants**: 
-- **Duration**: 
+## 会议信息
 
-## Agenda
+- **日期**：{{date}}
+- **参会人**：
+- **时长**：
 
-1. 
+## 会议目标
 
-## Discussion Notes
+## 讨论记录
 
-## Action Items
-- [ ] 
+## 决策结论
 
-## Decisions Made
+## 待办事项
 
-## Follow-up
+- [ ]
+
+## 后续跟进

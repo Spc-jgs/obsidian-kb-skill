@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.3.1** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.4.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -21,7 +21,7 @@ This skill eliminates that friction by teaching your AI agent a complete knowled
 - Picks the right note type and template
 - Fills in structured metadata (date, tags, source)
 - Writes to the correct folder in your Obsidian vault
-- Updates the folder index
+- Applies the detected Folder Index, Dataview, or static index strategy
 - Cross-links related notes with `[[wikilinks]]`
 
 Your knowledge accumulates automatically, in a structured format that scales from 10 notes to 10,000.
@@ -92,7 +92,7 @@ This skill is fundamentally a **Markdown-formatted behavior instruction file**. 
 3. How each type of note should be written (templates + YAML frontmatter)
 4. Which content goes to which folder (routing rules)
 5. How to tag notes (tagging conventions)
-6. How to maintain folder indexes (INDEX.md updates)
+6. How to detect and respect Folder Index, Dataview, or static index ownership
 
 After reading this instruction file, the AI agent has "learned" your knowledge management conventions. When you say "save to knowledge base," it follows the rules and directly reads/writes your Obsidian vault using standard file operations.
 
@@ -120,7 +120,7 @@ The core instruction file `core/OBSIDIAN_KB.md` is the "single source of truth" 
 An Obsidian vault is just a **folder full of .md files**. No database, no proprietary format. AI agents are naturally good at reading and writing files. So:
 
 - **Creating a note** = writing a .md file at the right path
-- **Updating an index** = appending a link to INDEX.md
+- **Handling an index** = leave plugin-managed indexes untouched; append only in Static mode
 - **Cross-linking notes** = inserting `[[filename|display text]]` in the content
 - **Structured metadata** = writing YAML frontmatter at the top of the file
 
@@ -138,7 +138,7 @@ AI Agent internally executes:
   4. Fills YAML frontmatter (date, tags, one-line insight)
   5. Generates body content (context, analysis, implications, next steps)
   6. Writes to 30-Insights/2026-06-10 Microservices Insights.md
-  7. Reads 30-Insights/INDEX.md → appends new note link
+  7. Detects the index strategy → leaves Folder Index / Dataview untouched and appends only in Static mode
   8. Replies: "Saved to 30-Insights/2026-06-10 Microservices Insights.md"
 ```
 
@@ -229,7 +229,7 @@ cp platforms/claude-code/CLAUDE.md ~/.claude/CLAUDE.md
 cp platforms/cursor/obsidian-kb.mdc ~/.cursor/rules/obsidian-kb.mdc
 
 # 3. Copy templates to your vault
-cp -r core/templates/* /your/vault/path/Templates/
+cp core/templates/en/*.md /your/vault/path/Templates/
 ```
 
 ## Vault Structure
@@ -302,6 +302,17 @@ echo "/new/vault/path" > ~/.obsidian-kb-config
 .\install.ps1 -Platforms "cursor"
 ```
 
+### Choose the Template Language
+
+The installer uses Chinese templates by default. Select English explicitly when needed:
+
+```bash
+./install.sh --locale zh-CN
+./install.sh --locale en
+```
+
+On Windows PowerShell, use `-Locale zh-CN` or `-Locale en`. Existing templates are preserved; combine the locale switch with `--force` / `-Force` to replace them.
+
 ### Upgrading Templates
 
 Re-running the installer won't overwrite existing templates by default. Use `--force` to update templates and replace the marker-wrapped skill block inside `CLAUDE.md` / `AGENTS.md` with the new version:
@@ -340,7 +351,7 @@ This skill is designed to be shared. When distributing to others:
 
 **Add templates:** Create new `.md` files in your vault's `Templates/` folder with the same YAML frontmatter pattern.
 
-**Add folders:** Create a new numbered folder (e.g., `60-Research/`), add an `INDEX.md` inside, and the agents will discover it.
+**Add folders:** Create a new numbered folder (e.g., `60-Research/`). Folder Index can generate its index automatically; otherwise add an `INDEX.md` and the agents will discover it.
 
 **Change tags:** Edit the platform instruction file's tagging section to add domain-specific tags.
 
@@ -356,7 +367,10 @@ obsidian-kb-skill/
 ├── build.py                    Adapter generator (core + header → 4 adapters)
 ├── core/
 │   ├── OBSIDIAN_KB.md          Single source of truth — agent-agnostic instructions
-│   └── templates/              7 portable note templates
+│   └── templates/              7 default Chinese templates + English templates in en/
+├── scripts/
+│   └── audit_vault.py          Read-only Vault auditor
+├── tests/                      Build, template, and auditor tests
 ├── platforms/
 │   ├── qoderwork/
 │   │   ├── header.md           QoderWork-specific YAML frontmatter
@@ -400,6 +414,16 @@ pytest
 
 One edit → four platforms stay in sync. No more "change one place, sync four places" maintenance pain.
 
+### Audit an Existing Vault
+
+Use the read-only auditor to check required frontmatter, note types, unclosed code fences, broken or ambiguous wikilinks, and duplicate folder indexes:
+
+```bash
+python scripts/audit_vault.py /path/to/vault --strict
+```
+
+Exit code `0` means clean, `1` means findings were reported, and `2` means the path is not an Obsidian vault. The auditor never modifies files.
+
 ## Design Principles
 
 - **Just Markdown.** No databases, no APIs, no vendor lock-in. Your knowledge is plain text files that will outlive any app.
@@ -424,7 +448,8 @@ A: No. The installer only creates missing folders and files. It never modifies e
 
 ## Recommended Obsidian Plugins
 
-- **[Dataview](https://github.com/blacksmithgu/obsidian-dataview)** — **Strongly recommended.** Starting with v1.3.0 the installer seeds every `INDEX.md` with a Dataview query block, so the listings stay fresh automatically. Without Dataview the file still works — you'll see a manual fallback section instead.
+- **[Folder Index](https://github.com/turulix/obsidian-folder-index)** — Recommended when manually created folders and notes should receive automatic indexes and appear as folder relationships in Graph View. Configure a user-defined index filename of `INDEX` and enable Graph View overwrite. The skill will then leave generated listings to the plugin.
+- **[Dataview](https://github.com/blacksmithgu/obsidian-dataview)** — Use it for metadata-driven tables, dashboards, and dynamic views. When Folder Index is not active, the installer-provided `INDEX.md` queries keep folder listings current. Rendered Dataview links are not persistent semantic relationships, so related concepts should still use `[[wikilinks]]` in note content or the `related` property.
 - **[Calendar](https://github.com/liamcain/obsidian-calendar-plugin)** — Visual calendar for daily notes.
 - **[Kanban](https://github.com/mgmeyers/obsidian-kanban)** — Project boards that read from your vault.
 - **[Templater](https://github.com/SilentVoid13/Templater)** — Advanced template processing for manual note creation.

@@ -2,25 +2,33 @@
 date: "{{date}}"
 type: web-clip
 tags: [web-clip]
-source_url: ""
-title: ""
+source: ""
+author: ""
+published: ""
+related: []
 ---
 
-## Article Info
+# 文章标题
 
-- **Title**: 
-- **URL**: 
-- **Author**: 
-- **Published**: 
-- **Clipped**: {{date}}
+## 来源信息
 
-## Highlights
+- **原文链接**：
+- **作者**：
+- **发布日期**：
+- **剪藏日期**：{{date}}
 
-## My Notes
+## 一句话摘要
 
-## Key Quotes
+## 核心观点
 
-> 
+## 重要摘录
 
-## Action Items
-- [ ] 
+> 只保留必要的短引用。
+
+## 我的理解
+
+## 后续行动
+
+- [ ]
+
+## 关联笔记

@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.3.1** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.4.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -21,7 +21,7 @@
 - 选择正确的笔记类型和模板
 - 填写结构化元数据（日期、标签、来源）
 - 写入 Obsidian 知识库中对应的文件夹
-- 更新文件夹索引
+- 按 Folder Index、Dataview 或静态列表策略处理文件夹索引
 - 用 `[[wikilinks]]` 关联相关笔记
 
 你的知识以结构化的方式自动积累，从 10 条笔记到 10000 条都能轻松管理。
@@ -92,7 +92,7 @@ cd obsidian-kb-skill
 3. 每种笔记应该怎么写（模板 + YAML frontmatter）
 4. 什么内容应该放哪个文件夹（路由规则）
 5. 怎么给笔记打标签（标签体系）
-6. 怎么更新文件夹索引（INDEX.md 维护）
+6. 怎么识别并遵守 Folder Index、Dataview 或静态索引策略
 
 AI 智能体读完这个指令文件后，就「学会了」你的知识管理规范。当你说「沉淀到知识库」时，AI 按照指令文件中的规则，直接用文件系统读写你的 Obsidian 知识库。
 
@@ -119,7 +119,7 @@ AI 智能体读完这个指令文件后，就「学会了」你的知识管理�
 Obsidian 知识库的底层就是一个**装满 .md 文件的文件夹**。没有数据库，没有私有格式。AI 智能体天然就擅长读写文件和操作文件夹。所以：
 
 - **创建笔记** = 在指定路径写一个 .md 文件
-- **更新索引** = 往 INDEX.md 追加一行链接
+- **处理索引** = 插件接管时不修改；仅在静态模式下追加链接
 - **关联笔记** = 在内容里插入 `[[filename|显示文本]]`
 - **结构化元数据** = 在文件头部写 YAML frontmatter
 
@@ -137,7 +137,7 @@ AI 智能体内部执行：
   4. 填写 YAML frontmatter（日期、标签、一句话洞察）
   5. 生成正文内容（上下文、分析、影响、后续行动）
   6. 写入 30-Insights/2026-06-10 微服务架构洞察.md
-  7. 读取 30-Insights/INDEX.md → 追加新笔记链接
+  7. 检测索引策略 → Folder Index / Dataview 模式不修改，静态模式才追加链接
   8. 回复你：「已保存到 30-Insights/2026-06-10 微服务架构洞察.md」
 ```
 
@@ -228,7 +228,7 @@ cp platforms/claude-code/CLAUDE.md ~/.claude/CLAUDE.md
 cp platforms/cursor/obsidian-kb.mdc ~/.cursor/rules/obsidian-kb.mdc
 
 # 3. 复制模板到知识库
-cp -r core/templates/* /你的知识库路径/Templates/
+cp core/templates/*.md /你的知识库路径/Templates/
 ```
 
 ## 知识库结构
@@ -301,6 +301,17 @@ echo "/新的/知识库/路径" > ~/.obsidian-kb-config
 .\install.ps1 -Platforms "cursor"
 ```
 
+### 选择模板语言
+
+安装器默认使用中文模板，也可以显式选择英文：
+
+```bash
+./install.sh --locale zh-CN
+./install.sh --locale en
+```
+
+Windows PowerShell 使用 `-Locale zh-CN` 或 `-Locale en`。已有模板不会被覆盖；切换语言时需要同时使用 `--force` / `-Force`。
+
 ### 升级模板
 
 重新运行安装脚本时，已有模板默认不会被覆盖。使用 `--force` 强制更新模板，并把 CLAUDE.md / AGENTS.md 里 marker 包裹的 skill 块替换成新版：
@@ -339,7 +350,7 @@ echo "/新的/知识库/路径" > ~/.obsidian-kb-config
 
 **添加模板：** 在知识库的 `Templates/` 文件夹中创建新的 `.md` 文件，使用相同的 YAML frontmatter 格式。
 
-**添加文件夹：** 创建新的编号文件夹（如 `60-Research/`），在里面放一个 `INDEX.md`，AI 会自动发现。
+**添加文件夹：** 创建新的编号文件夹（如 `60-Research/`）。Folder Index 可以自动生成索引；未使用插件时再添加 `INDEX.md`，AI 会自动发现。
 
 **修改标签：** 编辑平台指令文件中的标签部分，添加领域特定的标签。
 
@@ -355,7 +366,10 @@ obsidian-kb-skill/
 ├── build.py                    适配器生成脚本（核心 + header → 4 个适配器）
 ├── core/
 │   ├── OBSIDIAN_KB.md          通用指令唯一真相来源（agent 无关）
-│   └── templates/              7 个可移植的笔记模板
+│   └── templates/              7 个默认中文模板 + en/ 英文模板
+├── scripts/
+│   └── audit_vault.py          只读知识库审计器
+├── tests/                      构建、模板和审计器测试
 ├── platforms/
 │   ├── qoderwork/
 │   │   ├── header.md           QoderWork 平台头部（YAML frontmatter）
@@ -399,6 +413,16 @@ python -m pytest tests/
 
 这样一处改动，四个平台自动同步，避免「改一处忘三处」的维护噩梦。GitHub Actions 在每次 push / PR 都会跑 `build.py --check` 和 `pytest`，源头和产物不一致就直接挂掉，没法蒙混过关。
 
+### 审计现有知识库
+
+使用只读审计器检查必填 frontmatter、笔记类型、未闭合代码块、断裂或歧义 wikilink，以及重复文件夹索引：
+
+```bash
+python scripts/audit_vault.py /你的知识库路径 --strict
+```
+
+无问题时退出码为 `0`；发现问题时为 `1`；路径不是 Obsidian Vault 时为 `2`。审计器不会修改任何文件。
+
 ## 设计原则
 
 - **纯 Markdown。** 没有数据库、没有 API、没有厂商锁定。你的知识就是纯文本文件，比任何 App 都持久。
@@ -423,7 +447,8 @@ A：不会。安装脚本只创建缺失的文件夹和文件，不会修改已�
 
 ## 推荐的 Obsidian 插件
 
-- **[Dataview](https://github.com/blacksmithgu/obsidian-dataview)** —— **强烈推荐**。本 Skill 安装时生成的 `INDEX.md` 默认包含 Dataview 查询，能动态列出文件夹内所有笔记（按日期倒序、含标签）。没装 Dataview 也能用，只是看到的是代码块原文；装了之后立刻渲染成表格。
+- **[Folder Index](https://github.com/turulix/obsidian-folder-index)** —— 希望手动创建文件夹或笔记时自动生成目录、并在图谱中显示文件夹层级时推荐。建议启用自定义索引文件名 `INDEX` 和 Graph View 覆盖。Skill 检测到插件后不会再向索引追加链接。
+- **[Dataview](https://github.com/blacksmithgu/obsidian-dataview)** —— 用于按属性生成统计表、仪表盘和动态视图。未使用 Folder Index 时，安装器生成的 `INDEX.md` 查询可以自动列出笔记。Dataview 渲染出的链接不作为持久语义关系，因此相关概念仍应使用正文或 `related` 属性中的 `[[wikilink]]`。
 - **[Calendar](https://github.com/liamcain/obsidian-calendar-plugin)** —— 日历视图浏览 `15-Daily/` 下的日记
 - **[Kanban](https://github.com/mgmeyers/obsidian-kanban)** —— 读取知识库的项目看板
 - **[Templater](https://github.com/SilentVoid13/Templater)** —— 高级模板处理，用于手动创建笔记

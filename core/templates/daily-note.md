@@ -2,19 +2,25 @@
 date: "{{date}}"
 type: daily-note
 tags: [daily]
+related: []
 ---
 
-## Today's Focus
+# {{date}} 日记
 
-> What's the one thing I want to accomplish today?
+## 今日焦点
 
-## Notes
+> 今天最重要的一件事是什么？
 
-## Meetings
+## 今日记录
 
-## Ideas & Thoughts
+## 工作与会议
 
-## Tasks
-- [ ] 
+## 学习与思考
 
-## Reflections
+## 待办事项
+
+- [ ]
+
+## 今日复盘
+
+## 一句话总结

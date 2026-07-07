@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-07-07
+
+### Added
+- Folder Index-aware index strategy detection. Agents now leave plugin-generated listings untouched and create only a minimal compatible index when they create a new folder while Obsidian may be closed.
+- Chinese templates as the default, with preserved English templates selectable through `--locale en` / `-Locale en`.
+- A consistent `related` property for explicit semantic links, separated from structural folder relationships.
+- A read-only Vault audit CLI that validates frontmatter, note types, tag hygiene, fenced code blocks, wikilinks, and duplicate folder indexes.
+- Regression tests for localized templates, Folder Index ownership rules, documentation link examples, attachments, ambiguous links, and tag limits.
+
+### Changed
+- Index ownership is now exclusive: Folder Index first, Dataview second, static Markdown as the fallback. The previous unconditional two-level INDEX rule is removed.
+- Note type metadata is normalized to `insight-note`, and project/person templates include `updated`.
+
 ## [1.3.1] - 2026-06-11
 
 ### Fixed

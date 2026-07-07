@@ -4,25 +4,31 @@ type: learning-note
 tags: [learning]
 source: ""
 category: ""
+related: []
 ---
 
-## Source
+# 学习主题
 
-- **Title**: 
-- **URL**: 
-- **Author**: 
-- **Date Read**: {{date}}
+> 前置知识：
 
-## Key Takeaways
+## 今天学了什么
 
-1. 
-2. 
-3. 
+> 用一句话总结核心内容。
 
-## Detailed Notes
+## 核心知识点
 
-## How This Connects To My Work
+### 概念解释
 
-## Questions / Further Reading
+### 示例
 
-## Summary (3 sentences)
+### WHY：为什么这样设计
+
+### 类比或常见错误
+
+## 易错点
+
+## 实际应用
+
+## 待解决问题
+
+## 关联笔记

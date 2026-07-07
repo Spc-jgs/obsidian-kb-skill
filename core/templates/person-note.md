@@ -1,25 +1,31 @@
 ---
 date: "{{date}}"
+updated: "{{date}}"
 type: person-note
 tags: [people]
 role: ""
 organization: ""
+related: []
 ---
 
-## About
+# 姓名
 
-- **Name**: 
-- **Role**: 
-- **Organization**: 
-- **Contact**: 
+## 基本信息
 
-## Interaction Log
+- **角色**：
+- **组织**：
+- **联系方式**：
 
-| Date | Context | Notes |
-|------|---------|-------|
-|      |         |       |
+## 关键背景
 
-## Key Information
+## 互动记录
 
-## Follow-up Items
-- [ ] 
+| 日期 | 场景 | 记录 |
+|---|---|---|
+| | | |
+
+## 跟进事项
+
+- [ ]
+
+## 关联笔记
