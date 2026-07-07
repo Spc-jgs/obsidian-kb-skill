@@ -46,6 +46,7 @@ WIKILINK_RE = re.compile(r"!?\[\[([^\]]+)\]\]")
 FENCE_RE = re.compile(r"^\s*```", re.MULTILINE)
 FENCED_CODE_RE = re.compile(r"```[\s\S]*?```")
 INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
+TAG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 def _is_ignored(relative: Path) -> bool:
@@ -114,6 +115,13 @@ def _audit_metadata(
     tags = metadata.get("tags")
     if not tags or (isinstance(tags, list) and not any(str(tag).strip() for tag in tags)):
         _add(findings, "missing-tags", relative, "required property 'tags' is missing or empty")
+        return
+    tag_values = tags if isinstance(tags, list) else [tags]
+    if len(tag_values) > 5:
+        _add(findings, "too-many-tags", relative, "notes may have at most five tags")
+    invalid = [str(tag) for tag in tag_values if not TAG_RE.fullmatch(str(tag))]
+    if invalid:
+        _add(findings, "invalid-tag", relative, f"tags must use lowercase kebab-case: {invalid}")
 
 
 def _candidate_paths(source: Path, target: str, vault: Path) -> Iterable[Path]:

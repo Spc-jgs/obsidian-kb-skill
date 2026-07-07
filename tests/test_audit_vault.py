@@ -119,3 +119,14 @@ def test_ignores_wikilinks_inside_inline_and_fenced_code(tmp_path):
     )
 
     assert "broken-wikilink" not in codes(tmp_path)
+
+
+def test_reports_invalid_and_excessive_tags(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "2026-07-07 Note.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning, Bad_Tag, three, four, five, six]\n---\n",
+        encoding="utf-8",
+    )
+
+    assert {"invalid-tag", "too-many-tags"} <= codes(tmp_path)
