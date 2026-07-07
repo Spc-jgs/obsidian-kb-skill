@@ -44,6 +44,8 @@ IGNORED_PARTS = {
 }
 WIKILINK_RE = re.compile(r"!?\[\[([^\]]+)\]\]")
 FENCE_RE = re.compile(r"^\s*```", re.MULTILINE)
+FENCED_CODE_RE = re.compile(r"```[\s\S]*?```")
+INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
 
 
 def _is_ignored(relative: Path) -> bool:
@@ -129,6 +131,11 @@ def _clean_link_target(raw: str) -> str:
     return target.strip()
 
 
+def _without_code_examples(text: str) -> str:
+    text = FENCED_CODE_RE.sub("", text)
+    return INLINE_CODE_RE.sub("", text)
+
+
 def _audit_links(
     findings: list[Finding],
     vault: Path,
@@ -186,7 +193,16 @@ def audit_vault(vault: Path) -> list[Finding]:
         _audit_metadata(findings, relative, text, metadata)
         if len(FENCE_RE.findall(text)) % 2:
             _add(findings, "unclosed-fence", relative, "odd number of fenced code block markers")
-        _audit_links(findings, vault, path, relative, text, by_name, by_stem)
+        if relative.name not in EXEMPT_NAMES:
+            _audit_links(
+                findings,
+                vault,
+                path,
+                relative,
+                _without_code_examples(text),
+                by_name,
+                by_stem,
+            )
 
     for folder in sorted(path for path in vault.rglob("*") if path.is_dir()):
         relative_folder = folder.relative_to(vault)

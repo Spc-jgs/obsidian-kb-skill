@@ -96,3 +96,26 @@ def test_resolves_path_link_alias_heading_and_attachment(tmp_path):
 
     assert "broken-wikilink" not in codes(tmp_path)
     assert "ambiguous-wikilink" not in codes(tmp_path)
+
+
+def test_ignores_example_links_in_repository_documentation(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "README.md").write_text(
+        "Use `[[Missing]]` as an example.\n",
+        encoding="utf-8",
+    )
+
+    assert codes(tmp_path) == set()
+
+
+def test_ignores_wikilinks_inside_inline_and_fenced_code(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "2026-07-07 Note.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\n"
+        "Use `[[Inline Example]]`.\n"
+        "```markdown\n[[Fenced Example]]\n```\n",
+        encoding="utf-8",
+    )
+
+    assert "broken-wikilink" not in codes(tmp_path)
