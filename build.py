@@ -39,7 +39,7 @@ TARGETS = [
     ),
     BuildTarget(
         "qoderwork",
-        ROOT / "platforms" / "qoderwork" / "header.md",
+        ROOT / "skills" / "obsidian-knowledge-base" / "header.md",
         ROOT / "platforms" / "qoderwork" / "SKILL.md",
     ),
     BuildTarget(

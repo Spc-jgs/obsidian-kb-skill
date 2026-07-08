@@ -148,6 +148,11 @@ class TestEndToEnd:
         assert "name: obsidian-knowledge-base" in text
         assert "description:" in text
 
+    def test_qoderwork_compatibility_target_reuses_standard_header(self):
+        targets = {target.name: target for target in build.TARGETS}
+
+        assert targets["qoderwork"].header == targets["standard-agent-skill"].header
+
     def test_check_mode_reports_in_sync_after_clean_build(self, tmp_path, monkeypatch):
         """Running build then build --check must succeed against the real repo state."""
         # Just call extract_body + build_adapter for each declared target and compare to the

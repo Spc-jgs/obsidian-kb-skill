@@ -382,8 +382,7 @@ obsidian-kb-skill/
 │       └── SKILL.md            Platform-independent generated Skill
 ├── platforms/
 │   ├── qoderwork/
-│   │   ├── header.md           QoderWork-specific YAML frontmatter
-│   │   └── SKILL.md            Generated artifact (do NOT edit)
+│   │   └── SKILL.md            Compatibility mirror of the standard Skill
 │   ├── claude-code/
 │   │   ├── header.md
 │   │   └── CLAUDE.md           Generated artifact
@@ -407,8 +406,8 @@ The standard Skill and four compatibility artifacts are generated from one sourc
 # 1. Edit the shared rules
 $EDITOR core/OBSIDIAN_KB.md
 
-# 2. Or edit a platform-specific header (frontmatter / trigger description)
-$EDITOR platforms/qoderwork/header.md
+# 2. Or edit the standard Skill header (frontmatter / trigger description)
+$EDITOR skills/obsidian-knowledge-base/header.md
 
 # 3. Regenerate all five artifacts
 python build.py

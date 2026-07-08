@@ -381,8 +381,7 @@ obsidian-kb-skill/
 │       └── SKILL.md            平台无关的标准生成产物
 ├── platforms/
 │   ├── qoderwork/
-│   │   ├── header.md           QoderWork 平台头部（YAML frontmatter）
-│   │   └── SKILL.md            生成产物（请勿手动编辑）
+│   │   └── SKILL.md            标准 Skill 的兼容镜像
 │   ├── claude-code/
 │   │   ├── header.md
 │   │   └── CLAUDE.md           生成产物
@@ -406,8 +405,8 @@ obsidian-kb-skill/
 # 1. 修改通用规则
 $EDITOR core/OBSIDIAN_KB.md
 
-# 2. 或修改某平台的头部（YAML frontmatter / trigger 描述）
-$EDITOR platforms/qoderwork/header.md
+# 2. 或修改标准 Skill 头部（YAML frontmatter / trigger 描述）
+$EDITOR skills/obsidian-knowledge-base/header.md
 
 # 3. 重新生成五个产物
 python build.py
