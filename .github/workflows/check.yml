@@ -7,21 +7,28 @@ on:
     branches: [master, main]
 
 jobs:
-  adapters-in-sync:
-    name: Adapters in sync with core
+  environment-check:
+    name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
+
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          python-version: "3.x"
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
 
-      - name: Install dev dependencies
-        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+      - name: Sync locked development environment
+        run: uv sync --locked --extra dev
 
       - name: Verify generated adapters match source
-        run: python build.py --check
+        run: uv run --no-sync python build.py --check
 
       - name: Run pytest
-        run: python -m pytest tests/ -v
+        run: uv run --no-sync python -m pytest tests/ -v
