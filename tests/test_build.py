@@ -234,6 +234,22 @@ def test_readme_documents_standard_skill_entry():
     assert "~/.agents/skills/obsidian-knowledge-base" in readme
 
 
+def test_readmes_do_not_tell_users_to_edit_generated_platform_files():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme_en = (ROOT / "README_EN.md").read_text(encoding="utf-8")
+
+    assert "编辑平台指令文件中的标签" not in readme
+    assert "Edit the platform instruction file's tagging section" not in readme_en
+
+
+def test_readmes_warn_that_single_file_install_needs_vault_setup():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme_en = (ROOT / "README_EN.md").read_text(encoding="utf-8")
+
+    assert "单独复制指令文件不会初始化知识库" in readme
+    assert "Copying an instruction file alone does not initialize the Vault" in readme_en
+
+
 def test_codex_compatibility_adapter_points_to_standard_skill():
     header = (ROOT / "platforms/codex/header.md").read_text(encoding="utf-8")
 

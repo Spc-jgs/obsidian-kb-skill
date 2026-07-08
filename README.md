@@ -42,9 +42,9 @@ cd obsidian-kb-skill
 3. 选择 **Download ZIP**
 4. 解压到你想要的目录
 
-### 方式三：只拿你需要的平台文件
+### 方式三：只拿标准 Skill 或平台兼容文件
 
-如果你不想克隆整个仓库，可以直接复制对应平台的指令文件：
+如果你已经有知识库结构和模板，可以只复制对应平台的指令文件：
 
 | 你用的 AI 工具 | 需要的文件 | 直接链接 |
 |--------------|-----------|---------|
@@ -53,7 +53,7 @@ cd obsidian-kb-skill
 | OpenAI Codex（兼容入口） | `platforms/codex/AGENTS.md` | [AGENTS.md](platforms/codex/AGENTS.md) |
 | Cursor | `platforms/cursor/obsidian-kb.mdc` | [obsidian-kb.mdc](platforms/cursor/obsidian-kb.mdc) |
 
-每个平台文件都是**自包含**的——一个文件就包含了指令、模板、路由规则，复制即用。
+这些文件包含完整的 Agent 工作流，但**单独复制指令文件不会初始化知识库**，也不会创建模板或 `~/.obsidian-kb-config`。首次使用建议运行安装脚本；只有已有 Vault 的用户才适合单文件安装。
 
 ## 使用场景
 
@@ -196,6 +196,10 @@ chmod +x install.sh
 - 将知识库路径写入 `~/.obsidian-kb-config`（运行时配置）
 - 将 Skill 文件安装到对应 AI 平台的约定位置
 
+默认会安装所有平台入口。其中 Codex 使用标准
+`~/.agents/skills/obsidian-knowledge-base/SKILL.md`，QoderWork 使用相同
+标准 Skill 的副本；Claude Code 和 Cursor 使用各自兼容文件。
+
 ### 4. 用 Obsidian 打开
 
 在 Obsidian 中打开你的知识库文件夹，你会看到文件夹结构、模板和索引页都已就绪。
@@ -226,8 +230,9 @@ cp skills/obsidian-knowledge-base/SKILL.md ~/.qoderwork/skills/obsidian-knowledg
 mkdir -p ~/.agents/skills/obsidian-knowledge-base
 cp skills/obsidian-knowledge-base/SKILL.md ~/.agents/skills/obsidian-knowledge-base/SKILL.md
 
-# Claude Code:
-cp platforms/claude-code/CLAUDE.md ~/.claude/CLAUDE.md
+# Claude Code：
+# 为避免覆盖已有 ~/.claude/CLAUDE.md，建议使用安装脚本的 marker 安装方式。
+./install.sh --platforms claude-code
 
 # Cursor:
 cp platforms/cursor/obsidian-kb.mdc ~/.cursor/rules/obsidian-kb.mdc
@@ -317,7 +322,7 @@ echo "/新的/知识库/路径" > ~/.obsidian-kb-config
 
 Windows PowerShell 使用 `-Locale zh-CN` 或 `-Locale en`。已有模板不会被覆盖；切换语言时需要同时使用 `--force` / `-Force`。
 
-### 升级模板
+### 升级 Skill 和模板
 
 重新运行安装脚本会幂等更新 Codex/QoderWork Skill。已有模板默认不会被覆盖；使用 `--force` 强制更新模板，并替换 Claude Code 文件中 marker 包裹的 skill 块：
 
@@ -357,9 +362,9 @@ Windows PowerShell 使用 `-Locale zh-CN` 或 `-Locale en`。已有模板不会�
 
 **添加文件夹：** 创建新的编号文件夹（如 `60-Research/`）。Folder Index 原生模式会创建 `60-Research/60-Research.md`；未使用插件时才使用 `INDEX.md` fallback。
 
-**修改标签：** 编辑平台指令文件中的标签部分，添加领域特定的标签。
+**修改标签：** 个人知识库优先在 Vault 的 `AGENTS.md` 中维护标签规范；修改项目默认值时编辑 `core/OBSIDIAN_KB.md`，然后运行 `python build.py`。
 
-**修改路由：** 修改文件夹路由表，把特定触发词重定向到不同文件夹。
+**修改路由：** 个人知识库优先修改 Vault 的 `AGENTS.md` 路由表；只有希望改变所有新安装的默认行为时，才修改 `core/OBSIDIAN_KB.md`。
 
 ## 项目结构
 

@@ -42,9 +42,9 @@ cd obsidian-kb-skill
 3. Select **Download ZIP**
 4. Extract to your preferred directory
 
-### Option 3: Grab Only Your Platform File
+### Option 3: Grab Only the Standard Skill or a Compatibility File
 
-If you don't want to clone the entire repo, you can copy just the instruction file for your platform:
+If your Vault structure and templates already exist, you can copy only the instruction file for your platform:
 
 | AI Tool | File Needed | Direct Link |
 |---------|-------------|-------------|
@@ -53,7 +53,7 @@ If you don't want to clone the entire repo, you can copy just the instruction fi
 | OpenAI Codex (compatibility entry) | `platforms/codex/AGENTS.md` | [AGENTS.md](platforms/codex/AGENTS.md) |
 | Cursor | `platforms/cursor/obsidian-kb.mdc` | [obsidian-kb.mdc](platforms/cursor/obsidian-kb.mdc) |
 
-Each platform file is **self-contained** — a single file with instructions, templates, and routing rules. Copy and it works.
+Each file contains the complete agent workflow, but **Copying an instruction file alone does not initialize the Vault**, create templates, or configure `~/.obsidian-kb-config`. Use the installer for a first-time setup; single-file installation is intended for an existing Vault.
 
 ## Usage Scenarios
 
@@ -197,6 +197,10 @@ That's it. The installer will:
 - Write your vault path to `~/.obsidian-kb-config` (runtime config)
 - Install the skill file to your chosen AI platform's convention location
 
+By default, all platform entries are installed. Codex uses the standard
+`~/.agents/skills/obsidian-knowledge-base/SKILL.md`; QoderWork receives a copy
+of the same standard Skill. Claude Code and Cursor keep their compatibility files.
+
 ### 4. Open in Obsidian
 
 Open your vault folder in Obsidian. You'll see the folder structure, templates, and index pages ready to go.
@@ -228,7 +232,8 @@ mkdir -p ~/.agents/skills/obsidian-knowledge-base
 cp skills/obsidian-knowledge-base/SKILL.md ~/.agents/skills/obsidian-knowledge-base/SKILL.md
 
 # Claude Code:
-cp platforms/claude-code/CLAUDE.md ~/.claude/CLAUDE.md
+# Use the marker-aware installer to avoid overwriting an existing CLAUDE.md.
+./install.sh --platforms claude-code
 
 # Cursor:
 cp platforms/cursor/obsidian-kb.mdc ~/.cursor/rules/obsidian-kb.mdc
@@ -318,7 +323,7 @@ The installer uses Chinese templates by default. Select English explicitly when 
 
 On Windows PowerShell, use `-Locale zh-CN` or `-Locale en`. Existing templates are preserved; combine the locale switch with `--force` / `-Force` to replace them.
 
-### Upgrading Templates
+### Upgrading the Skill and Templates
 
 Re-running the installer idempotently updates the Codex/QoderWork Skill. Existing templates remain untouched by default; use `--force` to update templates and replace the marker-wrapped Claude Code block:
 
@@ -358,9 +363,9 @@ This skill is designed to be shared. When distributing to others:
 
 **Add folders:** Create a new numbered folder (e.g., `60-Research/`). Native Folder Index mode creates `60-Research/60-Research.md`; use the `INDEX.md` fallback only without the plugin.
 
-**Change tags:** Edit the platform instruction file's tagging section to add domain-specific tags.
+**Change tags:** Prefer Vault-local tag rules in the Vault's `AGENTS.md`. To change project defaults, edit `core/OBSIDIAN_KB.md` and run `python build.py`.
 
-**Change routing:** Modify the folder routing table to redirect certain trigger keywords to different folders.
+**Change routing:** Prefer the Vault's `AGENTS.md` routing table. Edit `core/OBSIDIAN_KB.md` only when changing defaults for every new installation.
 
 ## Project Structure
 
