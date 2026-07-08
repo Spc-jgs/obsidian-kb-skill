@@ -47,6 +47,9 @@ FENCE_RE = re.compile(r"^\s*```", re.MULTILINE)
 FENCED_CODE_RE = re.compile(r"```[\s\S]*?```")
 INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
 TAG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+FOLDER_INDEX_CONTENT_RE = re.compile(
+    r"^\s*```folder-index-content(?:\s+[^\n]*)?\s*$", re.MULTILINE
+)
 
 
 def _is_ignored(relative: Path) -> bool:
@@ -124,6 +127,31 @@ def _audit_metadata(
         _add(findings, "invalid-tag", relative, f"tags must use lowercase kebab-case: {invalid}")
 
 
+def _audit_folder_index_content(
+    findings: list[Finding],
+    relative: Path,
+    text: str,
+    metadata: dict[str, Any] | None,
+) -> None:
+    if not metadata or metadata.get("type") != "folder-index":
+        return
+    count = len(FOLDER_INDEX_CONTENT_RE.findall(text))
+    if count == 0:
+        _add(
+            findings,
+            "missing-folder-index-content",
+            relative,
+            "folder-index note must contain one folder-index-content block",
+        )
+    elif count > 1:
+        _add(
+            findings,
+            "duplicate-folder-index-content",
+            relative,
+            "folder-index note must contain exactly one folder-index-content block",
+        )
+
+
 def _candidate_paths(source: Path, target: str, vault: Path) -> Iterable[Path]:
     raw = Path(target)
     candidates = [vault / raw, source.parent / raw]
@@ -199,6 +227,7 @@ def audit_vault(vault: Path) -> list[Finding]:
         if yaml_error:
             _add(findings, "invalid-frontmatter", relative, yaml_error)
         _audit_metadata(findings, relative, text, metadata)
+        _audit_folder_index_content(findings, relative, text, metadata)
         if len(FENCE_RE.findall(text)) % 2:
             _add(findings, "unclosed-fence", relative, "odd number of fenced code block markers")
         if relative.name not in EXEMPT_NAMES:

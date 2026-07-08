@@ -31,6 +31,29 @@ def test_accepts_folder_index_without_date(tmp_path):
     assert codes(tmp_path) == set()
 
 
+def test_reports_missing_folder_index_content_block(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "INDEX.md").write_text(
+        "---\ntype: folder-index\ntags: [moc]\n---\n# Notes\n",
+        encoding="utf-8",
+    )
+
+    assert "missing-folder-index-content" in codes(tmp_path)
+
+
+def test_reports_duplicate_folder_index_content_blocks(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "INDEX.md").write_text(
+        "---\ntype: folder-index\ntags: [moc]\n---\n"
+        "```folder-index-content\n```\n"
+        "## Manual navigation\n"
+        "```folder-index-content\n```\n",
+        encoding="utf-8",
+    )
+
+    assert "duplicate-folder-index-content" in codes(tmp_path)
+
+
 def test_reports_unclosed_fence_and_broken_wikilink(tmp_path):
     (tmp_path / ".obsidian").mkdir()
     (tmp_path / "2026-07-07 Note.md").write_text(
