@@ -94,8 +94,14 @@ def _folder_index_config(vault: Path) -> FolderIndexConfig:
         root_index_file=str(settings.get("rootIndexFile", "INDEX.md")),
         user_specified=bool(settings.get("indexFileUserSpecified", False)),
         index_filename=str(settings.get("indexFilename", "INDEX")),
-        exclude_folders=tuple(str(item).strip("/") for item in settings.get("excludeFolders", []) if str(item)),
-        exclude_patterns=tuple(str(item) for item in settings.get("excludePatterns", []) if str(item)),
+        exclude_folders=tuple(
+            str(item).strip("/")
+            for item in settings.get("excludeFolders", [])
+            if str(item)
+        ),
+        exclude_patterns=tuple(
+            str(item) for item in settings.get("excludePatterns", []) if str(item)
+        ),
     )
 
 
