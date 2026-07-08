@@ -15,6 +15,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+STANDARD_SKILL="$SCRIPT_DIR/skills/obsidian-knowledge-base/SKILL.md"
 VAULT_PATH=""
 PLATFORMS="qoderwork,claude-code,codex,cursor"
 LOCALE="zh-CN"
@@ -153,6 +154,12 @@ if [ "$DO_UNINSTALL" = true ]; then
   if [ -d "$QODERWORK_SKILLS" ]; then
     rm -rf "$QODERWORK_SKILLS"
     echo "-> Removed: QoderWork skill ($QODERWORK_SKILLS)"
+  fi
+  # Remove Codex user-level skill without touching sibling skills.
+  CODEX_SKILLS="$HOME/.agents/skills/obsidian-knowledge-base"
+  if [ -d "$CODEX_SKILLS" ] || [ -L "$CODEX_SKILLS" ]; then
+    rm -rf "$CODEX_SKILLS"
+    echo "-> Removed: Codex skill ($CODEX_SKILLS)"
   fi
   # Remove Cursor rule
   CURSOR_FILE="$HOME/.cursor/rules/obsidian-kb.mdc"
@@ -424,7 +431,7 @@ for platform in "${PLATFORM_LIST[@]}"; do
     qoderwork)
       QODERWORK_SKILLS="$HOME/.qoderwork/skills/obsidian-knowledge-base"
       mkdir -p "$QODERWORK_SKILLS"
-      cp "$SCRIPT_DIR/platforms/qoderwork/SKILL.md" "$QODERWORK_SKILLS/SKILL.md"
+      cp "$STANDARD_SKILL" "$QODERWORK_SKILLS/SKILL.md"
       echo "-> Installed: QoderWork skill -> $QODERWORK_SKILLS/SKILL.md"
       ;;
     claude-code)
@@ -435,9 +442,10 @@ for platform in "${PLATFORM_LIST[@]}"; do
       echo "-> Installed: Claude Code ($result) -> $CLAUDE_FILE"
       ;;
     codex)
-      CODEX_FILE="$HOME/AGENTS.md"
-      result=$(set_marker_block "$CODEX_FILE" "$SCRIPT_DIR/platforms/codex/AGENTS.md")
-      echo "-> Installed: Codex ($result) -> $CODEX_FILE"
+      CODEX_SKILLS="$HOME/.agents/skills/obsidian-knowledge-base"
+      mkdir -p "$CODEX_SKILLS"
+      cp "$STANDARD_SKILL" "$CODEX_SKILLS/SKILL.md"
+      echo "-> Installed: Codex skill -> $CODEX_SKILLS/SKILL.md"
       ;;
     cursor)
       CURSOR_DIR="$HOME/.cursor/rules"

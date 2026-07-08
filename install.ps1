@@ -126,6 +126,13 @@ if ($Uninstall) {
         Write-Host "-> Removed: QoderWork skill ($skillDir)" -ForegroundColor Green
     }
 
+    # Remove Codex user-level skill without touching sibling skills.
+    $codexSkillDir = Join-Path $env:USERPROFILE ".agents\skills\obsidian-knowledge-base"
+    if (Test-Path $codexSkillDir) {
+        Remove-Item $codexSkillDir -Recurse -Force
+        Write-Host "-> Removed: Codex skill ($codexSkillDir)" -ForegroundColor Green
+    }
+
     # Remove Cursor rule
     $cursorFile = Join-Path $env:USERPROFILE ".cursor\rules\obsidian-kb.mdc"
     if (Test-Path $cursorFile) {
@@ -451,6 +458,7 @@ Write-Host ""
 
 # Step 3: Install platform files
 $platformList = $Platforms -split ','
+$standardSkill = Join-Path $ScriptDir "skills\obsidian-knowledge-base\SKILL.md"
 
 foreach ($platform in $platformList) {
     $platform = $platform.Trim()
@@ -458,7 +466,7 @@ foreach ($platform in $platformList) {
         "qoderwork" {
             $skillDir = Join-Path $env:USERPROFILE ".qoderwork\skills\obsidian-knowledge-base"
             New-Item -ItemType Directory -Path $skillDir -Force | Out-Null
-            Copy-Item (Join-Path $ScriptDir "platforms\qoderwork\SKILL.md") (Join-Path $skillDir "SKILL.md") -Force
+            Copy-Item $standardSkill (Join-Path $skillDir "SKILL.md") -Force
             Write-Host "-> Installed: QoderWork skill -> $skillDir\SKILL.md" -ForegroundColor Green
         }
         "claude-code" {
@@ -471,11 +479,10 @@ foreach ($platform in $platformList) {
             Write-Host "-> Installed: Claude Code ($result) -> $claudeFile" -ForegroundColor Green
         }
         "codex" {
-            $codexFile = Join-Path $env:USERPROFILE "AGENTS.md"
-            $srcFile = Join-Path $ScriptDir "platforms\codex\AGENTS.md"
-            $body = Read-Text -Path $srcFile
-            $result = Set-MarkerBlock -TargetFile $codexFile -BlockBody $body
-            Write-Host "-> Installed: Codex ($result) -> $codexFile" -ForegroundColor Green
+            $codexSkillDir = Join-Path $env:USERPROFILE ".agents\skills\obsidian-knowledge-base"
+            New-Item -ItemType Directory -Path $codexSkillDir -Force | Out-Null
+            Copy-Item $standardSkill (Join-Path $codexSkillDir "SKILL.md") -Force
+            Write-Host "-> Installed: Codex skill -> $codexSkillDir\SKILL.md" -ForegroundColor Green
         }
         "cursor" {
             $cursorDir = Join-Path $env:USERPROFILE ".cursor\rules"
