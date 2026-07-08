@@ -98,8 +98,9 @@ def build_adapter(header: str, body: str, header_path: str) -> str:
         end = header.find("\n---\n", 4)
         if end != -1:
             split_at = end + len("\n---\n")
-            return header[:split_at] + "\n" + banner + header[split_at:].lstrip("\n") + body
-    return banner + header + body
+            heading = header[split_at:].strip("\n")
+            return header[:split_at] + "\n" + banner + heading + "\n\n" + body
+    return banner + header.rstrip("\n") + "\n\n" + body
 
 
 def main() -> int:

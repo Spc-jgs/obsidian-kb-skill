@@ -113,6 +113,15 @@ class TestBuildAdapter:
         )
         assert result.endswith(self.BODY)
 
+    def test_header_and_body_are_separated_by_blank_line(self):
+        result = build.build_adapter(
+            "# Skill Title\n",
+            self.BODY,
+            "platforms/codex/header.md",
+        )
+
+        assert "# Skill Title\n\n## Overview" in result
+
     def test_banner_names_the_correct_platform(self):
         result = build.build_adapter(
             self.PLAIN_HEADER,
@@ -223,3 +232,10 @@ def test_readme_documents_standard_skill_entry():
 
     assert "skills/obsidian-knowledge-base/SKILL.md" in readme
     assert "~/.agents/skills/obsidian-knowledge-base" in readme
+
+
+def test_codex_compatibility_adapter_points_to_standard_skill():
+    header = (ROOT / "platforms/codex/header.md").read_text(encoding="utf-8")
+
+    assert "Compatibility adapter" in header
+    assert "skills/obsidian-knowledge-base/SKILL.md" in header
