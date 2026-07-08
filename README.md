@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.5.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.6.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -192,7 +192,7 @@ chmod +x install.sh
 
 - 创建知识库文件夹结构（如果不存在）
 - 复制 7 个笔记模板到你的知识库
-- 在每个文件夹中创建 INDEX.md 导航文件
+- 根据 Folder Index 配置创建目录同名索引，未使用插件时创建 `INDEX.md` 导航文件
 - 将知识库路径写入 `~/.obsidian-kb-config`（运行时配置）
 - 将 Skill 文件安装到对应 AI 平台的约定位置
 
@@ -235,7 +235,7 @@ cp core/templates/*.md /你的知识库路径/Templates/
 
 ```
 YourVault/
-├── 00-Inbox/          收件箱 —— 快速捕获，稍后整理
+├── 00-Inbox/          收件箱 —— 原生 Folder Index 使用 00-Inbox.md
 ├── 10-Work/           工作 —— 会议记录、工作文档、团队讨论
 ├── 15-Daily/          日记 —— 每日记录、晨间规划、复盘
 ├── 20-Learning/       学习 —— 文章、笔记、网页剪藏、课程资料
@@ -245,7 +245,7 @@ YourVault/
 ├── 90-Archive/        归档 —— 已完成或不活跃的内容
 ├── Templates/         7 个预置笔记模板
 ├── Attachments/       图片和文件附件
-└── INDEX.md           主导航页（Map of Content）
+└── INDEX.md           根目录主导航页（非根目录使用目录同名索引）
 ```
 
 ## 笔记模板
@@ -350,7 +350,7 @@ Windows PowerShell 使用 `-Locale zh-CN` 或 `-Locale en`。已有模板不会�
 
 **添加模板：** 在知识库的 `Templates/` 文件夹中创建新的 `.md` 文件，使用相同的 YAML frontmatter 格式。
 
-**添加文件夹：** 创建新的编号文件夹（如 `60-Research/`）。Folder Index 可以自动生成索引；未使用插件时再添加 `INDEX.md`，AI 会自动发现。
+**添加文件夹：** 创建新的编号文件夹（如 `60-Research/`）。Folder Index 原生模式会创建 `60-Research/60-Research.md`；未使用插件时才使用 `INDEX.md` fallback。
 
 **修改标签：** 编辑平台指令文件中的标签部分，添加领域特定的标签。
 
@@ -447,7 +447,7 @@ A：不会。安装脚本只创建缺失的文件夹和文件，不会修改已�
 
 ## 推荐的 Obsidian 插件
 
-- **[Folder Index](https://github.com/turulix/obsidian-folder-index)** —— 希望手动创建文件夹或笔记时自动生成目录、并在图谱中显示文件夹层级时推荐。建议启用自定义索引文件名 `INDEX` 和 Graph View 覆盖。Skill 检测到插件后不会再向索引追加链接。
+- **[Folder Index](https://github.com/turulix/obsidian-folder-index)** —— 希望手动创建文件夹或笔记时自动生成目录、并在图谱中显示完整文件夹层级时推荐。请启用 Graph View 覆盖，并使用插件原生的目录同名索引（关闭自定义索引文件名）；Folder Index 1.0.30 的图谱代码无法用统一的 `INDEX.md` 连接父子目录。根索引仍可配置为 `INDEX.md`。
 - **[Dataview](https://github.com/blacksmithgu/obsidian-dataview)** —— 用于按属性生成统计表、仪表盘和动态视图。未使用 Folder Index 时，安装器生成的 `INDEX.md` 查询可以自动列出笔记。Dataview 渲染出的链接不作为持久语义关系，因此相关概念仍应使用正文或 `related` 属性中的 `[[wikilink]]`。
 - **[Calendar](https://github.com/liamcain/obsidian-calendar-plugin)** —— 日历视图浏览 `15-Daily/` 下的日记
 - **[Kanban](https://github.com/mgmeyers/obsidian-kanban)** —— 读取知识库的项目看板

@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2026-07-08
+
+### Added
+- Configuration-aware Folder Index graph auditing with findings for graph-incompatible custom names, missing indexes, misnamed indexes, and broken parent-child graph chains.
+- Bash installer smoke tests for native Folder Index and Dataview fallback modes.
+- Root-to-target graph-chain validation after note creation.
+- Pre-write Git synchronization with safe fast-forward-only updates.
+
+### Changed
+- Folder Index Graph View now uses native folder-named indexes below the configured root, matching the actual Folder Index 1.0.30 graph traversal algorithm.
+- Bash and PowerShell installers derive index filenames and root navigation from the enabled plugin configuration.
+- Bounded wikilink search lists the target folder before parent or sibling folders.
+- Template validation checks required heading order; `web-clip.source` is the canonical URL and `related` is the machine-readable semantic relationship source of truth.
+- Editable development installs explicitly disable accidental setuptools package discovery in this documentation-and-script repository.
+
+### Fixed
+- Dataview fallback indexes are no longer mislabeled as Folder Index-owned notes.
+- New installations now create the missing `90-Archive` index.
+
 ## [1.5.0] - 2026-07-08
 
 ### Added

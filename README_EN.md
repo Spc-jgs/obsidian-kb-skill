@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.5.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.6.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -193,7 +193,7 @@ That's it. The installer will:
 
 - Create the vault folder structure (if it doesn't exist)
 - Copy 7 note templates into your vault
-- Create INDEX.md navigation files in each folder
+- Create native folder-named indexes from Folder Index settings, or `INDEX.md` fallbacks without the plugin
 - Write your vault path to `~/.obsidian-kb-config` (runtime config)
 - Install the skill file to your chosen AI platform's convention location
 
@@ -236,7 +236,7 @@ cp core/templates/en/*.md /your/vault/path/Templates/
 
 ```
 YourVault/
-├── 00-Inbox/          Quick capture — drop anything here, sort later
+├── 00-Inbox/          Quick capture — native Folder Index uses 00-Inbox.md
 ├── 10-Work/           Meeting notes, work documents, team discussions
 ├── 15-Daily/          Daily notes, journals, morning plans, reviews
 ├── 20-Learning/       Articles, study notes, web clips, course materials
@@ -246,7 +246,7 @@ YourVault/
 ├── 90-Archive/        Completed or inactive items
 ├── Templates/         7 pre-built note templates
 ├── Attachments/       Images and file attachments
-└── INDEX.md           Main navigation hub (Map of Content)
+└── INDEX.md           Root navigation hub (non-root indexes use folder names)
 ```
 
 ## Note Templates
@@ -351,7 +351,7 @@ This skill is designed to be shared. When distributing to others:
 
 **Add templates:** Create new `.md` files in your vault's `Templates/` folder with the same YAML frontmatter pattern.
 
-**Add folders:** Create a new numbered folder (e.g., `60-Research/`). Folder Index can generate its index automatically; otherwise add an `INDEX.md` and the agents will discover it.
+**Add folders:** Create a new numbered folder (e.g., `60-Research/`). Native Folder Index mode creates `60-Research/60-Research.md`; use the `INDEX.md` fallback only without the plugin.
 
 **Change tags:** Edit the platform instruction file's tagging section to add domain-specific tags.
 
@@ -448,7 +448,7 @@ A: No. The installer only creates missing folders and files. It never modifies e
 
 ## Recommended Obsidian Plugins
 
-- **[Folder Index](https://github.com/turulix/obsidian-folder-index)** — Recommended when manually created folders and notes should receive automatic indexes and appear as folder relationships in Graph View. Configure a user-defined index filename of `INDEX` and enable Graph View overwrite. The skill will then leave generated listings to the plugin.
+- **[Folder Index](https://github.com/turulix/obsidian-folder-index)** — Recommended when manually created folders and notes should receive automatic indexes and appear as a complete hierarchy in Graph View. Enable Graph View overwrite and use native folder-named indexes (disable the custom index filename). Folder Index 1.0.30 cannot connect parent and child folders when every non-root index is named `INDEX.md`; the root index may still be `INDEX.md`.
 - **[Dataview](https://github.com/blacksmithgu/obsidian-dataview)** — Use it for metadata-driven tables, dashboards, and dynamic views. When Folder Index is not active, the installer-provided `INDEX.md` queries keep folder listings current. Rendered Dataview links are not persistent semantic relationships, so related concepts should still use `[[wikilinks]]` in note content or the `related` property.
 - **[Calendar](https://github.com/liamcain/obsidian-calendar-plugin)** — Visual calendar for daily notes.
 - **[Kanban](https://github.com/mgmeyers/obsidian-kanban)** — Project boards that read from your vault.
