@@ -271,16 +271,60 @@ for i in "${!TEMPLATE_FILES[@]}"; do
   fi
 done
 
-# Create INDEX.md files if not exist
+# Detect Folder Index before generating index files. The plugin's graph
+# implementation requires native folder-named indexes for nested edges.
+INDEX_STRATEGY="dataview"
+ROOT_INDEX_FILE="INDEX.md"
+CUSTOM_INDEX_FILENAME="INDEX"
+PLUGIN_LIST="$VAULT_PATH/.obsidian/community-plugins.json"
+FOLDER_INDEX_DATA="$VAULT_PATH/.obsidian/plugins/obsidian-folder-index/data.json"
+if [ -f "$PLUGIN_LIST" ] && grep -q '"obsidian-folder-index"' "$PLUGIN_LIST" && [ -f "$FOLDER_INDEX_DATA" ]; then
+  ROOT_INDEX_FILE=$(sed -nE 's/.*"rootIndexFile"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$FOLDER_INDEX_DATA" | head -1)
+  CUSTOM_INDEX_FILENAME=$(sed -nE 's/.*"indexFilename"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$FOLDER_INDEX_DATA" | head -1)
+  user_specified=$(sed -nE 's/.*"indexFileUserSpecified"[[:space:]]*:[[:space:]]*(true|false).*/\1/p' "$FOLDER_INDEX_DATA" | head -1)
+  ROOT_INDEX_FILE="${ROOT_INDEX_FILE:-INDEX.md}"
+  CUSTOM_INDEX_FILENAME="${CUSTOM_INDEX_FILENAME:-INDEX}"
+  if [ "$user_specified" = "false" ]; then
+    INDEX_STRATEGY="folder-index-native"
+    echo "-> Folder Index detected: using native folder-named indexes"
+  else
+    INDEX_STRATEGY="folder-index-custom"
+    echo "-> Folder Index detected: using custom index name $CUSTOM_INDEX_FILENAME.md"
+    echo "   WARNING: Folder Index 1.0.30 cannot build nested Graph View edges with one custom index filename."
+  fi
+fi
+
+index_filename_for_folder() {
+  local folder="$1"
+  case "$INDEX_STRATEGY" in
+    folder-index-native) printf '%s.md' "${folder##*/}" ;;
+    folder-index-custom) printf '%s.md' "$CUSTOM_INDEX_FILENAME" ;;
+    *) printf 'INDEX.md' ;;
+  esac
+}
+
+# Create configuration-aware index files if not present.
 create_index() {
   local folder="$1"
   local title="$2"
   local desc="$3"
-  if [ ! -f "$VAULT_PATH/$folder/INDEX.md" ]; then
-    cat > "$VAULT_PATH/$folder/INDEX.md" << INDEXEOF
+  local index_name
+  index_name=$(index_filename_for_folder "$folder")
+  local index_path="$VAULT_PATH/$folder/$index_name"
+  if [ -f "$index_path" ]; then
+    return
+  fi
+  if [[ "$INDEX_STRATEGY" == folder-index-* ]]; then
+    {
+      printf '%s\n' '---' 'type: folder-index' 'tags: [moc]' '---' ''
+      printf '# %s\n\n%s\n\n' "$title" "$desc"
+      printf '%s\n' '```folder-index-content' '```'
+    } > "$index_path"
+  else
+    cat > "$index_path" << INDEXEOF
 ---
-type: folder-index
-tags: [$folder]
+type: moc
+tags: [moc]
 ---
 
 # $title
@@ -305,8 +349,8 @@ LIMIT 50
 
 ---
 INDEXEOF
-    echo "  Created index: $folder/INDEX.md"
   fi
+  echo "  Created index: $folder/$index_name"
 }
 
 create_index "00-Inbox" "Inbox" "Quick capture zone. Process later."
@@ -316,10 +360,16 @@ create_index "20-Learning" "Learning" "Articles, courses, and study materials."
 create_index "30-Insights" "Insights" "Analysis and AI-generated insights."
 create_index "40-Projects" "Projects" "Active project context documents."
 create_index "50-People" "People" "Contacts and team member notes."
+create_index "90-Archive" "Archive" "Completed and inactive notes."
 
-# Create main INDEX.md if not exists
-if [ ! -f "$VAULT_PATH/INDEX.md" ]; then
-  cat > "$VAULT_PATH/INDEX.md" << 'MAINEOF'
+# Create the configured root index if it does not exist.
+root_link() {
+  local folder="$1"
+  printf '%s/%s' "$folder" "$(index_filename_for_folder "$folder" | sed 's/\.md$//')"
+}
+ROOT_INDEX_PATH="$VAULT_PATH/$ROOT_INDEX_FILE"
+if [ ! -f "$ROOT_INDEX_PATH" ]; then
+  cat > "$ROOT_INDEX_PATH" << MAINEOF
 ---
 type: moc
 tags: [index, moc]
@@ -329,15 +379,19 @@ tags: [index, moc]
 
 ## Quick Navigation
 
-- [[00-Inbox/INDEX|Inbox]] — Quick capture
-- [[10-Work/INDEX|Work]] — Meeting notes, work docs
-- [[15-Daily/INDEX|Daily]] — Daily notes, journals
-- [[20-Learning/INDEX|Learning]] — Articles, study notes
-- [[30-Insights/INDEX|Insights]] — Analysis, AI insights
-- [[40-Projects/INDEX|Projects]] — Active projects
-- [[50-People/INDEX|People]] — Contacts, team notes
+- [[$(root_link "00-Inbox")|Inbox]] — Quick capture
+- [[$(root_link "10-Work")|Work]] — Meeting notes, work docs
+- [[$(root_link "15-Daily")|Daily]] — Daily notes, journals
+- [[$(root_link "20-Learning")|Learning]] — Articles, study notes
+- [[$(root_link "30-Insights")|Insights]] — Analysis, AI insights
+- [[$(root_link "40-Projects")|Projects]] — Active projects
+- [[$(root_link "50-People")|People]] — Contacts, team notes
+- [[$(root_link "90-Archive")|Archive]] — Completed and inactive notes
 MAINEOF
-  echo "  Created main INDEX.md"
+  if [[ "$INDEX_STRATEGY" == folder-index-* ]]; then
+    printf '\n```folder-index-content\n```\n' >> "$ROOT_INDEX_PATH"
+  fi
+  echo "  Created main index: $ROOT_INDEX_FILE"
 fi
 
 # Create .obsidian config if not exists

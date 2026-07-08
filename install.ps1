@@ -279,11 +279,61 @@ foreach ($src in $templateMap.Keys) {
     }
 }
 
-# Create INDEX files
-$IndexTemplate = @'
+# Detect Folder Index before generating index files.
+$indexStrategy = "dataview"
+$rootIndexFile = "INDEX.md"
+$customIndexFilename = "INDEX"
+$pluginListPath = Join-Path $VaultPath ".obsidian\community-plugins.json"
+$folderIndexDataPath = Join-Path $VaultPath ".obsidian\plugins\obsidian-folder-index\data.json"
+if ((Test-Path $pluginListPath) -and (Test-Path $folderIndexDataPath)) {
+    try {
+        $enabledPlugins = Get-Content $pluginListPath -Raw | ConvertFrom-Json
+        if ($enabledPlugins -contains "obsidian-folder-index") {
+            $folderIndexSettings = Get-Content $folderIndexDataPath -Raw | ConvertFrom-Json
+            if ($folderIndexSettings.rootIndexFile) { $rootIndexFile = [string]$folderIndexSettings.rootIndexFile }
+            if ($folderIndexSettings.indexFilename) { $customIndexFilename = [string]$folderIndexSettings.indexFilename }
+            if ($folderIndexSettings.indexFileUserSpecified -eq $false) {
+                $indexStrategy = "folder-index-native"
+                Write-Host "-> Folder Index detected: using native folder-named indexes" -ForegroundColor Cyan
+            } else {
+                $indexStrategy = "folder-index-custom"
+                Write-Host "-> Folder Index detected: using custom index name $customIndexFilename.md" -ForegroundColor Cyan
+                Write-Host "   WARNING: Folder Index 1.0.30 cannot build nested Graph View edges with one custom index filename." -ForegroundColor Yellow
+            }
+        }
+    } catch {
+        Write-Host "-> Could not parse Folder Index settings; using INDEX.md Dataview fallback." -ForegroundColor Yellow
+    }
+}
+
+function Get-IndexFileName([string]$folder) {
+    if ($indexStrategy -eq "folder-index-native") {
+        return "$(Split-Path $folder -Leaf).md"
+    }
+    if ($indexStrategy -eq "folder-index-custom") {
+        return "$customIndexFilename.md"
+    }
+    return "INDEX.md"
+}
+
+$FolderIndexTemplate = @'
 ---
 type: folder-index
-tags: [__FOLDER__]
+tags: [moc]
+---
+
+# __TITLE__
+
+__DESC__
+
+```folder-index-content
+```
+'@
+
+$DataviewIndexTemplate = @'
+---
+type: moc
+tags: [moc]
 ---
 
 # __TITLE__
@@ -310,14 +360,21 @@ LIMIT 50
 '@
 
 function New-IndexFile($folder, $title, $desc) {
-    $indexPath = Join-Path $VaultPath "$folder\INDEX.md"
+    $indexName = Get-IndexFileName $folder
+    $indexPath = Join-Path $VaultPath "$folder\$indexName"
     if (-not (Test-Path $indexPath)) {
-        $content = $IndexTemplate.
+        if ($indexStrategy -like "folder-index-*") {
+            $content = $FolderIndexTemplate.
+                Replace('__TITLE__', $title).
+                Replace('__DESC__', $desc)
+        } else {
+            $content = $DataviewIndexTemplate.
             Replace('__FOLDER__', $folder).
             Replace('__TITLE__', $title).
             Replace('__DESC__', $desc)
+        }
         Write-Utf8NoBom -Path $indexPath -Content $content
-        Write-Host "  Created index: $folder\INDEX.md"
+        Write-Host "  Created index: $folder\$indexName"
     }
 }
 
@@ -328,9 +385,15 @@ New-IndexFile "20-Learning" "Learning" "Articles, courses, and study materials."
 New-IndexFile "30-Insights" "Insights" "Analysis and AI-generated insights."
 New-IndexFile "40-Projects" "Projects" "Active project context documents."
 New-IndexFile "50-People" "People" "Contacts and team member notes."
+New-IndexFile "90-Archive" "Archive" "Completed and inactive notes."
 
-# Main INDEX
-$mainIndex = Join-Path $VaultPath "INDEX.md"
+# Main index
+function Get-IndexLink([string]$folder) {
+    $name = [System.IO.Path]::GetFileNameWithoutExtension((Get-IndexFileName $folder))
+    return "$folder/$name"
+}
+
+$mainIndex = Join-Path $VaultPath $rootIndexFile
 if (-not (Test-Path $mainIndex)) {
     $mainContent = @"
 ---
@@ -342,16 +405,24 @@ tags: [index, moc]
 
 ## Quick Navigation
 
-- [[00-Inbox/INDEX|Inbox]] -- Quick capture
-- [[10-Work/INDEX|Work]] -- Meeting notes, work docs
-- [[15-Daily/INDEX|Daily]] -- Daily notes, journals
-- [[20-Learning/INDEX|Learning]] -- Articles, study notes
-- [[30-Insights/INDEX|Insights]] -- Analysis, AI insights
-- [[40-Projects/INDEX|Projects]] -- Active projects
-- [[50-People/INDEX|People]] -- Contacts, team notes
+- [[$(Get-IndexLink "00-Inbox")|Inbox]] -- Quick capture
+- [[$(Get-IndexLink "10-Work")|Work]] -- Meeting notes, work docs
+- [[$(Get-IndexLink "15-Daily")|Daily]] -- Daily notes, journals
+- [[$(Get-IndexLink "20-Learning")|Learning]] -- Articles, study notes
+- [[$(Get-IndexLink "30-Insights")|Insights]] -- Analysis, AI insights
+- [[$(Get-IndexLink "40-Projects")|Projects]] -- Active projects
+- [[$(Get-IndexLink "50-People")|People]] -- Contacts, team notes
+- [[$(Get-IndexLink "90-Archive")|Archive]] -- Completed and inactive notes
 "@
+    if ($indexStrategy -like "folder-index-*") {
+        $mainContent += @'
+
+```folder-index-content
+```
+'@
+    }
     Write-Utf8NoBom -Path $mainIndex -Content $mainContent
-    Write-Host "  Created main INDEX.md"
+    Write-Host "  Created main index: $rootIndexFile"
 }
 
 # Obsidian config

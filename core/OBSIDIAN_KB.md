@@ -79,7 +79,9 @@ Detect the vault's index strategy before creating or updating a note:
 
 - Read `.obsidian/plugins/obsidian-folder-index/data.json` when available.
 - If `indexFileUserSpecified` is `true`, the folder index is `{indexFilename}.md` inside each folder. Otherwise, it is named after the folder. The root index uses `rootIndexFile`.
+- **Graph compatibility:** Folder Index 1.0.30 looks for `<folder-name>.md` when it connects a parent folder to a child folder in Graph View. When complete folder hierarchy edges are required, use native folder-named indexes (`indexFileUserSpecified: false`) and keep a separate configured root index. A uniform custom name such as `INDEX.md` can render folder contents but cannot produce nested parent-to-child graph edges in this plugin version.
 - If `graphOverwrite` is `false`, keep using Folder Index mode but tell the user that structural folder edges are not enabled in Graph View. Suggest enabling the setting; do not silently modify plugin configuration.
+- If `graphOverwrite` is `true` and `indexFileUserSpecified` is `true`, do not claim that the structural graph is complete. Report the incompatible configuration and recommend a coordinated migration; never rename existing indexes silently during a capture request.
 - Treat the plugin-generated index and its `folder-index-content` block as plugin-owned. Never append note links to it.
 - When the agent creates a new folder while Obsidian may be closed, create the missing index file with the configured name and this minimal body so the folder is immediately usable:
 
@@ -171,9 +173,9 @@ Use `[[wikilinks]]` to link related existing notes — but do **not** scan the e
 
 1. Use the Vault-local routing rules to identify likely topic folders
 2. Read the target folder's detected index and inspect its manual navigation (cost: 1 file read)
-3. If needed, inspect the parent index's manual topic guidance (cost: 1 file read)
-4. If the budget still permits, list filenames in **at most 1–2** high-relevance sibling folders
-5. Pick **at most 1–3 candidate files**, read only their first ~20 lines to confirm relevance
+3. **Always list the target folder's filenames** when the index uses a generated Folder Index or Dataview block, because generated members are not present in raw Markdown
+4. Pick **at most 1–3 target-folder candidates** and read only their first ~20 lines to confirm relevance
+5. Only if no high-confidence target-folder match exists, inspect the parent index's manual topic guidance and list filenames in **at most 1–2** high-relevance sibling folders
 6. Insert **at most 5 wikilinks** per note, only for high-confidence matches
 
 Stop when the total file-scan cap is reached. If nothing obvious turns up after the cheap passes, **skip wikilinks** — do not escalate to a full-text vault scan. An empty `related: []` is valid.
@@ -201,12 +203,14 @@ If the folder has subfolders (e.g. `20-Learning/Python/`), detect the strategy i
 Re-read the written note and any index changed by this invocation before confirmation, commit, or push. Verify all of the following:
 
 - The final path, filename, UTF-8 encoding, and selected template are correct
+- All required template headings exist in the same order as the selected Vault template; additional user-defined sections are allowed
 - YAML parses and contains the required `date`, `type`, and non-empty `tags`
 - `type` is supported; tags use lowercase kebab-case and total no more than 5
 - No template placeholders such as `{{date}}` remain
 - Wikilinks stay within the cap and represent high-confidence relationships
 - Folder Index and Dataview listings were not manually extended
 - A newly created `folder-index` note contains exactly one `folder-index-content` block
+- In Folder Index mode, every configured index from the target folder up to the root exists, and native folder-named indexes are used when Graph overwrite is expected to provide the hierarchy
 
 If a reusable Vault auditor is available, run it in strict/read-only mode in addition to these target-file checks. Fix validation failures before continuing. Do not report success for an invalid note.
 
@@ -275,12 +279,24 @@ Tell the user:
 
 Git is not a default part of note capture. Run it only when the user explicitly requests it or applicable Vault-local governance requires it.
 
+### Pre-write Git synchronization
+
+When Git is required, perform this before Create Step 1 or Update Step 1:
+
+1. Inspect the worktree. If unrelated changes exist, stop and report them.
+2. Fetch the tracked remote branch without modifying files.
+3. If the worktree is clean and local is only behind, run `git merge --ff-only <remote>/<branch>`.
+4. If local is already current or only ahead, continue.
+5. If histories are diverged or `merge --ff-only` fails, stop and report. Do not create a local commit first and then auto-merge remote work.
+
+### Post-write Git publication
+
 1. Complete post-write validation first.
 2. Inspect the worktree and stage only files created or changed by this invocation. Never include unrelated user changes.
-3. Before pushing, fetch the remote branch and compare local and remote history.
+3. Commit, then fetch the remote branch again and compare local and remote history.
 4. **Stop on divergence or conflict.** Report the state instead of merging, rebasing, or choosing a conflict side automatically.
 5. **Never auto-resolve INDEX conflicts.** In particular, never replace a Folder Index `folder-index-content` block with a manual note list to make a merge pass.
-6. Push only after the commit is verified and the remote is not ahead or diverged.
+6. Push only when the remote is not ahead and histories are not diverged.
 
 ## YAML Frontmatter Standards
 
@@ -306,6 +322,8 @@ Additional fields by type:
 | `insight-note` | `source: ""`, `related: []` |
 | `person-note` | `role: ""`, `organization: ""`, `updated: "YYYY-MM-DD"`, `related: []` |
 
+For a `web-clip`, `source` stores the canonical source URL only. Keep the article title in the note heading and source-information section; use `author` and `published` for their respective values. For non-web notes, `source` may be a concise source description when no canonical URL exists.
+
 Store semantic relationships in `related` as quoted Obsidian links, for example:
 
 ```yaml
@@ -314,6 +332,8 @@ related:
 ```
 
 Do not add a weak link only to satisfy a quota. Folder Index already supplies structural folder relationships; `related` is for high-confidence conceptual relationships.
+
+The `related` property is the machine-readable source of truth for semantic relationships. A body section may repeat the same wikilink only when it adds a short explanation of why the notes are related. Do not duplicate `related` as an identical bare link list.
 
 ### Template Placeholders
 

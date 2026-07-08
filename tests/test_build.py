@@ -154,3 +154,17 @@ class TestGovernanceContract:
         assert "## 理解与启发" in self.web_clip
         assert "2–4 句" in self.web_clip
         assert "不要代替用户表达个人立场" in self.web_clip
+
+    def test_native_folder_index_graph_contract(self):
+        assert "Folder Index 1.0.30" in self.core
+        assert "folder-named indexes" in self.core
+        assert "list the target folder's filenames" in self.core
+        assert "required template headings" in self.core
+
+    def test_metadata_relationship_contract(self):
+        assert "canonical source URL" in self.core
+        assert "machine-readable source of truth" in self.core
+
+    def test_pre_write_git_sync_contract(self):
+        assert "Pre-write Git synchronization" in self.core
+        assert "merge --ff-only" in self.core
