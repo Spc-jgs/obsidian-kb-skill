@@ -144,6 +144,26 @@ def test_bash_codex_install_is_idempotent(tmp_path):
     assert list(installed.parent.glob("SKILL.md")) == [installed]
 
 
+def test_bash_codex_install_accepts_symlink_to_canonical_skill(tmp_path):
+    vault = tmp_path / "vault"
+    home = tmp_path / "home"
+    target = home / ".agents/skills/obsidian-knowledge-base"
+    target.parent.mkdir(parents=True)
+    target.symlink_to(ROOT / "skills/obsidian-knowledge-base", target_is_directory=True)
+
+    run_bash_installer(
+        tmp_path,
+        platforms="codex",
+        vault=vault,
+        home=home,
+    )
+
+    assert target.is_symlink()
+    assert (target / "SKILL.md").samefile(
+        ROOT / "skills/obsidian-knowledge-base/SKILL.md"
+    )
+
+
 def test_bash_uninstall_preserves_sibling_agent_skill(tmp_path):
     vault, home = run_bash_installer(tmp_path, platforms="codex")
     sibling = home / ".agents/skills/keep-me/SKILL.md"

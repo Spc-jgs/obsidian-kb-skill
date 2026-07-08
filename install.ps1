@@ -44,6 +44,23 @@ function Read-Text {
     return [System.IO.File]::ReadAllText($Path)
 }
 
+function Install-StandardSkill {
+    param(
+        [string]$Source,
+        [string]$DestinationDirectory
+    )
+    New-Item -ItemType Directory -Path $DestinationDirectory -Force | Out-Null
+    $destination = Join-Path $DestinationDirectory "SKILL.md"
+    if (Test-Path $destination) {
+        $sourcePath = (Resolve-Path $Source).Path
+        $destinationPath = (Resolve-Path $destination).Path
+        if ($sourcePath -eq $destinationPath) {
+            return
+        }
+    }
+    Copy-Item $Source $destination -Force
+}
+
 # Insert or replace a marker-wrapped block inside an existing file.
 # - If file does not exist: write the block as the entire file.
 # - If file exists and contains the markers: replace the block in place.
@@ -102,8 +119,8 @@ if ($Help) {
     Write-Host "  -VaultPath PATH    Path to your Obsidian vault"
     Write-Host "  -Platforms LIST    Comma-separated: qoderwork,claude-code,codex,cursor (default: all)"
     Write-Host "  -Locale LOCALE     Template language: zh-CN or en (default: zh-CN)"
-    Write-Host "  -Force             Overwrite existing templates and replace skill content in CLAUDE.md / AGENTS.md"
-    Write-Host "  -Uninstall         Remove installed skill files (also strips marker-wrapped blocks from CLAUDE.md / AGENTS.md)"
+    Write-Host "  -Force             Overwrite existing templates and refresh installed skill content"
+    Write-Host "  -Uninstall         Remove installed skills and legacy marker blocks"
     Write-Host "  -Help              Show this help message"
     Write-Host ""
     Write-Host "Configuration sources (checked in order):"
@@ -465,8 +482,7 @@ foreach ($platform in $platformList) {
     switch ($platform) {
         "qoderwork" {
             $skillDir = Join-Path $env:USERPROFILE ".qoderwork\skills\obsidian-knowledge-base"
-            New-Item -ItemType Directory -Path $skillDir -Force | Out-Null
-            Copy-Item $standardSkill (Join-Path $skillDir "SKILL.md") -Force
+            Install-StandardSkill -Source $standardSkill -DestinationDirectory $skillDir
             Write-Host "-> Installed: QoderWork skill -> $skillDir\SKILL.md" -ForegroundColor Green
         }
         "claude-code" {
@@ -480,8 +496,7 @@ foreach ($platform in $platformList) {
         }
         "codex" {
             $codexSkillDir = Join-Path $env:USERPROFILE ".agents\skills\obsidian-knowledge-base"
-            New-Item -ItemType Directory -Path $codexSkillDir -Force | Out-Null
-            Copy-Item $standardSkill (Join-Path $codexSkillDir "SKILL.md") -Force
+            Install-StandardSkill -Source $standardSkill -DestinationDirectory $codexSkillDir
             Write-Host "-> Installed: Codex skill -> $codexSkillDir\SKILL.md" -ForegroundColor Green
         }
         "cursor" {

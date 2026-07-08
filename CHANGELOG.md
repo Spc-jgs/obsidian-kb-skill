@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] - 2026-07-08
+
+### Added
+
+- **Standard Agent Skill entry**: `skills/obsidian-knowledge-base/SKILL.md` is now the platform-independent, generated Skill artifact.
+- **Codex user-level installation**: Codex installs to `~/.agents/skills/obsidian-knowledge-base/`, matching the user Skill discovery convention.
+- **Installer coverage**: Bash smoke tests cover canonical Codex/QoderWork installation, idempotency, and sibling-safe uninstall.
+
+### Changed
+
+- **Explicit build targets**: `build.py` now uses explicit header and output paths and validates five generated artifacts.
+- **QoderWork source**: QoderWork installation copies the standard Skill instead of the QoderWork compatibility artifact.
+- **Compatibility preserved**: Existing `platforms/qoderwork/SKILL.md`, `platforms/codex/AGENTS.md`, Claude Code, and Cursor artifacts remain available.
+
 ## [1.6.0] - 2026-07-08
 
 ### Added

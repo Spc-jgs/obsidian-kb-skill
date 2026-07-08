@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Build platform adapters from core/OBSIDIAN_KB.md + per-platform header.md.
+"""Build the standard Agent Skill and platform adapters from the shared core.
 
 Single source of truth = core/OBSIDIAN_KB.md (body starting from "## Overview").
-Each platform contributes only its own header (YAML frontmatter, H1, trigger hint).
+Each target contributes only its own header (YAML frontmatter, H1, trigger hint).
 This script concatenates header + body and writes the adapter file.
 
 Usage:
@@ -103,7 +103,9 @@ def build_adapter(header: str, body: str, header_path: str) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build Obsidian KB platform adapters.")
+    parser = argparse.ArgumentParser(
+        description="Build the standard Skill and compatibility adapters."
+    )
     parser.add_argument(
         "--check",
         action="store_true",
@@ -137,10 +139,10 @@ def main() -> int:
                 print(f"  - {f}", file=sys.stderr)
             print("\nRun: python build.py", file=sys.stderr)
             return 1
-        print("All adapters are up to date.")
+        print("All generated artifacts are up to date.")
         return 0
 
-    print(f"\nBuilt {len(TARGETS)} adapters from core/OBSIDIAN_KB.md.")
+    print(f"\nBuilt {len(TARGETS)} artifacts from core/OBSIDIAN_KB.md.")
     return 0
 
 

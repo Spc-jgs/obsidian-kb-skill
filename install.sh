@@ -22,6 +22,16 @@ LOCALE="zh-CN"
 FORCE_UPGRADE=false
 DO_UNINSTALL=false
 
+install_standard_skill() {
+  local destination_dir="$1"
+  local destination="$destination_dir/SKILL.md"
+  mkdir -p "$destination_dir"
+  if [ -e "$destination" ] && [ "$STANDARD_SKILL" -ef "$destination" ]; then
+    return
+  fi
+  cp "$STANDARD_SKILL" "$destination"
+}
+
 # Markers used to wrap injected content in shared files (CLAUDE.md, AGENTS.md).
 # Idempotent upgrade and clean uninstall both rely on these markers.
 MARKER_BEGIN="<!-- BEGIN obsidian-kb-skill -->"
@@ -127,7 +137,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --platforms LIST   Comma-separated: qoderwork,claude-code,codex,cursor (default: all)"
       echo "  --locale LOCALE    Template language: zh-CN or en (default: zh-CN)"
       echo "  --force            Overwrite existing templates and replace marker-wrapped skill blocks"
-      echo "  --uninstall        Remove installed skill files (strips marker blocks from CLAUDE.md / AGENTS.md)"
+      echo "  --uninstall        Remove installed skills and legacy marker blocks"
       echo ""
       echo "Configuration sources (checked in order):"
       echo "  1. --vault argument"
@@ -430,8 +440,7 @@ for platform in "${PLATFORM_LIST[@]}"; do
   case $platform in
     qoderwork)
       QODERWORK_SKILLS="$HOME/.qoderwork/skills/obsidian-knowledge-base"
-      mkdir -p "$QODERWORK_SKILLS"
-      cp "$STANDARD_SKILL" "$QODERWORK_SKILLS/SKILL.md"
+      install_standard_skill "$QODERWORK_SKILLS"
       echo "-> Installed: QoderWork skill -> $QODERWORK_SKILLS/SKILL.md"
       ;;
     claude-code)
@@ -443,8 +452,7 @@ for platform in "${PLATFORM_LIST[@]}"; do
       ;;
     codex)
       CODEX_SKILLS="$HOME/.agents/skills/obsidian-knowledge-base"
-      mkdir -p "$CODEX_SKILLS"
-      cp "$STANDARD_SKILL" "$CODEX_SKILLS/SKILL.md"
+      install_standard_skill "$CODEX_SKILLS"
       echo "-> Installed: Codex skill -> $CODEX_SKILLS/SKILL.md"
       ;;
     cursor)

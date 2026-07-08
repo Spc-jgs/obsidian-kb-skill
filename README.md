@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.6.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.7.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -48,9 +48,9 @@ cd obsidian-kb-skill
 
 | 你用的 AI 工具 | 需要的文件 | 直接链接 |
 |--------------|-----------|---------|
-| QoderWork | `platforms/qoderwork/SKILL.md` | [SKILL.md](platforms/qoderwork/SKILL.md) |
+| Agent Skills / Codex / QoderWork | `skills/obsidian-knowledge-base/SKILL.md` | [SKILL.md](skills/obsidian-knowledge-base/SKILL.md) |
 | Claude Code | `platforms/claude-code/CLAUDE.md` | [CLAUDE.md](platforms/claude-code/CLAUDE.md) |
-| OpenAI Codex | `platforms/codex/AGENTS.md` | [AGENTS.md](platforms/codex/AGENTS.md) |
+| OpenAI Codex（兼容入口） | `platforms/codex/AGENTS.md` | [AGENTS.md](platforms/codex/AGENTS.md) |
 | Cursor | `platforms/cursor/obsidian-kb.mdc` | [obsidian-kb.mdc](platforms/cursor/obsidian-kb.mdc) |
 
 每个平台文件都是**自包含**的——一个文件就包含了指令、模板、路由规则，复制即用。
@@ -107,12 +107,12 @@ AI 智能体读完这个指令文件后，就「学会了」你的知识管理�
             ┌──────────────┼──────────────────┐
             │              │                  │
     ┌───────▼──────┐ ┌────▼────────┐ ┌───────▼───────┐
-    │  SKILL.md    │ │ CLAUDE.md   │ │  AGENTS.md    │ ...
-    │ (QoderWork)  │ │(Claude Code)│ │ (Codex)       │
+    │ 标准 SKILL.md │ │ CLAUDE.md   │ │  AGENTS.md    │ ...
+    │Codex/QoderWork│ │(Claude Code)│ │ (兼容入口)      │
     └──────────────┘ └─────────────┘ └───────────────┘
 ```
 
-核心指令文件 `core/OBSIDIAN_KB.md` 是「唯一真相来源」，定义了所有知识管理规则。各平台的适配器文件从核心指令派生，包含**完全一致的规则**，只是文件格式遵循各平台的约定（QoderWork 用 YAML frontmatter 的 SKILL.md，Cursor 用 .mdc 格式，等等）。
+核心指令文件 `core/OBSIDIAN_KB.md` 是「唯一真相来源」。平台无关的标准入口是 `skills/obsidian-knowledge-base/SKILL.md`；`platforms/*` 保留各平台兼容产物。所有文件由 `build.py` 生成，不维护重复正文。
 
 ### 为什么不需要插件或 API
 
@@ -147,10 +147,10 @@ AI 智能体内部执行：
 |------|---------|---------|
 | **QoderWork / Qoder CLI** | `SKILL.md` | `~/.qoderwork/skills/obsidian-knowledge-base/` |
 | **Claude Code** | `CLAUDE.md` | `~/.claude/CLAUDE.md` |
-| **OpenAI Codex** | `AGENTS.md` | `~/AGENTS.md` |
+| **OpenAI Codex** | 标准 `SKILL.md` | `~/.agents/skills/obsidian-knowledge-base/` |
 | **Cursor** | `obsidian-kb.mdc` | `~/.cursor/rules/obsidian-kb.mdc` |
 
-四个平台的文件包含**完全一致的指令**——同样的文件夹路由、同样的模板、同样的 YAML 规范、同样的标签体系。只是文件格式遵循各平台的约定。
+标准 Skill 与四个平台兼容产物包含**完全一致的核心指令**。注意：`~/.agents/skills` 是 Codex 用户级发现路径，不代表所有 Agent 都会自动扫描该目录。
 
 ## 快速开始
 
@@ -219,7 +219,12 @@ echo "D:\MyKnowledgeBase" > ~/.obsidian-kb-config
 
 # 2. 复制对应平台的指令文件到约定位置
 # QoderWork:
-cp platforms/qoderwork/SKILL.md ~/.qoderwork/skills/obsidian-knowledge-base/SKILL.md
+mkdir -p ~/.qoderwork/skills/obsidian-knowledge-base
+cp skills/obsidian-knowledge-base/SKILL.md ~/.qoderwork/skills/obsidian-knowledge-base/SKILL.md
+
+# OpenAI Codex:
+mkdir -p ~/.agents/skills/obsidian-knowledge-base
+cp skills/obsidian-knowledge-base/SKILL.md ~/.agents/skills/obsidian-knowledge-base/SKILL.md
 
 # Claude Code:
 cp platforms/claude-code/CLAUDE.md ~/.claude/CLAUDE.md
@@ -314,7 +319,7 @@ Windows PowerShell 使用 `-Locale zh-CN` 或 `-Locale en`。已有模板不会�
 
 ### 升级模板
 
-重新运行安装脚本时，已有模板默认不会被覆盖。使用 `--force` 强制更新模板，并把 CLAUDE.md / AGENTS.md 里 marker 包裹的 skill 块替换成新版：
+重新运行安装脚本会幂等更新 Codex/QoderWork Skill。已有模板默认不会被覆盖；使用 `--force` 强制更新模板，并替换 Claude Code 文件中 marker 包裹的 skill 块：
 
 ```bash
 # macOS / Linux
@@ -324,7 +329,7 @@ Windows PowerShell 使用 `-Locale zh-CN` 或 `-Locale en`。已有模板不会�
 .\install.ps1 -Force
 ```
 
-> 安装脚本会把 skill 内容放在 `<!-- BEGIN obsidian-kb-skill -->` / `<!-- END obsidian-kb-skill -->` marker 之间。再次运行安装脚本时会原地替换这段内容，不会影响你在 `CLAUDE.md` / `AGENTS.md` 里写的其他指令。
+> Claude Code 仍使用 marker block。升级不会主动删除旧版留在 `~/AGENTS.md` 的 marker block；卸载时会安全清理它。
 
 ### 卸载
 
@@ -336,7 +341,7 @@ Windows PowerShell 使用 `-Locale zh-CN` 或 `-Locale en`。已有模板不会�
 .\install.ps1 -Uninstall
 ```
 
-卸载会移除 QoderWork skill 目录、Cursor 规则、配置文件，并且**自动从 `CLAUDE.md` / `AGENTS.md` 中删除 marker 包裹的 skill 块**（保留你的其他内容）。Obsidian vault 文件夹和笔记内容不会被删除。
+卸载会移除 Codex/QoderWork Skill、Cursor 规则、配置文件，并且**自动从 `CLAUDE.md` / 旧版 `AGENTS.md` 中删除 marker block**。同级其他 Skill、Git checkout、Obsidian Vault 和笔记都不会被删除。
 
 ## 分享给别人
 
@@ -363,13 +368,17 @@ obsidian-kb-skill/
 ├── .env.example                配置模板（提交到 git）
 ├── .env                        你的本地配置（gitignored）
 ├── .gitignore
-├── build.py                    适配器生成脚本（核心 + header → 4 个适配器）
+├── build.py                    生成脚本（核心 + header → 5 个产物）
 ├── core/
 │   ├── OBSIDIAN_KB.md          通用指令唯一真相来源（agent 无关）
 │   └── templates/              7 个默认中文模板 + en/ 英文模板
 ├── scripts/
 │   └── audit_vault.py          只读知识库审计器
 ├── tests/                      构建、模板和审计器测试
+├── skills/
+│   └── obsidian-knowledge-base/
+│       ├── header.md           标准 Agent Skill 头部
+│       └── SKILL.md            平台无关的标准生成产物
 ├── platforms/
 │   ├── qoderwork/
 │   │   ├── header.md           QoderWork 平台头部（YAML frontmatter）
@@ -391,7 +400,7 @@ obsidian-kb-skill/
 
 ## 修改 Skill / 贡献代码
 
-四个平台的指令文件由 `build.py` 从单一源头生成。**不要直接编辑 `platforms/*/SKILL.md` 等生成产物**，否则下次构建会覆盖你的改动。
+标准 Skill 和四个平台兼容文件由 `build.py` 从单一源头生成。**不要直接编辑生成的 `SKILL.md`、`CLAUDE.md`、`AGENTS.md` 或 `.mdc` 文件**。
 
 ```bash
 # 1. 修改通用规则
@@ -400,7 +409,7 @@ $EDITOR core/OBSIDIAN_KB.md
 # 2. 或修改某平台的头部（YAML frontmatter / trigger 描述）
 $EDITOR platforms/qoderwork/header.md
 
-# 3. 重新生成四个适配器
+# 3. 重新生成五个产物
 python build.py
 
 # 4. 校验产物与源头一致（CI / pre-commit 用）
@@ -411,7 +420,7 @@ pip install -e ".[dev]"
 python -m pytest tests/
 ```
 
-这样一处改动，四个平台自动同步，避免「改一处忘三处」的维护噩梦。GitHub Actions 在每次 push / PR 都会跑 `build.py --check` 和 `pytest`，源头和产物不一致就直接挂掉，没法蒙混过关。
+这样一处改动，标准 Skill 与四个平台兼容产物自动同步。GitHub Actions 在每次 push / PR 都会运行 `build.py --check` 和 `pytest`。
 
 ### 审计现有知识库
 

@@ -211,3 +211,10 @@ class TestGovernanceContract:
     def test_pre_write_git_sync_contract(self):
         assert "Pre-write Git synchronization" in self.core
         assert "merge --ff-only" in self.core
+
+
+def test_readme_documents_standard_skill_entry():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "skills/obsidian-knowledge-base/SKILL.md" in readme
+    assert "~/.agents/skills/obsidian-knowledge-base" in readme
