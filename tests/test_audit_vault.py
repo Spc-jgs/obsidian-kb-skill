@@ -1,4 +1,7 @@
 """Tests for the reusable Obsidian vault auditor."""
+from __future__ import annotations
+
+import json
 from pathlib import Path
 
 from scripts.audit_vault import audit_vault
@@ -6,6 +9,51 @@ from scripts.audit_vault import audit_vault
 
 def codes(vault: Path) -> set[str]:
     return {finding.code for finding in audit_vault(vault)}
+
+
+def configure_folder_index(
+    vault: Path,
+    *,
+    user_specified: bool,
+    index_filename: str = "INDEX",
+    graph_overwrite: bool = True,
+    excluded: list[str] | None = None,
+) -> None:
+    obsidian = vault / ".obsidian"
+    plugin = obsidian / "plugins" / "obsidian-folder-index"
+    plugin.mkdir(parents=True, exist_ok=True)
+    (obsidian / "community-plugins.json").write_text(
+        json.dumps(["obsidian-folder-index"]), encoding="utf-8"
+    )
+    (plugin / "data.json").write_text(
+        json.dumps(
+            {
+                "graphOverwrite": graph_overwrite,
+                "rootIndexFile": "INDEX.md",
+                "indexFileUserSpecified": user_specified,
+                "indexFilename": index_filename,
+                "excludeFolders": excluded or [],
+                "excludePatterns": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def make_index(path: Path, note_type: str = "folder-index") -> None:
+    path.write_text(
+        f"---\ntype: {note_type}\ntags: [moc]\n---\n"
+        "```folder-index-content\n```\n",
+        encoding="utf-8",
+    )
+
+
+def write_note(path: Path) -> None:
+    path.write_text(
+        '---\ndate: "2026-07-08"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Note\n",
+        encoding="utf-8",
+    )
 
 
 def test_reports_missing_required_frontmatter(tmp_path):
@@ -153,3 +201,48 @@ def test_reports_invalid_and_excessive_tags(tmp_path):
     )
 
     assert {"invalid-tag", "too-many-tags"} <= codes(tmp_path)
+
+
+def test_reports_graph_incompatible_uniform_custom_index_name(tmp_path):
+    configure_folder_index(tmp_path, user_specified=True, index_filename="INDEX")
+    make_index(tmp_path / "INDEX.md", note_type="moc")
+    topic = tmp_path / "Topic"
+    topic.mkdir()
+    make_index(topic / "INDEX.md")
+
+    assert "graph-incompatible-index-config" in codes(tmp_path)
+
+
+def test_accepts_native_folder_named_graph_chain(tmp_path):
+    configure_folder_index(tmp_path, user_specified=False)
+    make_index(tmp_path / "INDEX.md", note_type="moc")
+    topic = tmp_path / "Topic"
+    topic.mkdir()
+    make_index(topic / "Topic.md")
+    write_note(topic / "2026-07-08 Note.md")
+
+    assert not {
+        "graph-incompatible-index-config",
+        "missing-folder-index",
+        "misnamed-folder-index",
+        "broken-folder-graph-chain",
+    } & codes(tmp_path)
+
+
+def test_reports_missing_and_misnamed_native_folder_indexes(tmp_path):
+    configure_folder_index(tmp_path, user_specified=False)
+    make_index(tmp_path / "INDEX.md", note_type="moc")
+    (tmp_path / "Missing").mkdir()
+    legacy = tmp_path / "Legacy"
+    legacy.mkdir()
+    make_index(legacy / "INDEX.md")
+
+    assert {"missing-folder-index", "misnamed-folder-index"} <= codes(tmp_path)
+
+
+def test_excluded_folder_does_not_require_native_index(tmp_path):
+    configure_folder_index(tmp_path, user_specified=False, excluded=["Templates"])
+    make_index(tmp_path / "INDEX.md", note_type="moc")
+    (tmp_path / "Templates").mkdir()
+
+    assert "missing-folder-index" not in codes(tmp_path)

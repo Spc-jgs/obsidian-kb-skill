@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
+import json
 import re
 import sys
 from collections import defaultdict
@@ -18,6 +20,17 @@ class Finding:
     code: str
     path: str
     message: str
+
+
+@dataclass(frozen=True)
+class FolderIndexConfig:
+    enabled: bool = False
+    graph_overwrite: bool = False
+    root_index_file: str = "INDEX.md"
+    user_specified: bool = False
+    index_filename: str = "INDEX"
+    exclude_folders: tuple[str, ...] = ()
+    exclude_patterns: tuple[str, ...] = ()
 
 
 EXEMPT_NAMES = {"README.md", "AGENTS.md", "CLAUDE.md"}
@@ -56,6 +69,55 @@ def _is_ignored(relative: Path) -> bool:
     if any(part in IGNORED_PARTS for part in relative.parts):
         return True
     return relative.parts[:2] == ("docs", "superpowers")
+
+
+def _read_json(path: Path, default: Any) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return default
+
+
+def _folder_index_config(vault: Path) -> FolderIndexConfig:
+    obsidian = vault / ".obsidian"
+    enabled = _read_json(obsidian / "community-plugins.json", [])
+    if not isinstance(enabled, list) or "obsidian-folder-index" not in enabled:
+        return FolderIndexConfig()
+    settings = _read_json(
+        obsidian / "plugins" / "obsidian-folder-index" / "data.json", {}
+    )
+    if not isinstance(settings, dict):
+        settings = {}
+    return FolderIndexConfig(
+        enabled=True,
+        graph_overwrite=bool(settings.get("graphOverwrite", False)),
+        root_index_file=str(settings.get("rootIndexFile", "INDEX.md")),
+        user_specified=bool(settings.get("indexFileUserSpecified", False)),
+        index_filename=str(settings.get("indexFilename", "INDEX")),
+        exclude_folders=tuple(str(item).strip("/") for item in settings.get("excludeFolders", []) if str(item)),
+        exclude_patterns=tuple(str(item) for item in settings.get("excludePatterns", []) if str(item)),
+    )
+
+
+def _is_folder_index_excluded(relative: Path, config: FolderIndexConfig) -> bool:
+    if _is_ignored(relative):
+        return True
+    value = relative.as_posix()
+    for excluded in config.exclude_folders:
+        if value == excluded or value.startswith(f"{excluded}/"):
+            return True
+    return any(
+        fnmatch.fnmatch(value, pattern) or fnmatch.fnmatch(relative.name, pattern)
+        for pattern in config.exclude_patterns
+    )
+
+
+def expected_folder_index(folder: Path, vault: Path, config: FolderIndexConfig) -> Path:
+    if folder == vault:
+        return vault / config.root_index_file
+    if config.user_specified:
+        return folder / f"{config.index_filename}.md"
+    return folder / f"{folder.name}.md"
 
 
 def _markdown_files(vault: Path) -> list[Path]:
@@ -208,10 +270,74 @@ def _declares_folder_index(path: Path) -> bool:
     return error is None and metadata is not None and metadata.get("type") == "folder-index"
 
 
+def _audit_folder_index_graph(
+    findings: list[Finding], vault: Path, config: FolderIndexConfig
+) -> None:
+    if not config.enabled:
+        return
+
+    folders = [
+        path
+        for path in sorted(vault.rglob("*"))
+        if path.is_dir()
+        and not _is_folder_index_excluded(path.relative_to(vault), config)
+    ]
+    root_index = expected_folder_index(vault, vault, config)
+    if not root_index.is_file():
+        _add(
+            findings,
+            "missing-folder-index",
+            Path("."),
+            f"configured root index is missing: {config.root_index_file}",
+        )
+
+    if config.graph_overwrite and config.user_specified and folders:
+        _add(
+            findings,
+            "graph-incompatible-index-config",
+            Path(".obsidian/plugins/obsidian-folder-index/data.json"),
+            "Folder Index 1.0.30 cannot connect nested folders when one custom index filename is used",
+        )
+
+    for folder in folders:
+        relative_folder = folder.relative_to(vault)
+        expected = expected_folder_index(folder, vault, config)
+        declared = [
+            path
+            for path in sorted(folder.glob("*.md"))
+            if _declares_folder_index(path)
+        ]
+        if not expected.is_file():
+            _add(
+                findings,
+                "missing-folder-index",
+                relative_folder,
+                f"expected folder index is missing: {expected.name}",
+            )
+        for index in declared:
+            if index != expected:
+                _add(
+                    findings,
+                    "misnamed-folder-index",
+                    index.relative_to(vault),
+                    f"configured folder index name is {expected.name}",
+                )
+
+        graph_target = folder / f"{folder.name}.md"
+        if config.graph_overwrite and expected.is_file() and expected != graph_target:
+            _add(
+                findings,
+                "broken-folder-graph-chain",
+                expected.relative_to(vault),
+                f"parent graph traversal looks for {graph_target.name}",
+            )
+
+
 def audit_vault(vault: Path) -> list[Finding]:
     """Return deterministic findings sorted by path, code, and message."""
     vault = vault.resolve()
     findings: list[Finding] = []
+    folder_index_config = _folder_index_config(vault)
     linkable = _all_linkable_files(vault)
     by_name: dict[str, list[Path]] = defaultdict(list)
     by_stem: dict[str, list[Path]] = defaultdict(list)
@@ -255,6 +381,8 @@ def audit_vault(vault: Path) -> list[Finding]:
                     relative_folder,
                     f"both {conventional.name} and {named.name} own the folder index",
                 )
+
+    _audit_folder_index_graph(findings, vault, folder_index_config)
 
     return sorted(findings, key=lambda item: (item.path, item.code, item.message))
 
