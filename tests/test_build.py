@@ -15,6 +15,7 @@ def _load_build_module():
     """Load build.py as a module without executing main()."""
     spec = importlib.util.spec_from_file_location("build", ROOT / "build.py")
     module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -75,12 +76,20 @@ class TestBuildAdapter:
     BODY = "## Overview\n\nThe shared body.\n"
 
     def test_yaml_header_keeps_frontmatter_first(self):
-        result = build.build_adapter(self.YAML_HEADER, self.BODY, "qoderwork")
+        result = build.build_adapter(
+            self.YAML_HEADER,
+            self.BODY,
+            "platforms/qoderwork/header.md",
+        )
         # Frontmatter must remain the first thing in the file (some agent loaders parse line 1).
         assert result.startswith("---\nname: obsidian-knowledge-base\n")
 
     def test_yaml_header_inserts_banner_after_closing_fence(self):
-        result = build.build_adapter(self.YAML_HEADER, self.BODY, "qoderwork")
+        result = build.build_adapter(
+            self.YAML_HEADER,
+            self.BODY,
+            "platforms/qoderwork/header.md",
+        )
         # Banner must come AFTER the closing `---` of the frontmatter, BEFORE the H1.
         closing_fence_idx = result.find("\n---\n") + len("\n---\n")
         banner_idx = result.find("AUTO-GENERATED")
@@ -88,22 +97,57 @@ class TestBuildAdapter:
         assert 0 < closing_fence_idx < banner_idx < h1_idx
 
     def test_plain_header_puts_banner_at_top(self):
-        result = build.build_adapter(self.PLAIN_HEADER, self.BODY, "claude-code")
+        result = build.build_adapter(
+            self.PLAIN_HEADER,
+            self.BODY,
+            "platforms/claude-code/header.md",
+        )
         assert result.startswith("<!-- AUTO-GENERATED")
         assert "platforms/claude-code/header.md" in result
 
     def test_body_is_appended_verbatim(self):
-        result = build.build_adapter(self.PLAIN_HEADER, self.BODY, "codex")
+        result = build.build_adapter(
+            self.PLAIN_HEADER,
+            self.BODY,
+            "platforms/codex/header.md",
+        )
         assert result.endswith(self.BODY)
 
     def test_banner_names_the_correct_platform(self):
-        result = build.build_adapter(self.PLAIN_HEADER, self.BODY, "cursor")
+        result = build.build_adapter(
+            self.PLAIN_HEADER,
+            self.BODY,
+            "platforms/cursor/header.md",
+        )
         assert "platforms/cursor/header.md" in result
+
+    def test_banner_uses_explicit_header_path(self):
+        result = build.build_adapter(
+            self.YAML_HEADER,
+            self.BODY,
+            "skills/obsidian-knowledge-base/header.md",
+        )
+        assert "skills/obsidian-knowledge-base/header.md" in result
+        assert "platforms/skills/" not in result
 
 
 # ---------- end-to-end against the real repo ----------
 
 class TestEndToEnd:
+    def test_standard_agent_skill_is_a_build_target(self):
+        outputs = {
+            target.output.relative_to(ROOT).as_posix()
+            for target in build.TARGETS
+        }
+        assert "skills/obsidian-knowledge-base/SKILL.md" in outputs
+
+    def test_standard_agent_skill_has_valid_frontmatter(self):
+        skill = ROOT / "skills" / "obsidian-knowledge-base" / "SKILL.md"
+        text = skill.read_text(encoding="utf-8")
+        assert text.startswith("---\n")
+        assert "name: obsidian-knowledge-base" in text
+        assert "description:" in text
+
     def test_check_mode_reports_in_sync_after_clean_build(self, tmp_path, monkeypatch):
         """Running build then build --check must succeed against the real repo state."""
         # Just call extract_body + build_adapter for each declared target and compare to the
@@ -111,16 +155,15 @@ class TestEndToEnd:
         core_text = (ROOT / "core" / "OBSIDIAN_KB.md").read_text(encoding="utf-8")
         body = build.extract_body(core_text)
 
-        for platform_name, output_name in build.TARGETS:
-            header_path = ROOT / "platforms" / platform_name / "header.md"
-            output_path = ROOT / "platforms" / platform_name / output_name
-            assert header_path.exists(), f"missing header: {header_path}"
-            assert output_path.exists(), f"missing generated adapter: {output_path}"
-            header = header_path.read_text(encoding="utf-8")
-            expected = build.build_adapter(header, body, platform_name)
-            actual = output_path.read_text(encoding="utf-8")
+        for target in build.TARGETS:
+            assert target.header.exists(), f"missing header: {target.header}"
+            assert target.output.exists(), f"missing generated adapter: {target.output}"
+            header = target.header.read_text(encoding="utf-8")
+            header_path = target.header.relative_to(ROOT).as_posix()
+            expected = build.build_adapter(header, body, header_path)
+            actual = target.output.read_text(encoding="utf-8")
             assert actual == expected, (
-                f"{output_path.relative_to(ROOT)} is out of sync with source. "
+                f"{target.output.relative_to(ROOT)} is out of sync with source. "
                 "Run: python build.py"
             )
 
