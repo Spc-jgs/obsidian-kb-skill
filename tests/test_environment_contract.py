@@ -25,6 +25,14 @@ def test_pytest_adds_repository_root_to_import_path():
     assert 'pythonpath = ["."]' in pyproject
 
 
+def test_uv_tool_version_is_pinned():
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/check.yml").read_text(encoding="utf-8")
+
+    assert 'required-version = "==0.11.26"' in pyproject
+    assert 'version: "0.11.26"' in workflow
+
+
 def test_ci_covers_minimum_and_default_python_versions():
     workflow = (ROOT / ".github/workflows/check.yml").read_text(encoding="utf-8")
 
