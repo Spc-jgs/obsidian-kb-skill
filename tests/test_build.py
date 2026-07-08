@@ -123,3 +123,34 @@ class TestEndToEnd:
                 f"{output_path.relative_to(ROOT)} is out of sync with source. "
                 "Run: python build.py"
             )
+
+
+class TestGovernanceContract:
+    @classmethod
+    def setup_class(cls):
+        cls.core = (ROOT / "core" / "OBSIDIAN_KB.md").read_text(encoding="utf-8")
+        cls.web_clip = (ROOT / "core" / "templates" / "web-clip.md").read_text(
+            encoding="utf-8"
+        )
+
+    def test_local_vault_rules_precede_generic_defaults(self):
+        assert "Vault-local governance" in self.core
+        assert "generic skill defaults" in self.core
+
+    def test_create_workflow_validates_before_confirmation(self):
+        validate = self.core.index("### Step 9: Validate Result")
+        confirm = self.core.index("### Step 10: Confirm to User")
+        assert validate < confirm
+
+    def test_batch_capture_requires_confirmation(self):
+        assert "Default to one target note per invocation" in self.core
+        assert "ask the user before creating multiple notes" in self.core
+
+    def test_git_stops_on_divergence_or_conflict(self):
+        assert "Stop on divergence or conflict" in self.core
+        assert "Never auto-resolve INDEX conflicts" in self.core
+
+    def test_web_clip_defines_bounded_interpretation(self):
+        assert "## 理解与启发" in self.web_clip
+        assert "2–4 句" in self.web_clip
+        assert "不要代替用户表达个人立场" in self.web_clip

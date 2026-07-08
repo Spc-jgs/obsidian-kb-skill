@@ -37,6 +37,16 @@ Before any write, verify the resolved vault path is a real Obsidian vault:
 
 If any check fails, **stop and report** — do not silently create files in a non-vault directory. Offer to (a) re-prompt the user for the correct path, or (b) initialize a new vault structure at the given location if the user confirms.
 
+## Instruction Precedence
+
+Apply instructions in this order:
+
+1. The user's current request
+2. Applicable Vault-local governance files such as `AGENTS.md`, `CLAUDE.md`, or another local instruction file
+3. This skill's generic skill defaults
+
+Before writing, read the applicable Vault-local governance file at the vault root and any more-specific file on the target path. Use its routing, naming, metadata, README, validation, and version-control rules when they are more specific than this skill. Do not expand this check into a full-vault scan.
+
 ## Folder Structure
 
 ```
@@ -159,12 +169,14 @@ Write the actual content into the template sections. Be thorough but concise.
 
 Use `[[wikilinks]]` to link related existing notes — but do **not** scan the entire vault. Follow this cheap-first bounded strategy:
 
-1. Read the target folder's detected index file and look for obviously related entries (cost: 1 file read)
-2. List filenames in 1–2 sibling folders that might contain related notes (cost: 1–2 directory listings)
-3. Pick **at most 2–5 candidate files**, read only their first ~20 lines to confirm relevance (cost: ≤5 small reads)
-4. Insert **at most 5 wikilinks** per note, only for high-confidence matches
+1. Use the Vault-local routing rules to identify likely topic folders
+2. Read the target folder's detected index and inspect its manual navigation (cost: 1 file read)
+3. If needed, inspect the parent index's manual topic guidance (cost: 1 file read)
+4. If the budget still permits, list filenames in **at most 1–2** high-relevance sibling folders
+5. Pick **at most 1–3 candidate files**, read only their first ~20 lines to confirm relevance
+6. Insert **at most 5 wikilinks** per note, only for high-confidence matches
 
-If nothing obvious turns up after the cheap passes, **skip wikilinks** — do not escalate to a full-text vault scan.
+Stop when the total file-scan cap is reached. If nothing obvious turns up after the cheap passes, **skip wikilinks** — do not escalate to a full-text vault scan. An empty `related: []` is valid.
 
 ### Step 7: Write the File
 
@@ -184,7 +196,21 @@ Use the strategy detected before writing:
 
 If the folder has subfolders (e.g. `20-Learning/Python/`), detect the strategy independently for the subfolder and parent. Never append links to plugin-managed indexes.
 
-### Step 9: Confirm to User
+### Step 9: Validate Result
+
+Re-read the written note and any index changed by this invocation before confirmation, commit, or push. Verify all of the following:
+
+- The final path, filename, UTF-8 encoding, and selected template are correct
+- YAML parses and contains the required `date`, `type`, and non-empty `tags`
+- `type` is supported; tags use lowercase kebab-case and total no more than 5
+- No template placeholders such as `{{date}}` remain
+- Wikilinks stay within the cap and represent high-confidence relationships
+- Folder Index and Dataview listings were not manually extended
+- A newly created `folder-index` note contains exactly one `folder-index-content` block
+
+If a reusable Vault auditor is available, run it in strict/read-only mode in addition to these target-file checks. Fix validation failures before continuing. Do not report success for an invalid note.
+
+### Step 10: Confirm to User
 
 Report back:
 - Where saved (folder + filename, as an absolute path or `file://` link)
@@ -234,12 +260,27 @@ Match the new content to the most appropriate section:
 
 Skip index changes in Folder Index and Dataview modes. In Static mode, update an index line only if the note's title, date, or summary blurb changed.
 
-### Step 7: Report Diff Summary
+### Step 7: Validate Result
+
+Re-read the updated note and any changed static index. Apply the same metadata, placeholder, wikilink, index-ownership, and encoding checks from Create Step 9. If a reusable Vault auditor is available, run it in strict/read-only mode. Fix validation failures before reporting or performing version-control actions.
+
+### Step 8: Report Diff Summary
 
 Tell the user:
 - Which file was edited (full path)
 - Which section(s) received new content
 - A 1–2 sentence summary of what was added
+
+## Optional Git Post-Processing
+
+Git is not a default part of note capture. Run it only when the user explicitly requests it or applicable Vault-local governance requires it.
+
+1. Complete post-write validation first.
+2. Inspect the worktree and stage only files created or changed by this invocation. Never include unrelated user changes.
+3. Before pushing, fetch the remote branch and compare local and remote history.
+4. **Stop on divergence or conflict.** Report the state instead of merging, rebasing, or choosing a conflict side automatically.
+5. **Never auto-resolve INDEX conflicts.** In particular, never replace a Folder Index `folder-index-content` block with a manual note list to make a merge pass.
+6. Push only after the commit is verified and the remote is not ahead or diverged.
 
 ## YAML Frontmatter Standards
 
@@ -295,10 +336,12 @@ To prevent runaway token usage on a single save request, respect these caps:
 | Operation | Hard Cap |
 |---|---|
 | Files scanned (directory listing or read) | 10 |
-| Full file reads | 3 |
+| Content notes read in full | 3 |
 | Notes written or edited | 1 (the target note) |
 | Index files updated | 2 (Static mode only: target folder + parent if subfolder) |
 | Wikilinks inserted per note | 5 |
+
+Short control-plane files — Vault-local governance, templates, plugin manifests, and plugin configuration — still count toward the 10-file scan cap, but do not count as content notes read in full. INDEX files and existing notes are content files. Reading only the first ~20 lines of a candidate note is a small read, not a full read.
 
 If a task genuinely needs to exceed these caps (e.g. bulk import of 20 notes), **ask the user first** and proceed only on explicit confirmation.
 
@@ -312,9 +355,10 @@ If a task genuinely needs to exceed these caps (e.g. bulk import of 20 notes), *
 6. **Match user's language** — write in whatever language the user uses
 7. **Never overwrite** — if filename exists, add a numeric suffix (e.g. `-2`, `-3`) or ask user
 8. **Validate the vault** before writing — refuse to write to a path that is not a real Obsidian vault
-9. **Respect cost limits** — do not scan the entire vault for a single save
-10. **One index owner** — let Folder Index or Dataview own generated listings; update subfolder and parent indexes only in Static mode
-11. **Batch capture** — when a conversation has multiple distinct knowledge items, create separate notes and cross-link them
+9. **Validate the result** after writing — re-read the target and fix metadata, placeholder, link, or index violations before reporting success
+10. **Respect cost limits** — do not scan the entire vault for a single save
+11. **One index owner** — let Folder Index or Dataview own generated listings; update subfolder and parent indexes only in Static mode
+12. **Bounded capture** — Default to one target note per invocation. Multiple solutions inside one source can stay in one focused note. If the source contains multiple independently reusable topics, ask the user before creating multiple notes; without confirmation, create one aggregate note and suggest later extraction.
 
 ## Error Handling
 
@@ -327,3 +371,5 @@ When things go wrong, follow these guidelines:
 - **Filename conflict**: Append `-2` (or next available number). Inform the user of the actual filename used.
 - **Encoding issues**: Always write files as UTF-8 without BOM. If the platform has encoding quirks (e.g. PowerShell 5.1), use appropriate workarounds (`[System.IO.File]::WriteAllText` with `UTF8Encoding $false`).
 - **Cost cap hit**: Stop scanning, write the note with whatever wikilinks were already found, and note the truncation in the user-facing summary.
+- **Post-write validation failed**: Do not confirm, commit, or push. Correct only the files from the current invocation, re-run validation, and report the unresolved finding if it cannot be fixed safely.
+- **Git divergence or conflict**: Stop and report the branch state. Do not merge, rebase, or resolve INDEX content automatically.
