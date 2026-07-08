@@ -371,6 +371,8 @@ This skill is designed to be shared. When distributing to others:
 
 ```
 obsidian-kb-skill/
+├── .python-version             Default development interpreter: Python 3.14.6
+├── uv.lock                     Reproducible dependency lockfile
 ├── .env.example                Config template (commit to git)
 ├── .env                        Your local config (gitignored)
 ├── .gitignore
@@ -407,25 +409,41 @@ obsidian-kb-skill/
 
 The standard Skill and four compatibility artifacts are generated from one source by `build.py`. **Never edit generated instruction artifacts directly.**
 
+The default development interpreter is Python 3.14.6; the minimum supported
+version is Python 3.11. Use [uv](https://docs.astral.sh/uv/) for the standard
+reproducible workflow:
+
 ```bash
-# 1. Edit the shared rules
+# 1. Create the Python 3.14.6 .venv from uv.lock
+uv sync --locked --extra dev
+
+# 2. Edit the shared rules
 $EDITOR core/OBSIDIAN_KB.md
 
-# 2. Or edit the standard Skill header (frontmatter / trigger description)
+# 3. Or edit the standard Skill header (frontmatter / trigger description)
 $EDITOR skills/obsidian-knowledge-base/header.md
 
-# 3. Regenerate all five artifacts
-python build.py
+# 4. Regenerate and verify all five artifacts
+uv run --no-sync python build.py
+uv run --no-sync python build.py --check
 
-# 4. Verify generated files match the source (use in CI / pre-commit)
-python build.py --check
-
-# 5. Run the test suite (installs pytest via dev extras)
-pip install -e ".[dev]"
-pytest
+# 5. Run the test suite
+uv run --no-sync python -m pytest
 ```
 
-One edit keeps the standard Skill and four compatibility artifacts in sync.
+Without uv, use a standard venv and upgrade packaging tools before the editable
+install:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -e ".[dev]"
+python -m pytest
+```
+
+CI consumes the same lockfile and runs build checks and tests on Python 3.11 and
+3.14.
 
 ### Audit an Existing Vault
 

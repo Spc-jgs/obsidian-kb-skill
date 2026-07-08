@@ -370,6 +370,8 @@ Windows PowerShell 使用 `-Locale zh-CN` 或 `-Locale en`。已有模板不会�
 
 ```
 obsidian-kb-skill/
+├── .python-version             默认开发解释器：Python 3.14.6
+├── uv.lock                     可复现依赖锁文件
 ├── .env.example                配置模板（提交到 git）
 ├── .env                        你的本地配置（gitignored）
 ├── .gitignore
@@ -406,25 +408,38 @@ obsidian-kb-skill/
 
 标准 Skill 和四个平台兼容文件由 `build.py` 从单一源头生成。**不要直接编辑生成的 `SKILL.md`、`CLAUDE.md`、`AGENTS.md` 或 `.mdc` 文件**。
 
+项目默认使用 Python 3.14.6，最低支持 Python 3.11。推荐使用
+[uv](https://docs.astral.sh/uv/) 创建和同步环境：
+
 ```bash
-# 1. 修改通用规则
+# 1. 按 uv.lock 创建 Python 3.14.6 的 .venv
+uv sync --locked --extra dev
+
+# 2. 修改通用规则
 $EDITOR core/OBSIDIAN_KB.md
 
-# 2. 或修改标准 Skill 头部（YAML frontmatter / trigger 描述）
+# 3. 或修改标准 Skill 头部（YAML frontmatter / trigger 描述）
 $EDITOR skills/obsidian-knowledge-base/header.md
 
-# 3. 重新生成五个产物
-python build.py
+# 4. 重新生成并校验五个产物
+uv run --no-sync python build.py
+uv run --no-sync python build.py --check
 
-# 4. 校验产物与源头一致（CI / pre-commit 用）
-python build.py --check
-
-# 5. 跑单元测试（GitHub Actions 也会跑）
-pip install -e ".[dev]"
-python -m pytest tests/
+# 5. 运行测试
+uv run --no-sync python -m pytest
 ```
 
-这样一处改动，标准 Skill 与四个平台兼容产物自动同步。GitHub Actions 在每次 push / PR 都会运行 `build.py --check` 和 `pytest`。
+没有 uv 时可以使用标准 venv，但必须先升级安装工具：
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -e ".[dev]"
+python -m pytest
+```
+
+CI 使用同一 lockfile，分别在 Python 3.11 和 3.14 上运行构建检查与测试。
 
 ### 审计现有知识库
 

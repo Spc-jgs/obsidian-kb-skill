@@ -41,3 +41,18 @@ def test_ci_uses_pinned_uv_and_locked_environment():
     )
     assert "uv sync --locked --extra dev" in workflow
     assert "uv run --no-sync python -m pytest" in workflow
+
+
+def test_readmes_document_locked_uv_workflow():
+    for filename in ("README.md", "README_EN.md"):
+        readme = (ROOT / filename).read_text(encoding="utf-8")
+
+        assert "uv sync --locked --extra dev" in readme
+        assert "uv run --no-sync python -m pytest" in readme
+        assert "python -m pip install --upgrade pip setuptools wheel" in readme
+
+
+def test_english_contribution_guide_does_not_use_bare_pytest():
+    readme_en = (ROOT / "README_EN.md").read_text(encoding="utf-8")
+
+    assert "\npytest\n" not in readme_en
