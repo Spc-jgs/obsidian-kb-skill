@@ -7,7 +7,7 @@ name = "obsidian-kb-skill"
 version = "1.7.0"
 description = "Cross-platform AI agent skill for managing an Obsidian personal knowledge base."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Spc-jgs" }]
 dependencies = ["PyYAML>=6"]
@@ -21,3 +21,4 @@ packages = []
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra -q"
+pythonpath = ["."]
