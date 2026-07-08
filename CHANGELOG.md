@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-07-08
+
+### Added
+- Post-write validation before confirmation, commit, or push, covering metadata, tag limits, placeholders, wikilinks, encoding, and index ownership.
+- Folder Index structure auditing for missing or duplicate `folder-index-content` blocks.
+- Explicit precedence for user requests, Vault-local governance files, and generic skill defaults.
+- Safe optional Git post-processing that stages only task files and stops on divergence, conflicts, or INDEX conflict resolution.
+- Contract tests for the governance workflow and the Chinese Web Clip interpretation guidance.
+
+### Changed
+- Full-read accounting now distinguishes content notes from short control-plane files while retaining the total 10-file scan cap.
+- Batch capture defaults to one target note and requires user confirmation before creating multiple notes.
+- Bounded wikilink search now uses local routing and manual parent navigation before checking high-relevance sibling folders.
+- The Chinese Web Clip template renames “我的理解” to “理解与启发” and defines a concise, evidence-based output standard.
+
 ## [1.4.0] - 2026-07-07
 
 ### Added
