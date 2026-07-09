@@ -103,6 +103,28 @@ def test_ignores_hidden_agent_metadata_dirs(tmp_path):
     )
 
 
+def test_ignores_top_level_hidden_dir_like_uploads(tmp_path):
+    # A top-level hidden directory (e.g. Obsidian's ".uploads") sitting directly
+    # under the vault root must be skipped as a whole -- including the
+    # missing-folder-index check that Folder Index would otherwise raise.
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / ".obsidian" / "community-plugins.json").write_text(
+        '["obsidian-folder-index"]', encoding="utf-8"
+    )
+    (tmp_path / ".uploads").mkdir()
+    (tmp_path / ".uploads" / "staged.md").write_text(
+        "No frontmatter, but in a hidden dir.\n", encoding="utf-8"
+    )
+    (tmp_path / "Real.md").write_text("# Real\n", encoding="utf-8")
+
+    findings = audit_vault(tmp_path)
+    assert not any(".uploads" in f.path for f in findings)
+    # Sanity: a real note without frontmatter is still caught.
+    assert any(
+        f.code == "missing-frontmatter" and f.path == "Real.md" for f in findings
+    )
+
+
 def test_reports_missing_folder_index_content_block(tmp_path):
     (tmp_path / ".obsidian").mkdir()
     (tmp_path / "INDEX.md").write_text(

@@ -77,10 +77,12 @@ def _is_ignored(relative: Path) -> bool:
     if any(part in IGNORED_PARTS for part in relative.parts):
         return True
     # Hidden directories follow the dotfile convention and hold tool/agent
-    # metadata (e.g. .workbuddy, .claude, .cursor, .codebuddy) rather than notes.
-    # Skipping them avoids false positives on agent working memory and similar
-    # metadata folders that may coexist with a vault.
-    if any(part.startswith(".") for part in relative.parts[:-1]):
+    # metadata (e.g. .workbuddy, .claude, .cursor, .codebuddy, .uploads) rather
+    # than notes. Skipping them avoids false positives on agent working memory
+    # and similar metadata folders that may coexist with a vault. This covers a
+    # hidden dir at ANY depth, including a top-level hidden folder such as
+    # ".uploads" or ".claude" sitting directly under the vault root.
+    if any(part.startswith(".") for part in relative.parts):
         return True
     return relative.parts[:2] == ("docs", "superpowers")
 
