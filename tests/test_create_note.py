@@ -124,3 +124,39 @@ def test_apply_never_overwrites(tmp_path):
     assert r.returncode == 0
     assert (vault / "30-Insights" / "2026-07-09 Dup-2.md").is_file()
     assert (vault / "30-Insights" / "2026-07-09 Dup.md").read_text(encoding="utf-8") == "orig"
+
+
+def test_apply_runs_automatic_audit_ok(tmp_path):
+    vault = make_vault(tmp_path)
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), str(vault), "--type", "insight-note",
+         "--title", "Audited", "--stdin", "--apply"],
+        input="# Insight\n\nThis is the actual note content.\n",
+        capture_output=True, text=True, cwd=ROOT,
+    )
+    assert r.returncode == 0, r.stderr
+    assert "AUDIT: OK" in r.stdout
+
+
+def test_apply_audit_flags_broken_wikilink(tmp_path):
+    vault = make_vault(tmp_path)
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), str(vault), "--type", "insight-note",
+         "--title", "Broken", "--stdin", "--apply"],
+        input="see [[No Such Note]]\n", capture_output=True, text=True, cwd=ROOT,
+    )
+    assert r.returncode == 0, r.stderr
+    assert "AUDIT:" in r.stdout
+    assert "broken-wikilink" in r.stdout
+
+
+def test_no_audit_suppresses_audit(tmp_path):
+    vault = make_vault(tmp_path)
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), str(vault), "--type", "insight-note",
+         "--title", "Quiet", "--stdin", "--apply", "--no-audit"],
+        input="# Insight\n\nThis is the actual note content.\n",
+        capture_output=True, text=True, cwd=ROOT,
+    )
+    assert r.returncode == 0, r.stderr
+    assert "AUDIT:" not in r.stdout

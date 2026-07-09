@@ -27,12 +27,14 @@ try:
         build_note,
         split_frontmatter,
         validate_vault,
+        audit_note,
     )
 except ImportError:  # allow `python -m scripts.update_note`
     from scripts.create_note import (
         build_note,
         split_frontmatter,
         validate_vault,
+        audit_note,
     )
 
 MAX_LOG_LINES = 30
@@ -164,6 +166,10 @@ def main(argv: list[str] | None = None) -> int:
         "--apply", action="store_true",
         help="Actually write the file (default is a dry run that only prints)",
     )
+    p.add_argument(
+        "--no-audit", action="store_true",
+        help="Skip the automatic post-write audit (runs by default after --apply)",
+    )
     args = p.parse_args(argv)
 
     vault = args.vault.expanduser().resolve()
@@ -246,6 +252,17 @@ def main(argv: list[str] | None = None) -> int:
 
     note_path.parent.mkdir(parents=True, exist_ok=True)
     note_path.write_bytes(rendered.encode("utf-8"))
+
+    if not args.no_audit:
+        findings = audit_note(vault, note_path)
+        rel = note_path.relative_to(vault)
+        if findings:
+            print(f"AUDIT: {len(findings)} issue(s) found in {rel}:")
+            for finding in findings:
+                print(f"  - {finding.code}: {finding.message}")
+        else:
+            print(f"AUDIT: OK — no issues in {rel}")
+
     print(f"{action}d: {note_path}")
     return 0
 

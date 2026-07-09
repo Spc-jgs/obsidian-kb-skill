@@ -147,3 +147,34 @@ def test_non_vault_returns_exit_2(tmp_path):
     with pytest.raises(SystemExit) as exc:
         update_note.main([str(tmp_path), "--note", "Tasks/foo/TASK.md"])
     assert exc.value.code == 2
+
+
+def test_apply_runs_automatic_audit_ok(vault):
+    note = _note(vault)
+    update_note.main([str(vault), "--note", "Tasks/foo/TASK.md", "--apply"])
+    import contextlib
+    import io
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = update_note.main(
+            [str(vault), "--note", "Tasks/foo/TASK.md", "--add-open", "x", "--apply"]
+        )
+    assert rc == 0
+    assert "AUDIT: OK" in buf.getvalue()
+
+
+def test_no_audit_suppresses_audit(vault):
+    note = _note(vault)
+    update_note.main([str(vault), "--note", "Tasks/foo/TASK.md", "--apply"])
+    import contextlib
+    import io
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = update_note.main(
+            [str(vault), "--note", "Tasks/foo/TASK.md",
+             "--add-open", "y", "--apply", "--no-audit"]
+        )
+    assert rc == 0
+    assert "AUDIT:" not in buf.getvalue()

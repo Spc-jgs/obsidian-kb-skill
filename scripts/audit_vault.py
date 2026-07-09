@@ -36,6 +36,22 @@ class FolderIndexConfig:
 
 EXEMPT_NAMES = {"README.md", "AGENTS.md", "CLAUDE.md"}
 INDEX_TYPES = {"folder-index", "moc"}
+# Findings that describe vault-wide consistency (not a defect of any single note).
+# Excluded from audit_note() so a post-write self-check only reports issues in the
+# note that was just written.
+VAULT_WIDE_CODES = frozenset(
+    {
+        "orphan-note",
+        "duplicate-folder-index",
+        "missing-folder-index",
+        "misnamed-folder-index",
+        "broken-folder-graph-chain",
+        "graph-incompatible-index-config",
+        "near-duplicate-tags",
+        "duplicate-title",
+        "similar-title",
+    }
+)
 REQUIRED_TYPES = {
     "daily-note",
     "daily-report",
@@ -48,6 +64,7 @@ REQUIRED_TYPES = {
     "project-note",
     "person-note",
     "archive-note",
+    "task-memory",
     "folder-index",
     "moc",
 }
@@ -699,6 +716,27 @@ def audit_vault(vault: Path) -> list[Finding]:
     _audit_orphans(findings, vault, referenced, index_notes, candidate_notes)
 
     return sorted(findings, key=lambda item: (item.path, item.code, item.message))
+
+
+def audit_note(vault: Path, note: Path) -> list[Finding]:
+    """Audit a single note within its vault; returns *per-note* findings only.
+
+    Reuses the full audit_vault pass (single source of truth for every rule) and
+    filters to the requested note's relative path, dropping vault-wide consistency
+    findings (orphans, duplicate titles, missing folder indexes, graph chains,
+    near-duplicate tags) that are not defects of the note itself. This matches the
+    scope of a post-write self-check (Step 9): frontmatter validity, broken
+    wikilinks, unresolved placeholders, required web-clip fields, etc.
+    """
+    vault = vault.resolve()
+    note = note.resolve()
+    all_findings = audit_vault(vault)
+    rel = note.relative_to(vault).as_posix()
+    return [
+        f
+        for f in all_findings
+        if f.path == rel and f.code not in VAULT_WIDE_CODES
+    ]
 
 
 def _audit_titles(

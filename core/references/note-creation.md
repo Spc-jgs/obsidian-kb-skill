@@ -223,6 +223,8 @@ Re-read the written note and any index changed by this invocation before confirm
 
 If a reusable Vault auditor is available, run it in strict/read-only mode in addition to these target-file checks. Fix validation failures before continuing. Do not report success for an invalid note.
 
+The bundled `create_note.py` / `update_note.py` run this audit automatically after `--apply` (pass `--no-audit` to skip). Read its `AUDIT:` output — it lists any issues for the just-written note — instead of re-reading the file by hand. Fix reported issues before confirming the save.
+
 ### Step 10: Confirm to User
 
 Report back:

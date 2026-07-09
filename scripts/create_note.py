@@ -21,8 +21,10 @@ import yaml
 
 try:
     from process_inbox import TYPE_TO_FOLDER, _maybe_update_static_index
+    from audit_vault import audit_note
 except ImportError:  # allow `python -m scripts.create_note`
     from scripts.process_inbox import TYPE_TO_FOLDER, _maybe_update_static_index
+    from scripts.audit_vault import audit_note
 
 DEFAULT_TAG_BY_TYPE = {
     "daily-note": "daily",
@@ -169,6 +171,10 @@ def main(argv: list[str] | None = None) -> int:
         "--apply", action="store_true",
         help="Actually write the file (default is a dry run that only prints)",
     )
+    parser.add_argument(
+        "--no-audit", action="store_true",
+        help="Skip the automatic post-write audit (runs by default after --apply)",
+    )
     args = parser.parse_args(argv)
 
     vault = args.vault.expanduser().resolve()
@@ -224,6 +230,16 @@ def main(argv: list[str] | None = None) -> int:
     # listings are left untouched, mirroring process_inbox).
     plan = {"path": dest, "target": folder, "title": args.title}
     _maybe_update_static_index(vault, plan, date)
+
+    if not args.no_audit:
+        findings = audit_note(vault, dest)
+        rel = dest.relative_to(vault)
+        if findings:
+            print(f"AUDIT: {len(findings)} issue(s) found in {rel}:")
+            for finding in findings:
+                print(f"  - {finding.code}: {finding.message}")
+        else:
+            print(f"AUDIT: OK — no issues in {rel}")
 
     print(f"created: {dest}")
     return 0
