@@ -22,9 +22,11 @@ import yaml
 try:
     from process_inbox import TYPE_TO_FOLDER, _maybe_update_static_index
     from audit_vault import audit_note
+    from suggest_links import suggest_links
 except ImportError:  # allow `python -m scripts.create_note`
     from scripts.process_inbox import TYPE_TO_FOLDER, _maybe_update_static_index
     from scripts.audit_vault import audit_note
+    from scripts.suggest_links import suggest_links
 
 DEFAULT_TAG_BY_TYPE = {
     "daily-note": "daily",
@@ -175,6 +177,11 @@ def main(argv: list[str] | None = None) -> int:
         "--no-audit", action="store_true",
         help="Skip the automatic post-write audit (runs by default after --apply)",
     )
+    parser.add_argument(
+        "--suggest-links", action="store_true",
+        help="After writing, print link suggestions reusing suggest_links.py "
+             "(requires --apply; the note must exist on disk to score)",
+    )
     args = parser.parse_args(argv)
 
     vault = args.vault.expanduser().resolve()
@@ -240,6 +247,17 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  - {finding.code}: {finding.message}")
         else:
             print(f"AUDIT: OK — no issues in {rel}")
+
+    if args.suggest_links:
+        recs = suggest_links(vault, dest)
+        if recs:
+            print("SUGGESTED LINKS:")
+            for path, score, reasons in recs:
+                print(f"  {score:>3}  {path.relative_to(vault).as_posix()}")
+                for reason in reasons:
+                    print(f"        - {reason}")
+        else:
+            print("SUGGESTED LINKS: none")
 
     print(f"created: {dest}")
     return 0

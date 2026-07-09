@@ -178,3 +178,25 @@ def test_no_audit_suppresses_audit(vault):
         )
     assert rc == 0
     assert "AUDIT:" not in buf.getvalue()
+
+
+def test_suggest_links_after_update(vault):
+    note = _note(vault)
+    update_note.main([str(vault), "--note", "Tasks/foo/TASK.md", "--apply"])
+    (vault / "Tasks" / "foo" / "Related.md").write_text(
+        '---\ntype: project-note\ndate: 2026-07-01\ntags: [task]\n---\n'
+        "# Related\n\nContext.\n",
+        encoding="utf-8",
+    )
+    import contextlib
+    import io
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = update_note.main(
+            [str(vault), "--note", "Tasks/foo/TASK.md",
+             "--add-open", "z", "--apply", "--suggest-links"]
+        )
+    assert rc == 0
+    assert "SUGGESTED LINKS" in buf.getvalue()
+    assert "Related" in buf.getvalue()

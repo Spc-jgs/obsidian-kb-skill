@@ -160,3 +160,20 @@ def test_no_audit_suppresses_audit(tmp_path):
     )
     assert r.returncode == 0, r.stderr
     assert "AUDIT:" not in r.stdout
+
+
+def test_suggest_links_after_create(tmp_path):
+    vault = make_vault(tmp_path)
+    (vault / "30-Insights" / "Existing Topic.md").write_text(
+        '---\ntype: insight-note\ndate: 2026-07-01\ntags: [insight]\n---\n'
+        "# Existing Topic\n\nPrior art.\n",
+        encoding="utf-8",
+    )
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), str(vault), "--type", "insight-note",
+         "--title", "New", "--stdin", "--apply", "--suggest-links"],
+        input="# New\n\nFresh content.\n", capture_output=True, text=True, cwd=ROOT,
+    )
+    assert r.returncode == 0, r.stderr
+    assert "SUGGESTED LINKS" in r.stdout
+    assert "Existing Topic" in r.stdout

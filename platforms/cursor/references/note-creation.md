@@ -168,6 +168,8 @@ Use `[[wikilinks]]` to link related existing notes — but do **not** scan the e
 
 Stop when the total file-scan cap is reached. If nothing obvious turns up after the cheap passes, **skip wikilinks** — do not escalate to a full-text vault scan. An empty `related: []` is valid.
 
+The bundled helpers run this bounded strategy for you: `python scripts/suggest_links.py --note <path>` suggests targets for an existing note, and `create_note.py --suggest-links` prints suggestions right after writing a new note (both reuse the scope + scoring above). Prefer them over hand-scanning.
+
 ### Step 7: Write the File
 
 Save to `{VAULT}/{FOLDER}/YYYY-MM-DD Short Title.md` with **UTF-8 encoding** (no BOM). If the filename already exists, add a numeric suffix (e.g. `-2`) or ask the user — **never overwrite**.

@@ -29,6 +29,7 @@ try:
         validate_vault,
         audit_note,
     )
+    from suggest_links import suggest_links
 except ImportError:  # allow `python -m scripts.update_note`
     from scripts.create_note import (
         build_note,
@@ -36,6 +37,7 @@ except ImportError:  # allow `python -m scripts.update_note`
         validate_vault,
         audit_note,
     )
+    from scripts.suggest_links import suggest_links
 
 MAX_LOG_LINES = 30
 
@@ -170,6 +172,10 @@ def main(argv: list[str] | None = None) -> int:
         "--no-audit", action="store_true",
         help="Skip the automatic post-write audit (runs by default after --apply)",
     )
+    p.add_argument(
+        "--suggest-links", action="store_true",
+        help="After writing, print link suggestions reusing suggest_links.py",
+    )
     args = p.parse_args(argv)
 
     vault = args.vault.expanduser().resolve()
@@ -262,6 +268,17 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  - {finding.code}: {finding.message}")
         else:
             print(f"AUDIT: OK — no issues in {rel}")
+
+    if args.suggest_links:
+        recs = suggest_links(vault, note_path)
+        if recs:
+            print("SUGGESTED LINKS:")
+            for path, score, reasons in recs:
+                print(f"  {score:>3}  {path.relative_to(vault).as_posix()}")
+                for reason in reasons:
+                    print(f"        - {reason}")
+        else:
+            print("SUGGESTED LINKS: none")
 
     print(f"{action}d: {note_path}")
     return 0
