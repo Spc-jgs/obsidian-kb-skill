@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-07-09
+
+### Added
+
+- **`scripts/detect_index.py` (P1)** — single entry point for per-folder index-strategy detection; replaces three copies of the same prose in `note-creation.md` and the detection in `process_inbox`. Reuses `audit_vault._folder_index_config` as the single source of truth. Emits JSON: `mode` / `index_file` / `can_append` / `graph_compatible` / `notes`. (`obsidian-detect-index` console script.)
+- **`scripts/vault_info.py` (P2)** — one-shot read-only cold-start context: vault path + validity, template list, every standard folder's existence and index strategy. Lets an agent seed context in a single JSON call instead of probing by hand. Reuses `detect_index.detect` and `audit_vault._folder_index_config`. (`obsidian-vault-info` console script.)
+- **Automatic post-write audit in `create_note.py` / `update_note.py` (P3)** — `audit_note()` runs the per-note audit after `--apply` (pass `--no-audit` to skip). `AUDIT:` output lists broken wikilinks, missing frontmatter, unresolved placeholders, etc. Replaces Step 9's manual re-read. Also fixed a real bug it exposed: `REQUIRED_TYPES` omitted `task-memory`, so every task-memory note was falsely flagged `invalid-type`.
+- **`--suggest-links` on `create_note.py` / `update_note.py` (P4)** — after writing, prints link suggestions reusing `suggest_links.suggest_links` (single source, no duplicated scoring). Aligns create/update with the suggest_links capability.
+- **`scripts/scaffold_templates.py` (P5r)** — one-time bootstrap of `Templates/` from the shipped starters in `core/templates/`. Refuses to overwrite user-edited templates unless `--force` is passed. Not a single source of truth — the vault template is.
+- **`--json` machine-readable output on every CLI script (P6)** — `audit_vault`, `process_inbox`, `suggest_links`, `create_note`, `update_note`, `detect_index`, `vault_info`. Consistent schema, tested end-to-end (10 tests). Agents can drive every script without parsing human text.
+
+### Changed
+
+- **`core/references/note-creation.md` is now 156 lines (was 253, -38%).** Cut the 6-step wikilink procedure, Step 9's manual checklist, and Step 7's feature restatement — all of which are now done by the bundled scripts. Every governance contract phrase the test suite guards is still present.
+- **`create_note.py` reads the vault template, not a hardcoded spec.** `build_note()` loads `{VAULT}/Templates/<Name>.md`, fills `{{date}}` placeholders, merges the template's frontmatter, and uses its body. If the user adds a field or a section to their template, every new note picks it up — no code change needed. `EXTRA_FIELDS` is now a safety net for the no-template case, not the single source.
+
+### Fixed
+
+- `REQUIRED_TYPES` in `audit_vault.py` now includes `task-memory` (was missing; surfaced by P3's automatic audit).
+- Index-strategy detection was duplicated three places (note-creation prose, audit_vault's reader, process_inbox's reader); now lives in `scripts/detect_index.py` with `audit_vault._folder_index_config` as the single source.
+
 ## [1.9.1] - 2026-07-09
 
 ### Changed
