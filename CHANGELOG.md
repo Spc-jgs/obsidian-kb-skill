@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-07-09
+
+### Added
+
+- **Task Memory Workflow (multi-agent handoff memory)**: a new workflow in `core/OBSIDIAN_KB.md` for carrying one long task's state across agent handoffs. A single agent-agnostic `Tasks/<slug>/TASK.md` note holds `status` / `step` / `decisions` / `constraints` / `artifacts` / `open` / `agents` plus a bounded `## Log` trail. The outgoing agent updates it before yielding; the incoming agent reads it first. **Off by default** — activated per task via the `task-memory: enabled` field, with an optional global master switch `OBSIDIAN_KB_TASK_MEMORY=on|off` (default `off`). Saying "开启任务记忆 / handoff" opts in; "关闭" opts out.
+- **Note updater helper (`update_note.py`)**: the constraint-based counterpart to `create_note.py` for handoffs. It edits only structured frontmatter fields and appends a timestamped line to `## Log` (capped to the last 30 entries, TTL-style) — it never clobbers prose. Upserts: if the task note is missing it is initialized from the template, so one command both starts and updates a task. Read-only by default; `--apply` to write. Installed as the `obsidian-update-note` console script.
+- **`task-memory` note type** added to `create_note.py` / `process_inbox.py` (routed to `Tasks/`, with the task-memory frontmatter defaults).
+
 ## [1.8.1] - 2026-07-09
 
 ### Added

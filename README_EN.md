@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.8.1** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.9.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -448,7 +448,7 @@ python -m pytest
 CI consumes the same lockfile and runs build checks and tests on Python 3.11 and
 3.14.
 
-After installing `.[dev]` (or any other install method), the four scripts are also
+After installing `.[dev]` (or any other install method), the five scripts are also
 available as console commands, equivalent to running the corresponding `scripts/*.py`
 directly:
 
@@ -457,6 +457,7 @@ obsidian-audit-vault   /path/to/vault --strict
 obsidian-process-inbox /path/to/vault --apply
 obsidian-suggest-links /path/to/vault --note 30-Insights/some-note.md
 obsidian-create-note   /path/to/vault --type insight-note --title "Short Title" --content-file body.md --apply
+obsidian-update-note   /path/to/vault --note Tasks/some-task/TASK.md --step "..." --by Codex --log "finished X, handing to WorkBuddy" --apply
 ```
 
 ### Audit an Existing Vault
@@ -509,6 +510,21 @@ python scripts/create_note.py /path/to/vault \
 - `--tags`: override the type default tags; `--date`: override the date (defaults to today); `--folder`: override the routed target folder.
 - After writing, it updates a static `INDEX.md` according to the detected index strategy (Folder Index / Dataview managed listings are left untouched).
 - This pairs with the Step 7 "tool choice" rule in `core/OBSIDIAN_KB.md`: agents prefer their native write tool, otherwise use this script rather than inventing one.
+
+### Task Memory (multi-agent long-task handoff)
+
+The **Task Memory Workflow** in `core/OBSIDIAN_KB.md` closes the memory gap when multiple agents接力 (hand off) the same long task: before each agent yields, it updates one `Tasks/<slug>/TASK.md` (status, decisions, constraints, open items, artifacts touched, handoff log); the next agent reads it as its first action.
+
+**Off by default, opt in** — the global env `OBSIDIAN_KB_TASK_MEMORY=on|off` (default `off`) is the master switch; per-task, the `task-memory: enabled` field turns it on. Say "开启任务记忆 / handoff" in a session to activate, "关闭" to deactivate. When off, there is zero overhead.
+
+`obsidian-update-note` is the matching **constraint-based updater**: it only changes structured frontmatter fields and only appends a timestamped line to `## Log` — it never overwrites your prose; `Log` is auto-capped to the last 30 entries (TTL); dry run by default, `--apply` to write. If the note does not exist it is initialized from the template (upsert), so one command both starts and updates a task:
+
+```bash
+python scripts/update_note.py /path/to/vault \
+    --note Tasks/foo/TASK.md --status active --step "implement X module" \
+    --add-decision "Chose Postgres over Mongo (scale)" \
+    --by WorkBuddy --log "scaffold done, handing data layer to Codex" --apply
+```
 
 ## Design Principles
 

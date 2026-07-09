@@ -34,6 +34,7 @@ TYPE_TO_FOLDER = {
     "conversation-digest": "30-Insights",
     "project-note": "40-Projects",
     "person-note": "50-People",
+    "task-memory": "Tasks",
 }
 
 # Trigger keywords (lowercased substrings) -> target folder, used when the type

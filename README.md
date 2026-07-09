@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.8.1** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.9.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -444,13 +444,14 @@ python -m pytest
 
 CI 使用同一 lockfile，分别在 Python 3.11 和 3.14 上运行构建检查与测试。
 
-安装 `.[dev]`（或任意方式安装本项目）后，四个脚本还会以控制台命令形式提供，等价于直接运行对应的 `scripts/*.py`：
+安装 `.[dev]`（或任意方式安装本项目）后，五个脚本还会以控制台命令形式提供，等价于直接运行对应的 `scripts/*.py`：
 
 ```bash
 obsidian-audit-vault   /你的知识库路径 --strict
 obsidian-process-inbox /你的知识库路径 --apply
 obsidian-suggest-links /你的知识库路径 --note 30-Insights/某笔记.md
 obsidian-create-note   /你的知识库路径 --type insight-note --title "短标题" --content-file 正文.md --apply
+obsidian-update-note   /你的知识库路径 --note Tasks/某任务/TASK.md --step "..." --by Codex --log "完成 X，交接给 WorkBuddy" --apply
 ```
 
 ### 审计现有知识库
@@ -503,6 +504,22 @@ python scripts/create_note.py /你的知识库路径 \
 - `--tags`：覆盖类型默认标签；`--date`：覆盖日期（默认今天）；`--folder`：覆盖路由到的目标文件夹。
 - 写入后会按当前索引策略更新静态 `INDEX.md`（Folder Index / Dataview 管理的列表不会被改动）。
 - 这与 `core/OBSIDIAN_KB.md` 的 Step 7「工具选择」约定配套：智能体优先用原生写工具，否则用本脚本，而不是临时造脚本。
+
+### 任务记忆（多 agent 长任务切换）
+
+`core/OBSIDIAN_KB.md` 里的 **Task Memory Workflow** 解决多 agent 接力做同一个长任务时的记忆断层：每棒 agent 交出前更新一张 `Tasks/<slug>/TASK.md`（状态、决策、约束、待办、已碰文件、交接日志），接棒的 agent 第一步先读它。
+
+**默认关闭、按需开启**——全局环境变量 `OBSIDIAN_KB_TASK_MEMORY=on|off`（默认 `off`）是总开关；单任务靠笔记里的 `task-memory: enabled` 字段开启。会话里说「开启任务记忆 / handoff」即激活，说「关闭」即停用。关掉时完全无开销。
+
+`obsidian-update-note` 是配套的**约束型更新器**：只改结构化 frontmatter 字段、只往 `## Log` 追加带时间戳的一行，绝不覆盖你写的散文；`Log` 自动截断到最近 30 条（TTL）；默认 dry-run，加 `--apply` 才写。笔记不存在时会按模板自动初始化（upsert），所以一条命令既能开任务也能更新：
+
+```bash
+# 出棒：更新状态 + 追加交接日志（不存在则自动建 Tasks/foo/TASK.md）
+python scripts/update_note.py /你的知识库路径 \
+    --note Tasks/foo/TASK.md --status active --step "实现 X 模块" \
+    --add-decision "选 Postgres 而非 Mongo（扩展性）" \
+    --by WorkBuddy --log "完成脚手架，交接给 Codex 做数据层" --apply
+```
 
 ## 设计原则
 

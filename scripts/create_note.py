@@ -33,6 +33,7 @@ DEFAULT_TAG_BY_TYPE = {
     "conversation-digest": "insight",
     "project-note": "project",
     "person-note": "people",
+    "task-memory": "task",
 }
 
 # Extra frontmatter fields required/expected per note type (from core/OBSIDIAN_KB.md).
@@ -45,6 +46,10 @@ EXTRA_FIELDS: dict[str, dict[str, Any]] = {
     "conversation-digest": {"source": "", "related": []},
     "project-note": {"status": "active", "related": []},
     "person-note": {"role": "", "organization": "", "related": []},
+    "task-memory": {
+        "status": "active", "task-memory": "enabled", "agents": [],
+        "decisions": [], "constraints": [], "artifacts": [], "open": [],
+    },
 }
 
 

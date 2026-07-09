@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "obsidian-kb-skill"
-version = "1.8.1"
+version = "1.9.0"
 description = "Cross-platform AI agent skill for managing an Obsidian personal knowledge base."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,6 +23,7 @@ obsidian-audit-vault = "scripts.audit_vault:main"
 obsidian-process-inbox = "scripts.process_inbox:main"
 obsidian-suggest-links = "scripts.suggest_links:main"
 obsidian-create-note = "scripts.create_note:main"
+obsidian-update-note = "scripts.update_note:main"
 
 [tool.uv]
 required-version = "==0.11.26"
