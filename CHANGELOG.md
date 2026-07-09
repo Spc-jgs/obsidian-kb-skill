@@ -4,12 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-07-09
+
+### Added
+
+- **Vault auditor expansion (Phase A)**: `scripts/audit_vault.py` now also flags unresolved template placeholders (`unresolved-template-placeholder`), validates the `related` field format and duplicate entries (`invalid-related*`, `duplicate-related-entry`), requires non-empty Web Clip fields (`web-clip-missing-source` / `-author` / `-published`), flags empty template notes (`empty-template-note`), suggests merging near-duplicate tags (`near-duplicate-tags`), detects duplicate and fuzzy-similar note titles (`duplicate-title`, `similar-title`), and detects orphan notes via a reverse-reference index (`orphan-note`).
+- **Conversation Digest template and workflow (Phase D)**: New `conversation-digest` note type with `Templates/Digest Note.md` (zh-CN + en) and a dedicated "Conversation Digest Workflow" in `core/OBSIDIAN_KB.md` for distilling chat summaries into the vault.
+- **Inbox Processor (Phase B)**: New read-only-by-default `scripts/process_inbox.py` proposes (`--plan`) or applies (`--apply`) filing of quick-capture notes from `00-Inbox`, filling `date` / `type` / `tags` and appending to the destination folder's static INDEX (Folder Index and Dataview listings are never touched).
+- **Link Suggestor (Phase C)**: New read-only `scripts/suggest_links.py` scans a bounded scope around a note and scores candidate wikilink targets by shared tags, matching type, and title-token overlap.
+- **Console-script entry points**: `obsidian-audit-vault`, `obsidian-process-inbox`, and `obsidian-suggest-links` are installed via `[project.scripts]`, backed by `scripts.audit_vault:main`, `scripts.process_inbox:main`, and `scripts.suggest_links:main`.
+
 ### Changed
 
 - **Python environment standardization**: Python 3.14.6 is the pinned development interpreter; Python 3.11 is now the minimum supported version.
 - **Reproducible development**: Added `.python-version`, `uv.lock`, locked uv commands, and an upgraded-pip venv fallback.
 - **Test entry consistency**: pytest adds the repository root explicitly, so both `pytest` and `python -m pytest` resolve local modules.
 - **CI matrix**: GitHub Actions now verifies the locked environment on Python 3.11 and 3.14.
+- **Packaging**: `scripts/` is now an installable package (`packages = ["scripts"]`), reversing the deliberate "disable discovery" choice from 1.6.0 so the console-script entry points resolve correctly.
 
 ## [1.7.0] - 2026-07-08
 

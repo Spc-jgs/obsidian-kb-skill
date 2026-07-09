@@ -443,6 +443,14 @@ python -m pytest
 
 CI 使用同一 lockfile，分别在 Python 3.11 和 3.14 上运行构建检查与测试。
 
+安装 `.[dev]`（或任意方式安装本项目）后，三个脚本还会以控制台命令形式提供，等价于直接运行对应的 `scripts/*.py`：
+
+```bash
+obsidian-audit-vault   /你的知识库路径 --strict
+obsidian-process-inbox /你的知识库路径 --apply
+obsidian-suggest-links /你的知识库路径 --note 30-Insights/某笔记.md
+```
+
 ### 审计现有知识库
 
 使用只读审计器检查必填 frontmatter、笔记类型、未闭合代码块、断裂或歧义 wikilink，以及重复文件夹索引：
