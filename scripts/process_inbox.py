@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -156,9 +157,10 @@ def _maybe_update_static_index(vault: Path, plan: dict[str, Any], date: str) -> 
         handle.write(line)
 
 
-def apply_plan(plan: dict[str, Any], vault: Path) -> None:
+def apply_plan(plan: dict[str, Any], vault: Path, silent: bool = False) -> None:
     if plan.get("skip"):
-        print(f"  skip: {plan['path'].as_posix()} — {plan['skip']}")
+        if not silent:
+            print(f"  skip: {plan['path'].as_posix()} — {plan['skip']}")
         return
     source = plan["path"]
     dest_folder = vault / plan["target"]
@@ -180,10 +182,16 @@ def apply_plan(plan: dict[str, Any], vault: Path) -> None:
     dest.write_bytes(_fill_frontmatter(text, metadata, updates).encode("utf-8"))
     source.unlink()
     _maybe_update_static_index(vault, plan, today)
-    print(f"  moved: {source.as_posix()} -> {dest.as_posix()}")
+    if not silent:
+        print(f"  moved: {source.as_posix()} -> {dest.as_posix()}")
 
 
-def process_vault(vault: Path, apply: bool, inbox_name: str = "00-Inbox") -> list[dict[str, Any]]:
+def process_vault(
+    vault: Path,
+    apply: bool,
+    inbox_name: str = "00-Inbox",
+    silent: bool = False,
+) -> list[dict[str, Any]]:
     vault = vault.resolve()
     inbox = vault / inbox_name
     plans = [plan_note(path, vault) for path in collect_inbox(inbox)]
@@ -191,7 +199,7 @@ def process_vault(vault: Path, apply: bool, inbox_name: str = "00-Inbox") -> lis
         for plan in plans:
             if plan.get("skip"):
                 continue
-            apply_plan(plan, vault)
+            apply_plan(plan, vault, silent=silent)
     return plans
 
 
@@ -221,6 +229,9 @@ def main(argv: list[str] | None = None) -> int:
         "--apply", action="store_true", help="Move and file notes (never overwrites)"
     )
     parser.add_argument("--inbox", default="00-Inbox", help="Inbox folder name")
+    parser.add_argument(
+        "--json", action="store_true", help="Emit the plan(s) as JSON instead of text"
+    )
     args = parser.parse_args(argv)
 
     vault = args.vault.expanduser().resolve()
@@ -228,7 +239,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: not an Obsidian vault: {vault}", file=sys.stderr)
         return 2
 
-    plans = process_vault(vault, apply=args.apply, inbox_name=args.inbox)
+    plans = process_vault(vault, apply=args.apply, inbox_name=args.inbox, silent=args.json)
+    if args.json:
+        serial = [
+            {k: (v.as_posix() if isinstance(v, Path) else v) for k, v in plan.items()}
+            for plan in plans
+        ]
+        print(json.dumps(serial, ensure_ascii=False, indent=2))
+        return 0
     if not args.apply:
         for plan in plans:
             print(_format_plan(plan))

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -176,6 +177,10 @@ def main(argv: list[str] | None = None) -> int:
         "--suggest-links", action="store_true",
         help="After writing, print link suggestions reusing suggest_links.py",
     )
+    p.add_argument(
+        "--json", action="store_true",
+        help="Emit a single JSON object instead of human-readable text",
+    )
     args = p.parse_args(argv)
 
     vault = args.vault.expanduser().resolve()
@@ -218,8 +223,9 @@ def main(argv: list[str] | None = None) -> int:
         meta["decisions"] = _extend_list(meta.get("decisions"), args.add_decision)
     for pair in args.replace_decision:
         if "::" not in pair:
-            print(f"(skip) --replace-decision needs 'OLD::NEW': {pair!r}",
-                  file=sys.stderr)
+            if not args.json:
+                print(f"(skip) --replace-decision needs 'OLD::NEW': {pair!r}",
+                      file=sys.stderr)
             continue
         old_sub, new = pair.split("::", 1)
         replaced = _replace_in_list(meta.get("decisions"), old_sub, new)
@@ -246,41 +252,71 @@ def main(argv: list[str] | None = None) -> int:
         rendered += "\n"
     rendered += body
 
-    print(f"action: {action}")
-    print(f"path  : {note_path}")
-    print("---- resulting note (preview) ----")
-    print(rendered)
-    print("----------------------------------")
+    result: dict[str, Any] = {
+        "action": action,
+        "path": str(note_path),
+        "rendered": rendered,
+        "applied": False,
+        "dry_run": not args.apply,
+        "audit": None,
+        "suggested_links": None,
+    }
 
     if not args.apply:
-        print("(dry run) pass --apply to write the file.")
+        if args.json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            print(f"action: {action}")
+            print(f"path  : {note_path}")
+            print("---- resulting note (preview) ----")
+            print(rendered)
+            print("----------------------------------")
+            print("(dry run) pass --apply to write the file.")
         return 0
 
     note_path.parent.mkdir(parents=True, exist_ok=True)
     note_path.write_bytes(rendered.encode("utf-8"))
+    result["applied"] = True
 
     if not args.no_audit:
         findings = audit_note(vault, note_path)
-        rel = note_path.relative_to(vault)
-        if findings:
-            print(f"AUDIT: {len(findings)} issue(s) found in {rel}:")
-            for finding in findings:
-                print(f"  - {finding.code}: {finding.message}")
-        else:
-            print(f"AUDIT: OK — no issues in {rel}")
+        result["audit"] = {
+            "ok": not findings,
+            "count": len(findings),
+            "findings": [
+                {"code": f.code, "path": f.path, "message": f.message}
+                for f in findings
+            ],
+        }
+        if not args.json:
+            rel = note_path.relative_to(vault)
+            if findings:
+                print(f"AUDIT: {len(findings)} issue(s) found in {rel}:")
+                for finding in findings:
+                    print(f"  - {finding.code}: {finding.message}")
+            else:
+                print(f"AUDIT: OK — no issues in {rel}")
 
     if args.suggest_links:
         recs = suggest_links(vault, note_path)
-        if recs:
-            print("SUGGESTED LINKS:")
-            for path, score, reasons in recs:
-                print(f"  {score:>3}  {path.relative_to(vault).as_posix()}")
-                for reason in reasons:
-                    print(f"        - {reason}")
-        else:
-            print("SUGGESTED LINKS: none")
+        result["suggested_links"] = [
+            {"path": p.relative_to(vault).as_posix(), "score": s, "reasons": r}
+            for p, s, r in recs
+        ]
+        if not args.json:
+            if recs:
+                print("SUGGESTED LINKS:")
+                for path, score, reasons in recs:
+                    print(f"  {score:>3}  {path.relative_to(vault).as_posix()}")
+                    for reason in reasons:
+                        print(f"        - {reason}")
+            else:
+                print("SUGGESTED LINKS: none")
 
-    print(f"{action}d: {note_path}")
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print(f"{action}d: {note_path}")
     return 0
 
 

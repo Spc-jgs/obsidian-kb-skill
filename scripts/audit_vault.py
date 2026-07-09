@@ -782,6 +782,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Audit an Obsidian vault without modifying it.")
     parser.add_argument("vault", type=Path, help="Path to the Obsidian vault")
     parser.add_argument("--strict", action="store_true", help="Return non-zero when findings exist")
+    parser.add_argument(
+        "--json", action="store_true", help="Emit findings as JSON instead of tab-separated text"
+    )
     return parser
 
 
@@ -792,9 +795,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: not an Obsidian vault: {vault}", file=sys.stderr)
         return 2
     findings = audit_vault(vault)
-    for finding in findings:
-        print(f"{finding.code}\t{finding.path}\t{finding.message}")
-    print(f"{len(findings)} finding(s)")
+    if args.json:
+        out = [
+            {"code": f.code, "path": f.path, "message": f.message} for f in findings
+        ]
+        print(json.dumps({"count": len(findings), "findings": out},
+                         ensure_ascii=False, indent=2))
+    else:
+        for finding in findings:
+            print(f"{finding.code}\t{finding.path}\t{finding.message}")
+        print(f"{len(findings)} finding(s)")
     return 1 if findings and args.strict else 0
 
 

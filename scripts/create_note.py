@@ -252,6 +252,10 @@ def main(argv: list[str] | None = None) -> int:
         help="After writing, print link suggestions reusing suggest_links.py "
              "(requires --apply; the note must exist on disk to score)",
     )
+    parser.add_argument(
+        "--json", action="store_true",
+        help="Emit a single JSON object instead of human-readable text",
+    )
     args = parser.parse_args(argv)
 
     vault = args.vault.expanduser().resolve()
@@ -281,28 +285,45 @@ def main(argv: list[str] | None = None) -> int:
             vault=vault,
         )
     except ValueError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        if args.json:
+            print(json.dumps({"error": str(exc)}, ensure_ascii=False))
+        else:
+            print(f"error: {exc}", file=sys.stderr)
         return 2
 
     filename = f"{date} {sanitize_filename(args.title)}.md"
     dest = resolve_dest(vault, folder, filename)
 
-    print(f"vault : {vault}")
-    print(f"folder: {folder}")
-    print(f"path  : {dest}")
-    print("---- frontmatter + body (preview) ----")
-    print(rendered)
-    print("--------------------------------------")
+    result: dict[str, Any] = {
+        "vault": str(vault),
+        "folder": folder,
+        "path": str(dest),
+        "rendered": rendered,
+        "applied": False,
+        "dry_run": not args.apply,
+        "audit": None,
+        "suggested_links": None,
+    }
 
     if not args.apply:
-        print("(dry run) pass --apply to write the file.")
+        if args.json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            print(f"vault : {vault}")
+            print(f"folder: {folder}")
+            print(f"path  : {dest}")
+            print("---- frontmatter + body (preview) ----")
+            print(rendered)
+            print("--------------------------------------")
+            print("(dry run) pass --apply to write the file.")
         return 0
 
-    if not body_text.strip():
+    if not body_text.strip() and not args.json:
         print("warning: empty body; creating a frontmatter-only note.", file=sys.stderr)
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(rendered.encode("utf-8"))
+    result["applied"] = True
 
     # Update a static INDEX when applicable (Folder Index / Dataview owned
     # listings are left untouched, mirroring process_inbox).
@@ -311,26 +332,43 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.no_audit:
         findings = audit_note(vault, dest)
-        rel = dest.relative_to(vault)
-        if findings:
-            print(f"AUDIT: {len(findings)} issue(s) found in {rel}:")
-            for finding in findings:
-                print(f"  - {finding.code}: {finding.message}")
-        else:
-            print(f"AUDIT: OK — no issues in {rel}")
+        result["audit"] = {
+            "ok": not findings,
+            "count": len(findings),
+            "findings": [
+                {"code": f.code, "path": f.path, "message": f.message}
+                for f in findings
+            ],
+        }
+        if not args.json:
+            rel = dest.relative_to(vault)
+            if findings:
+                print(f"AUDIT: {len(findings)} issue(s) found in {rel}:")
+                for finding in findings:
+                    print(f"  - {finding.code}: {finding.message}")
+            else:
+                print(f"AUDIT: OK — no issues in {rel}")
 
     if args.suggest_links:
         recs = suggest_links(vault, dest)
-        if recs:
-            print("SUGGESTED LINKS:")
-            for path, score, reasons in recs:
-                print(f"  {score:>3}  {path.relative_to(vault).as_posix()}")
-                for reason in reasons:
-                    print(f"        - {reason}")
-        else:
-            print("SUGGESTED LINKS: none")
+        result["suggested_links"] = [
+            {"path": p.relative_to(vault).as_posix(), "score": s, "reasons": r}
+            for p, s, r in recs
+        ]
+        if not args.json:
+            if recs:
+                print("SUGGESTED LINKS:")
+                for path, score, reasons in recs:
+                    print(f"  {score:>3}  {path.relative_to(vault).as_posix()}")
+                    for reason in reasons:
+                        print(f"        - {reason}")
+            else:
+                print("SUGGESTED LINKS: none")
 
-    print(f"created: {dest}")
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print(f"created: {dest}")
     return 0
 
 

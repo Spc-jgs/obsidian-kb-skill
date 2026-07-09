@@ -11,6 +11,7 @@ Reuses vault-parsing helpers from audit_vault.py.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
@@ -152,6 +153,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("vault", type=Path, help="Path to the Obsidian vault")
     parser.add_argument("--note", type=Path, required=True, help="Note to suggest links for")
     parser.add_argument("--top-n", type=int, default=10, help="Max candidates to print")
+    parser.add_argument(
+        "--json", action="store_true", help="Emit suggestions as JSON instead of text"
+    )
     args = parser.parse_args(argv)
 
     vault = args.vault.expanduser().resolve()
@@ -168,6 +172,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     results = suggest_links(vault, note, args.top_n)
+    if args.json:
+        out = [
+            {"path": path.as_posix(), "score": score, "reasons": reasons}
+            for path, score, reasons in results
+        ]
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
     if not results:
         print("No link suggestions found.")
     for path, score, reasons in results:
