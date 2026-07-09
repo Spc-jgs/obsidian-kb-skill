@@ -326,6 +326,42 @@ def _audit_web_clip(
             )
 
 
+def _audit_empty_template(
+    findings: list[Finding],
+    relative: Path,
+    text: str,
+    metadata: dict[str, Any] | None,
+) -> None:
+    if relative.name in EXEMPT_NAMES:
+        return
+    if relative.parts and relative.parts[0] == "Templates":
+        return
+    if not metadata:
+        return
+    if metadata.get("type") in INDEX_TYPES:
+        return
+    body = text
+    if body.startswith("---\n"):
+        end = body.find("\n---\n", 4)
+        if end != -1:
+            body = body[end + 5:]
+    has_heading = False
+    content_chars = 0
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            has_heading = True
+            continue
+        content_chars += sum(1 for ch in stripped if not ch.isspace())
+    if has_heading and content_chars == 0:
+        _add(
+            findings,
+            "empty-template-note",
+            relative,
+            "note has only headings and no body content; looks like an unfilled template",
+        )
+
+
 def _candidate_paths(source: Path, target: str, vault: Path) -> Iterable[Path]:
     raw = Path(target)
     candidates = [vault / raw, source.parent / raw]
@@ -467,6 +503,7 @@ def audit_vault(vault: Path) -> list[Finding]:
         _audit_metadata(findings, relative, text, metadata)
         _audit_related(findings, relative, metadata)
         _audit_web_clip(findings, relative, metadata)
+        _audit_empty_template(findings, relative, text, metadata)
         _audit_folder_index_content(findings, relative, text, metadata)
         if len(FENCE_RE.findall(text)) % 2:
             _add(findings, "unclosed-fence", relative, "odd number of fenced code block markers")

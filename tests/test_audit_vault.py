@@ -357,3 +357,38 @@ def test_ignores_web_clip_fields_for_other_types(tmp_path):
     )
 
     assert "web-clip-missing-source" not in codes(tmp_path)
+
+
+def test_reports_empty_template_note(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Note.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\n"
+        "# Title\n\n## Summary\n\n## Key Takeaways\n",
+        encoding="utf-8",
+    )
+
+    assert "empty-template-note" in codes(tmp_path)
+
+
+def test_accepts_filled_note(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Note.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\n"
+        "# Title\n\n## Summary\nKey insight here.\n",
+        encoding="utf-8",
+    )
+
+    assert "empty-template-note" not in codes(tmp_path)
+
+
+def test_ignores_note_without_headings(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Note.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\nsome prose without headings\n",
+        encoding="utf-8",
+    )
+
+    assert "empty-template-note" not in codes(tmp_path)
