@@ -246,3 +246,28 @@ def test_excluded_folder_does_not_require_native_index(tmp_path):
     (tmp_path / "Templates").mkdir()
 
     assert "missing-folder-index" not in codes(tmp_path)
+
+
+def test_reports_unresolved_template_placeholder(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "2026-07-07 Note.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\n"
+        "Leftover {{date}} in the body.\n",
+        encoding="utf-8",
+    )
+
+    assert "unresolved-template-placeholder" in codes(tmp_path)
+
+
+def test_ignores_placeholders_in_templates(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    templates = tmp_path / "Templates"
+    templates.mkdir()
+    (templates / "Daily Note.md").write_text(
+        '---\ndate: "{{date}}"\ntype: daily-note\n'
+        "tags: [daily]\n---\n# {{date}}\n\nPlan for {{date}}.\n",
+        encoding="utf-8",
+    )
+
+    assert "unresolved-template-placeholder" not in codes(tmp_path)

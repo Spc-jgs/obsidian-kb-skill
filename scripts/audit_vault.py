@@ -64,6 +64,8 @@ FOLDER_INDEX_CONTENT_RE = re.compile(
     r"^\s*```folder-index-content(?:\s+[^\n]*)?\s*$", re.MULTILINE
 )
 
+PLACEHOLDER_RE = re.compile(r"\{\{[^}]+\}\}")
+
 
 def _is_ignored(relative: Path) -> bool:
     if any(part in IGNORED_PARTS for part in relative.parts):
@@ -220,6 +222,24 @@ def _audit_folder_index_content(
         )
 
 
+def _audit_template_placeholders(
+    findings: list[Finding],
+    relative: Path,
+    text: str,
+) -> None:
+    if relative.name in EXEMPT_NAMES:
+        return
+    if relative.parts and relative.parts[0] == "Templates":
+        return
+    if PLACEHOLDER_RE.search(text):
+        _add(
+            findings,
+            "unresolved-template-placeholder",
+            relative,
+            "note contains an unresolved template placeholder such as {{date}}",
+        )
+
+
 def _candidate_paths(source: Path, target: str, vault: Path) -> Iterable[Path]:
     raw = Path(target)
     candidates = [vault / raw, source.parent / raw]
@@ -362,6 +382,7 @@ def audit_vault(vault: Path) -> list[Finding]:
         _audit_folder_index_content(findings, relative, text, metadata)
         if len(FENCE_RE.findall(text)) % 2:
             _add(findings, "unclosed-fence", relative, "odd number of fenced code block markers")
+        _audit_template_placeholders(findings, relative, text)
         if relative.name not in EXEMPT_NAMES:
             _audit_links(
                 findings,
