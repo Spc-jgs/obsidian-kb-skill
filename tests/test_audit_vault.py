@@ -427,3 +427,77 @@ def test_ignores_lone_plural(tmp_path):
     )
 
     assert "near-duplicate-tags" not in codes(tmp_path)
+
+
+def test_reports_duplicate_title(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "A.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Apollo Program\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "B.md").write_text(
+        '---\ndate: "2026-07-08"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Apollo Program\n",
+        encoding="utf-8",
+    )
+
+    assert "duplicate-title" in codes(tmp_path)
+    assert "similar-title" not in codes(tmp_path)
+
+
+def test_reports_duplicate_title_from_filename_when_no_heading(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "2026-07-07 Apollo Program.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\nsome prose\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "2026-07-08 Apollo Program.md").write_text(
+        '---\ndate: "2026-07-08"\ntype: learning-note\n'
+        "tags: [learning]\n---\nsome prose\n",
+        encoding="utf-8",
+    )
+
+    assert "duplicate-title" in codes(tmp_path)
+
+
+def test_reports_similar_title(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "A.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Apollo Launch Plan\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "B.md").write_text(
+        '---\ndate: "2026-07-08"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Apollo Launch Plan v2\n",
+        encoding="utf-8",
+    )
+
+    assert "similar-title" in codes(tmp_path)
+    assert "duplicate-title" not in codes(tmp_path)
+
+
+def test_ignores_index_template_and_unique_titles(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "INDEX.md").write_text(
+        "---\ntype: folder-index\ntags: [moc]\n---\n"
+        "```folder-index-content\n```\n# Apollo Program\n",
+        encoding="utf-8",
+    )
+    templates = tmp_path / "Templates"
+    templates.mkdir()
+    (templates / "Insight.md").write_text(
+        '---\ndate: "{{date}}"\ntype: insight-note\n'
+        "tags: [insight]\n---\n# Apollo Program\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "Note.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Apollo Program\n",
+        encoding="utf-8",
+    )
+
+    assert "duplicate-title" not in codes(tmp_path)
+    assert "similar-title" not in codes(tmp_path)

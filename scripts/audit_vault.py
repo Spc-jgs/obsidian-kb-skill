@@ -6,6 +6,7 @@ import argparse
 import fnmatch
 import json
 import re
+import difflib
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
@@ -488,6 +489,23 @@ def _normalize_tag_key(tag: str) -> str:
     return key
 
 
+def _note_title(relative: Path, text: str) -> str:
+    """Return the human title of a note: first H1 heading, else filename stem."""
+    body = text
+    if body.startswith("---\n"):
+        end = body.find("\n---\n", 4)
+        if end != -1:
+            body = body[end + 5:]
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#") and not stripped.startswith("##"):
+            candidate = stripped.lstrip("#").strip()
+            if candidate:
+                return candidate
+    stem = relative.stem
+    return re.sub(r"^\d{4}-\d{2}-\d{2}-?", "", stem).strip()
+
+
 def audit_vault(vault: Path) -> list[Finding]:
     """Return deterministic findings sorted by path, code, and message."""
     vault = vault.resolve()
@@ -501,6 +519,7 @@ def audit_vault(vault: Path) -> list[Finding]:
         by_stem[path.stem].append(path)
 
     tag_index: dict[str, set[str]] = {}
+    title_list: list[tuple[str, str, Path]] = []
     markdown = _markdown_files(vault)
     for path in markdown:
         relative = path.relative_to(vault)
@@ -519,6 +538,15 @@ def audit_vault(vault: Path) -> list[Finding]:
             for tag in tag_values:
                 if isinstance(tag, str) and tag.strip():
                     tag_index.setdefault(_normalize_tag_key(tag), set()).add(tag.strip())
+            if (
+                relative.parts
+                and relative.parts[0] != "Templates"
+                and metadata.get("type") not in INDEX_TYPES
+                and relative.name != "INDEX.md"
+            ):
+                title = _note_title(relative, text)
+                if title:
+                    title_list.append((title.strip().lower(), title.strip(), relative))
         _audit_related(findings, relative, metadata)
         _audit_web_clip(findings, relative, metadata)
         _audit_empty_template(findings, relative, text, metadata)
@@ -563,7 +591,48 @@ def audit_vault(vault: Path) -> list[Finding]:
                 f"near-duplicate tags: {', '.join(sorted(originals))} (consider merging)",
             )
 
+    _audit_titles(findings, title_list)
+
     return sorted(findings, key=lambda item: (item.path, item.code, item.message))
+
+
+def _audit_titles(
+    findings: list[Finding],
+    title_list: list[tuple[str, str, Path]],
+) -> None:
+    if not title_list:
+        return
+    seen: dict[str, list[Path]] = {}
+    display: dict[str, str] = {}
+    for norm, shown, relative in title_list:
+        seen.setdefault(norm, []).append(relative)
+        display[norm] = shown
+    for norm, paths in seen.items():
+        if len(paths) >= 2:
+            _add(
+                findings,
+                "duplicate-title",
+                Path("."),
+                f"duplicate title '{display[norm]}' across "
+                f"{len(paths)} notes: "
+                f"{', '.join(p.as_posix() for p in paths)}",
+            )
+    for i in range(len(title_list)):
+        norm_i, shown_i, rel_i = title_list[i]
+        for j in range(i + 1, len(title_list)):
+            norm_j, shown_j, rel_j = title_list[j]
+            if norm_i == norm_j:
+                continue
+            ratio = difflib.SequenceMatcher(None, norm_i, norm_j).ratio()
+            if ratio >= 0.85:
+                _add(
+                    findings,
+                    "similar-title",
+                    Path("."),
+                    f"similar titles ({ratio:.2f}): "
+                    f"'{shown_i}' ({rel_i.as_posix()}) ~ "
+                    f"'{shown_j}' ({rel_j.as_posix()})",
+                )
 
 
 def _build_parser() -> argparse.ArgumentParser:
