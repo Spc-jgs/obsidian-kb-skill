@@ -23,39 +23,12 @@ try:
     from process_inbox import TYPE_TO_FOLDER, _maybe_update_static_index
     from audit_vault import audit_note
     from suggest_links import suggest_links
+    from note_spec import DEFAULT_TAG_BY_TYPE, EXTRA_FIELDS
 except ImportError:  # allow `python -m scripts.create_note`
     from scripts.process_inbox import TYPE_TO_FOLDER, _maybe_update_static_index
     from scripts.audit_vault import audit_note
     from scripts.suggest_links import suggest_links
-
-DEFAULT_TAG_BY_TYPE = {
-    "daily-note": "daily",
-    "meeting-note": "meeting",
-    "learning-note": "learning",
-    "web-clip": "web-clip",
-    "insight-note": "insight",
-    "conversation-digest": "insight",
-    "project-note": "project",
-    "person-note": "people",
-    "task-memory": "task",
-}
-
-# Extra frontmatter fields required/expected per note type (from core/OBSIDIAN_KB.md).
-EXTRA_FIELDS: dict[str, dict[str, Any]] = {
-    "daily-note": {"related": []},
-    "meeting-note": {"participants": [], "project": "", "related": []},
-    "learning-note": {"source": "", "category": "", "related": []},
-    "web-clip": {"source": "", "author": "", "published": "", "related": []},
-    "insight-note": {"source": "", "related": []},
-    "conversation-digest": {"source": "", "related": []},
-    "project-note": {"status": "active", "related": []},
-    "person-note": {"role": "", "organization": "", "related": []},
-    "task-memory": {
-        "status": "active", "task-memory": "enabled", "agents": [],
-        "decisions": [], "constraints": [], "artifacts": [], "open": [],
-    },
-}
-
+    from scripts.note_spec import DEFAULT_TAG_BY_TYPE, EXTRA_FIELDS
 
 def validate_vault(vault: Path) -> None:
     if not vault.is_dir() or not (vault / ".obsidian").is_dir():

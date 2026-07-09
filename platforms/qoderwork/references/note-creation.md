@@ -147,6 +147,12 @@ Available templates:
 - `Templates/Person Note.md`
 - `Templates/Digest Note.md`
 
+If the vault has no `Templates/` yet, generate them from the bundled single source (frontmatter fields stay in sync with what `create_note.py` writes):
+
+```bash
+python scripts/scaffold_templates.py <vault> --apply
+```
+
 ### Step 4: Fill YAML Frontmatter
 
 Always include `date` (use current system date — **never hardcode**), `type`, `tags`. Add type-specific extra fields as defined in the YAML Frontmatter Standards below. Replace **all** `{{date}}` placeholders with today's date in `YYYY-MM-DD` format.
