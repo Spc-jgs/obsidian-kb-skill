@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-07-09
+
+### Changed
+
+- **Always-loaded gate shrunk below ~400 tokens (was ~400–800).** The gatekeeper in `core/OBSIDIAN_KB.md` is now ~14 lines: a one-line Overview, a prominent `## DO NOT auto-save`, and a 5-step "when the user asks to save" pointer. The four platform trigger headers (SKILL/CLAUDE/AGENTS/mdc) were de-duplicated and tightened — same "explicit save intent only" signal, far fewer example phrases. Loading the skill now costs roughly half the previous tokens, and the first rule an agent sees is still "do not auto-save".
+- **Memory quality guarantee (no factual drift, no loss).** Borrowed from high-star memory systems (Mem0 / MemGPT-Letta / Zep):
+  - `conversation-digest.md` and `task-memory.md` now carry an explicit **Quality guarantee** block: capture only *grounded* facts (drop anything you can't trace to the conversation), store *atomic* decisions (not narrative — that is where drift crept in before), require non-empty `decisions`, and run a `audit_vault.py` **self-check** after writing.
+  - **Conflict resolution (Mem0-style):** `update_note.py` gains `--replace-decision "OLD::NEW"` — when new info contradicts an old decision it *replaces* it instead of appending a contradictory second line; appends as new if no match (upsert, never silently drops a correction).
+  - **Core vs Archival (MemGPT-style):** on handoff the incoming agent reads only the `TASK.md` **frontmatter** (core memory, tiny); the `## Log` + body prose are archival, read on demand. Provenance: every Log line is `ISO-date [agent] what` (Zep-style) so a contradiction can be traced to when it was established.
+
+### Added
+
+- `obsidian-update-note --replace-decision "OLD::NEW"` for conflict-resolution handoffs.
+
 ## [1.9.0] - 2026-07-09
 
 ### Added

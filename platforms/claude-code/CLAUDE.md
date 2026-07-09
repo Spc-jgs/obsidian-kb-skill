@@ -2,31 +2,21 @@
 
 # Obsidian Personal Knowledge Base
 
-**When to use this guide**: Only when the user explicitly asks to save, record, archive, or append a note to their Obsidian vault — e.g. "save to Obsidian", "add to my knowledge base", "append to my project note", "沉淀到知识库", "记一下". Do **not** apply this guide for casual Q&A, debugging, or one-off snippets.
+**When to use**: Only on explicit save intent ("save to Obsidian", "沉淀", "记一下"). Never for Q&A/debug/chat.
 
 ## Overview
 
-Instructions for AI agents to create, organize, and update notes in an Obsidian personal knowledge base. Agent-agnostic; any tool that reads/writes local files can use it.
+Agent-agnostic instructions to create, organize, and update notes in an Obsidian vault. Any tool that reads/writes local files can use it.
 
 ## DO NOT auto-save
 
-This skill **never writes to the vault on its own**. Act only after **explicit save intent** from the user — e.g. "save to Obsidian", "记一下", "沉淀到知识库", "add to my notes", or "summarize this chat and archive it". For a question, debugging, or casual chat, do nothing and say nothing about the vault.
+This skill **never writes to the vault on its own**. Act only after **explicit save intent** ("save to Obsidian", "沉淀", "总结存档"). For Q&A, debugging, or casual chat: do nothing.
 
 ## When the user asks to save
 
-1. **Find the vault** (in order): env `OBSIDIAN_KB_VAULT` → `~/.obsidian-kb-config` (one-line path) → ask the user. Refuse to write unless it is a real Obsidian vault (has `.obsidian/` and `Templates/`).
-2. **Read the matching workflow** from `references/` *before* writing:
-   - `references/note-creation.md` — new note: types, routing, frontmatter, index strategy, validation (also "When NOT to use", vault discovery/validation, folder structure)
-   - `references/update-note.md` — append/edit an existing note
-   - `references/conversation-digest.md` — compress a chat into a short, decision-dense note
-   - `references/task-memory.md` — multi-agent handoff memory (**OFF by default**; read only if the user enables it)
-   - `references/yaml-standards.md` — frontmatter fields per type + tag hygiene
-   - `references/rules-and-errors.md` — cost limits, important rules, error handling
-   - `references/git.md` — optional Git publish (only if the user asks)
-3. **Prefer the bundled helpers** (no native write tool? use these, never a one-off script):
-   - `python scripts/create_note.py <vault> --type <type> --title "<t>" --content-file <body.md> --apply`
-   - `python scripts/update_note.py <vault> --note <path> [--status …] [--add-decision …] [--log …] --apply`
-   - `python scripts/audit_vault.py <vault> --strict`  (read-only check)
-   - `python scripts/suggest_links.py <vault> --note <path>`
-4. **Stay bounded**: ≤10 files scanned, ≤1 note written, ≤5 wikilinks. Never overwrite; if a filename exists, add `-2`. Validate after writing.
-5. **Routing (short)**: daily→`15-Daily`, meeting→`10-Work`, learning/web-clip→`20-Learning`, insight/digest→`30-Insights`, project→`40-Projects`, person→`50-People`, quick→`00-Inbox`.
+1. **Find vault**: env `OBSIDIAN_KB_VAULT` → `~/.obsidian-kb-config` → ask. Refuse unless a real vault (`.obsidian/` + `Templates/`).
+2. **Read the matching reference *before* writing**:
+   - `note-creation.md` new note · `update-note.md` edit existing · `conversation-digest.md` compress a chat · `task-memory.md` handoff (**off by default**) · `yaml-standards.md` · `rules-and-errors.md` · `git.md`
+3. **Prefer bundled helpers** (never a one-off script): `create_note.py --apply` · `update_note.py --apply` · `audit_vault.py` (read-only) · `suggest_links.py`.
+4. **Stay bounded**: ≤10 files scanned, ≤1 note written, ≤5 wikilinks. Never overwrite; add `-2` on name clash. Validate after.
+5. **Route**: daily→`15-Daily` · meeting→`10-Work` · learning→`20-Learning` · insight/digest→`30-Insights` · project→`40-Projects` · person→`50-People` · quick→`00-Inbox`.

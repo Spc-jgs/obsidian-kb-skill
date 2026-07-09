@@ -61,6 +61,22 @@ def _extend_list(existing: Any, additions: list[str]) -> list[str]:
     return seq
 
 
+def _replace_in_list(
+    existing: Any, old_sub: str, new: str
+) -> tuple[list[str], bool]:
+    """Mem0-style conflict resolution: replace the first decision containing
+    `old_sub` with `new`. Returns (list, replaced?). If no match, `new` is
+    appended (upsert) so the command never silently drops a correction."""
+    seq = list(existing) if isinstance(existing, list) else []
+    for i, item in enumerate(seq):
+        if old_sub and old_sub in str(item):
+            seq[i] = new
+            return seq, True
+    if new and new not in seq:
+        seq.append(new)
+    return seq, False
+
+
 def _append_log(body: str, line: str, max_lines: int = MAX_LOG_LINES) -> str:
     """Insert `line` at the bottom of the `## Log` section (chronological order),
     creating the section if needed, and cap to the last `max_lines` entries."""
@@ -120,6 +136,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--add-decision", action="append", default=[],
         help="Append a crystallized decision (repeatable)",
+    )
+    p.add_argument(
+        "--replace-decision", action="append", default=[],
+        help="Conflict resolution: replace a decision containing OLD with NEW "
+             "(format 'OLD::NEW'); appends NEW if no match (repeatable)",
     )
     p.add_argument(
         "--add-constraint", action="append", default=[],
@@ -183,6 +204,14 @@ def main(argv: list[str] | None = None) -> int:
         meta["step"] = args.step
     if args.add_decision:
         meta["decisions"] = _extend_list(meta.get("decisions"), args.add_decision)
+    for pair in args.replace_decision:
+        if "::" not in pair:
+            print(f"(skip) --replace-decision needs 'OLD::NEW': {pair!r}",
+                  file=sys.stderr)
+            continue
+        old_sub, new = pair.split("::", 1)
+        replaced = _replace_in_list(meta.get("decisions"), old_sub, new)
+        meta["decisions"], _ = replaced
     if args.add_constraint:
         meta["constraints"] = _extend_list(meta.get("constraints"), args.add_constraint)
     if args.add_open:

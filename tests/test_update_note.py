@@ -117,6 +117,31 @@ def test_log_ttl_caps_to_last_30(vault):
     assert not any("entry 0" in ln for ln in log_block)
 
 
+def test_replace_decision_resolves_conflict(vault):
+    note = _note(vault)
+    update_note.main([str(vault), "--note", "Tasks/foo/TASK.md", "--apply"])
+    update_note.main([
+        str(vault), "--note", "Tasks/foo/TASK.md",
+        "--add-decision", "Use Mongo", "--apply",
+    ])
+    # Contradiction: switch to Postgres -> must REPLACE, not append a 2nd line.
+    rc = update_note.main([
+        str(vault), "--note", "Tasks/foo/TASK.md",
+        "--replace-decision", "Mongo::Use Postgres (scale)", "--apply",
+    ])
+    assert rc == 0
+    meta, _ = update_note.split_frontmatter(note.read_text(encoding="utf-8"))
+    assert meta["decisions"] == ["Use Postgres (scale)"]
+    # No match -> appends as a new decision (upsert; never silently drops a fix).
+    update_note.main([
+        str(vault), "--note", "Tasks/foo/TASK.md",
+        "--replace-decision", "no-such::Add rate limiter", "--apply",
+    ])
+    meta, _ = update_note.split_frontmatter(note.read_text(encoding="utf-8"))
+    assert "Add rate limiter" in meta["decisions"]
+    assert len(meta["decisions"]) == 2
+
+
 def test_non_vault_returns_exit_2(tmp_path):
     # tmp_path has no .obsidian -> not a vault; validate_vault raises SystemExit(2)
     with pytest.raises(SystemExit) as exc:

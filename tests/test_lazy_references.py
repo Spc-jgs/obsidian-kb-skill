@@ -28,12 +28,14 @@ GATING_MARKERS = [
     "explicit save intent",
 ]
 
-# Pointers that MUST stay in the always-loaded body.
+# Pointers that MUST stay in the always-loaded body. The gate names each
+# reference by bare filename (it points to `core/references/*.md` up top), so
+# the markers match the trimmed phrasing — no "references/" prefix, lowercase.
 POINTER_MARKERS = [
-    "OFF by default",                  # task memory is off unless enabled
-    "references/task-memory.md",       # where the full task-memory spec lives
-    "references/note-creation.md",     # where the create workflow lives
-    "references/rules-and-errors.md",  # where the rules live
+    "off by default",              # task memory is off unless enabled
+    "task-memory.md",              # where the full task-memory spec lives
+    "note-creation.md",            # where the create workflow lives
+    "rules-and-errors.md",         # where the rules live
 ]
 
 # Heavy section headings that belong ONLY in references/, never in the body.
