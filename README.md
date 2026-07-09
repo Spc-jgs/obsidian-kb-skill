@@ -378,9 +378,11 @@ obsidian-kb-skill/
 ├── build.py                    生成脚本（核心 + header → 5 个产物）
 ├── core/
 │   ├── OBSIDIAN_KB.md          通用指令唯一真相来源（agent 无关）
-│   └── templates/              7 个默认中文模板 + en/ 英文模板
+│   └── templates/              8 个默认中文模板（含对话摘要）+ en/ 英文模板
 ├── scripts/
-│   └── audit_vault.py          只读知识库审计器
+│   ├── audit_vault.py          只读知识库审计器
+│   ├── process_inbox.py        Inbox 收件箱归档（--plan 预览 / --apply 执行）
+│   └── suggest_links.py        链接建议（只读，按标签/标题/类型打分）
 ├── tests/                      构建、模板和审计器测试
 ├── skills/
 │   └── obsidian-knowledge-base/
@@ -450,6 +452,27 @@ python scripts/audit_vault.py /你的知识库路径 --strict
 ```
 
 无问题时退出码为 `0`；发现问题时为 `1`；路径不是 Obsidian Vault 时为 `2`。审计器不会修改任何文件。
+
+### 归档 Inbox 收件箱
+
+`process_inbox.py` 把 `00-Inbox/` 里的速记/待处理笔记归类、填入缺失的 `date`/`type`/`tags` 并移动到推断出的目标文件夹。默认只输出计划，不改动任何文件：
+
+```bash
+python scripts/process_inbox.py /你的知识库路径 --plan     # 只读预览
+python scripts/process_inbox.py /你的知识库路径 --apply    # 执行归档（绝不覆盖已存在文件）
+```
+
+目标文件夹由笔记 `type` 或正文关键词推断（与 `core/OBSIDIAN_KB.md` 的路由表一致）；当 Folder Index 插件未启用时，会向目标文件夹的静态 `INDEX.md` 追加一条链接。
+
+### 建议链接
+
+`suggest_links.py` 针对单篇笔记，在受限范围内（笔记所在文件夹 + 最多 2 个兄弟文件夹）按共享标签、相同类型、标题词重叠打分，只输出候选与理由，永不写入文件：
+
+```bash
+python scripts/suggest_links.py /你的知识库路径 --note 30-Insights/某笔记.md --top-n 10
+```
+
+人审后自行决定是否插入，避免自动改动知识库。
 
 ## 设计原则
 
