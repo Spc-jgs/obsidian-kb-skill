@@ -25,6 +25,8 @@ obsidian-suggest-links = "scripts.suggest_links:main"
 obsidian-create-note = "scripts.create_note:main"
 obsidian-update-note = "scripts.update_note:main"
 obsidian-vault-info = "scripts.vault_info:main"
+obsidian-detect-index = "scripts.detect_index:main"
+obsidian-scaffold-templates = "scripts.scaffold_templates:main"
 
 [tool.uv]
 required-version = "==0.11.26"

@@ -26,6 +26,21 @@
 
 你的知识以结构化的方式自动积累，从 10 条笔记到 10000 条都能轻松管理。
 
+## v1.10 新增的能力
+
+v1.10 把更多确定性步骤从「AI 手动完成」搬到「脚本自动完成」，让 agent 把 token 留给真正需要理解语义的环节：
+
+- **`scripts/detect_index.py`** — 单次调用返回文件夹索引策略（folder-index / dataview / static），替代 AI 读 `community-plugins.json` + `data.json` + 推理的多步操作
+- **`scripts/vault_info.py`** — 冷启动上下文：vault 路径、有效性、模板列表、9 套文件夹索引策略，一次 JSON 调用拿到
+- **写后自动审计** — `create_note.py` / `update_note.py` 写完自动跑 per-note 审计，发现 `broken-wikilink` / `unresolved-placeholder` / frontmatter 缺失；不再需要 AI 手动重读笔记核对
+- **`--suggest-links`** — `create_note.py` / `update_note.py` 落盘后自动跑链接建议，输出打分后的候选
+- **`scripts/scaffold_templates.py`** — 一次性 bootstrap 模板到 vault，**绝不覆盖用户已编辑的模板**（用 `--force` 才覆盖）
+- **`--json` on every CLI** — 所有 8 个 CLI 脚本都支持 `--json`，输出机器可读 schema；agent 不需要解析人类文本
+
+架构上 v1.10 还修了一个**真 bug**：`REQUIRED_TYPES` 之前漏了 `task-memory`，所以 v1.9.x 写任务记忆笔记都会被错误标记 `invalid-type`——P3 的自动审计暴露并修了它。
+
+完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.10.0]` 段。详细用法在 `core/references/note-creation.md` 里按需加载。
+
 ## 下载
 
 ### 方式一：Git 克隆（推荐）
@@ -112,7 +127,7 @@ AI 智能体读完这个指令文件后，就「学会了」你的知识管理�
     └──────────────┘ └─────────────┘ └───────────────┘
 ```
 
-核心指令文件 `core/OBSIDIAN_KB.md` 是「唯一真相来源」。平台无关的标准入口是 `skills/obsidian-knowledge-base/SKILL.md`；`platforms/*` 保留各平台兼容产物。所有文件由 `build.py` 生成，不维护重复正文。
+核心指令文件 `core/OBSIDIAN_KB.md` 是「唯一真相来源」。它是一个极小的「门禁」（源文件 **21 行**，生成的 `SKILL.md` **25 行**），第一条规则是显眼的 **DO NOT auto-save**，并指向 `core/references/*` 里的完整工作流；agent 加载技能几乎零 token 成本，只有真正准备落盘时才会按指针去读对应 references。平台无关的标准入口是 `skills/obsidian-knowledge-base/SKILL.md`；`platforms/*` 保留各平台兼容产物。所有产物（含每个平台自带的 `references/`）都由 `build.py` 生成。
 
 ### 为什么不需要插件或 API
 
@@ -378,29 +393,46 @@ obsidian-kb-skill/
 ├── .gitignore
 ├── build.py                    生成脚本（核心 + header → 5 个产物）
 ├── core/
-│   ├── OBSIDIAN_KB.md          极小的「门禁」文件（约 37 行）：显眼的 DO NOT auto-save + 按需读取 references/ 的指针
+│   ├── OBSIDIAN_KB.md          「门禁」（源 21 行 / 生成 25 行）：显眼的 DO NOT auto-save + references/ 指针
 │   ├── references/             完整工作流规范（懒加载：agent 准备落盘时才读）
+│   │   ├── conversation-digest.md
+│   │   ├── git.md
+│   │   ├── note-creation.md    （v1.10 压缩到 156 行）
+│   │   ├── rules-and-errors.md
+│   │   ├── task-memory.md
+│   │   ├── update-note.md
+│   │   └── yaml-standards.md
 │   └── templates/              8 个默认中文模板（含对话摘要）+ en/ 英文模板
 ├── scripts/
-│   ├── audit_vault.py          只读知识库审计器
-│   ├── process_inbox.py        Inbox 收件箱归档（--plan 预览 / --apply 执行）
-│   └── suggest_links.py        链接建议（只读，按标签/标题/类型打分）
-├── tests/                      构建、模板和审计器测试
+│   ├── audit_vault.py          只读知识库审计器（--json 可用）
+│   ├── create_note.py          约束型笔记创建器（读 vault 模板，--audit / --suggest-links / --json）
+│   ├── detect_index.py         单次调用检测文件夹索引策略（folder-index/dataview/static）
+│   ├── process_inbox.py        Inbox 收件箱归档（--plan 预览 / --apply 执行 / --json）
+│   ├── scaffold_templates.py   一次性 bootstrap 模板到 Vault（不覆盖用户已编辑的）
+│   ├── suggest_links.py        链接建议（只读，按标签/标题/类型打分 / --json）
+│   ├── update_note.py          任务记忆更新器（--replace-decision / --audit / --json）
+│   └── vault_info.py           冷启动上下文：vault 路径/有效性/模板列表/9 套索引策略
+├── tests/                      17 个测试文件，覆盖 build、模板、审计、CLI、JSON 输出等
 ├── skills/
 │   └── obsidian-knowledge-base/
 │       ├── header.md           标准 Agent Skill 头部
+│       ├── references/         懒加载 references（由 build.py 复制）
 │       └── SKILL.md            平台无关的标准生成产物
 ├── platforms/
 │   ├── qoderwork/
+│   │   ├── references/
 │   │   └── SKILL.md            标准 Skill 的兼容镜像
 │   ├── claude-code/
 │   │   ├── header.md
+│   │   ├── references/
 │   │   └── CLAUDE.md           生成产物
 │   ├── codex/
 │   │   ├── header.md
+│   │   ├── references/
 │   │   └── AGENTS.md           生成产物
 │   └── cursor/
 │       ├── header.md
+│       ├── references/
 │       └── obsidian-kb.mdc     生成产物
 ├── install.sh                  macOS / Linux 安装脚本
 ├── install.ps1                 Windows 安装脚本
@@ -445,15 +477,20 @@ python -m pytest
 
 CI 使用同一 lockfile，分别在 Python 3.11 和 3.14 上运行构建检查与测试。
 
-安装 `.[dev]`（或任意方式安装本项目）后，五个脚本还会以控制台命令形式提供，等价于直接运行对应的 `scripts/*.py`：
+安装 `.[dev]`（或任意方式安装本项目）后，所有脚本还会以控制台命令形式提供，等价于直接运行对应的 `scripts/*.py`：
 
 ```bash
-obsidian-audit-vault   /你的知识库路径 --strict
-obsidian-process-inbox /你的知识库路径 --apply
-obsidian-suggest-links /你的知识库路径 --note 30-Insights/某笔记.md
-obsidian-create-note   /你的知识库路径 --type insight-note --title "短标题" --content-file 正文.md --apply
-obsidian-update-note   /你的知识库路径 --note Tasks/某任务/TASK.md --step "..." --by Codex --log "完成 X，交接给 WorkBuddy" --apply
+obsidian-audit-vault        /你的知识库路径 --strict
+obsidian-process-inbox      /你的知识库路径 --apply
+obsidian-suggest-links      /你的知识库路径 --note 30-Insights/某笔记.md
+obsidian-create-note        /你的知识库路径 --type insight-note --title "短标题" --content-file 正文.md --apply
+obsidian-update-note        /你的知识库路径 --note Tasks/某任务/TASK.md --step "..." --by Codex --log "完成 X，交接给 WorkBuddy" --apply
+obsidian-vault-info         /你的知识库路径 --json
+obsidian-detect-index       /你的知识库路径 --folder 30-Insights --json
+obsidian-scaffold-templates /你的知识库路径 --apply
 ```
+
+任何脚本加 `--json` 都输出机器可读的 JSON 文档（schema 见各脚本的 `--help`），方便 agent / 其他工具直接消费而无需解析人类文本。
 
 ### 审计现有知识库
 
@@ -510,7 +547,7 @@ python scripts/create_note.py /你的知识库路径 \
 
 `core/references/task-memory.md` 里的 **Task Memory Workflow** 解决多 agent 接力时的记忆断层（出棒更新 `Tasks/<slug>/TASK.md`、入棒先读）。它**默认关闭**：全局 `OBSIDIAN_KB_TASK_MEMORY=off`（默认）、单任务靠 `task-memory: enabled` 字段开启，会话里说「开启任务记忆 / handoff」即激活。
 
-> 为省 token，**所有完整工作流（含本段）都不内联在主文件**：`core/OBSIDIAN_KB.md` 只是约 37 行的「门禁」——显眼的 `DO NOT auto-save` + 指向 `core/references/*` 的指针。agent 加载技能几乎零 token 成本；只有真正准备落盘时，才按指针去读对应 references 文件。
+> 为省 token，**所有完整工作流（含本段）都不内联在主文件**：`core/OBSIDIAN_KB.md` 只是一个 **21 行**的「门禁」——显眼的 `DO NOT auto-save` + 指向 `core/references/*` 的指针。agent 加载技能几乎零 token 成本；只有真正准备落盘时，才按指针去读对应 references 文件。
 
 `obsidian-update-note` 是配套的约束型更新器（只改 frontmatter + 追加带时间戳的 Log、绝不覆盖散文、Log 截断到 30 条、默认 dry-run）。完整用法见 `core/references/task-memory.md`。
 
