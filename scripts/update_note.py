@@ -30,7 +30,6 @@ try:
         audit_note,
     )
     from suggest_links import suggest_links
-    from note_spec import TASK_DEFAULT_BODY
 except ImportError:  # allow `python -m scripts.update_note`
     from scripts.create_note import (
         build_note,
@@ -39,9 +38,18 @@ except ImportError:  # allow `python -m scripts.update_note`
         audit_note,
     )
     from scripts.suggest_links import suggest_links
-    from scripts.note_spec import TASK_DEFAULT_BODY
 
 MAX_LOG_LINES = 30
+
+TASK_DEFAULT_BODY = (
+    "## TL;DR\n"
+    "<2 sentences: what this task is and where it stands>\n\n"
+    "## Decisions (crystallized)\n"
+    "- ...\n\n"
+    "## Open\n"
+    "- ...\n\n"
+    "## Log\n"
+)
 
 
 def _now() -> str:

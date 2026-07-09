@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -23,12 +24,57 @@ try:
     from process_inbox import TYPE_TO_FOLDER, _maybe_update_static_index
     from audit_vault import audit_note
     from suggest_links import suggest_links
-    from note_spec import DEFAULT_TAG_BY_TYPE, EXTRA_FIELDS
 except ImportError:  # allow `python -m scripts.create_note`
     from scripts.process_inbox import TYPE_TO_FOLDER, _maybe_update_static_index
     from scripts.audit_vault import audit_note
     from scripts.suggest_links import suggest_links
-    from scripts.note_spec import DEFAULT_TAG_BY_TYPE, EXTRA_FIELDS
+
+DEFAULT_TAG_BY_TYPE = {
+    "daily-note": "daily",
+    "meeting-note": "meeting",
+    "learning-note": "learning",
+    "web-clip": "web-clip",
+    "insight-note": "insight",
+    "conversation-digest": "insight",
+    "project-note": "project",
+    "person-note": "people",
+    "task-memory": "task",
+}
+
+# Extra frontmatter fields written only when the user's template does NOT already
+# define them. These are minimal placeholders so the file still parses as the
+# expected type — users are expected to define their own fields in
+# {VAULT}/Templates/<Name>.md. The vault template is the single source of truth;
+# this dict is just a safety net for new notes whose template was never created.
+EXTRA_FIELDS: dict[str, dict[str, Any]] = {
+    "daily-note": {"related": []},
+    "meeting-note": {"participants": [], "project": "", "related": []},
+    "learning-note": {"source": "", "category": "", "related": []},
+    "web-clip": {"source": "", "author": "", "published": "", "related": []},
+    "insight-note": {"source": "", "related": []},
+    "conversation-digest": {"source": "", "related": []},
+    "project-note": {"status": "active", "related": []},
+    "person-note": {"role": "", "organization": "", "related": []},
+    "task-memory": {
+        "status": "active", "task-memory": "enabled", "agents": [],
+        "decisions": [], "constraints": [], "artifacts": [], "open": [],
+    },
+}
+
+# Note type -> the conventional template filename inside {VAULT}/Templates/.
+# Users can rename these, but the conventional names are what the shipped
+# starter templates use, so the bootstrap script scaffolds them in this layout.
+TYPE_TO_TEMPLATE: dict[str, str] = {
+    "daily-note": "Daily Note.md",
+    "meeting-note": "Meeting Note.md",
+    "learning-note": "Learning Note.md",
+    "web-clip": "Web Clip.md",
+    "insight-note": "Insight Note.md",
+    "conversation-digest": "Digest Note.md",
+    "project-note": "Project Note.md",
+    "person-note": "Person Note.md",
+}
+
 
 def validate_vault(vault: Path) -> None:
     if not vault.is_dir() or not (vault / ".obsidian").is_dir():
@@ -64,6 +110,33 @@ def split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     return {}, text
 
 
+def _load_user_template(vault: Path | None, note_type: str) -> tuple[dict[str, Any], str] | None:
+    """Read {vault}/Templates/<Name>.md if it exists; return (frontmatter, body).
+
+    Body has every `{{date}}` placeholder substituted with today's date string
+    supplied by the caller is NOT done here — the caller already knows the date
+    and we want to be explicit about substitution at the call site.
+
+    Returns None when the vault has no Templates/ folder, the type has no
+    conventional template name, or the template file is missing. Callers then
+    fall back to a minimal body so the note is still usable.
+    """
+    if vault is None:
+        return None
+    fname = TYPE_TO_TEMPLATE.get(note_type)
+    if not fname:
+        return None
+    path = vault / "Templates" / fname
+    if not path.is_file():
+        return None
+    return split_frontmatter(path.read_text(encoding="utf-8"))
+
+
+def _substitute_date(text: str, date: str) -> str:
+    """Replace every {{date}} placeholder with the actual date string."""
+    return text.replace("{{date}}", date)
+
+
 def build_note(
     *,
     note_type: str,
@@ -73,11 +146,21 @@ def build_note(
     given_meta: dict[str, Any] | None = None,
     tags: list[str] | None = None,
     folder: str | None = None,
+    vault: Path | None = None,
 ) -> tuple[str, str]:
     """Return (folder, rendered_markdown) for the note.
 
-    Resolution order for each field: type defaults < frontmatter already present
-    in the body < explicit CLI overrides.
+    Body resolution order:
+      1. Explicit `body` argument (from --content-file / --stdin) wins.
+      2. Otherwise, the user's {vault}/Templates/<Name>.md is used as the body
+         (its frontmatter is merged into the note's frontmatter, so the user's
+         template can introduce extra fields and they'll be preserved on write).
+      3. If no user template exists, a minimal `# title\\n\\n` body is used.
+
+    Frontmatter resolution order: type defaults < given_meta < user template
+    frontmatter < explicit CLI overrides. This means a user adding fields to
+    their template (e.g. a `mood:` field on Daily Note) will see them appear on
+    every new note, without code changes.
     """
     target = folder or TYPE_TO_FOLDER.get(note_type)
     if not target:
@@ -86,8 +169,22 @@ def build_note(
             f"Known types: {', '.join(sorted(TYPE_TO_FOLDER))}"
         )
 
+    user_template = _load_user_template(vault, note_type)
+    user_tpl_meta, user_tpl_body = user_template if user_template else ({}, "")
+
+    # Body: explicit body wins, else user template body (with {{date}} filled).
+    if body.strip():
+        final_body = body
+    elif user_tpl_body:
+        final_body = _substitute_date(user_tpl_body, date)
+    else:
+        final_body = f"# {title}\n"
+
+    # Frontmatter merge (lowest -> highest precedence).
     meta: dict[str, Any] = {}
     meta.update(EXTRA_FIELDS.get(note_type, {}))
+    if user_tpl_meta:
+        meta.update(user_tpl_meta)
     if given_meta:
         meta.update(given_meta)
     # Explicit CLI overrides always win.
@@ -104,9 +201,9 @@ def build_note(
         meta, sort_keys=False, allow_unicode=True, default_flow_style=False
     ).strip()
     rendered = f"---\n{dump}\n---\n"
-    if body and not body.startswith("\n"):
+    if final_body and not final_body.startswith("\n"):
         rendered += "\n"
-    rendered += body
+    rendered += final_body
     return target, rendered
 
 
@@ -181,6 +278,7 @@ def main(argv: list[str] | None = None) -> int:
             given_meta=given_meta,
             tags=tags,
             folder=args.folder,
+            vault=vault,
         )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)

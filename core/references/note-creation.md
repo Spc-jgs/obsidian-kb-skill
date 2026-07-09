@@ -131,13 +131,16 @@ Check env var `OBSIDIAN_KB_VAULT`, then `~/.obsidian-kb-config`, then ask the us
 
 Infer from conversation context or ask the user. Map to the routing table above.
 
-### Step 3: Read the Template
+### Step 3: Read the Template (the vault template is the truth)
 
-Templates are stored in `{VAULT}/Templates/`. Each template has:
-- YAML frontmatter with metadata fields
-- Section headings for structured content
+`{VAULT}/Templates/<Name>.md` is the single source of truth at write time —
+`create_note.py` reads the user's template, fills `{{date}}` placeholders, merges
+the template's frontmatter into the new note, and uses the template's body as
+the scaffold. If the user adds a field (e.g. `mood:` on Daily Note) or a new
+section heading to their template, every new note picks it up automatically —
+no code change needed.
 
-Available templates:
+Conventional template filenames:
 - `Templates/Daily Note.md`
 - `Templates/Meeting Note.md`
 - `Templates/Learning Note.md`
@@ -147,15 +150,24 @@ Available templates:
 - `Templates/Person Note.md`
 - `Templates/Digest Note.md`
 
-If the vault has no `Templates/` yet, generate them from the bundled single source (frontmatter fields stay in sync with what `create_note.py` writes):
+If the vault has no `Templates/` yet, bootstrap the shipped starter files
+once (the user is expected to edit them in Obsidian afterwards; re-running the
+script will NOT clobber edits):
 
 ```bash
 python scripts/scaffold_templates.py <vault> --apply
 ```
 
+`--force` overwrites user-edited templates (destructive — use only when you
+mean to reset to the shipped defaults).
+
 ### Step 4: Fill YAML Frontmatter
 
-Always include `date` (use current system date — **never hardcode**), `type`, `tags`. Add type-specific extra fields as defined in the YAML Frontmatter Standards below. Replace **all** `{{date}}` placeholders with today's date in `YYYY-MM-DD` format.
+The base frontmatter comes from the user's template (Step 3) — `create_note.py`
+merges it with type defaults and explicit overrides. Always set (and never
+hardcode) `date` to today's date in `YYYY-MM-DD` format; always set `type` to
+the routed note type. If the template doesn't define `tags`, fall back to the
+type's default tag from `core/references/yaml-standards.md`.
 
 ### Step 5: Fill Body Content
 
