@@ -33,6 +33,14 @@ Before any write, verify the resolved vault path is a real Obsidian vault:
 
 If any check fails, **stop and report** — do not silently create files in a non-vault directory. Offer to (a) re-prompt the user for the correct path, or (b) initialize a new vault structure at the given location if the user confirms.
 
+To satisfy discovery + validation + index-strategy in one read-only call (instead of probing these by hand), run the bundled context reader:
+
+```bash
+python scripts/vault_info.py <vault>
+```
+
+It prints JSON with `valid`, the template list, each standard folder's existence, and every folder's `index` strategy (`mode` / `can_append` / `graph_compatible`) — use it to seed cold-start context and skip redundant re-reads later.
+
 
 ## Instruction Precedence
 
