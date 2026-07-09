@@ -302,6 +302,30 @@ def _audit_related(
             seen[key] = True
 
 
+def _audit_web_clip(
+    findings: list[Finding],
+    relative: Path,
+    metadata: dict[str, Any] | None,
+) -> None:
+    if relative.name in EXEMPT_NAMES:
+        return
+    if relative.parts and relative.parts[0] == "Templates":
+        return
+    if not metadata:
+        return
+    if metadata.get("type") != "web-clip":
+        return
+    for field in ("source", "author", "published"):
+        value = metadata.get(field)
+        if not isinstance(value, str) or not value.strip():
+            _add(
+                findings,
+                f"web-clip-missing-{field}",
+                relative,
+                f"web-clip note must set a non-empty '{field}' field",
+            )
+
+
 def _candidate_paths(source: Path, target: str, vault: Path) -> Iterable[Path]:
     raw = Path(target)
     candidates = [vault / raw, source.parent / raw]
@@ -442,6 +466,7 @@ def audit_vault(vault: Path) -> list[Finding]:
             _add(findings, "invalid-frontmatter", relative, yaml_error)
         _audit_metadata(findings, relative, text, metadata)
         _audit_related(findings, relative, metadata)
+        _audit_web_clip(findings, relative, metadata)
         _audit_folder_index_content(findings, relative, text, metadata)
         if len(FENCE_RE.findall(text)) % 2:
             _add(findings, "unclosed-fence", relative, "odd number of fenced code block markers")

@@ -317,3 +317,43 @@ def test_accepts_valid_related(tmp_path):
 
     assert "invalid-related-entry" not in codes(tmp_path)
     assert "duplicate-related-entry" not in codes(tmp_path)
+
+
+def test_reports_missing_web_clip_fields(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Clip.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: web-clip\n'
+        'tags: [web-clip]\nsource: ""\nauthor: ""\npublished: ""\n---\n# Clip\n',
+        encoding="utf-8",
+    )
+
+    assert {
+        "web-clip-missing-source",
+        "web-clip-missing-author",
+        "web-clip-missing-published",
+    } <= codes(tmp_path)
+
+
+def test_accepts_complete_web_clip(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Clip.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: web-clip\n'
+        'tags: [web-clip]\nsource: "https://example.com/a"\n'
+        'author: "Jane"\npublished: "2026-01-01"\n---\n# Clip\n',
+        encoding="utf-8",
+    )
+    found = codes(tmp_path)
+    assert "web-clip-missing-source" not in found
+    assert "web-clip-missing-author" not in found
+    assert "web-clip-missing-published" not in found
+
+
+def test_ignores_web_clip_fields_for_other_types(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Note.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Note\n",
+        encoding="utf-8",
+    )
+
+    assert "web-clip-missing-source" not in codes(tmp_path)
