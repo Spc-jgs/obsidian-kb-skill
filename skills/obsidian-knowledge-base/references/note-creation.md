@@ -68,42 +68,18 @@ Folder navigation is owned by exactly one index strategy: Folder Index, Dataview
 
 ## Index Strategy Detection
 
-Detect the vault's index strategy before creating or updating a note:
+Run the bundled detector — do **not** read Obsidian's plugin config by hand:
 
-1. Read `.obsidian/community-plugins.json`. If `obsidian-folder-index` is enabled, use **Folder Index mode**.
-2. Otherwise, inspect the target folder's index file. If it contains a `dataview` or `dataviewjs` block, use **Dataview mode**.
-3. Otherwise, use **Static mode**.
+```bash
+python scripts/detect_index.py <vault> --folder <folder>
+```
 
-### Folder Index mode
+It prints JSON: `mode` (`folder-index` | `dataview` | `static`), `index_file`, `can_append` (safe to append a manual link?), `graph_compatible`, and `notes` (filenames in the folder, for link candidates). Apply the result:
 
-- Read `.obsidian/plugins/obsidian-folder-index/data.json` when available.
-- If `indexFileUserSpecified` is `true`, the folder index is `{indexFilename}.md` inside each folder. Otherwise, it is named after the folder. The root index uses `rootIndexFile`.
-- **Graph compatibility:** Folder Index 1.0.30 looks for `<folder-name>.md` when it connects a parent folder to a child folder in Graph View. When complete folder hierarchy edges are required, use native folder-named indexes (`indexFileUserSpecified: false`) and keep a separate configured root index. A uniform custom name such as `INDEX.md` can render folder contents but cannot produce nested parent-to-child graph edges in this plugin version.
-- If `graphOverwrite` is `false`, keep using Folder Index mode but tell the user that structural folder edges are not enabled in Graph View. Suggest enabling the setting; do not silently modify plugin configuration.
-- If `graphOverwrite` is `true` and `indexFileUserSpecified` is `true`, do not claim that the structural graph is complete. Report the incompatible configuration and recommend a coordinated migration; never rename existing indexes silently during a capture request.
-- Treat the plugin-generated index and its `folder-index-content` block as plugin-owned. Never append note links to it.
-- When the agent creates a new folder while Obsidian may be closed, create the missing index file with the configured name and this minimal body so the folder is immediately usable:
+- **folder-index** / **dataview**: plugin-owned listings — never append; honor `graph_compatible` (warn the user if structural graph edges are off).
+- **static**: when `can_append` is true, append a wikilink to `INDEX.md` under a "Recent" section.
 
-  ````markdown
-  ---
-  type: folder-index
-  tags: [moc]
-  ---
-  ```folder-index-content
-  ```
-  ````
-
-- Folder Index provides structural folder-to-note relationships. It does not replace semantic links between related ideas.
-
-### Dataview mode
-
-- Treat the query block as the generated listing and do not append links.
-- Remember that rendered Dataview links are views, not persistent semantic relationships in note content.
-
-### Static mode
-
-- Append a Markdown wikilink to the existing folder index only when neither plugin-managed mode is active.
-- Use `INDEX.md` as the conventional fallback filename.
+**Folder Index graph compatibility (Folder Index 1.0.30):** the plugin connects a parent folder to a child folder in Graph View by looking for `<folder-name>.md`. To get a complete folder hierarchy in the graph, use native folder-named indexes (`indexFileUserSpecified: false`) and keep a separate configured root index. A uniform custom name such as `INDEX.md` can render folder contents but cannot produce nested parent-to-child graph edges in this plugin version — so when the detector reports `graph_compatible: false`, warn the user and recommend migration; never rename indexes silently.
 
 
 ## Note Types and Routing
@@ -203,7 +179,17 @@ Save to `{VAULT}/{FOLDER}/YYYY-MM-DD Short Title.md` with **UTF-8 encoding** (no
 
 Use the strategy detected before writing:
 
-1. **Folder Index mode**: do not edit an existing index. If this workflow created a new folder and its configured index is missing, create only the minimal `folder-index-content` file described above.
+1. **Folder Index mode**: do not edit an existing index. If this workflow created a new folder and its configured index is missing, create only the minimal `folder-index-content` file:
+
+   ````markdown
+   ---
+   type: folder-index
+   tags: [moc]
+   ---
+   ```folder-index-content
+   ```
+   ````
+
 2. **Dataview mode**: do not edit the index or its query.
 3. **Static mode**: append a link under the "Recent Notes" / "Recent Insights" section:
 
