@@ -234,6 +234,15 @@ Use this to archive a long conversation as durable, linkable knowledge (triggers
 - The conversation produced decisions, trade-offs, or action items worth keeping.
 - The user explicitly asks to save or summarize the discussion.
 
+### Session wrap-up (会话收尾)
+The agent should proactively offer — or directly produce — a conversation digest when the user signals the **end of a session**, without requiring an exact command. Recognize wrap-up intent from cues such as: "结束", "收尾", "总结一下", "沉淀本次对话", "把对话记下来", "做个摘要", or any message that clearly closes the work. On detecting it:
+- Run the **Steps** below (validate vault → conversation-digest template → fill frontmatter → distill → bounded wikilinks → write + index + validate).
+- Route per **Routing** above (active project → `40-Projects/`, otherwise `30-Insights/`).
+- Self-verify with `obsidian-audit-vault <vault>` and confirm the new note produces **zero findings** before reporting done.
+- If an explicit digest was already produced on request earlier in the session, do not duplicate it.
+
+This turns digest creation into a natural session close rather than a separate manual step.
+
 ### Routing
 - Conversation about a specific active project → `40-Projects/` (file under the project folder, or a Digest Note there).
 - Otherwise → `30-Insights/` with the Digest Note template.
