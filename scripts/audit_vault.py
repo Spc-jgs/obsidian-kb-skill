@@ -414,6 +414,82 @@ def _audit_links(
             _add(findings, "broken-wikilink", relative, f"unresolved wikilink: {target}")
 
 
+def _resolve_target(
+    target: str,
+    source: Path,
+    vault: Path,
+    by_name: dict[str, list[Path]],
+    by_stem: dict[str, list[Path]],
+) -> list[Path]:
+    if "/" in target:
+        return [candidate for candidate in _candidate_paths(source, target, vault) if candidate.is_file()]
+    key_name = Path(target).name
+    matches = by_name.get(key_name, [])
+    if not matches and Path(key_name).suffix == "":
+        matches = by_stem.get(key_name, [])
+    return [candidate for candidate in matches if candidate.is_file()]
+
+
+def _collect_references(
+    source: Path,
+    text: str,
+    metadata: dict[str, Any] | None,
+    vault: Path,
+    by_name: dict[str, list[Path]],
+    by_stem: dict[str, list[Path]],
+) -> set[Path]:
+    """Return the set of note paths that ``source`` links to (body + related)."""
+    referenced: set[Path] = set()
+    bodies = [_without_code_examples(text)]
+    if isinstance(metadata, dict):
+        related = metadata.get("related")
+        if isinstance(related, list):
+            for entry in related:
+                if isinstance(entry, str):
+                    stripped = entry.strip()
+                    if stripped.startswith("[[") and stripped.endswith("]]"):
+                        bodies.append(stripped[2:-2])
+    for body in bodies:
+        for match in WIKILINK_RE.finditer(body):
+            target = _clean_link_target(match.group(1))
+            if not target:
+                continue
+            for candidate in _resolve_target(target, source, vault, by_name, by_stem):
+                if candidate != source:
+                    referenced.add(candidate)
+    return referenced
+
+
+def _audit_orphans(
+    findings: list[Finding],
+    vault: Path,
+    referenced: set[Path],
+    index_notes: set[Path],
+    candidate_notes: list[Path],
+) -> None:
+    indexed: set[Path] = set()
+    for index_note in index_notes:
+        folder = index_note.parent
+        for child in folder.glob("*.md"):
+            if child in index_notes:
+                continue
+            relative = child.relative_to(vault)
+            if relative.parts and relative.parts[0] == "Templates":
+                continue
+            if relative.name in EXEMPT_NAMES or relative.name == "INDEX.md":
+                continue
+            indexed.add(child)
+    for candidate in candidate_notes:
+        if candidate not in referenced and candidate not in indexed:
+            _add(
+                findings,
+                "orphan-note",
+                candidate.relative_to(vault),
+                "note has no inbound links and is not referenced by any index; "
+                "consider linking it or filing it under an indexed folder",
+            )
+
+
 def _declares_folder_index(path: Path) -> bool:
     metadata, error = _frontmatter(path.read_text(encoding="utf-8"))
     return error is None and metadata is not None and metadata.get("type") == "folder-index"
@@ -520,6 +596,9 @@ def audit_vault(vault: Path) -> list[Finding]:
 
     tag_index: dict[str, set[str]] = {}
     title_list: list[tuple[str, str, Path]] = []
+    referenced: set[Path] = set()
+    index_notes: set[Path] = set()
+    candidate_notes: list[Path] = []
     markdown = _markdown_files(vault)
     for path in markdown:
         relative = path.relative_to(vault)
@@ -564,6 +643,18 @@ def audit_vault(vault: Path) -> list[Finding]:
                 by_name,
                 by_stem,
             )
+        referenced |= _collect_references(path, text, metadata, vault, by_name, by_stem)
+        if metadata and metadata.get("type") in INDEX_TYPES:
+            index_notes.add(path)
+        if (
+            metadata
+            and relative.name not in EXEMPT_NAMES
+            and (not relative.parts or relative.parts[0] != "Templates")
+            and relative.name != "INDEX.md"
+            and metadata.get("type") not in INDEX_TYPES
+            and metadata.get("type") != "daily-note"
+        ):
+            candidate_notes.append(path)
 
     for folder in sorted(path for path in vault.rglob("*") if path.is_dir()):
         relative_folder = folder.relative_to(vault)
@@ -592,6 +683,7 @@ def audit_vault(vault: Path) -> list[Finding]:
             )
 
     _audit_titles(findings, title_list)
+    _audit_orphans(findings, vault, referenced, index_notes, candidate_notes)
 
     return sorted(findings, key=lambda item: (item.path, item.code, item.message))
 

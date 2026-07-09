@@ -501,3 +501,75 @@ def test_ignores_index_template_and_unique_titles(tmp_path):
 
     assert "duplicate-title" not in codes(tmp_path)
     assert "similar-title" not in codes(tmp_path)
+
+
+def test_reports_orphan_note(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Lone.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Lone\nSome content.\n",
+        encoding="utf-8",
+    )
+
+    assert "orphan-note" in codes(tmp_path)
+
+
+def test_ignores_note_referenced_by_wikilink(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Target.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Target\nLinks back to [[Source]].\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "Source.md").write_text(
+        '---\ndate: "2026-07-08"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Source\nLinks to [[Target]].\n",
+        encoding="utf-8",
+    )
+
+    assert "orphan-note" not in codes(tmp_path)
+
+
+def test_related_field_counts_as_reference(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Target.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\nrelated: [\"[[Source]]\"]\n---\n# Target\nSome content.\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "Source.md").write_text(
+        '---\ndate: "2026-07-08"\ntype: learning-note\n'
+        "tags: [learning]\nrelated: [\"[[Target]]\"]\n---\n# Source\nSome content.\n",
+        encoding="utf-8",
+    )
+
+    assert "orphan-note" not in codes(tmp_path)
+
+
+def test_ignores_note_referenced_by_index(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    topic = tmp_path / "Topic"
+    topic.mkdir()
+    (topic / "Topic.md").write_text(
+        "---\ntype: folder-index\ntags: [moc]\n---\n"
+        "```folder-index-content\n```\n",
+        encoding="utf-8",
+    )
+    (topic / "Child.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Child\nSome content.\n",
+        encoding="utf-8",
+    )
+
+    assert "orphan-note" not in codes(tmp_path)
+
+
+def test_ignores_unlinked_daily_note(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "2026-07-07 Daily.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: daily-note\n'
+        "tags: [daily]\n---\n# Daily\nSome content.\n",
+        encoding="utf-8",
+    )
+
+    assert "orphan-note" not in codes(tmp_path)
