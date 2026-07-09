@@ -505,21 +505,13 @@ python scripts/create_note.py /你的知识库路径 \
 - 写入后会按当前索引策略更新静态 `INDEX.md`（Folder Index / Dataview 管理的列表不会被改动）。
 - 这与 `core/OBSIDIAN_KB.md` 的 Step 7「工具选择」约定配套：智能体优先用原生写工具，否则用本脚本，而不是临时造脚本。
 
-### 任务记忆（多 agent 长任务切换）
+### 任务记忆（多 agent 长任务切换）— 默认关，按需开启
 
-`core/OBSIDIAN_KB.md` 里的 **Task Memory Workflow** 解决多 agent 接力做同一个长任务时的记忆断层：每棒 agent 交出前更新一张 `Tasks/<slug>/TASK.md`（状态、决策、约束、待办、已碰文件、交接日志），接棒的 agent 第一步先读它。
+`core/OBSIDIAN_KB.md` 里的 **Task Memory Workflow** 解决多 agent 接力时的记忆断层（出棒更新 `Tasks/<slug>/TASK.md`、入棒先读）。它**默认关闭**：全局 `OBSIDIAN_KB_TASK_MEMORY=off`（默认）、单任务靠 `task-memory: enabled` 字段开启，会话里说「开启任务记忆 / handoff」即激活。
 
-**默认关闭、按需开启**——全局环境变量 `OBSIDIAN_KB_TASK_MEMORY=on|off`（默认 `off`）是总开关；单任务靠笔记里的 `task-memory: enabled` 字段开启。会话里说「开启任务记忆 / handoff」即激活，说「关闭」即停用。关掉时完全无开销。
+> 为省 token，完整规范（TASK.md 结构、交接协议、`obsidian-update-note` 用法）**没有内联在主文件里**，而是放在 `core/references/task-memory.md`，agent 只有在真正开启任务记忆时才去读它；主文件只保留上面这段指针。
 
-`obsidian-update-note` 是配套的**约束型更新器**：只改结构化 frontmatter 字段、只往 `## Log` 追加带时间戳的一行，绝不覆盖你写的散文；`Log` 自动截断到最近 30 条（TTL）；默认 dry-run，加 `--apply` 才写。笔记不存在时会按模板自动初始化（upsert），所以一条命令既能开任务也能更新：
-
-```bash
-# 出棒：更新状态 + 追加交接日志（不存在则自动建 Tasks/foo/TASK.md）
-python scripts/update_note.py /你的知识库路径 \
-    --note Tasks/foo/TASK.md --status active --step "实现 X 模块" \
-    --add-decision "选 Postgres 而非 Mongo（扩展性）" \
-    --by WorkBuddy --log "完成脚手架，交接给 Codex 做数据层" --apply
-```
+`obsidian-update-note` 是配套的约束型更新器（只改 frontmatter + 追加带时间戳的 Log、绝不覆盖散文、Log 截断到 30 条、默认 dry-run）。完整用法见 `core/references/task-memory.md`。
 
 ## 设计原则
 

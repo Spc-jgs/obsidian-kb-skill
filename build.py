@@ -59,6 +59,11 @@ TARGETS = [
     ),
 ]
 
+# Reference docs are lazy-loaded: an agent reads them only when needed, so they
+# are NOT part of the always-loaded body. build.py ships them next to each
+# generated artifact so the relative path in the pointer resolves for every agent.
+REFERENCES_SRC = ROOT / "core" / "references"
+
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
@@ -128,10 +133,24 @@ def main() -> int:
         if args.check:
             if not target.output.exists() or read_text(target.output) != adapter:
                 drift.append(str(target.output.relative_to(ROOT)))
-            continue
+        else:
+            write_text(target.output, adapter)
+            print(f"  wrote {target.output.relative_to(ROOT)}")
 
-        write_text(target.output, adapter)
-        print(f"  wrote {target.output.relative_to(ROOT)}")
+        # Ship reference docs (lazy-loaded; NOT part of the always-read body).
+        if REFERENCES_SRC.is_dir():
+            for ref in sorted(REFERENCES_SRC.iterdir()):
+                if not ref.is_file():
+                    continue
+                dest = target.output.parent / "references" / ref.name
+                if args.check:
+                    if not dest.exists() or read_text(dest) != read_text(ref):
+                        drift.append(str(dest.relative_to(ROOT)))
+                    continue
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                write_text(dest, read_text(ref))
+                if not args.check:
+                    print(f"  wrote {dest.relative_to(ROOT)}")
 
     if args.check:
         if drift:

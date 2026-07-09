@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
 - **Note updater helper (`update_note.py`)**: the constraint-based counterpart to `create_note.py` for handoffs. It edits only structured frontmatter fields and appends a timestamped line to `## Log` (capped to the last 30 entries, TTL-style) — it never clobbers prose. Upserts: if the task note is missing it is initialized from the template, so one command both starts and updates a task. Read-only by default; `--apply` to write. Installed as the `obsidian-update-note` console script.
 - **`task-memory` note type** added to `create_note.py` / `process_inbox.py` (routed to `Tasks/`, with the task-memory frontmatter defaults).
 
+### Changed
+
+- **Task Memory spec is now lazy-loaded.** The full Task Memory Workflow (TASK.md structure, handoff protocol, `obsidian-update-note` usage) moved out of the always-loaded `core/OBSIDIAN_KB.md` body into `core/references/task-memory.md`. The body keeps only a ~5-line pointer whose heading itself states "OFF by default", so an agent learns the feature is off after one line and never pays to load the spec unless the user enables it. `build.py` ships the reference next to every generated artifact; `--check` verifies it stays in sync.
+
 ## [1.8.1] - 2026-07-09
 
 ### Added
