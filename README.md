@@ -378,7 +378,8 @@ obsidian-kb-skill/
 ├── .gitignore
 ├── build.py                    生成脚本（核心 + header → 5 个产物）
 ├── core/
-│   ├── OBSIDIAN_KB.md          通用指令唯一真相来源（agent 无关）
+│   ├── OBSIDIAN_KB.md          极小的「门禁」文件（约 37 行）：显眼的 DO NOT auto-save + 按需读取 references/ 的指针
+│   ├── references/             完整工作流规范（懒加载：agent 准备落盘时才读）
 │   └── templates/              8 个默认中文模板（含对话摘要）+ en/ 英文模板
 ├── scripts/
 │   ├── audit_vault.py          只读知识库审计器
@@ -507,9 +508,9 @@ python scripts/create_note.py /你的知识库路径 \
 
 ### 任务记忆（多 agent 长任务切换）— 默认关，按需开启
 
-`core/OBSIDIAN_KB.md` 里的 **Task Memory Workflow** 解决多 agent 接力时的记忆断层（出棒更新 `Tasks/<slug>/TASK.md`、入棒先读）。它**默认关闭**：全局 `OBSIDIAN_KB_TASK_MEMORY=off`（默认）、单任务靠 `task-memory: enabled` 字段开启，会话里说「开启任务记忆 / handoff」即激活。
+`core/references/task-memory.md` 里的 **Task Memory Workflow** 解决多 agent 接力时的记忆断层（出棒更新 `Tasks/<slug>/TASK.md`、入棒先读）。它**默认关闭**：全局 `OBSIDIAN_KB_TASK_MEMORY=off`（默认）、单任务靠 `task-memory: enabled` 字段开启，会话里说「开启任务记忆 / handoff」即激活。
 
-> 为省 token，完整规范（TASK.md 结构、交接协议、`obsidian-update-note` 用法）**没有内联在主文件里**，而是放在 `core/references/task-memory.md`，agent 只有在真正开启任务记忆时才去读它；主文件只保留上面这段指针。
+> 为省 token，**所有完整工作流（含本段）都不内联在主文件**：`core/OBSIDIAN_KB.md` 只是约 37 行的「门禁」——显眼的 `DO NOT auto-save` + 指向 `core/references/*` 的指针。agent 加载技能几乎零 token 成本；只有真正准备落盘时，才按指针去读对应 references 文件。
 
 `obsidian-update-note` 是配套的约束型更新器（只改 frontmatter + 追加带时间戳的 Log、绝不覆盖散文、Log 截断到 30 条、默认 dry-run）。完整用法见 `core/references/task-memory.md`。
 

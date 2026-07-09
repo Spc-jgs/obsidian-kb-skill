@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - **Task Memory spec is now lazy-loaded.** The full Task Memory Workflow (TASK.md structure, handoff protocol, `obsidian-update-note` usage) moved out of the always-loaded `core/OBSIDIAN_KB.md` body into `core/references/task-memory.md`. The body keeps only a ~5-line pointer whose heading itself states "OFF by default", so an agent learns the feature is off after one line and never pays to load the spec unless the user enables it. `build.py` ships the reference next to every generated artifact; `--check` verifies it stays in sync.
+- **Skill body slimmed to a tiny gatekeeper.** `core/OBSIDIAN_KB.md` no longer inlines any heavy workflow. Every workflow (note creation, update, conversation digest, task memory, YAML standards, rules/errors, Git) lives in `core/references/*.md`, read by an agent **only when it is about to save**. The always-loaded body is ~37 lines: an Overview, a prominent **"DO NOT auto-save"** rule stating the skill never writes without explicit user intent, a 5-step "when the user asks to save" gate that points to the right reference, and bounded-scan limits. Loading the skill now costs almost no tokens, and the first real rule an agent sees is "do not auto-save". `build.py` ships `core/references/*` next to each generated artifact; `--check` verifies.
 
 ## [1.8.1] - 2026-07-09
 

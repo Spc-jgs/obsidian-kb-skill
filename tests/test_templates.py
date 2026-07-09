@@ -42,9 +42,21 @@ def test_chinese_templates_are_actually_chinese():
     assert "### WHY：为什么这样设计" in learning
 
 
+def _skill_union_text():
+    # Detailed workflows live in core/references/*.md (lazy-loaded); the
+    # always-loaded body only points to them. Union the two for invariants.
+    parts = [(ROOT / "core" / "OBSIDIAN_KB.md").read_text(encoding="utf-8")]
+    ref_dir = ROOT / "core" / "references"
+    if ref_dir.is_dir():
+        for ref in sorted(ref_dir.iterdir()):
+            if ref.is_file():
+                parts.append(ref.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
 def test_index_rules_have_single_owner():
-    core = (ROOT / "core" / "OBSIDIAN_KB.md").read_text(encoding="utf-8")
-    assert "## Index Strategy Detection" in core
-    assert "Folder Index mode" in core
-    assert "Never append links to plugin-managed indexes" in core
-    assert "update both the subfolder INDEX and the parent folder INDEX" not in core
+    skill = _skill_union_text()
+    assert "## Index Strategy Detection" in skill
+    assert "Folder Index mode" in skill
+    assert "Never append links to plugin-managed indexes" in skill
+    assert "update both the subfolder INDEX and the parent folder INDEX" not in skill

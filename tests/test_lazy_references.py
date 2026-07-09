@@ -1,8 +1,8 @@
-"""Task Memory spec must be lazy-loaded, not in the always-read body.
+"""Skill body must be tiny and lazy-loaded; agent learns 'do not auto-save' fast.
 
-The full handoff spec lives in core/references/task-memory.md so agents never
-pay to load it unless the user enables task memory. The main body keeps only a
-short pointer whose heading states the feature is OFF by default.
+The always-loaded body (core/OBSIDIAN_KB.md) is a thin gate: it states the
+"do not auto-save" rule up front and points to references/*.md for the heavy
+workflows. Those references are loaded only when the agent is about to save.
 """
 
 import pathlib
@@ -11,9 +11,8 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CORE = ROOT / "core" / "OBSIDIAN_KB.md"
-REFERENCE = ROOT / "core" / "references" / "task-memory.md"
+REFERENCES_DIR = ROOT / "core" / "references"
 
-# Every generated artifact carries the same body (build.py concatenates header+body).
 GENERATED = [
     ROOT / "skills" / "obsidian-knowledge-base" / "SKILL.md",
     ROOT / "platforms" / "qoderwork" / "SKILL.md",
@@ -22,48 +21,90 @@ GENERATED = [
     ROOT / "platforms" / "cursor" / "obsidian-kb.mdc",
 ]
 
-# Pointer markers that MUST stay in the always-loaded body.
-POINTER_MARKERS = [
-    "OFF by default",           # discoverable from the heading itself
-    "references/task-memory.md",  # where the full spec lives
-    "Only read that file when the user actually turns task memory on",
+# The gating rule must be discoverable within the first few lines of the body.
+GATING_MARKERS = [
+    "DO NOT auto-save",
+    "never writes to the vault on its own",
+    "explicit save intent",
 ]
 
-# Phrases that belong ONLY in the reference doc, never in the always-loaded body.
+# Pointers that MUST stay in the always-loaded body.
+POINTER_MARKERS = [
+    "OFF by default",                  # task memory is off unless enabled
+    "references/task-memory.md",       # where the full task-memory spec lives
+    "references/note-creation.md",     # where the create workflow lives
+    "references/rules-and-errors.md",  # where the rules live
+]
+
+# Heavy section headings that belong ONLY in references/, never in the body.
 BODY_FORBIDDEN = [
+    "## Note Creation Workflow",
+    "## Update Existing Note Workflow",
+    "## Conversation Digest Workflow",
+    "## YAML Frontmatter Standards",
+    "## Cost Limits",
+    "## Important Rules",
+    "## Error Handling",
+    "## Optional Git Post-Processing",
+    "## Index Strategy Detection",
+    "## Folder Structure",
     "Handoff protocol",
     "Outgoing agent (before yielding)",
     "Incoming agent (first action)",
 ]
 
 
-def test_core_has_compact_pointer_with_off_by_default():
+def test_core_is_tiny():
+    lines = CORE.read_text(encoding="utf-8").splitlines()
+    assert len(lines) < 45, f"always-loaded body is {len(lines)} lines; keep it tiny (<45)"
+
+
+def test_core_gating_rule_is_up_front():
+    text = CORE.read_text(encoding="utf-8")
+    for m in GATING_MARKERS:
+        assert m in text, f"core body missing gating marker: {m!r}"
+
+
+def test_core_has_pointers_to_references():
     text = CORE.read_text(encoding="utf-8")
     for m in POINTER_MARKERS:
         assert m in text, f"core body missing pointer marker: {m!r}"
 
 
-def test_core_body_does_not_inline_full_handoff_spec():
+def test_core_body_does_not_inline_heavy_specs():
     text = CORE.read_text(encoding="utf-8")
     for bad in BODY_FORBIDDEN:
-        assert bad not in text, f"core body still inlines the heavy spec: {bad!r}"
+        assert bad not in text, f"core body still inlines heavy spec: {bad!r}"
 
 
-def test_reference_file_carries_full_spec():
-    assert REFERENCE.exists(), "core/references/task-memory.md is missing"
-    text = REFERENCE.read_text(encoding="utf-8")
-    for need in BODY_FORBIDDEN:
-        assert need in text, f"reference missing spec section: {need!r}"
-    assert "obsidian-update-note" in text, "reference missing the updater reference"
+def test_all_reference_files_exist():
+    expected = {
+        "note-creation.md",
+        "update-note.md",
+        "conversation-digest.md",
+        "task-memory.md",
+        "yaml-standards.md",
+        "rules-and-errors.md",
+        "git.md",
+    }
+    actual = {p.name for p in REFERENCES_DIR.iterdir() if p.is_file()}
+    assert expected <= actual, f"missing reference files: {expected - actual}"
 
 
-def test_generated_artifacts_match_pointer_and_not_full_spec():
+def test_task_memory_reference_carries_full_spec():
+    ref = REFERENCES_DIR / "task-memory.md"
+    text = ref.read_text(encoding="utf-8")
+    for need in ("Handoff protocol", "Outgoing agent (before yielding)", "obsidian-update-note"):
+        assert need in text, f"task-memory reference missing: {need!r}"
+
+
+def test_generated_artifacts_match_pointers_and_not_heavy_spec():
     for path in GENERATED:
         if not path.exists():
             continue
         text = path.read_text(encoding="utf-8")
         for m in POINTER_MARKERS:
-            assert m in text, f"{path.name} missing pointer marker {m!r} (build out of sync?)"
+            assert m in text, f"{path.name} missing pointer {m!r} (build out of sync?)"
         for bad in BODY_FORBIDDEN:
             assert bad not in text, f"{path.name} inlines heavy spec {bad!r} (build out of sync?)"
 

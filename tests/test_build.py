@@ -185,27 +185,37 @@ class TestEndToEnd:
 class TestGovernanceContract:
     @classmethod
     def setup_class(cls):
-        cls.core = (ROOT / "core" / "OBSIDIAN_KB.md").read_text(encoding="utf-8")
+        # The detailed contracts live in core/references/*.md (lazy-loaded); the
+        # always-loaded body only points to them. Scan the union so the contract
+        # tests still guard that each rule exists *somewhere* in the skill.
+        core = (ROOT / "core" / "OBSIDIAN_KB.md").read_text(encoding="utf-8")
+        ref_dir = ROOT / "core" / "references"
+        parts = [core]
+        if ref_dir.is_dir():
+            for ref in sorted(ref_dir.iterdir()):
+                if ref.is_file():
+                    parts.append(ref.read_text(encoding="utf-8"))
+        cls.skill = "\n".join(parts)
         cls.web_clip = (ROOT / "core" / "templates" / "web-clip.md").read_text(
             encoding="utf-8"
         )
 
     def test_local_vault_rules_precede_generic_defaults(self):
-        assert "Vault-local governance" in self.core
-        assert "generic skill defaults" in self.core
+        assert "Vault-local governance" in self.skill
+        assert "generic skill defaults" in self.skill
 
     def test_create_workflow_validates_before_confirmation(self):
-        validate = self.core.index("### Step 9: Validate Result")
-        confirm = self.core.index("### Step 10: Confirm to User")
+        validate = self.skill.index("### Step 9: Validate Result")
+        confirm = self.skill.index("### Step 10: Confirm to User")
         assert validate < confirm
 
     def test_batch_capture_requires_confirmation(self):
-        assert "Default to one target note per invocation" in self.core
-        assert "ask the user before creating multiple notes" in self.core
+        assert "Default to one target note per invocation" in self.skill
+        assert "ask the user before creating multiple notes" in self.skill
 
     def test_git_stops_on_divergence_or_conflict(self):
-        assert "Stop on divergence or conflict" in self.core
-        assert "Never auto-resolve INDEX conflicts" in self.core
+        assert "Stop on divergence or conflict" in self.skill
+        assert "Never auto-resolve INDEX conflicts" in self.skill
 
     def test_web_clip_defines_bounded_interpretation(self):
         assert "## 理解与启发" in self.web_clip
@@ -213,18 +223,18 @@ class TestGovernanceContract:
         assert "不要代替用户表达个人立场" in self.web_clip
 
     def test_native_folder_index_graph_contract(self):
-        assert "Folder Index 1.0.30" in self.core
-        assert "folder-named indexes" in self.core
-        assert "list the target folder's filenames" in self.core
-        assert "required template headings" in self.core
+        assert "Folder Index 1.0.30" in self.skill
+        assert "folder-named indexes" in self.skill
+        assert "list the target folder's filenames" in self.skill
+        assert "required template headings" in self.skill
 
     def test_metadata_relationship_contract(self):
-        assert "canonical source URL" in self.core
-        assert "machine-readable source of truth" in self.core
+        assert "canonical source URL" in self.skill
+        assert "machine-readable source of truth" in self.skill
 
     def test_pre_write_git_sync_contract(self):
-        assert "Pre-write Git synchronization" in self.core
-        assert "merge --ff-only" in self.core
+        assert "Pre-write Git synchronization" in self.skill
+        assert "merge --ff-only" in self.skill
 
 
 def test_readme_documents_standard_skill_entry():
