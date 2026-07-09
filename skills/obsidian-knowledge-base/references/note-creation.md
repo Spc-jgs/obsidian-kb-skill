@@ -14,43 +14,26 @@ Skip this skill (do not save to vault) when:
 Only invoke when there is **explicit save intent** (e.g. "save to Obsidian", "记一下", "沉淀到知识库", "add to my notes") **or** when summarizing a long conversation the user wants archived.
 
 
-## Vault Discovery
+## Vault Discovery & Validation
 
-The knowledge base vault location is configured in a platform-specific way. Check these locations in order:
+The vault location is configured in a platform-specific way. Check in order:
 
 1. Environment variable `OBSIDIAN_KB_VAULT` (if set)
 2. Config file `~/.obsidian-kb-config` (single line containing the vault path)
 3. If neither exists, ask the user for their vault path and create the config file
 
-
-## Vault Validation
-
-Before any write, verify the resolved vault path is a real Obsidian vault:
-
-1. Path exists and is a directory
-2. `{VAULT}/.obsidian/` directory exists (Obsidian's marker)
-3. `{VAULT}/Templates/` directory exists
-
-If any check fails, **stop and report** — do not silently create files in a non-vault directory. Offer to (a) re-prompt the user for the correct path, or (b) initialize a new vault structure at the given location if the user confirms.
-
-To satisfy discovery + validation + index-strategy in one read-only call (instead of probing these by hand), run the bundled context reader:
+A valid Obsidian vault has `.obsidian/` and `Templates/` directories. To seed cold-start context (vault path, validity, template list, every folder's index strategy) in a single read-only call:
 
 ```bash
 python scripts/vault_info.py <vault>
 ```
 
-It prints JSON with `valid`, the template list, each standard folder's existence, and every folder's `index` strategy (`mode` / `can_append` / `graph_compatible`) — use it to seed cold-start context and skip redundant re-reads later.
+If validation fails, **stop and report** — do not silently create files in a non-vault directory. Offer to (a) re-prompt for the path, or (b) initialize a new vault structure if the user confirms.
 
 
 ## Instruction Precedence
 
-Apply instructions in this order:
-
-1. The user's current request
-2. Applicable Vault-local governance files such as `AGENTS.md`, `CLAUDE.md`, or another local instruction file
-3. This skill's generic skill defaults
-
-Before writing, read the applicable Vault-local governance file at the vault root and any more-specific file on the target path. Use its routing, naming, metadata, README, validation, and version-control rules when they are more specific than this skill. Do not expand this check into a full-vault scan.
+Apply in this order: (1) the user's current request, (2) Vault-local governance files (`AGENTS.md`, `CLAUDE.md`, etc.) at the vault root and on the target path, (3) this skill's generic skill defaults. Use the vault-local file's routing, naming, metadata, README, validation, and version-control rules when they are more specific than this skill. Do not expand this check into a full-vault scan.
 
 
 ## Folder Structure
@@ -58,20 +41,20 @@ Before writing, read the applicable Vault-local governance file at the vault roo
 ```
 {VAULT}/
 ├── 00-Inbox/                  # Quick capture, unsorted notes
-├── 10-Work/                   # Meeting notes, work documents
-├── 15-Daily/                  # Daily notes, journals, morning plans
+├── 10-Work/                   # Meeting notes
+├── 15-Daily/                  # Daily notes, journals
 ├── 20-Learning/               # Articles, study notes, web clips
 ├── 30-Insights/               # Analysis, AI-generated insights
 ├── 40-Projects/               # Active project context
 ├── 50-People/                 # Contacts, team notes
 ├── 90-Archive/                # Completed/inactive items
-├── Templates/                 # Note templates
+├── Templates/                 # Note templates (user-edited; the single source of truth)
 ├── Attachments/               # Images, files
-├── .obsidian-kb-backups/      # Auto-backups created by the Update workflow
+├── .obsidian-kb-backups/      # Auto-backups from the Update workflow (created lazily)
 └── INDEX.md                   # Main navigation hub
 ```
 
-Folder navigation is owned by exactly one index strategy: Folder Index, Dataview, or a static Markdown list. Do not maintain two competing indexes for the same folder. The `.obsidian-kb-backups/` folder is created lazily on first Update; users can periodically prune it.
+Folder navigation is owned by exactly one index strategy: Folder Index, Dataview, or a static Markdown list. Do not maintain two competing indexes for the same folder. Large folders (e.g. `20-Learning/`) may contain topic-based subfolders; route to the appropriate subfolder if one exists, else use the top-level folder.
 
 
 ## Index Strategy Detection
@@ -82,9 +65,9 @@ Run the bundled detector — do **not** read Obsidian's plugin config by hand:
 python scripts/detect_index.py <vault> --folder <folder>
 ```
 
-It prints JSON: `mode` (`folder-index` | `dataview` | `static`), `index_file`, `can_append` (safe to append a manual link?), `graph_compatible`, and `notes` (filenames in the folder, for link candidates). Apply the result:
+JSON output: `mode` (`folder-index` | `dataview` | `static`), `index_file`, `can_append`, `graph_compatible`, `notes`. Apply:
 
-- **folder-index** / **dataview**: plugin-owned listings — never append; honor `graph_compatible` (warn the user if structural graph edges are off).
+- **folder-index** / **dataview**: plugin-owned — never append. Honor `graph_compatible`.
 - **static**: when `can_append` is true, append a wikilink to `INDEX.md` under a "Recent" section.
 
 **Folder Index graph compatibility (Folder Index 1.0.30):** the plugin connects a parent folder to a child folder in Graph View by looking for `<folder-name>.md`. To get a complete folder hierarchy in the graph, use native folder-named indexes (`indexFileUserSpecified: false`) and keep a separate configured root index. A uniform custom name such as `INDEX.md` can render folder contents but cannot produce nested parent-to-child graph edges in this plugin version — so when the detector reports `graph_compatible: false`, warn the user and recommend migration; never rename indexes silently.
@@ -92,158 +75,78 @@ It prints JSON: `mode` (`folder-index` | `dataview` | `static`), `index_file`, `
 
 ## Note Types and Routing
 
-| Trigger Pattern | Target Folder | Template |
-|---|---|---|
-| Daily, today, diary, journal, morning plan | `15-Daily/` | Daily Note |
-| Meeting, standup, review, sync | `10-Work/` | Meeting Note |
-| Article, learning, book, course, tutorial | `20-Learning/` | Learning Note |
-| Web page, URL, blog post, clip | `20-Learning/` | Web Clip |
-| Analysis, insight, idea, takeaway | `30-Insights/` | Insight Note |
-| Summarize conversation, chat digest, 沉淀对话 | `30-Insights/` | Digest Note |
-| Project, milestone, sprint | `40-Projects/` | Project Note |
-| Person, contact, team member | `50-People/` | Person Note |
-| Unsure / quick capture | `00-Inbox/` | None |
+`create_note.py --type <slug>` is the canonical write path. The slug → folder mapping is owned by `scripts/process_inbox.py` (`TYPE_TO_FOLDER`); infer the slug from conversation context or ask the user.
 
-> **Subfolders**: Large folders (e.g. `20-Learning/`) may contain topic-based subfolders like `20-Learning/Python/` or `20-Learning/AI-Agent/`. When saving, route to the appropriate subfolder if one exists; otherwise use the top-level folder.
+Slugs: `daily-note`, `meeting-note`, `learning-note`, `web-clip`, `insight-note`, `conversation-digest`, `project-note`, `person-note`, `task-memory`. Unsure or quick-capture → `00-Inbox/`.
+
+> **Subfolders**: large folders may contain topic-based subfolders; route to the appropriate subfolder if one exists, otherwise the top-level folder.
 
 
 ## Decide First: Create vs Update
 
-Before doing anything, decide whether the request is a **Create** (a new note) or an **Update** (append/edit an existing note).
+Before doing anything, decide whether the request is a **Create** (a new note) or an **Update** (append/edit an existing note). The Task Memory workflow is `core/references/task-memory.md`.
 
 **Update is preferred when:**
 - The user names an existing note ("add to my Q3 OKR note", "update Alice's contact")
 - The content is an obvious continuation of an existing project (`project-note`), person (`person-note`), or today's daily note
 - The user explicitly says "append", "update", "续上", "追加"
 
-**Create is the default** for everything else.
-
-If ambiguous, **ask the user once** ("Create a new note or append to `<best-candidate>`?") before writing.
+**Create is the default** for everything else. If ambiguous, **ask the user once** before writing.
 
 
 ## Note Creation Workflow
 
-### Step 1: Resolve & Validate Vault Path
+The bundled `create_note.py` does steps 1, 2, 3, 4, 5, 7, 8, 9 for you — call it instead of rolling your own. Steps 6 and 10 are agent-side.
 
-Check env var `OBSIDIAN_KB_VAULT`, then `~/.obsidian-kb-config`, then ask the user. Then run the Vault Validation checks above.
+### Step 1–2: Resolve & validate vault, determine note type
 
-### Step 2: Determine Note Type
+Run `vault_info.py` to get the vault path + validity + types list. Infer the type slug from the conversation or ask the user.
 
-Infer from conversation context or ask the user. Map to the routing table above.
+### Step 3: Read the template (vault template is the truth)
 
-### Step 3: Read the Template (the vault template is the truth)
+`{VAULT}/Templates/<Name>.md` is the single source of truth at write time. `create_note.py` reads it, fills `{{date}}` placeholders, merges the template's frontmatter into the new note, and uses the template's body as the scaffold. If the user adds a field (e.g. `mood:`) or a new section heading to their template, every new note picks it up automatically — no code change needed.
 
-`{VAULT}/Templates/<Name>.md` is the single source of truth at write time —
-`create_note.py` reads the user's template, fills `{{date}}` placeholders, merges
-the template's frontmatter into the new note, and uses the template's body as
-the scaffold. If the user adds a field (e.g. `mood:` on Daily Note) or a new
-section heading to their template, every new note picks it up automatically —
-no code change needed.
-
-Conventional template filenames:
-- `Templates/Daily Note.md`
-- `Templates/Meeting Note.md`
-- `Templates/Learning Note.md`
-- `Templates/Project Note.md`
-- `Templates/Web Clip.md`
-- `Templates/Insight Note.md`
-- `Templates/Person Note.md`
-- `Templates/Digest Note.md`
-
-If the vault has no `Templates/` yet, bootstrap the shipped starter files
-once (the user is expected to edit them in Obsidian afterwards; re-running the
-script will NOT clobber edits):
+Conventional template filenames: `Daily Note`, `Meeting Note`, `Learning Note`, `Project Note`, `Web Clip`, `Insight Note`, `Person Note`, `Digest Note`. If the vault has no `Templates/` yet, bootstrap the shipped starters once (`scaffold_templates.py` will NOT clobber later edits unless `--force` is passed):
 
 ```bash
 python scripts/scaffold_templates.py <vault> --apply
 ```
 
-`--force` overwrites user-edited templates (destructive — use only when you
-mean to reset to the shipped defaults).
+### Step 4–5: Fill frontmatter & body (delegated)
 
-### Step 4: Fill YAML Frontmatter
+`create_note.py` merges the user template's frontmatter, the type's safety-net defaults, and explicit CLI overrides. Always set (and never hardcode) `date` to today; always set `type` to the routed slug. If the template doesn't define `tags`, the type's default tag is used.
 
-The base frontmatter comes from the user's template (Step 3) — `create_note.py`
-merges it with type defaults and explicit overrides. Always set (and never
-hardcode) `date` to today's date in `YYYY-MM-DD` format; always set `type` to
-the routed note type. If the template doesn't define `tags`, fall back to the
-type's default tag from `core/references/yaml-standards.md`.
+### Step 6: Wikilinks (use the helper)
 
-### Step 5: Fill Body Content
+Use `[[wikilinks]]` for related existing notes. Do **not** scan the entire vault — the bounded strategy lives in the bundled helper. The helper must list the target folder's filenames to populate link candidates, then scores them by shared tags / matching type / title-token overlap, and caps the result. After writing, pass `--suggest-links` to `create_note.py` (or call `scripts/suggest_links.py --note <path>` directly) to get scored, in-scope candidates and their reasons. Just pick from its output (≤ 5 high-confidence links, or skip).
 
-Write the actual content into the template sections. Be thorough but concise.
+### Step 7: Write the file (delegated)
 
-### Step 6: Add Wikilinks (Bounded Search)
+Prefer your agent's **native file-write tool** when available. If not (some CLI-only agents), call the bundled helper — never invent a one-off script:
 
-Use `[[wikilinks]]` to link related existing notes — but do **not** scan the entire vault. Follow this cheap-first bounded strategy:
+```bash
+python scripts/create_note.py <vault> --type <slug> --title "<Short Title>" \
+    --content-file <path-to-body.md> --apply
+```
 
-1. Use the Vault-local routing rules to identify likely topic folders
-2. Read the target folder's detected index and inspect its manual navigation (cost: 1 file read)
-3. **Always list the target folder's filenames** when the index uses a generated Folder Index or Dataview block, because generated members are not present in raw Markdown
-4. Pick **at most 1–3 target-folder candidates** and read only their first ~20 lines to confirm relevance
-5. Only if no high-confidence target-folder match exists, inspect the parent index's manual topic guidance and list filenames in **at most 1–2** high-relevance sibling folders
-6. Insert **at most 5 wikilinks** per note, only for high-confidence matches
+`--stdin` reads the body from standard input; omit `--apply` to preview. The script handles encoding, frontmatter, safe numeric suffix, and the static `INDEX.md` update.
 
-Stop when the total file-scan cap is reached. If nothing obvious turns up after the cheap passes, **skip wikilinks** — do not escalate to a full-text vault scan. An empty `related: []` is valid.
+### Step 8: Apply the detected index strategy
 
-The bundled helpers run this bounded strategy for you: `python scripts/suggest_links.py --note <path>` suggests targets for an existing note, and `create_note.py --suggest-links` prints suggestions right after writing a new note (both reuse the scope + scoring above). Prefer them over hand-scanning.
+`create_note.py` updates a static `INDEX.md` automatically when applicable; Folder Index and Dataview listings are never touched. Never append links to plugin-managed indexes. If this workflow created a new folder in Folder Index mode and its index is missing, write the minimal seed:
 
-### Step 7: Write the File
-
-Save to `{VAULT}/{FOLDER}/YYYY-MM-DD Short Title.md` with **UTF-8 encoding** (no BOM). If the filename already exists, add a numeric suffix (e.g. `-2`) or ask the user — **never overwrite**.
-
-**How to perform the write (tool choice)**:
-- Prefer your agent's **native file-write tool** when the environment provides one.
-- If the environment has **no native note-writing tool** (some CLI-only agents), do **not** invent a one-off Python/shell script to do the file I/O. Call the bundled helper instead:
-
-  ```bash
-  python scripts/create_note.py <vault> --type <type> --title "<Short Title>" \
-      --content-file <path-to-body.md> --apply
-  ```
-
-  `create_note.py` builds the frontmatter (with the type's required fields), picks the routed folder, writes with a safe numeric suffix, and updates a static `INDEX.md` when applicable — so encoding, frontmatter, and index rules stay consistent across agents. Pass `--stdin` instead of `--content-file` to read the body from standard input, or omit `--apply` to preview without writing.
-
-### Step 8: Apply the Detected Index Strategy
-
-Use the strategy detected before writing:
-
-1. **Folder Index mode**: do not edit an existing index. If this workflow created a new folder and its configured index is missing, create only the minimal `folder-index-content` file:
-
-   ````markdown
-   ---
-   type: folder-index
-   tags: [moc]
-   ---
-   ```folder-index-content
-   ```
-   ````
-
-2. **Dataview mode**: do not edit the index or its query.
-3. **Static mode**: append a link under the "Recent Notes" / "Recent Insights" section:
-
-   ```markdown
-   - [[YYYY-MM-DD Short Title|Short Title]] (YYYY-MM-DD)
-   ```
-
-If the folder has subfolders (e.g. `20-Learning/Python/`), detect the strategy independently for the subfolder and parent. Never append links to plugin-managed indexes.
+````markdown
+---
+type: folder-index
+tags: [moc]
+---
+```folder-index-content
+```
+````
 
 ### Step 9: Validate Result
 
-Re-read the written note and any index changed by this invocation before confirmation, commit, or push. Verify all of the following:
-
-- The final path, filename, UTF-8 encoding, and selected template are correct
-- All required template headings exist in the same order as the selected Vault template; additional user-defined sections are allowed
-- YAML parses and contains the required `date`, `type`, and non-empty `tags`
-- `type` is supported; tags use lowercase kebab-case and total no more than 5
-- No template placeholders such as `{{date}}` remain
-- Wikilinks stay within the cap and represent high-confidence relationships
-- Folder Index and Dataview listings were not manually extended
-- A newly created `folder-index` note contains exactly one `folder-index-content` block
-- In Folder Index mode, every configured index from the target folder up to the root exists, and native folder-named indexes are used when Graph overwrite is expected to provide the hierarchy
-
-If a reusable Vault auditor is available, run it in strict/read-only mode in addition to these target-file checks. Fix validation failures before continuing. Do not report success for an invalid note.
-
-The bundled `create_note.py` / `update_note.py` run this audit automatically after `--apply` (pass `--no-audit` to skip). Read its `AUDIT:` output — it lists any issues for the just-written note — instead of re-reading the file by hand. Fix reported issues before confirming the save.
+`create_note.py` and `update_note.py` run the per-note audit automatically after `--apply` (pass `--no-audit` to skip). Read the `AUDIT:` line and fix any reported issues before continuing. The audit covers: frontmatter validity, required template headings (must appear in the same order as the selected vault template; user-defined additional sections are allowed), broken wikilinks, unresolved placeholders, required web-clip fields, etc.
 
 ### Step 10: Confirm to User
 
