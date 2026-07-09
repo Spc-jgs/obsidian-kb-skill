@@ -188,6 +188,17 @@ Stop when the total file-scan cap is reached. If nothing obvious turns up after 
 
 Save to `{VAULT}/{FOLDER}/YYYY-MM-DD Short Title.md` with **UTF-8 encoding** (no BOM). If the filename already exists, add a numeric suffix (e.g. `-2`) or ask the user — **never overwrite**.
 
+**How to perform the write (tool choice)**:
+- Prefer your agent's **native file-write tool** when the environment provides one.
+- If the environment has **no native note-writing tool** (some CLI-only agents), do **not** invent a one-off Python/shell script to do the file I/O. Call the bundled helper instead:
+
+  ```bash
+  python scripts/create_note.py <vault> --type <type> --title "<Short Title>" \
+      --content-file <path-to-body.md> --apply
+  ```
+
+  `create_note.py` builds the frontmatter (with the type's required fields), picks the routed folder, writes with a safe numeric suffix, and updates a static `INDEX.md` when applicable — so encoding, frontmatter, and index rules stay consistent across agents. Pass `--stdin` instead of `--content-file` to read the body from standard input, or omit `--apply` to preview without writing.
+
 ### Step 8: Apply the Detected Index Strategy
 
 Use the strategy detected before writing:
@@ -416,6 +427,7 @@ If a task genuinely needs to exceed these caps (e.g. bulk import of 20 notes), *
 10. **Respect cost limits** — do not scan the entire vault for a single save
 11. **One index owner** — let Folder Index or Dataview own generated listings; update subfolder and parent indexes only in Static mode
 12. **Bounded capture** — Default to one target note per invocation. Multiple solutions inside one source can stay in one focused note. If the source contains multiple independently reusable topics, ask the user before creating multiple notes; without confirmation, create one aggregate note and suggest later extraction.
+13. **Use the provided write helper** — if your environment lacks a native file-write tool, call `scripts/create_note.py` instead of writing your own ad-hoc script to save the note.
 
 ## Error Handling
 

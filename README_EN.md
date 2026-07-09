@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.8.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.8.1** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -448,7 +448,7 @@ python -m pytest
 CI consumes the same lockfile and runs build checks and tests on Python 3.11 and
 3.14.
 
-After installing `.[dev]` (or any other install method), the three scripts are also
+After installing `.[dev]` (or any other install method), the four scripts are also
 available as console commands, equivalent to running the corresponding `scripts/*.py`
 directly:
 
@@ -456,6 +456,7 @@ directly:
 obsidian-audit-vault   /path/to/vault --strict
 obsidian-process-inbox /path/to/vault --apply
 obsidian-suggest-links /path/to/vault --note 30-Insights/some-note.md
+obsidian-create-note   /path/to/vault --type insight-note --title "Short Title" --content-file body.md --apply
 ```
 
 ### Audit an Existing Vault
@@ -492,6 +493,22 @@ python scripts/suggest_links.py /path/to/vault --note 30-Insights/some-note.md -
 ```
 
 Decide after human review whether to insert a link, so the vault is never changed automatically.
+
+### Creating a Note (when no native write tool exists)
+
+`create_note.py` is a **constraint-based note creator**: when the environment has no native file-write tool (some CLI-only agents), call it instead of writing your own throwaway Python/shell script to do the I/O. By default it only prints the path and content it would write (dry run); add `--apply` to actually persist. On a name collision it appends `-2` / `-3` automatically and **never overwrites**.
+
+```bash
+python scripts/create_note.py /path/to/vault \
+    --type insight-note --title "Short Title" \
+    --content-file body.md --apply
+```
+
+- `--type`: note type (matches the routing table); `--title` becomes the filename.
+- `--content-file`: path to the body `.md` (any frontmatter inside is merged, explicit values win); or use `--stdin` to read the body from standard input.
+- `--tags`: override the type default tags; `--date`: override the date (defaults to today); `--folder`: override the routed target folder.
+- After writing, it updates a static `INDEX.md` according to the detected index strategy (Folder Index / Dataview managed listings are left untouched).
+- This pairs with the Step 7 "tool choice" rule in `core/OBSIDIAN_KB.md`: agents prefer their native write tool, otherwise use this script rather than inventing one.
 
 ## Design Principles
 

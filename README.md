@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.8.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.8.1** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -444,12 +444,13 @@ python -m pytest
 
 CI 使用同一 lockfile，分别在 Python 3.11 和 3.14 上运行构建检查与测试。
 
-安装 `.[dev]`（或任意方式安装本项目）后，三个脚本还会以控制台命令形式提供，等价于直接运行对应的 `scripts/*.py`：
+安装 `.[dev]`（或任意方式安装本项目）后，四个脚本还会以控制台命令形式提供，等价于直接运行对应的 `scripts/*.py`：
 
 ```bash
 obsidian-audit-vault   /你的知识库路径 --strict
 obsidian-process-inbox /你的知识库路径 --apply
 obsidian-suggest-links /你的知识库路径 --note 30-Insights/某笔记.md
+obsidian-create-note   /你的知识库路径 --type insight-note --title "短标题" --content-file 正文.md --apply
 ```
 
 ### 审计现有知识库
@@ -486,6 +487,22 @@ python scripts/suggest_links.py /你的知识库路径 --note 30-Insights/某笔
 ```
 
 人审后自行决定是否插入，避免自动改动知识库。
+
+### 创建笔记（无原生写工具时）
+
+`create_note.py` 是**约束型笔记创建器**：当运行环境没有原生写文件工具（部分纯 CLI 智能体）时，调用它而非自己临时写一段 Python/Shell 脚本来做文件 I/O。默认只打印将要写入的路径与内容（dry-run），加 `--apply` 才真正落盘；遇到同名文件会自动加 `-2`/`-3` 后缀，**绝不覆盖**。
+
+```bash
+python scripts/create_note.py /你的知识库路径 \
+    --type insight-note --title "短标题" \
+    --content-file 正文.md --apply
+```
+
+- `--type`：笔记类型（与路由表一致）；`--title` 即文件名。
+- `--content-file`：正文 `.md` 路径（若里面已含 frontmatter，会被合并，显式值优先）；也可用 `--stdin` 从标准输入读取正文。
+- `--tags`：覆盖类型默认标签；`--date`：覆盖日期（默认今天）；`--folder`：覆盖路由到的目标文件夹。
+- 写入后会按当前索引策略更新静态 `INDEX.md`（Folder Index / Dataview 管理的列表不会被改动）。
+- 这与 `core/OBSIDIAN_KB.md` 的 Step 7「工具选择」约定配套：智能体优先用原生写工具，否则用本脚本，而不是临时造脚本。
 
 ## 设计原则
 

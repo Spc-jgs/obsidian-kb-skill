@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-07-09
+
+### Added
+
+- **Note creator helper (`create_note.py`)**: a constraint-based note creator for environments without a native file-write tool. It builds the type's required frontmatter, picks the routed folder, writes with a safe numeric suffix (never overwrites), and updates a static `INDEX.md` when applicable. Read-only by default (dry run) — pass `--apply` to write. Body comes from `--content-file` or `--stdin`; frontmatter already present in the body is merged with explicit CLI values winning. Installed as the `obsidian-create-note` console script.
+- **Step 7 "tool choice" rule** in `core/OBSIDIAN_KB.md`: agents prefer their native file-write tool; when none exists they must call `scripts/create_note.py` instead of inventing a one-off script. Important Rules gains rule 13 to the same effect.
+- **Session wrap-up trigger** in the Conversation Digest Workflow: the agent proactively produces (or offers) a digest when the user signals the end of a session ("结束", "收尾", "总结一下", "沉淀本次对话", ...) without requiring an exact command.
+
+### Fixed
+
+- **Auditor skips top-level hidden dirs too**: `_is_ignored` now checks every path segment (it previously skipped only nested hidden dirs), so a root-level hidden folder such as `.uploads` no longer triggers a false `missing-folder-index` finding.
+
+### Changed
+
+- **Version header corrected**: `core/OBSIDIAN_KB.md` stated a stale `1.7.0`; it now reads `1.8.1` to match the actual release line.
+
+### Documentation
+
+- README and README_EN document the new `create-note` command (console form and `scripts/create_note.py` usage), and the script count is updated to four.
+
 ## [1.8.0] - 2026-07-09
 
 ### Added
