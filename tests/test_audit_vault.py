@@ -271,3 +271,49 @@ def test_ignores_placeholders_in_templates(tmp_path):
     )
 
     assert "unresolved-template-placeholder" not in codes(tmp_path)
+
+
+def test_reports_invalid_related_entry(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Note.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        'tags: [learning]\nrelated: ["Just a title"]\n---\n# Note\n',
+        encoding="utf-8",
+    )
+
+    assert "invalid-related-entry" in codes(tmp_path)
+
+
+def test_reports_duplicate_related_entry(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "A.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# A\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "Note.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        'tags: [learning]\nrelated: ["[[A]]", "[[A|Alias]]"]\n---\n# Note\n',
+        encoding="utf-8",
+    )
+
+    assert "duplicate-related-entry" in codes(tmp_path)
+
+
+def test_accepts_valid_related(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    for name in ("Existing Note.md", "Other.md"):
+        (tmp_path / name).write_text(
+            '---\ndate: "2026-07-07"\ntype: learning-note\n'
+            "tags: [learning]\n---\n# X\n",
+            encoding="utf-8",
+        )
+    (tmp_path / "Note.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        'tags: [learning]\n'
+        'related: ["[[Existing Note|Display]]", "[[Other]]"]\n---\n# Note\n',
+        encoding="utf-8",
+    )
+
+    assert "invalid-related-entry" not in codes(tmp_path)
+    assert "duplicate-related-entry" not in codes(tmp_path)

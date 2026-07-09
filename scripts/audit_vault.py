@@ -240,6 +240,68 @@ def _audit_template_placeholders(
         )
 
 
+def _audit_related(
+    findings: list[Finding],
+    relative: Path,
+    metadata: dict[str, Any] | None,
+) -> None:
+    if relative.name in EXEMPT_NAMES:
+        return
+    if not metadata:
+        return
+    related = metadata.get("related")
+    if related is None:
+        return
+    if not isinstance(related, list):
+        _add(
+            findings,
+            "invalid-related",
+            relative,
+            "'related' must be a list of wikilink strings",
+        )
+        return
+    seen: dict[str, bool] = {}
+    for entry in related:
+        if not isinstance(entry, str) or not entry.strip():
+            _add(
+                findings,
+                "invalid-related-entry",
+                relative,
+                "related entry must be a non-empty wikilink string",
+            )
+            continue
+        stripped = entry.strip()
+        if not (stripped.startswith("[[") and stripped.endswith("]]")):
+            _add(
+                findings,
+                "invalid-related-entry",
+                relative,
+                f"related entry is not a wikilink: {entry}",
+            )
+            continue
+        target = (
+            stripped[2:-2].split("|", 1)[0].split("#", 1)[0].split("^", 1)[0].strip()
+        )
+        if not target:
+            _add(
+                findings,
+                "invalid-related-entry",
+                relative,
+                "related entry has an empty wikilink target",
+            )
+            continue
+        key = target.lower()
+        if key in seen:
+            _add(
+                findings,
+                "duplicate-related-entry",
+                relative,
+                f"duplicate related entry: {entry}",
+            )
+        else:
+            seen[key] = True
+
+
 def _candidate_paths(source: Path, target: str, vault: Path) -> Iterable[Path]:
     raw = Path(target)
     candidates = [vault / raw, source.parent / raw]
@@ -379,6 +441,7 @@ def audit_vault(vault: Path) -> list[Finding]:
         if yaml_error:
             _add(findings, "invalid-frontmatter", relative, yaml_error)
         _audit_metadata(findings, relative, text, metadata)
+        _audit_related(findings, relative, metadata)
         _audit_folder_index_content(findings, relative, text, metadata)
         if len(FENCE_RE.findall(text)) % 2:
             _add(findings, "unclosed-fence", relative, "odd number of fenced code block markers")
