@@ -51,11 +51,15 @@ REQUIRED_TYPES = {
     "folder-index",
     "moc",
 }
+# Folders whose contents are never real notes and must be skipped. Hidden
+# (dotfile) directories are skipped automatically by _is_ignored, so this set
+# only needs explicit entries for non-hidden tool/metadata folders.
 IGNORED_PARTS = {
     ".git",
     ".obsidian",
     ".obsidian-kb-backups",
     ".venv",
+    ".workbuddy",  # agent working memory / metadata
 }
 WIKILINK_RE = re.compile(r"!?\[\[([^\]]+)\]\]")
 FENCE_RE = re.compile(r"^\s*```", re.MULTILINE)
@@ -71,6 +75,12 @@ PLACEHOLDER_RE = re.compile(r"\{\{[^}]+\}\}")
 
 def _is_ignored(relative: Path) -> bool:
     if any(part in IGNORED_PARTS for part in relative.parts):
+        return True
+    # Hidden directories follow the dotfile convention and hold tool/agent
+    # metadata (e.g. .workbuddy, .claude, .cursor, .codebuddy) rather than notes.
+    # Skipping them avoids false positives on agent working memory and similar
+    # metadata folders that may coexist with a vault.
+    if any(part.startswith(".") for part in relative.parts[:-1]):
         return True
     return relative.parts[:2] == ("docs", "superpowers")
 

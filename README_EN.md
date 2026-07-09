@@ -468,6 +468,10 @@ python scripts/audit_vault.py /path/to/vault --strict
 
 Exit code `0` means clean, `1` means findings were reported, and `2` means the path is not an Obsidian vault. The auditor never modifies files.
 
+> **Audit scope and tunables**
+> - The auditor automatically skips **hidden directories** (names starting with `.`) and known tool/metadata folders (`.git`, `.obsidian`, `.venv`, `.workbuddy`, ...). Files inside them are never treated as notes, so agent working memory under `.workbuddy/`, `.claude/`, `.cursor/`, etc. will not be falsely reported.
+> - `similar-title` (similar titles) and `orphan-note` (orphan notes) are **advisory** checks only — they never force or modify anything. `similar-title` uses a `difflib` similarity threshold of **0.85** (in `scripts/audit_vault.py`, `_audit_titles`: `ratio >= 0.85`). If your vault has many titles that differ only by a date prefix and the noise feels too loud, raise the threshold to `0.90` or similar to quiet it down — at the cost of possibly missing near-duplicate titles that are worth merging.
+
 ### Filing the Inbox
 
 `process_inbox.py` files quick-capture / pending notes from `00-Inbox/` into the inferred target folder, filling in missing `date` / `type` / `tags`. By default it only prints the plan and changes nothing:

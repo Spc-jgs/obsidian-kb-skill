@@ -79,6 +79,30 @@ def test_accepts_folder_index_without_date(tmp_path):
     assert codes(tmp_path) == set()
 
 
+def test_ignores_hidden_agent_metadata_dirs(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    # Agent working memory without frontmatter must not be flagged.
+    (tmp_path / ".workbuddy" / "memory").mkdir(parents=True)
+    (tmp_path / ".workbuddy" / "memory" / "2026-07-09.md").write_text(
+        "# Memory\nNo frontmatter here.\n", encoding="utf-8"
+    )
+    # Any other hidden tool-metadata dir is skipped too (general rule).
+    (tmp_path / ".claude" / "notes").mkdir(parents=True)
+    (tmp_path / ".claude" / "notes" / "foo.md").write_text(
+        "No frontmatter either.\n", encoding="utf-8"
+    )
+    # A real note at the vault root is still audited.
+    (tmp_path / "Real.md").write_text("# Real\n", encoding="utf-8")
+
+    findings = audit_vault(tmp_path)
+    assert not any(".workbuddy" in f.path for f in findings)
+    assert not any(".claude" in f.path for f in findings)
+    # Sanity: a real note without frontmatter is still caught.
+    assert any(
+        f.code == "missing-frontmatter" and f.path == "Real.md" for f in findings
+    )
+
+
 def test_reports_missing_folder_index_content_block(tmp_path):
     (tmp_path / ".obsidian").mkdir()
     (tmp_path / "INDEX.md").write_text(

@@ -462,6 +462,10 @@ python scripts/audit_vault.py /你的知识库路径 --strict
 
 无问题时退出码为 `0`；发现问题时为 `1`；路径不是 Obsidian Vault 时为 `2`。审计器不会修改任何文件。
 
+> **审计范围与可调项**
+> - 审计器会自动跳过**隐藏目录**（以 `.` 开头的文件夹）和已知工具元数据目录（`.git`、`.obsidian`、`.venv`、`.workbuddy` 等），这些目录里的文件不会被当作笔记检查。因此放在 `.workbuddy/` 下的 agent 工作记忆、`.claude/`、`.cursor/` 等 AI 工具元数据不会误报。
+> - `similar-title`（相似标题）与 `orphan-note`（孤立笔记）等属于**建议性**检查，不强制、不改文件。`similar-title` 用 `difflib` 相似度阈值 **0.85** 判定（源码位于 `scripts/audit_vault.py` 的 `_audit_titles`：`ratio >= 0.85`）。若你的 vault 里大量标题只是日期前缀不同、觉得噪声太吵，可把阈值上调到 `0.90` 等来降噪——代价是可能漏掉真正该合并的近重复标题。
+
 ### 归档 Inbox 收件箱
 
 `process_inbox.py` 把 `00-Inbox/` 里的速记/待处理笔记归类、填入缺失的 `date`/`type`/`tags` 并移动到推断出的目标文件夹。默认只输出计划，不改动任何文件：

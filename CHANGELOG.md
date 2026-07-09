@@ -22,6 +22,14 @@ All notable changes to this project will be documented in this file.
 - **CI matrix**: GitHub Actions now verifies the locked environment on Python 3.11 and 3.14.
 - **Packaging**: `scripts/` is now an installable package (`packages = ["scripts"]`), reversing the deliberate "disable discovery" choice from 1.6.0 so the console-script entry points resolve correctly.
 
+### Fixed
+
+- **Auditor no longer flags agent/tool metadata**: `_is_ignored` now skips any hidden directory (dotfile convention), so `audit_vault` won't falsely report agent working memory or AI-tool metadata folders (`.workbuddy`, `.claude`, `.cursor`, `.codebuddy`, ...) as missing frontmatter. `.workbuddy` is also listed explicitly in `IGNORED_PARTS` for visibility.
+
+### Documentation
+
+- README and README_EN document the auditor's skipped directories and the advisory `similar-title` threshold (0.85 in `scripts/audit_vault.py`), so the tunable knob isn't lost.
+
 ## [1.7.0] - 2026-07-08
 
 ### Added
