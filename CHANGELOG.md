@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - **Version header corrected**: `core/OBSIDIAN_KB.md` stated a stale `1.7.0`; it now reads `1.8.1` to match the actual release line.
+- **Conversation Digest redesigned for agent reuse**: the digest is now decision-dense, link-rich, and short rather than a narrative essay. Frontmatter carries a structured `decisions` list (primary field a future agent scans) plus optional `open`; the body is capped at ~250 words (TL;DR + Decisions + Open bullets) with no background/revised-ideas prose. Depth lives in linked durable notes, not the digest. The auto session-wrap-up trigger remains removed (context design still pending).
 
 ### Documentation
 
