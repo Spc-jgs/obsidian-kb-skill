@@ -115,6 +115,7 @@ Detect the vault's index strategy before creating or updating a note:
 | Article, learning, book, course, tutorial | `20-Learning/` | Learning Note |
 | Web page, URL, blog post, clip | `20-Learning/` | Web Clip |
 | Analysis, insight, idea, takeaway | `30-Insights/` | Insight Note |
+| Summarize conversation, chat digest, 沉淀对话 | `30-Insights/` | Digest Note |
 | Project, milestone, sprint | `40-Projects/` | Project Note |
 | Person, contact, team member | `50-People/` | Person Note |
 | Unsure / quick capture | `00-Inbox/` | None |
@@ -158,6 +159,7 @@ Available templates:
 - `Templates/Web Clip.md`
 - `Templates/Insight Note.md`
 - `Templates/Person Note.md`
+- `Templates/Digest Note.md`
 
 ### Step 4: Fill YAML Frontmatter
 
@@ -220,6 +222,29 @@ Report back:
 - Where saved (folder + filename, as an absolute path or `file://` link)
 - Brief summary of captured content
 - Suggested follow-up actions (e.g. linking to other notes, processing Inbox items)
+
+## Conversation Digest Workflow
+
+Use this to archive a long conversation as durable, linkable knowledge (triggers: "沉淀这段对话", "summarize this chat", "把对话存成笔记"). A digest is a curated summary — **not** a transcript.
+
+### When to use
+- The conversation produced decisions, trade-offs, or action items worth keeping.
+- The user explicitly asks to save or summarize the discussion.
+
+### Routing
+- Conversation about a specific active project → `40-Projects/` (file under the project folder, or a Digest Note there).
+- Otherwise → `30-Insights/` with the Digest Note template.
+- One digest per coherent topic. Split only when topics are independent; without confirmation, write one aggregate digest and suggest later extraction.
+
+### Steps
+1. Resolve & validate the vault (same as Note Creation).
+2. Set `type: conversation-digest` and use the Digest Note template.
+3. Fill frontmatter: `date` (today), `type: conversation-digest`, `tags`, `source` (the counterpart or agent, e.g. "WorkBuddy"), `related: []`.
+4. Distill into the template sections — background, confirmed conclusions, rejected/revised ideas, follow-up tasks, related projects, open questions. Capture decisions, not raw chatter.
+5. Add wikilinks with the bounded-search rules from Note Creation Step 6.
+6. Write the file, apply the detected index strategy, and validate (same checks as Note Creation Step 9).
+
+> Rule of thumb: if a future agent (or you) could not act on it, it does not belong in the digest.
 
 ## Update Existing Note Workflow
 
@@ -321,6 +346,7 @@ Additional fields by type:
 | `project-note` | `status: active`, `updated: "YYYY-MM-DD"`, `related: []` |
 | `insight-note` | `source: ""`, `related: []` |
 | `person-note` | `role: ""`, `organization: ""`, `updated: "YYYY-MM-DD"`, `related: []` |
+| `conversation-digest` | `source: ""`, `related: []` |
 
 For a `web-clip`, `source` stores the canonical source URL only. Keep the article title in the note heading and source-information section; use `author` and `published` for their respective values. For non-web notes, `source` may be a concise source description when no canonical URL exists.
 

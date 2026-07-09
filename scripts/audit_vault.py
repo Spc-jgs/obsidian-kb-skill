@@ -44,6 +44,7 @@ REQUIRED_TYPES = {
     "learning-note",
     "web-clip",
     "insight-note",
+    "conversation-digest",
     "project-note",
     "person-note",
     "archive-note",

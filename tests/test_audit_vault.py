@@ -573,3 +573,17 @@ def test_ignores_unlinked_daily_note(tmp_path):
     )
 
     assert "orphan-note" not in codes(tmp_path)
+
+
+def test_accepts_conversation_digest_type(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Digest.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: conversation-digest\n'
+        'tags: [insight]\nsource: "WorkBuddy"\nrelated: []\n---\n'
+        "# Digest\n\n## Confirmed Conclusions\n\nKey decision made.\n",
+        encoding="utf-8",
+    )
+
+    codes_found = codes(tmp_path)
+    assert "invalid-type" not in codes_found
+    assert "missing-type" not in codes_found

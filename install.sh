@@ -263,8 +263,8 @@ for folder in "${FOLDERS[@]}"; do
 done
 
 # Copy templates if not exists
-TEMPLATE_FILES=("daily-note.md" "meeting-note.md" "learning-note.md" "project-note.md" "web-clip.md" "insight-note.md" "person-note.md")
-TEMPLATE_NAMES=("Daily Note.md" "Meeting Note.md" "Learning Note.md" "Project Note.md" "Web Clip.md" "Insight Note.md" "Person Note.md")
+TEMPLATE_FILES=("daily-note.md" "meeting-note.md" "learning-note.md" "project-note.md" "web-clip.md" "insight-note.md" "person-note.md" "digest-note.md")
+TEMPLATE_NAMES=("Daily Note.md" "Meeting Note.md" "Learning Note.md" "Project Note.md" "Web Clip.md" "Insight Note.md" "Person Note.md" "Digest Note.md")
 
 if [ "$FORCE_UPGRADE" = true ]; then
   echo "-> Upgrade mode: will overwrite existing templates"

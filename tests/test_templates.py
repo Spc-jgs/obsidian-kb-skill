@@ -11,6 +11,7 @@ TEMPLATE_NAMES = {
     "web-clip.md",
     "insight-note.md",
     "person-note.md",
+    "digest-note.md",
 }
 
 
