@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.7.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.8.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -192,7 +192,7 @@ chmod +x install.sh
 That's it. The installer will:
 
 - Create the vault folder structure (if it doesn't exist)
-- Copy 7 note templates into your vault
+- Copy 8 note templates into your vault
 - Create native folder-named indexes from Folder Index settings, or `INDEX.md` fallbacks without the plugin
 - Write your vault path to `~/.obsidian-kb-config` (runtime config)
 - Install the skill file to your chosen AI platform's convention location
@@ -254,7 +254,7 @@ YourVault/
 ├── 40-Projects/       Active project context and progress logs
 ├── 50-People/         Contacts, team members, interaction logs
 ├── 90-Archive/        Completed or inactive items
-├── Templates/         7 pre-built note templates
+├── Templates/         8 pre-built note templates
 ├── Attachments/       Images and file attachments
 └── INDEX.md           Root navigation hub (non-root indexes use folder names)
 ```
@@ -270,6 +270,7 @@ YourVault/
 | **Insight Note** | Analysis, ideas, AI conversations | One-line insight, context, implications |
 | **Project Note** | Active projects | Goal, timeline, progress log, risks |
 | **Person Note** | Contacts, team members | Role, interaction log, follow-up items |
+| **Conversation Digest** | Distill AI chat summaries | Background, confirmed conclusions, revised ideas, follow-up tasks |
 
 All templates use YAML frontmatter for structured metadata, making notes easy to filter, search, and query with Obsidian plugins like Dataview.
 
@@ -379,9 +380,11 @@ obsidian-kb-skill/
 ├── build.py                    Generator (core + header → 5 artifacts)
 ├── core/
 │   ├── OBSIDIAN_KB.md          Single source of truth — agent-agnostic instructions
-│   └── templates/              7 default Chinese templates + English templates in en/
+│   └── templates/              8 default Chinese templates (incl. conversation digest) + English templates in en/
 ├── scripts/
-│   └── audit_vault.py          Read-only Vault auditor
+│   ├── audit_vault.py          Read-only Vault auditor
+│   ├── process_inbox.py        Inbox filing (--plan preview / --apply)
+│   └── suggest_links.py        Link suggestions (read-only, scored by tags/title/type)
 ├── tests/                      Build, template, and auditor tests
 ├── skills/
 │   └── obsidian-knowledge-base/
@@ -445,6 +448,16 @@ python -m pytest
 CI consumes the same lockfile and runs build checks and tests on Python 3.11 and
 3.14.
 
+After installing `.[dev]` (or any other install method), the three scripts are also
+available as console commands, equivalent to running the corresponding `scripts/*.py`
+directly:
+
+```bash
+obsidian-audit-vault   /path/to/vault --strict
+obsidian-process-inbox /path/to/vault --apply
+obsidian-suggest-links /path/to/vault --note 30-Insights/some-note.md
+```
+
 ### Audit an Existing Vault
 
 Use the read-only auditor to check required frontmatter, note types, unclosed code fences, broken or ambiguous wikilinks, and duplicate folder indexes:
@@ -454,6 +467,27 @@ python scripts/audit_vault.py /path/to/vault --strict
 ```
 
 Exit code `0` means clean, `1` means findings were reported, and `2` means the path is not an Obsidian vault. The auditor never modifies files.
+
+### Filing the Inbox
+
+`process_inbox.py` files quick-capture / pending notes from `00-Inbox/` into the inferred target folder, filling in missing `date` / `type` / `tags`. By default it only prints the plan and changes nothing:
+
+```bash
+python scripts/process_inbox.py /path/to/vault --plan    # read-only preview
+python scripts/process_inbox.py /path/to/vault --apply   # file notes (never overwrites existing files)
+```
+
+The target folder is inferred from the note's `type` or body keywords (matching the routing table in `core/OBSIDIAN_KB.md`); when the Folder Index plugin is disabled, a link is appended to the target folder's static `INDEX.md`.
+
+### Suggesting Links
+
+`suggest_links.py` scores candidate wikilink targets for a single note within a bounded scope (the note's folder plus up to two sibling folders) by shared tags, matching type, and title-token overlap. It only prints candidates and reasons, and never writes to files:
+
+```bash
+python scripts/suggest_links.py /path/to/vault --note 30-Insights/some-note.md --top-n 10
+```
+
+Decide after human review whether to insert a link, so the vault is never changed automatically.
 
 ## Design Principles
 

@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.7.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.8.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -191,7 +191,7 @@ chmod +x install.sh
 安装脚本会自动完成以下工作：
 
 - 创建知识库文件夹结构（如果不存在）
-- 复制 7 个笔记模板到你的知识库
+- 复制 8 个笔记模板到你的知识库
 - 根据 Folder Index 配置创建目录同名索引，未使用插件时创建 `INDEX.md` 导航文件
 - 将知识库路径写入 `~/.obsidian-kb-config`（运行时配置）
 - 将 Skill 文件安装到对应 AI 平台的约定位置
@@ -253,7 +253,7 @@ YourVault/
 ├── 40-Projects/       项目 —— 活跃项目的上下文和进展日志
 ├── 50-People/         人物 —— 联系人、团队成员、互动记录
 ├── 90-Archive/        归档 —— 已完成或不活跃的内容
-├── Templates/         7 个预置笔记模板
+├── Templates/         8 个预置笔记模板
 ├── Attachments/       图片和文件附件
 └── INDEX.md           根目录主导航页（非根目录使用目录同名索引）
 ```
@@ -269,6 +269,7 @@ YourVault/
 | **Insight Note** | 分析、想法、AI 对话 | 一句话洞察、上下文、影响 |
 | **Project Note** | 活跃项目 | 目标、时间线、进展日志、风险 |
 | **Person Note** | 联系人、团队成员 | 角色、互动日志、跟进事项 |
+| **对话摘要** | 沉淀 AI 对话摘要 | 背景、已确认结论、推翻或修正的想法、后续任务 |
 
 所有模板使用 YAML frontmatter 作为结构化元数据，便于用 Dataview 等 Obsidian 插件进行过滤、搜索和查询。
 
