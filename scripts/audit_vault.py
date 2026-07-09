@@ -481,6 +481,13 @@ def _audit_folder_index_graph(
             )
 
 
+def _normalize_tag_key(tag: str) -> str:
+    key = tag.lower().replace("_", "-")
+    if len(key) > 1 and key.endswith("s"):
+        key = key[:-1]
+    return key
+
+
 def audit_vault(vault: Path) -> list[Finding]:
     """Return deterministic findings sorted by path, code, and message."""
     vault = vault.resolve()
@@ -493,6 +500,7 @@ def audit_vault(vault: Path) -> list[Finding]:
         by_name[path.name].append(path)
         by_stem[path.stem].append(path)
 
+    tag_index: dict[str, set[str]] = {}
     markdown = _markdown_files(vault)
     for path in markdown:
         relative = path.relative_to(vault)
@@ -501,6 +509,16 @@ def audit_vault(vault: Path) -> list[Finding]:
         if yaml_error:
             _add(findings, "invalid-frontmatter", relative, yaml_error)
         _audit_metadata(findings, relative, text, metadata)
+        if metadata and relative.name not in EXEMPT_NAMES:
+            raw_tags = metadata.get("tags")
+            tag_values = (
+                raw_tags
+                if isinstance(raw_tags, list)
+                else ([raw_tags] if isinstance(raw_tags, str) else [])
+            )
+            for tag in tag_values:
+                if isinstance(tag, str) and tag.strip():
+                    tag_index.setdefault(_normalize_tag_key(tag), set()).add(tag.strip())
         _audit_related(findings, relative, metadata)
         _audit_web_clip(findings, relative, metadata)
         _audit_empty_template(findings, relative, text, metadata)
@@ -535,6 +553,15 @@ def audit_vault(vault: Path) -> list[Finding]:
                 )
 
     _audit_folder_index_graph(findings, vault, folder_index_config)
+
+    for key, originals in tag_index.items():
+        if len(originals) >= 2:
+            _add(
+                findings,
+                "near-duplicate-tags",
+                Path("."),
+                f"near-duplicate tags: {', '.join(sorted(originals))} (consider merging)",
+            )
 
     return sorted(findings, key=lambda item: (item.path, item.code, item.message))
 

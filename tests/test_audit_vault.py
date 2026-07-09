@@ -392,3 +392,38 @@ def test_ignores_note_without_headings(tmp_path):
     )
 
     assert "empty-template-note" not in codes(tmp_path)
+
+
+def test_reports_near_duplicate_tags(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    for i, tag in enumerate(("ai-agent", "ai-agents", "ai_agent")):
+        (tmp_path / f"Note{i}.md").write_text(
+            f'---\ndate: "2026-07-0{i + 1}"\ntype: learning-note\n'
+            f"tags: [{tag}]\n---\n# N\n",
+            encoding="utf-8",
+        )
+
+    assert "near-duplicate-tags" in codes(tmp_path)
+
+
+def test_ignores_distinct_tags(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    for i, tag in enumerate(("python", "obsidian", "java")):
+        (tmp_path / f"Note{i}.md").write_text(
+            f'---\ndate: "2026-07-0{i + 1}"\ntype: learning-note\n'
+            f"tags: [{tag}]\n---\n# N\n",
+            encoding="utf-8",
+        )
+
+    assert "near-duplicate-tags" not in codes(tmp_path)
+
+
+def test_ignores_lone_plural(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Note.md").write_text(
+        '---\ndate: "2026-07-01"\ntype: learning-note\n'
+        "tags: [ai-agents]\n---\n# N\n",
+        encoding="utf-8",
+    )
+
+    assert "near-duplicate-tags" not in codes(tmp_path)
