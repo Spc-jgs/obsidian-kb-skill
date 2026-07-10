@@ -14,20 +14,20 @@ related: []
 
 ## Confirmed Conclusions
 
-- 
+-
 
 ## Rejected or Revised Ideas
 
-- 
+-
 
 ## Follow-up Tasks
 
-- [ ] 
+- [ ]
 
 ## Related Projects
 
-- 
+-
 
 ## Open Questions
 
-- 
+-
