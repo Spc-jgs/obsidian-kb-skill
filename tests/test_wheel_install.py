@@ -35,13 +35,16 @@ def _build_wheel(tmp_path: Path) -> Path:
     dist = tmp_path / "dist"
     # Run from a neutral dir: a local `build.py` in ROOT would shadow the
     # `build` module when cwd == ROOT.
-    subprocess.run(
+    completed = subprocess.run(
         [build_python, "-m", "build", "--wheel", "--outdir", str(dist), str(ROOT)],
         cwd=str(tmp_path),
         check=True,
         capture_output=True,
         text=True,
     )
+    build_output = completed.stdout + completed.stderr
+    assert "SetuptoolsDeprecationWarning" not in build_output
+    assert "Package would be ignored" not in build_output
     wheels = sorted(dist.glob("*.whl"))
     assert wheels, "wheel was not produced"
     return wheels[0]

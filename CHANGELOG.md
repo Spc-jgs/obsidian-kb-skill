@@ -31,6 +31,7 @@ All notable changes to this project will be documented in this file.
 - Corrected the `detect_index.py` shebang and removed documentation commands that referenced the deleted top-level `scripts/` package.
 - Template-driven note creation now replaces the template's first H1 with the requested note title; different filenames no longer retain the same placeholder heading and trigger false `duplicate-title` findings.
 - The gatekeeper now states that `update-note` is Task-Memory-only; ordinary project/person/daily edits follow the generic update reference with native file tools instead of being sent to an incompatible CLI.
+- Wheel metadata now uses an SPDX license string and explicit namespace-package discovery, eliminating setuptools deprecation and package-data ambiguity warnings.
 
 ## [1.10.0] - 2026-07-09
 
