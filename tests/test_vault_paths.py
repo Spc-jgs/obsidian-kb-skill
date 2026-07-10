@@ -270,12 +270,12 @@ def test_windows_path_parse_shape():
     assert p.parts[-2:] == ("30-Insights", "New.md")
 
 
-def test_nt_branch_rejects_foreign(monkeypatch):
+def test_nt_branch_defers_native_absolute_paths_to_containment(monkeypatch):
     # _is_foreign_path's Windows branch, tested in isolation (no OS-bound Path
     # is constructed, so this is safe on a POSIX host).
     monkeypatch.setattr(os, "name", "nt")
-    assert _is_foreign_path("Z:\\Documents\\x.md")
-    assert _is_foreign_path("\\\\server\\share\\x.md")
+    assert not _is_foreign_path("Z:\\Documents\\x.md")
+    assert not _is_foreign_path("\\\\server\\share\\x.md")
     assert not _is_foreign_path("30-Insights\\New.md")
 
 

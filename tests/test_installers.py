@@ -16,6 +16,13 @@ from obsidian_kb_skill.scripts.audit_vault import audit_vault
 ROOT = Path(__file__).resolve().parent.parent
 
 
+@pytest.fixture(autouse=True)
+def _skip_bash_installer_tests_on_windows(request):
+    """Bash lifecycle tests use POSIX path semantics and run in Linux CI."""
+    if os.name == "nt" and request.node.name.startswith("test_bash_"):
+        pytest.skip("Bash installer behavior is covered by the Linux jobs")
+
+
 def run_bash_installer(
     tmp_path: Path,
     settings: dict | None = None,

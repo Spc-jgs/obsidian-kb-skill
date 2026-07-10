@@ -15,6 +15,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def _venv_scripts(venv: Path) -> Path:
+    return venv / ("Scripts" if sys.platform == "win32" else "bin")
+
+
+def test_venv_scripts_uses_windows_layout(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert _venv_scripts(tmp_path / "venv") == tmp_path / "venv" / "Scripts"
+
+
 def _need(*bins: str) -> None:
     for b in bins:
         if not (ROOT / b).exists() and b not in {"python", "pip"}:
@@ -104,14 +113,15 @@ def test_installed_cli_works_without_repo(tmp_path):
         capture_output=True,
         text=True,
     )
-    pip = venv / "bin" / "pip"
+    scripts = _venv_scripts(venv)
+    pip = scripts / "pip"
     subprocess.run(
         [str(pip), "install", str(wheel)],
         check=True,
         capture_output=True,
         text=True,
     )
-    cli = venv / "bin" / "obsidian-scaffold-templates"
+    cli = scripts / "obsidian-scaffold-templates"
 
     # Work from a directory with no knowledge of the source repo.
     work = tmp_path / "away"
@@ -138,7 +148,7 @@ def test_installed_cli_works_without_repo(tmp_path):
     assert (vault / "Templates" / "Daily Note.md").is_file()
 
     # create_note must also resolve resources from the wheel (no --skill-root).
-    create = venv / "bin" / "obsidian-create-note"
+    create = scripts / "obsidian-create-note"
     res = subprocess.run(
         [
             str(create), str(vault), "--type", "insight-note",

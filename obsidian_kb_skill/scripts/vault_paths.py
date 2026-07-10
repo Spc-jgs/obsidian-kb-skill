@@ -25,7 +25,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from pathlib import Path, PureWindowsPath
+from pathlib import Path
 from typing import Optional, Union
 
 
@@ -56,23 +56,18 @@ def _is_foreign_path(user_path: Union[str, Path]) -> bool:
 
     On a real Windows host this pre-filter is a no-op: native drive/UNC
     containment is enforced later by ``resolve()`` + ``relative_to()`` (which
-    correctly allow a same-drive in-Vault absolute path). Keeping the filter
-    POSIX-only also avoids false-rejecting legitimate same-drive Windows paths.
+    correctly allow a same-volume in-Vault absolute path and reject a different
+    drive or share). Keeping the filter POSIX-only avoids false-rejecting
+    legitimate native absolute paths.
 
     Pure parsing only — never instantiates an OS-bound ``WindowsPath``.
     """
     text = str(user_path)
     if os.name == "nt":
-        # On Windows, let the resolver's resolve()+relative_to() decide
-        # containment (it handles same-drive paths correctly). Only UNC is an
-        # unconditional escape; PureWindowsPath parses it without a Windows host.
-        if text.startswith("\\\\"):
-            return True
-        try:
-            pw = PureWindowsPath(text)
-        except (ValueError, NotImplementedError):
-            return False
-        return bool(pw.drive) and pw.is_absolute()
+        # A drive/UNC path is not inherently foreign on Windows: the Vault may
+        # live on that same drive or share. Native pathlib containment below is
+        # the authority and safely rejects genuinely different volumes.
+        return False
     # POSIX / other hosts: a drive letter or UNC string is foreign by nature.
     if text.startswith("\\\\"):
         return True
