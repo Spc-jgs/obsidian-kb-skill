@@ -205,6 +205,21 @@ def prune_backups(
             )
 
     protected_resolved = _protected_path(root, protected)
+    if protected is not None and (
+        protected_resolved is None
+        or all(candidate.path != protected_resolved for candidate in candidates)
+    ):
+        warnings.append(
+            "protected backup could not be verified in the backup scan; "
+            "backup deletion disabled"
+        )
+        return CleanupResult(
+            policy.keep_per_note,
+            len(candidates),
+            0,
+            tuple(warnings),
+        )
+
     groups: dict[Path, list[_Candidate]] = defaultdict(list)
     for candidate in candidates:
         groups[candidate.relative_note].append(candidate)

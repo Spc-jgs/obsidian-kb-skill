@@ -126,6 +126,30 @@ def test_keep_one_protects_current_and_prunes_all_note_groups(tmp_path):
     assert result.deleted == 2
 
 
+@pytest.mark.parametrize("protected_kind", ["missing", "outside", "wrong-file"])
+def test_unverifiable_or_unmatched_protected_backup_disables_all_deletion(
+    tmp_path, protected_kind
+):
+    vault = make_vault(tmp_path)
+    first = backup(vault, "2026-07-10-100000", "Tasks/a/TASK.md", "one")
+    second = backup(vault, "2026-07-10-100001", "Tasks/a/TASK.md", "two")
+    if protected_kind == "missing":
+        protected = vault / ".obsidian-kb-backups/missing/Tasks/a/TASK.md"
+    elif protected_kind == "outside":
+        protected = tmp_path / "outside.md"
+        protected.write_text("outside", encoding="utf-8")
+    else:
+        protected = vault / "unrelated.md"
+        protected.write_text("unrelated", encoding="utf-8")
+
+    result = prune_backups(vault, BackupPolicy(1, True), protected=protected)
+
+    assert first.is_file() and second.is_file()
+    assert result.scanned == 2
+    assert result.deleted == 0
+    assert result.warnings
+
+
 @pytest.mark.parametrize("keep", [2, 3])
 def test_configured_retention_is_per_note(tmp_path, keep):
     vault = make_vault(tmp_path)
