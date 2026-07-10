@@ -1,4 +1,4 @@
-#!/usr/env python3
+#!/usr/bin/env python3
 """Detect a vault folder's index strategy and print it as JSON.
 
 Single entry point for index-strategy detection so the agent never has to read

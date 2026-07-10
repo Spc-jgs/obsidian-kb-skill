@@ -15,6 +15,7 @@ vault template wins.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -57,44 +58,90 @@ def main(argv: list[str] | None = None) -> int:
         help="Explicit skill root containing templates/ and references/ (advanced). "
              "If given but invalid, the command fails instead of falling back.",
     )
+    p.add_argument(
+        "--json", action="store_true",
+        help="Emit one machine-readable JSON result instead of text",
+    )
     args = p.parse_args(argv)
 
     try:
         vault = validate_vault_root(args.vault)
     except InvalidVaultRootError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        if args.json:
+            print(json.dumps({"schema_version": "1.0", "ok": False,
+                              "operation": "scaffold-templates",
+                              "error": str(exc)}, ensure_ascii=False))
+        else:
+            print(f"error: {exc}", file=sys.stderr)
         return 2
     if not (vault / ".obsidian").is_dir():
-        print(f"error: not an Obsidian vault: {vault}", file=sys.stderr)
+        if args.json:
+            print(json.dumps({"schema_version": "1.0", "ok": False,
+                              "operation": "scaffold-templates",
+                              "error": f"not an Obsidian vault: {vault}"},
+                             ensure_ascii=False))
+        else:
+            print(f"error: not an Obsidian vault: {vault}", file=sys.stderr)
         return 2
 
     try:
         src_dir = template_dir(skill_root=args.skill_root)
     except ResourceError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        if args.json:
+            print(json.dumps({"schema_version": "1.0", "ok": False,
+                              "operation": "scaffold-templates",
+                              "error": str(exc)}, ensure_ascii=False))
+        else:
+            print(f"error: {exc}", file=sys.stderr)
         return 3
 
     templates_dir = vault / "Templates"
     templates_dir.mkdir(parents=True, exist_ok=True)
-    wrote = 0
+    written: list[str] = []
+    skipped: list[str] = []
+    missing: list[str] = []
+    planned: list[str] = []
     for type_name, vault_fname, src_fname in TEMPLATE_MAP:
         src = src_dir / src_fname
         dest = templates_dir / vault_fname
         if not src.is_file():
-            print(f"missing: shipped {src_fname} (skip)")
+            missing.append(src_fname)
+            if not args.json:
+                print(f"missing: shipped {src_fname} (skip)")
             continue
         if dest.exists() and not args.force:
-            print(f"exists : {vault_fname} (skip; user template wins at runtime)")
+            skipped.append(vault_fname)
+            if not args.json:
+                print(f"exists : {vault_fname} (skip; user template wins at runtime)")
             continue
         if not args.apply:
-            print(f"would  : {vault_fname}")
+            planned.append(vault_fname)
+            if not args.json:
+                print(f"would  : {vault_fname}")
             continue
         dest.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-        wrote += 1
-        print(f"wrote  : {vault_fname}")
+        written.append(vault_fname)
+        if not args.json:
+            print(f"wrote  : {vault_fname}")
+
+    result = {
+        "schema_version": "1.0",
+        "ok": not missing,
+        "operation": "scaffold-templates",
+        "apply": args.apply,
+        "force": args.force,
+        "written": written,
+        "skipped": skipped,
+        "missing": missing,
+        "planned": planned,
+        "templates_dir": str(templates_dir),
+    }
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0 if not missing else 3
 
     if args.apply:
-        print(f"{wrote} template(s) written to {templates_dir}")
+        print(f"{len(written)} template(s) written to {templates_dir}")
         print("Edit them inside Obsidian to customize — this script will not overwrite edits.")
     else:
         print("(dry run) pass --apply to write templates.")

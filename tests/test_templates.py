@@ -60,3 +60,21 @@ def test_index_rules_have_single_owner():
     assert "Folder Index mode" in skill
     assert "Never append links to plugin-managed indexes" in skill
     assert "update both the subfolder INDEX and the parent folder INDEX" not in skill
+
+
+def test_all_cli_helpers_use_portable_python_shebang():
+    helpers = (
+        "audit_vault.py",
+        "process_inbox.py",
+        "suggest_links.py",
+        "create_note.py",
+        "update_note.py",
+        "vault_info.py",
+        "detect_index.py",
+        "scaffold_templates.py",
+    )
+    scripts = ROOT / "obsidian_kb_skill" / "scripts"
+
+    for name in helpers:
+        first_line = (scripts / name).read_text(encoding="utf-8").splitlines()[0]
+        assert first_line == "#!/usr/bin/env python3", name

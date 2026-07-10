@@ -178,3 +178,21 @@ def test_update_note_apply_json(tmp_path):
     ])
     assert out["applied"] is True
     assert out["action"] == "init"
+
+
+# ---- scaffold_templates ------------------------------------------------------
+
+def test_scaffold_templates_apply_json(tmp_path):
+    vault = _make_vault(tmp_path)
+    out = _run([
+        "-m", "obsidian_kb_skill.scripts.scaffold_templates", str(vault),
+        "--apply", "--json",
+    ])
+
+    assert out["schema_version"] == "1.0"
+    assert out["operation"] == "scaffold-templates"
+    assert out["apply"] is True
+    assert out["force"] is False
+    assert out["written"]
+    assert isinstance(out["skipped"], list)
+    assert Path(out["templates_dir"]) == vault / "Templates"
