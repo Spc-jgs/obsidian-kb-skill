@@ -10,6 +10,9 @@ import sys
 import pytest
 import yaml
 
+from obsidian_kb_skill.scripts.backup_policy import CleanupResult
+from obsidian_kb_skill.scripts.vault_paths import PathOutsideVaultError
+
 REPO = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 import obsidian_kb_skill.scripts.update_note as update_note  # noqa: E402
@@ -108,6 +111,31 @@ def test_backup_note_never_overwrites_same_timestamp(vault):
     assert second.parents[2].name == "2026-07-10-123456-2"
 
 
+def test_backup_note_rejects_broken_symlink_target_without_writing_outside(vault):
+    note = _note(vault)
+    note.parent.mkdir(parents=True)
+    note.write_bytes(b"original")
+    outside = vault.parent / "outside" / "TASK.md"
+    outside.parent.mkdir()
+    link = (
+        vault
+        / ".obsidian-kb-backups"
+        / "2026-07-10-123456"
+        / "Tasks/foo/TASK.md"
+    )
+    link.parent.mkdir(parents=True)
+    try:
+        link.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable")
+
+    with pytest.raises(PathOutsideVaultError):
+        update_note.backup_note(vault, note, timestamp="2026-07-10-123456")
+
+    assert link.is_symlink()
+    assert not outside.exists()
+
+
 def test_backup_failure_aborts_without_modifying_note(vault, monkeypatch, capsys):
     note = _note(vault)
     update_note.main([str(vault), "--note", "Tasks/foo/TASK.md", "--apply"])
@@ -132,6 +160,134 @@ def test_backup_failure_aborts_without_modifying_note(vault, monkeypatch, capsys
     assert rc != 0
     assert "backup failed" in capsys.readouterr().err.lower()
     assert note.read_bytes() == original
+
+
+def test_cleanup_runs_only_after_successful_write(vault, monkeypatch):
+    note = _note(vault)
+    assert update_note.main(
+        [str(vault), "--note", "Tasks/foo/TASK.md", "--apply", "--no-audit"]
+    ) == 0
+    calls = []
+    original_write = pathlib.Path.write_bytes
+
+    def tracked_write(path, data):
+        if path == note:
+            calls.append("write")
+        return original_write(path, data)
+
+    def tracked_prune(vault_arg, policy, protected=None):
+        calls.append("prune")
+        assert vault_arg == vault
+        assert protected is not None and protected.is_file()
+        return CleanupResult(policy.keep_per_note, scanned=2, deleted=1)
+
+    monkeypatch.setattr(pathlib.Path, "write_bytes", tracked_write)
+    monkeypatch.setattr(update_note, "prune_backups", tracked_prune)
+    assert update_note.main(
+        [
+            str(vault),
+            "--note",
+            "Tasks/foo/TASK.md",
+            "--add-open",
+            "ordered",
+            "--apply",
+            "--no-audit",
+        ]
+    ) == 0
+    assert calls == ["write", "prune"]
+
+
+def test_note_write_failure_never_prunes(vault, monkeypatch):
+    note = _note(vault)
+    assert update_note.main(
+        [str(vault), "--note", "Tasks/foo/TASK.md", "--apply", "--no-audit"]
+    ) == 0
+    original_write = pathlib.Path.write_bytes
+
+    def fail_note_write(path, data):
+        if path == note:
+            raise OSError("disk")
+        return original_write(path, data)
+
+    monkeypatch.setattr(pathlib.Path, "write_bytes", fail_note_write)
+    monkeypatch.setattr(
+        update_note,
+        "prune_backups",
+        lambda *_args, **_kwargs: pytest.fail("cleanup ran before failed write"),
+    )
+    with pytest.raises(OSError, match="disk"):
+        update_note.main(
+            [
+                str(vault),
+                "--note",
+                "Tasks/foo/TASK.md",
+                "--add-open",
+                "must not land",
+                "--apply",
+                "--no-audit",
+            ]
+        )
+
+
+def test_cleanup_warning_does_not_fail_committed_write(
+    vault, monkeypatch, capsys
+):
+    note = _note(vault)
+    assert update_note.main(
+        [str(vault), "--note", "Tasks/foo/TASK.md", "--apply", "--no-audit"]
+    ) == 0
+    capsys.readouterr()
+    monkeypatch.setattr(
+        update_note,
+        "prune_backups",
+        lambda *_args, **_kwargs: CleanupResult(
+            keep_per_note=1,
+            scanned=2,
+            deleted=0,
+            warnings=("cannot delete old backup",),
+        ),
+    )
+    assert update_note.main(
+        [
+            str(vault),
+            "--note",
+            "Tasks/foo/TASK.md",
+            "--add-open",
+            "committed despite cleanup warning",
+            "--apply",
+            "--no-audit",
+        ]
+    ) == 0
+    assert "committed despite cleanup warning" in note.read_text(encoding="utf-8")
+    assert capsys.readouterr().err.count("cannot delete old backup") == 1
+
+
+def test_cleanup_exception_does_not_fail_committed_write(
+    vault, monkeypatch, capsys
+):
+    note = _note(vault)
+    assert update_note.main(
+        [str(vault), "--note", "Tasks/foo/TASK.md", "--apply", "--no-audit"]
+    ) == 0
+    capsys.readouterr()
+
+    def fail_cleanup(*_args, **_kwargs):
+        raise OSError("cleanup disk error")
+
+    monkeypatch.setattr(update_note, "prune_backups", fail_cleanup)
+    assert update_note.main(
+        [
+            str(vault),
+            "--note",
+            "Tasks/foo/TASK.md",
+            "--add-open",
+            "write remains successful",
+            "--apply",
+            "--no-audit",
+        ]
+    ) == 0
+    assert "write remains successful" in note.read_text(encoding="utf-8")
+    assert "cleanup disk error" in capsys.readouterr().err
 
 
 def test_update_sets_step_and_appends_decision_and_log(vault):

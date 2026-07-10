@@ -20,6 +20,7 @@ SUPPORT_ROOT="$HOME/.obsidian-kb-skill"
 CANONICAL_SKILL="$SUPPORT_ROOT/skill"
 RUNTIME_FILE="$SUPPORT_ROOT/runtime.json"
 VENDOR_DIR="$SUPPORT_ROOT/vendor"
+SETTINGS_FILE="$HOME/.obsidian-kb-settings.json"
 VAULT_PATH=""
 PLATFORMS="qoderwork,claude-code,codex,cursor"
 LOCALE="zh-CN"
@@ -237,7 +238,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --locale LOCALE    Template language: zh-CN or en (default: zh-CN)"
       echo "  --force            Overwrite existing templates and replace marker-wrapped skill blocks"
       echo "  --uninstall        Remove installed skills and legacy marker blocks"
-      echo "  --purge-config     With --uninstall, also remove ~/.obsidian-kb-config"
+      echo "  --purge-config     With --uninstall, also remove Vault and backup settings"
       echo ""
       echo "Configuration sources (checked in order):"
       echo "  1. --vault argument"
@@ -296,12 +297,18 @@ if [ "$DO_UNINSTALL" = true ]; then
   elif [ "$?" -eq 2 ]; then
     exit 1
   fi
-  # Preserve config by default so reinstall keeps the user's Vault selection.
+  # Preserve user configuration by default so reinstall keeps their choices.
   if [ "$PURGE_CONFIG" = true ] && [ -f "$HOME/.obsidian-kb-config" ]; then
     rm -f "$HOME/.obsidian-kb-config"
     echo "-> Removed: Config ($HOME/.obsidian-kb-config)"
   elif [ -f "$HOME/.obsidian-kb-config" ]; then
     echo "-> Preserved: Config ($HOME/.obsidian-kb-config)"
+  fi
+  if [ "$PURGE_CONFIG" = true ] && { [ -e "$SETTINGS_FILE" ] || [ -L "$SETTINGS_FILE" ]; }; then
+    rm -f "$SETTINGS_FILE"
+    echo "-> Removed: Backup settings ($SETTINGS_FILE)"
+  elif [ -e "$SETTINGS_FILE" ] || [ -L "$SETTINGS_FILE" ]; then
+    echo "-> Preserved: Backup settings ($SETTINGS_FILE)"
   fi
   echo ""
   echo "Note: Vault folder and its contents are NOT deleted."
@@ -351,6 +358,28 @@ fi
 
 # Validate the bundled helper runtime before mutating the Vault.
 setup_python_runtime
+
+# Create the global retention policy once. Exclusive creation preserves every
+# user edit and cannot write through a broken symlink that appears concurrently.
+if [ ! -e "$SETTINGS_FILE" ] && [ ! -L "$SETTINGS_FILE" ]; then
+  "$PYTHON_BIN" - "$SETTINGS_FILE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    with path.open("x", encoding="utf-8") as handle:
+        json.dump(
+            {"schema_version": 1, "backup": {"keep_per_note": 1}},
+            handle,
+            indent=2,
+        )
+        handle.write("\n")
+except FileExistsError:
+    pass
+PY
+fi
 
 # Create the Vault when needed, then always store its canonical absolute path.
 if [ ! -d "$VAULT_PATH" ]; then

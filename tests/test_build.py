@@ -300,6 +300,51 @@ def test_readmes_warn_that_one_instruction_file_is_not_a_complete_install():
     assert "Copying one instruction file is neither a complete standard Skill" in readme_en
 
 
+def test_v1_11_1_release_contract_is_consistent():
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    core = (ROOT / "core" / "OBSIDIAN_KB.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme_en = (ROOT / "README_EN.md").read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+    assert 'version = "1.11.1"' in pyproject
+    assert "**Version**: 1.11.1" in core
+    assert "**v1.11.1**" in readme
+    assert "**v1.11.1**" in readme_en
+    assert "## [1.11.1] - 2026-07-10" in changelog
+
+
+def test_backup_retention_is_documented_as_script_owned_global_policy():
+    task_memory = (ROOT / "core" / "references" / "task-memory.md").read_text(
+        encoding="utf-8"
+    )
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme_en = (ROOT / "README_EN.md").read_text(encoding="utf-8")
+
+    for text in (task_memory, readme, readme_en):
+        assert "~/.obsidian-kb-settings.json" in text
+    assert "`backup.keep_per_note`" in task_memory
+    assert "defaults to `1`" in task_memory
+    assert "The helper, not the agent" in task_memory
+    assert "never list or delete backup files" in task_memory
+    assert "升级和默认卸载都会保留" in readme
+    assert "explicit config purge removes it" in readme_en
+
+
+def test_generated_skill_never_assigns_backup_cleanup_to_the_agent():
+    reference = (
+        ROOT
+        / "skills"
+        / "obsidian-knowledge-base"
+        / "references"
+        / "task-memory.md"
+    ).read_text(encoding="utf-8")
+    assert "The helper, not the agent" in reference
+    assert "never list or delete backup files" in reference
+    assert "find .obsidian-kb-backups" not in reference
+    assert "rm -rf .obsidian-kb-backups" not in reference
+
+
 def test_codex_compatibility_adapter_points_to_standard_skill():
     header = (ROOT / "platforms/codex/header.md").read_text(encoding="utf-8")
 

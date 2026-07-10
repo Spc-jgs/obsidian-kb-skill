@@ -34,6 +34,7 @@ $SupportRoot = Join-Path $env:USERPROFILE ".obsidian-kb-skill"
 $CanonicalSkill = Join-Path $SupportRoot "skill"
 $RuntimeFile = Join-Path $SupportRoot "runtime.json"
 $VendorDir = Join-Path $SupportRoot "vendor"
+$SettingsFile = Join-Path $env:USERPROFILE ".obsidian-kb-settings.json"
 
 # Markers used to wrap injected content in shared files (CLAUDE.md, AGENTS.md).
 # These let us upgrade and uninstall idempotently without touching the user's other content.
@@ -229,7 +230,7 @@ if ($Help) {
     Write-Host "  -Locale LOCALE     Template language: zh-CN or en (default: zh-CN)"
     Write-Host "  -Force             Overwrite existing templates and refresh installed skill content"
     Write-Host "  -Uninstall         Remove installed skills and legacy marker blocks"
-    Write-Host "  -PurgeConfig       With -Uninstall, also remove ~/.obsidian-kb-config"
+    Write-Host "  -PurgeConfig       With -Uninstall, also remove Vault and backup settings"
     Write-Host "  -Help              Show this help message"
     Write-Host ""
     Write-Host "Configuration sources (checked in order):"
@@ -292,13 +293,20 @@ if ($Uninstall) {
         Write-Host "-> Cleaned: Codex skill block removed from $codexFile" -ForegroundColor Green
     }
 
-    # Preserve config by default so reinstall keeps the user's Vault selection.
+    # Preserve user configuration by default so reinstall keeps their choices.
     $configFile = Join-Path $env:USERPROFILE ".obsidian-kb-config"
     if ($PurgeConfig -and (Test-Path $configFile)) {
         Remove-Item $configFile -Force
         Write-Host "-> Removed: Config ($configFile)" -ForegroundColor Green
     } elseif (Test-Path $configFile) {
         Write-Host "-> Preserved: Config ($configFile)" -ForegroundColor Cyan
+    }
+    $settingsItem = Get-Item -LiteralPath $SettingsFile -Force -ErrorAction SilentlyContinue
+    if ($PurgeConfig -and $null -ne $settingsItem) {
+        Remove-Item -LiteralPath $SettingsFile -Force
+        Write-Host "-> Removed: Backup settings ($SettingsFile)" -ForegroundColor Green
+    } elseif ($null -ne $settingsItem) {
+        Write-Host "-> Preserved: Backup settings ($SettingsFile)" -ForegroundColor Cyan
     }
 
     Write-Host ""
@@ -354,6 +362,39 @@ if (-not $VaultPath) {
 }
 
 $PythonExecutable = Initialize-PythonRuntime
+
+# Create the global retention policy exactly once. FileMode.CreateNew preserves
+# user edits and refuses to write through an existing symlink without relying
+# on PowerShell 5.1's external-command quoting rules.
+$settingsStream = $null
+try {
+    $settingsStream = [System.IO.File]::Open(
+        $SettingsFile,
+        [System.IO.FileMode]::CreateNew,
+        [System.IO.FileAccess]::Write,
+        [System.IO.FileShare]::None
+    )
+} catch [System.IO.IOException] {
+    $settingsItem = Get-Item -LiteralPath $SettingsFile -Force -ErrorAction SilentlyContinue
+    if ($null -eq $settingsItem) { throw }
+}
+if ($null -ne $settingsStream) {
+    $settingsWriter = $null
+    try {
+        $settingsWriter = [System.IO.StreamWriter]::new($settingsStream, $Utf8NoBom)
+        $settingsJson = @{
+            schema_version = 1
+            backup = @{ keep_per_note = 1 }
+        } | ConvertTo-Json -Depth 3
+        $settingsWriter.Write($settingsJson + "`n")
+    } finally {
+        if ($null -ne $settingsWriter) {
+            $settingsWriter.Dispose()
+        } else {
+            $settingsStream.Dispose()
+        }
+    }
+}
 
 Write-Host ""
 Write-Host "=== Obsidian Knowledge Base Skill Installer ===" -ForegroundColor Cyan

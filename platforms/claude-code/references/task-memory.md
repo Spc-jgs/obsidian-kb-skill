@@ -52,6 +52,8 @@ updated: 2026-07-09T16:00
 1. Resolve & validate the vault; locate `Tasks/<slug>/TASK.md`.
 2. Update: set `step`, append to `decisions` / `open` / `artifacts` as needed, add self to `agents`, append one `Log` line (`[<agent>] <finished / next>`). Bump `updated`.
    - Prefer the constraint-based updater `python <skill-root>/scripts/run_helper.py update-note` (`obsidian-update-note` when the wheel is installed): writes only frontmatter + Log, never clobbers prose, caps Log. Dry-run by default; `--apply` to write.
+   - Before replacing an existing Task Memory note, `update-note` writes its previous bytes under `.obsidian-kb-backups/`. After the note write succeeds, the helper silently applies the global `~/.obsidian-kb-settings.json` policy; `backup.keep_per_note` defaults to `1` and accepts integers from 1 through 1000. Invalid or unreadable settings disable deletion and leave the new backup in place.
+   - **The helper, not the agent, owns retention cleanup.** Agents never list or delete backup files and must not retry a successful note write because cleanup emitted a warning. The setting applies per relative note path across the Vault's owned backup tree.
    - **Conflict resolution (Mem0-style):** before appending a decision, check existing `decisions`. If the new info *contradicts* an old one, replace it instead of piling on: `--replace-decision "old substring::new decision"`. If no match, it appends as new.
    - Native-write agents may edit directly instead.
 3. Hand the next agent (or user) the task slug.

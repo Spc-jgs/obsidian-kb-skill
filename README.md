@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.11.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.11.1** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -34,11 +34,11 @@ v1.11 把仓库从「入口文件能复制」升级为真正可独立运行的�
 - `scripts/run_helper.py` 是统一的 Skill-local launcher，8 个 helper 都能通过它调用并提供机器可读输出。
 - Bash 与 PowerShell 安装器安装相同载荷，自动选择 Python 3.11+；缺少 PyYAML 时只安装到 `~/.obsidian-kb-skill/vendor/`，不污染全局环境。
 - 安装后会在中立工作目录真实调用 `vault-info` 验收，不再把「复制成功」当作「安装可用」。
-- `update-note` 在修改现有笔记前强制创建字节级备份；同秒多次更新也不会覆盖旧备份。
+- `update-note` 在修改现有笔记前强制创建字节级备份；写入成功后由 helper 按笔记自动清理，默认只保留 1 份，AI 不参与枚举或删除。
 - malformed marker 会 fail closed，避免破损的 `CLAUDE.md` / `AGENTS.md` marker 吞掉用户内容。
 - `build.py --check` 现在覆盖平台 references、wheel resources、Skill assets 和 bundled helper code 的全量漂移。
 
-完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.11.0]` 段。详细用法在 `core/references/note-creation.md` 里按需加载。
+完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.11.1]` 段。详细用法在 `core/references/note-creation.md` 里按需加载。
 
 ## 下载
 
@@ -208,6 +208,7 @@ chmod +x install.sh
 - 复制 8 个笔记模板到你的知识库
 - 根据 Folder Index 配置创建目录同名索引，未使用插件时创建 `INDEX.md` 导航文件
 - 将知识库路径写入 `~/.obsidian-kb-config`（运行时配置）
+- 首次创建全局 `~/.obsidian-kb-settings.json`；`backup.keep_per_note` 默认是 `1`，可配置为 1–1000
 - 将完整标准 Skill 载荷安装到对应 AI 平台的约定位置
 - 配置私有 helper runtime，并从中立目录运行 `vault-info` 做安装后验收
 
@@ -363,7 +364,7 @@ Windows PowerShell 使用 `-Locale zh-CN` 或 `-Locale en`。已有模板不会�
 .\install.ps1 -Uninstall
 ```
 
-卸载会移除 Codex/QoderWork Skill、Cursor 规则、私有 runtime，并且**自动从 `CLAUDE.md` / 旧版 `AGENTS.md` 中删除 marker block**。同级其他 Skill、Git checkout、Obsidian Vault、笔记和 `~/.obsidian-kb-config` 默认保留。需要同时清除配置时使用 `./install.sh --uninstall --purge-config` 或 `.\install.ps1 -Uninstall -PurgeConfig`。
+卸载会移除 Codex/QoderWork Skill、Cursor 规则、私有 runtime，并且**自动从 `CLAUDE.md` / 旧版 `AGENTS.md` 中删除 marker block**。同级其他 Skill、Git checkout、Obsidian Vault、笔记、`~/.obsidian-kb-config` 和 `~/.obsidian-kb-settings.json` 默认保留；升级和默认卸载都会保留用户的备份数量配置。需要同时清除这两份配置时使用 `./install.sh --uninstall --purge-config` 或 `.\install.ps1 -Uninstall -PurgeConfig`。
 
 ## 分享给别人
 

@@ -18,11 +18,19 @@ import argparse
 import datetime
 import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from obsidian_kb_skill.scripts.backup_policy import (
+    BackupPolicy,
+    CleanupResult,
+    DEFAULT_KEEP_PER_NOTE,
+    load_backup_policy,
+    prune_backups,
+)
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.create_note import (
     build_note,
@@ -304,6 +312,7 @@ def main(argv: list[str] | None = None) -> int:
         "applied": False,
         "dry_run": not args.apply,
         "backup": None,
+        "backup_cleanup": None,
         "audit": None,
         "suggested_links": None,
     }
@@ -320,6 +329,7 @@ def main(argv: list[str] | None = None) -> int:
             print("(dry run) pass --apply to write the file.")
         return 0
 
+    backup_path: Path | None = None
     if action == "update":
         try:
             backup_path = backup_note(vault, note_path)
@@ -350,6 +360,28 @@ def main(argv: list[str] | None = None) -> int:
     note_path.parent.mkdir(parents=True, exist_ok=True)
     note_path.write_bytes(rendered.encode("utf-8"))
     result["applied"] = True
+
+    # Cleanup is deliberately in-process and post-commit: the agent never lists
+    # or deletes backups, and a cleanup problem must not invite a retry of a
+    # note write that already succeeded.
+    policy = BackupPolicy(DEFAULT_KEEP_PER_NOTE, False)
+    try:
+        policy = load_backup_policy()
+        cleanup = prune_backups(
+            vault,
+            policy,
+            protected=backup_path if action == "update" else None,
+        )
+    except Exception as exc:  # noqa: BLE001 - committed writes must stay successful
+        cleanup = CleanupResult(
+            keep_per_note=policy.keep_per_note,
+            scanned=0,
+            deleted=0,
+            warnings=(f"backup cleanup failed after note write: {exc}",),
+        )
+    result["backup_cleanup"] = asdict(cleanup)
+    for warning in cleanup.warnings:
+        print(f"warning: backup cleanup: {warning}", file=sys.stderr)
 
     if not args.no_audit:
         findings = audit_note(vault, note_path)

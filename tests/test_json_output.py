@@ -15,8 +15,12 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 
 
-def _run(args: list[str]) -> dict:
-    env = {**__import__("os").environ, "PYTHONPATH": str(REPO)}
+def _run(args: list[str], *, env_overrides: dict[str, str] | None = None) -> dict:
+    env = {
+        **__import__("os").environ,
+        "PYTHONPATH": str(REPO),
+        **(env_overrides or {}),
+    }
     r = subprocess.run(
         [sys.executable] + args, capture_output=True, text=True, cwd=str(REPO), env=env
     )
@@ -199,6 +203,7 @@ def test_update_note_dry_run_json(tmp_path):
     ])
     assert out["dry_run"] is True
     assert out["action"] == "init"  # doesn't exist yet -> init
+    assert out["backup_cleanup"] is None
 
 
 def test_update_note_apply_json(tmp_path):
@@ -209,6 +214,37 @@ def test_update_note_apply_json(tmp_path):
     ])
     assert out["applied"] is True
     assert out["action"] == "init"
+
+
+def test_update_note_apply_json_reports_backup_cleanup(tmp_path):
+    vault = _make_vault(tmp_path)
+    home = tmp_path / "home"
+    home.mkdir()
+    env = {"HOME": str(home), "USERPROFILE": str(home)}
+    base = [
+        "-m",
+        "obsidian_kb_skill.scripts.update_note",
+        str(vault),
+        "--note",
+        "Tasks/foo/TASK.md",
+        "--apply",
+        "--no-audit",
+        "--json",
+    ]
+    _run(base, env_overrides=env)
+    _run(base + ["--add-open", "first"], env_overrides=env)
+    out = _run(base + ["--add-open", "second"], env_overrides=env)
+
+    assert out["backup_cleanup"] == {
+        "keep_per_note": 1,
+        "scanned": 2,
+        "deleted": 1,
+        "warnings": [],
+    }
+    backups = list(
+        (vault / ".obsidian-kb-backups").glob("*/Tasks/foo/TASK.md")
+    )
+    assert len(backups) == 1
 
 
 # ---- scaffold_templates ------------------------------------------------------

@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.11.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.11.1** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -34,11 +34,11 @@ v1.11 turns the repository from an entry file that can be copied into a complete
 - `scripts/run_helper.py` is the single Skill-local launcher for all eight machine-readable helpers.
 - Bash and PowerShell install the same payload and select Python 3.11+. Missing PyYAML is installed only under `~/.obsidian-kb-skill/vendor/`, never into global site-packages.
 - Post-install verification runs `vault-info` from a neutral working directory instead of treating a successful copy as proof of usability.
-- `update-note` creates a byte-for-byte backup before modifying an existing note and never overwrites a same-second backup.
+- `update-note` creates a byte-for-byte backup before modifying an existing note; after a successful write, the helper enforces per-note retention (one by default) without asking the agent to enumerate or delete files.
 - Malformed shared-file markers fail closed instead of risking user content in `CLAUDE.md` or `AGENTS.md`.
 - `build.py --check` verifies complete platform references, wheel resources, Skill assets, and bundled helper code.
 
-See [CHANGELOG.md](CHANGELOG.md) under `[1.11.0]` for the complete diff. Detailed usage remains lazy-loaded from `core/references/note-creation.md`.
+See [CHANGELOG.md](CHANGELOG.md) under `[1.11.1]` for the complete diff. Detailed usage remains lazy-loaded from `core/references/note-creation.md`.
 
 ## Download
 
@@ -209,6 +209,7 @@ That's it. The installer will:
 - Copy 8 note templates into your vault
 - Create native folder-named indexes from Folder Index settings, or `INDEX.md` fallbacks without the plugin
 - Write your vault path to `~/.obsidian-kb-config` (runtime config)
+- Create global `~/.obsidian-kb-settings.json` once; `backup.keep_per_note` defaults to `1` and accepts 1–1000
 - Install the complete standard Skill payload at each selected platform location
 - Configure a private helper runtime and run `vault-info` from a neutral directory as post-install verification
 
@@ -364,7 +365,7 @@ Re-running the installer idempotently updates the Codex/QoderWork Skill. Existin
 .\install.ps1 -Uninstall
 ```
 
-Uninstall removes the Codex/QoderWork Skills, Cursor rule, private runtime, and marker blocks from `CLAUDE.md` and legacy `AGENTS.md`. Sibling skills, the Git checkout, the Vault, notes, and `~/.obsidian-kb-config` are preserved by default. Use `./install.sh --uninstall --purge-config` or `.\install.ps1 -Uninstall -PurgeConfig` to remove the config too.
+Uninstall removes the Codex/QoderWork Skills, Cursor rule, private runtime, and marker blocks from `CLAUDE.md` and legacy `AGENTS.md`. Sibling skills, the Git checkout, the Vault, notes, `~/.obsidian-kb-config`, and `~/.obsidian-kb-settings.json` are preserved by upgrade and default uninstall; explicit config purge removes it together with the Vault-path config. Use `./install.sh --uninstall --purge-config` or `.\install.ps1 -Uninstall -PurgeConfig` for that explicit purge.
 
 ## Sharing
 

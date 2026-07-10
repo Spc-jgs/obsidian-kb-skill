@@ -168,6 +168,17 @@ def resolve_target_within_vault(
     candidate = Path(user_path).expanduser()
     if not candidate.is_absolute():
         candidate = root / candidate
+    # ``Path.exists()`` is false for a dangling symlink, so lexical existence
+    # must be checked before treating the target as new. Otherwise a later
+    # write would follow the link and could create its target outside the Vault.
+    if os.path.lexists(candidate):
+        try:
+            resolved_candidate = candidate.resolve(strict=True)
+        except (FileNotFoundError, RuntimeError, OSError) as exc:
+            raise PathOutsideVaultError(
+                f"{label} is an existing path that cannot be resolved safely"
+            ) from exc
+        return _assert_contained(root, resolved_candidate, label)
     # Resolve the nearest existing ancestor to defeat symlink-parent escapes,
     # then require it to be inside the Vault before appending the tail.
     ancestor = _nearest_existing_parent(candidate)

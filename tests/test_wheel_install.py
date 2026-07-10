@@ -7,6 +7,8 @@ being importable; the venv runs from a directory outside this tree.
 """
 from __future__ import annotations
 
+import json
+import os
 import subprocess
 import sys
 import zipfile
@@ -126,6 +128,12 @@ def test_installed_cli_works_without_repo(tmp_path):
     # Work from a directory with no knowledge of the source repo.
     work = tmp_path / "away"
     work.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env["USERPROFILE"] = str(home)
+    env["PYTHONPATH"] = ""
     vault = work / "vault"
     vault.mkdir()
     (vault / ".obsidian").mkdir()
@@ -133,6 +141,7 @@ def test_installed_cli_works_without_repo(tmp_path):
     out = subprocess.run(
         [str(cli), str(vault), "--apply"],
         cwd=work,
+        env=env,
         check=True,
         capture_output=True,
         text=True,
@@ -155,6 +164,7 @@ def test_installed_cli_works_without_repo(tmp_path):
             "--title", "wheel-proven", "--apply", "--json",
         ],
         cwd=work,
+        env=env,
         check=False,
         capture_output=True,
         text=True,
@@ -166,3 +176,35 @@ def test_installed_cli_works_without_repo(tmp_path):
     assert (vault / "30-Insights").exists()
     created = sorted((vault / "30-Insights").glob("*.md"))
     assert created, "create_note produced no file"
+
+    (home / ".obsidian-kb-settings.json").write_text(
+        '{"schema_version":1,"backup":{"keep_per_note":2}}\n',
+        encoding="utf-8",
+    )
+    update = scripts / "obsidian-update-note"
+    for index in range(4):
+        result = subprocess.run(
+            [
+                str(update),
+                str(vault),
+                "--note",
+                "Tasks/wheel/TASK.md",
+                "--step",
+                f"step-{index}",
+                "--apply",
+                "--no-audit",
+                "--json",
+            ],
+            cwd=work,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["backup_cleanup"]["keep_per_note"] == 2
+    backups = list(
+        (vault / ".obsidian-kb-backups").glob("*/Tasks/wheel/TASK.md")
+    )
+    assert len(backups) == 2

@@ -43,6 +43,16 @@ try {
 
     & (Join-Path $Release "install.ps1") -VaultPath $Vault -Platforms "codex,qoderwork"
 
+    $Settings = Join-Path $HomeDir ".obsidian-kb-settings.json"
+    Assert-True (Test-Path $Settings) "Global backup settings were not created"
+    $InitialSettings = Get-Content $Settings -Raw | ConvertFrom-Json
+    Assert-True ($InitialSettings.schema_version -eq 1) "Unexpected settings schema"
+    Assert-True ($InitialSettings.backup.keep_per_note -eq 1) "Unexpected default retention"
+    [System.IO.File]::WriteAllText(
+        $Settings,
+        '{"schema_version":1,"backup":{"keep_per_note":3}}' + "`n"
+    )
+
     $Codex = Join-Path $HomeDir ".agents\skills\obsidian-knowledge-base"
     $Qoder = Join-Path $HomeDir ".qoderwork\skills\obsidian-knowledge-base"
     $Support = Join-Path $HomeDir ".obsidian-kb-skill\skill"
@@ -61,6 +71,8 @@ try {
     [System.IO.File]::WriteAllText($StaleReference, "stale")
     [System.IO.File]::WriteAllText($DailyTemplate, "user-owned")
     & (Join-Path $Release "install.ps1") -VaultPath $Vault -Platforms "codex,qoderwork"
+    $PreservedSettings = Get-Content $Settings -Raw | ConvertFrom-Json
+    Assert-True ($PreservedSettings.backup.keep_per_note -eq 3) "Upgrade overwrote backup retention"
     Assert-True (Test-Path $MissingReference) "Upgrade did not restore missing payload file"
     Assert-True (-not (Test-Path $StaleReference)) "Upgrade kept stale payload file"
     Assert-True ((Get-Content $DailyTemplate -Raw) -eq "user-owned") "Upgrade overwrote user template"
@@ -100,12 +112,16 @@ try {
 
     & (Join-Path $Release "install.ps1") -VaultPath $Vault -Platforms "codex" -Uninstall
     Assert-True (Test-Path (Join-Path $HomeDir ".obsidian-kb-config")) "Default uninstall removed config"
+    Assert-True (Test-Path $Settings) "Default uninstall removed backup settings"
+    $UninstallSettings = Get-Content $Settings -Raw | ConvertFrom-Json
+    Assert-True ($UninstallSettings.backup.keep_per_note -eq 3) "Default uninstall changed backup retention"
     Assert-True (-not (Test-Path (Join-Path $HomeDir ".obsidian-kb-skill"))) "Support runtime survived uninstall"
     Assert-True (Test-Path $Vault) "Uninstall removed Vault"
 
     & (Join-Path $Release "install.ps1") -VaultPath $Vault -Platforms "codex"
     & (Join-Path $Release "install.ps1") -VaultPath $Vault -Platforms "codex" -Uninstall -PurgeConfig
     Assert-True (-not (Test-Path (Join-Path $HomeDir ".obsidian-kb-config"))) "Purge did not remove config"
+    Assert-True (-not (Test-Path $Settings)) "Purge did not remove backup settings"
 } finally {
     $env:USERPROFILE = $OldUserProfile
     $env:HOME = $OldHome
