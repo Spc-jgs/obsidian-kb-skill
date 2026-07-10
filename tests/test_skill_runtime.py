@@ -174,7 +174,12 @@ def test_skill_runner_rejects_unknown_helper(tmp_path):
 def test_skill_runner_forwards_helper_help(helper, tmp_path):
     home = tmp_path / "home"
     home.mkdir()
-    env = {**os.environ, "HOME": str(home), "PYTHONPATH": ""}
+    env = {
+        **os.environ,
+        "HOME": str(home),
+        "USERPROFILE": str(home),
+        "PYTHONPATH": "",
+    }
 
     result = subprocess.run(
         [
@@ -268,7 +273,12 @@ def test_skill_runner_doctor_survives_invalid_runtime_record(tmp_path):
     support = home / ".obsidian-kb-skill"
     support.mkdir(parents=True)
     (support / "runtime.json").write_text("{", encoding="utf-8")
-    env = {**os.environ, "HOME": str(home), "PYTHONPATH": ""}
+    env = {
+        **os.environ,
+        "HOME": str(home),
+        "USERPROFILE": str(home),
+        "PYTHONPATH": "",
+    }
 
     doctor_result = subprocess.run(
         [
