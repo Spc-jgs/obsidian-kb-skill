@@ -15,6 +15,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def _venv_scripts(venv: Path) -> Path:
+    return venv / ("Scripts" if sys.platform == "win32" else "bin")
+
+
+def test_venv_scripts_uses_windows_layout(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert _venv_scripts(tmp_path / "venv") == tmp_path / "venv" / "Scripts"
+
+
 def _need(*bins: str) -> None:
     for b in bins:
         if not (ROOT / b).exists() and b not in {"python", "pip"}:
@@ -22,26 +31,26 @@ def _need(*bins: str) -> None:
 
 
 def _build_wheel(tmp_path: Path) -> Path:
-    """Build the wheel via `python -m build` in a venv that has `build` installed.
+    """Build the wheel with the interpreter running the test suite.
 
     The build must run against the real project tree, but the INSTALLED venv
-    under test must not be able to see the repo. We use a throwaway build venv
-    (e.g. /tmp/bldenv) so the test runner itself needs no `build` import.
+    under test must not be able to see the repo. ``build`` is therefore a
+    declared development dependency instead of an undeclared machine-local
+    virtual environment.
     """
-    import os
-
-    build_venv = os.environ.get("BUILD_VENV", "/tmp/bldenv")
-    build_python = str(Path(build_venv) / "bin" / "python")
     dist = tmp_path / "dist"
     # Run from a neutral dir: a local `build.py` in ROOT would shadow the
     # `build` module when cwd == ROOT.
-    subprocess.run(
-        [build_python, "-m", "build", "--wheel", "--outdir", str(dist), str(ROOT)],
+    completed = subprocess.run(
+        [sys.executable, "-m", "build", "--wheel", "--outdir", str(dist), str(ROOT)],
         cwd=str(tmp_path),
         check=True,
         capture_output=True,
         text=True,
     )
+    build_output = completed.stdout + completed.stderr
+    assert "SetuptoolsDeprecationWarning" not in build_output
+    assert "Package would be ignored" not in build_output
     wheels = sorted(dist.glob("*.whl"))
     assert wheels, "wheel was not produced"
     return wheels[0]
@@ -104,14 +113,15 @@ def test_installed_cli_works_without_repo(tmp_path):
         capture_output=True,
         text=True,
     )
-    pip = venv / "bin" / "pip"
+    scripts = _venv_scripts(venv)
+    pip = scripts / "pip"
     subprocess.run(
         [str(pip), "install", str(wheel)],
         check=True,
         capture_output=True,
         text=True,
     )
-    cli = venv / "bin" / "obsidian-scaffold-templates"
+    cli = scripts / "obsidian-scaffold-templates"
 
     # Work from a directory with no knowledge of the source repo.
     work = tmp_path / "away"
@@ -138,16 +148,20 @@ def test_installed_cli_works_without_repo(tmp_path):
     assert (vault / "Templates" / "Daily Note.md").is_file()
 
     # create_note must also resolve resources from the wheel (no --skill-root).
-    create = venv / "bin" / "obsidian-create-note"
+    create = scripts / "obsidian-create-note"
     res = subprocess.run(
         [
             str(create), str(vault), "--type", "insight-note",
             "--title", "wheel-proven", "--apply", "--json",
         ],
         cwd=work,
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
+    )
+    assert res.returncode == 0, (
+        f"installed create-note failed ({res.returncode})\n"
+        f"stdout:\n{res.stdout}\nstderr:\n{res.stderr}"
     )
     assert (vault / "30-Insights").exists()
     created = sorted((vault / "30-Insights").glob("*.md"))

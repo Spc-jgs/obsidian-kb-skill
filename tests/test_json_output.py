@@ -7,6 +7,7 @@ passed, stdout is a single JSON document with predictable fields.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -157,6 +158,36 @@ def test_create_note_apply_with_audit_json(tmp_path):
     assert out["audit"]["count"] == 0
 
 
+def test_create_note_json_forces_utf8_when_console_default_cannot_encode_unicode(tmp_path):
+    vault = _make_vault(tmp_path)
+    (vault / "Templates" / "Insight Note.md").write_text(
+        "---\ntype: insight-note\ntags: [insight]\n---\n# 洞察标题\n\n中文正文\n",
+        encoding="utf-8",
+    )
+    env = {**os.environ, "PYTHONPATH": str(REPO), "PYTHONIOENCODING": "cp1252"}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "insight-note",
+            "--title",
+            "UTF-8",
+            "--json",
+        ],
+        cwd=REPO,
+        env=env,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr.decode("utf-8", errors="replace")
+    payload = json.loads(result.stdout.decode("utf-8"))
+    assert "中文正文" in payload["rendered"]
+
+
 # ---- update_note --------------------------------------------------------------
 
 def test_update_note_dry_run_json(tmp_path):
@@ -178,3 +209,21 @@ def test_update_note_apply_json(tmp_path):
     ])
     assert out["applied"] is True
     assert out["action"] == "init"
+
+
+# ---- scaffold_templates ------------------------------------------------------
+
+def test_scaffold_templates_apply_json(tmp_path):
+    vault = _make_vault(tmp_path)
+    out = _run([
+        "-m", "obsidian_kb_skill.scripts.scaffold_templates", str(vault),
+        "--apply", "--json",
+    ])
+
+    assert out["schema_version"] == "1.0"
+    assert out["operation"] == "scaffold-templates"
+    assert out["apply"] is True
+    assert out["force"] is False
+    assert out["written"]
+    assert isinstance(out["skipped"], list)
+    assert Path(out["templates_dir"]) == vault / "Templates"

@@ -143,6 +143,40 @@ class TestBuildAdapter:
 # ---------- end-to-end against the real repo ----------
 
 class TestEndToEnd:
+    def test_standard_skill_has_required_resource_directories(self):
+        root = ROOT / "skills" / "obsidian-knowledge-base"
+
+        assert (root / "SKILL.md").is_file()
+        assert (root / "agents" / "openai.yaml").is_file()
+        assert (root / "references" / "note-creation.md").is_file()
+        assert (root / "scripts" / "run_helper.py").is_file()
+        assert (
+            root
+            / "scripts"
+            / "obsidian_kb_skill"
+            / "scripts"
+            / "create_note.py"
+        ).is_file()
+        assert (root / "assets" / "templates" / "digest-note.md").is_file()
+
+    def test_generated_tree_drift_reports_missing_changed_and_extra(self, tmp_path):
+        src = tmp_path / "src"
+        dst = tmp_path / "dst"
+        src.mkdir()
+        dst.mkdir()
+        (src / "same.md").write_text("same", encoding="utf-8")
+        (src / "changed.md").write_text("new", encoding="utf-8")
+        (src / "missing.md").write_text("missing", encoding="utf-8")
+        (dst / "same.md").write_text("same", encoding="utf-8")
+        (dst / "changed.md").write_text("old", encoding="utf-8")
+        (dst / "extra.md").write_text("extra", encoding="utf-8")
+
+        assert build.tree_drift(src, dst, exclude=lambda _: False) == [
+            "changed: changed.md",
+            "extra: extra.md",
+            "missing: missing.md",
+        ]
+
     def test_standard_agent_skill_is_a_build_target(self):
         outputs = {
             target.output.relative_to(ROOT).as_posix()
@@ -156,6 +190,12 @@ class TestEndToEnd:
         assert text.startswith("---\n")
         assert "name: obsidian-knowledge-base" in text
         assert "description:" in text
+
+    def test_standard_agent_skill_description_is_trigger_only(self):
+        header = ROOT / "skills" / "obsidian-knowledge-base" / "header.md"
+        text = header.read_text(encoding="utf-8")
+
+        assert 'description: "Use when ' in text
 
     def test_qoderwork_compatibility_target_reuses_standard_header(self):
         targets = {target.name: target for target in build.TARGETS}
@@ -252,12 +292,12 @@ def test_readmes_do_not_tell_users_to_edit_generated_platform_files():
     assert "Edit the platform instruction file's tagging section" not in readme_en
 
 
-def test_readmes_warn_that_single_file_install_needs_vault_setup():
+def test_readmes_warn_that_one_instruction_file_is_not_a_complete_install():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     readme_en = (ROOT / "README_EN.md").read_text(encoding="utf-8")
 
-    assert "单独复制指令文件不会初始化知识库" in readme
-    assert "Copying an instruction file alone does not initialize the Vault" in readme_en
+    assert "单独复制一个指令文件既不是完整标准 Skill" in readme
+    assert "Copying one instruction file is neither a complete standard Skill" in readme_en
 
 
 def test_codex_compatibility_adapter_points_to_standard_skill():
@@ -265,3 +305,13 @@ def test_codex_compatibility_adapter_points_to_standard_skill():
 
     assert "Compatibility adapter" in header
     assert "skills/obsidian-knowledge-base/SKILL.md" in header
+
+
+def test_non_skill_compatibility_adapters_name_the_installed_support_root():
+    for relative in (
+        "platforms/claude-code/header.md",
+        "platforms/cursor/header.md",
+        "platforms/codex/header.md",
+    ):
+        header = (ROOT / relative).read_text(encoding="utf-8")
+        assert "~/.obsidian-kb-skill/skill" in header

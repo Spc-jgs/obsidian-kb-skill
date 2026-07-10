@@ -2,6 +2,17 @@
 
 Loaded only when the user asks to save a **new** note. The always-loaded skill body points here. Read this *before* writing.
 
+## Bundled Helper Runner
+
+Set `<skill-root>` to the directory containing the active `SKILL.md`. Standard
+Skill installations keep helpers under that directory. Claude Code and Cursor
+compatibility adapters use `~/.obsidian-kb-skill/skill` as their Skill root.
+Invoke every helper through:
+
+```bash
+python <skill-root>/scripts/run_helper.py <helper-name> ...
+```
+
 ## When NOT to Use This Skill
 
 Skip this skill (do not save to vault) when:
@@ -25,7 +36,7 @@ The vault location is configured in a platform-specific way. Check in order:
 A valid Obsidian vault has `.obsidian/` and `Templates/` directories. To seed cold-start context (vault path, validity, template list, every folder's index strategy) in a single read-only call:
 
 ```bash
-python scripts/vault_info.py <vault>
+python <skill-root>/scripts/run_helper.py vault-info <vault> --json
 ```
 
 If validation fails, **stop and report** — do not silently create files in a non-vault directory. Offer to (a) re-prompt for the path, or (b) initialize a new vault structure if the user confirms.
@@ -62,7 +73,7 @@ Folder navigation is owned by exactly one index strategy: Folder Index, Dataview
 Run the bundled detector — do **not** read Obsidian's plugin config by hand:
 
 ```bash
-python scripts/detect_index.py <vault> --folder <folder>
+python <skill-root>/scripts/run_helper.py detect-index <vault> --folder <folder> --json
 ```
 
 JSON output: `mode` (`folder-index` | `dataview` | `static`), `index_file`, `can_append`, `graph_compatible`, `notes`. Apply:
@@ -75,7 +86,7 @@ JSON output: `mode` (`folder-index` | `dataview` | `static`), `index_file`, `can
 
 ## Note Types and Routing
 
-`create_note.py --type <slug>` is the canonical write path. The slug → folder mapping is owned by `scripts/process_inbox.py` (`TYPE_TO_FOLDER`); infer the slug from conversation context or ask the user.
+`create-note --type <slug>` is the canonical write path. The slug → folder mapping is owned by the bundled `process-inbox` helper (`TYPE_TO_FOLDER`); infer the slug from conversation context or ask the user.
 
 Slugs: `daily-note`, `meeting-note`, `learning-note`, `web-clip`, `insight-note`, `conversation-digest`, `project-note`, `person-note`, `task-memory`. Unsure or quick-capture → `00-Inbox/`.
 
@@ -109,7 +120,7 @@ Run `vault_info.py` to get the vault path + validity + types list. Infer the typ
 Conventional template filenames: `Daily Note`, `Meeting Note`, `Learning Note`, `Project Note`, `Web Clip`, `Insight Note`, `Person Note`, `Digest Note`. If the vault has no `Templates/` yet, bootstrap the shipped starters once (`scaffold_templates.py` will NOT clobber later edits unless `--force` is passed):
 
 ```bash
-python scripts/scaffold_templates.py <vault> --apply
+python <skill-root>/scripts/run_helper.py scaffold-templates <vault> --apply
 ```
 
 ### Step 4–5: Fill frontmatter & body (delegated)
@@ -118,14 +129,14 @@ python scripts/scaffold_templates.py <vault> --apply
 
 ### Step 6: Wikilinks (use the helper)
 
-Use `[[wikilinks]]` for related existing notes. Do **not** scan the entire vault — the bounded strategy lives in the bundled helper. The helper must list the target folder's filenames to populate link candidates, then scores them by shared tags / matching type / title-token overlap, and caps the result. After writing, pass `--suggest-links` to `create_note.py` (or call `scripts/suggest_links.py --note <path>` directly) to get scored, in-scope candidates and their reasons. Just pick from its output (≤ 5 high-confidence links, or skip).
+Use `[[wikilinks]]` for related existing notes. Do **not** scan the entire vault — the bounded strategy lives in the bundled helper. The helper must list the target folder's filenames to populate link candidates, then scores them by shared tags / matching type / title-token overlap, and caps the result. After writing, pass `--suggest-links` to `create-note` (or call `python <skill-root>/scripts/run_helper.py suggest-links <vault> --note <path>` directly) to get scored, in-scope candidates and their reasons. Just pick from its output (≤ 5 high-confidence links, or skip).
 
 ### Step 7: Write the file (delegated)
 
 Prefer your agent's **native file-write tool** when available. If not (some CLI-only agents), call the bundled helper — never invent a one-off script:
 
 ```bash
-python scripts/create_note.py <vault> --type <slug> --title "<Short Title>" \
+python <skill-root>/scripts/run_helper.py create-note <vault> --type <slug> --title "<Short Title>" \
     --content-file <path-to-body.md> --apply
 ```
 

@@ -6,6 +6,7 @@ workflows. Those references are loaded only when the agent is about to save.
 """
 
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -73,6 +74,12 @@ def test_core_has_pointers_to_references():
         assert m in text, f"core body missing pointer marker: {m!r}"
 
 
+def test_core_limits_update_helper_to_task_memory_notes():
+    text = CORE.read_text(encoding="utf-8")
+
+    assert "`update-note` is only for Task Memory" in text
+
+
 def test_core_body_does_not_inline_heavy_specs():
     text = CORE.read_text(encoding="utf-8")
     for bad in BODY_FORBIDDEN:
@@ -91,6 +98,16 @@ def test_all_reference_files_exist():
     }
     actual = {p.name for p in REFERENCES_DIR.iterdir() if p.is_file()}
     assert expected <= actual, f"missing reference files: {expected - actual}"
+
+
+def test_references_use_the_standard_skill_runner_not_removed_script_paths():
+    text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(REFERENCES_DIR.glob("*.md"))
+    )
+
+    assert "scripts/run_helper.py" in text
+    assert not re.search(r"python\s+scripts/[a-z_]+\.py", text)
 
 
 def test_task_memory_reference_carries_full_spec():

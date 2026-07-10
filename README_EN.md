@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.10.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.11.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -26,20 +26,19 @@ This skill eliminates that friction by teaching your AI agent a complete knowled
 
 Your knowledge accumulates automatically, in a structured format that scales from 10 notes to 10,000.
 
-## What's New in v1.10
+## What's New in v1.11
 
-v1.10 moves more deterministic steps from "the AI does it by hand" to "a script does it", so the agent can spend tokens on the parts that actually need semantic understanding:
+v1.11 turns the repository from an entry file that can be copied into a complete standard Skill distribution:
 
-- **`scripts/detect_index.py`** — one call returns the folder's index strategy (folder-index / dataview / static), replacing the multi-step "read community-plugins.json + data.json + infer" the agent used to do.
-- **`scripts/vault_info.py`** — cold-start context: vault path, validity, template list, and all 9 folder index strategies in a single JSON call.
-- **Automatic post-write audit** — `create_note.py` / `update_note.py` run the per-note audit right after writing, catching `broken-wikilink` / `unresolved-placeholder` / missing frontmatter; the agent no longer needs to re-read the note by hand to verify.
-- **`--suggest-links`** — `create_note.py` / `update_note.py` print scored link candidates right after writing.
-- **`scripts/scaffold_templates.py`** — one-shot bootstrap of templates into the vault; refuses to overwrite user-edited templates unless `--force` is passed.
-- **`--json` on every CLI** — all 8 CLI scripts accept `--json` and emit a machine-readable schema; the agent does not need to parse human text.
+- The standard folder contains `SKILL.md`, `agents/`, `references/`, `scripts/`, and `assets/`; an installed copy keeps working after the source checkout is deleted.
+- `scripts/run_helper.py` is the single Skill-local launcher for all eight machine-readable helpers.
+- Bash and PowerShell install the same payload and select Python 3.11+. Missing PyYAML is installed only under `~/.obsidian-kb-skill/vendor/`, never into global site-packages.
+- Post-install verification runs `vault-info` from a neutral working directory instead of treating a successful copy as proof of usability.
+- `update-note` creates a byte-for-byte backup before modifying an existing note and never overwrites a same-second backup.
+- Malformed shared-file markers fail closed instead of risking user content in `CLAUDE.md` or `AGENTS.md`.
+- `build.py --check` verifies complete platform references, wheel resources, Skill assets, and bundled helper code.
 
-v1.10 also fixed a real bug: `REQUIRED_TYPES` was missing `task-memory`, so v1.9.x always flagged task-memory notes as `invalid-type`. The P3 audit surfaced it and we fixed it.
-
-Full diff in [CHANGELOG.md](CHANGELOG.md) under `[1.10.0]`. Detailed usage lives in `core/references/note-creation.md` (lazy-loaded).
+See [CHANGELOG.md](CHANGELOG.md) under `[1.11.0]` for the complete diff. Detailed usage remains lazy-loaded from `core/references/note-creation.md`.
 
 ## Download
 
@@ -57,18 +56,18 @@ cd obsidian-kb-skill
 3. Select **Download ZIP**
 4. Extract to your preferred directory
 
-### Option 3: Grab Only the Standard Skill or a Compatibility File
+### Option 3: Grab the Standard Skill Folder or a Compatibility File
 
 If your Vault structure and templates already exist, you can copy only the instruction file for your platform:
 
 | AI Tool | File Needed | Direct Link |
 |---------|-------------|-------------|
-| Agent Skills / Codex / QoderWork | `skills/obsidian-knowledge-base/SKILL.md` | [SKILL.md](skills/obsidian-knowledge-base/SKILL.md) |
+| Agent Skills / Codex / QoderWork | complete `skills/obsidian-knowledge-base/` | [Skill entry](skills/obsidian-knowledge-base/SKILL.md) |
 | Claude Code | `platforms/claude-code/CLAUDE.md` | [CLAUDE.md](platforms/claude-code/CLAUDE.md) |
 | OpenAI Codex (compatibility entry) | `platforms/codex/AGENTS.md` | [AGENTS.md](platforms/codex/AGENTS.md) |
 | Cursor | `platforms/cursor/obsidian-kb.mdc` | [obsidian-kb.mdc](platforms/cursor/obsidian-kb.mdc) |
 
-Each file contains the complete agent workflow, but **Copying an instruction file alone does not initialize the Vault**, create templates, or configure `~/.obsidian-kb-config`. Use the installer for a first-time setup; single-file installation is intended for an existing Vault.
+Compatibility files provide only the entry rules; their references, assets, and helpers come from `~/.obsidian-kb-skill/skill/`, which the installer creates. **Copying one instruction file is neither a complete standard Skill nor a Vault setup.** Use the installer for first-time and compatibility installations.
 
 ## Usage Scenarios
 
@@ -100,7 +99,7 @@ You use Cursor at work, QoderWork for research at home, and Claude Code for quic
 
 ### Core Idea: Teach AI with Markdown Instructions
 
-This skill is fundamentally a **Markdown-formatted behavior instruction file**. It contains no code, calls no APIs, and runs no services. It simply tells the AI agent in natural language:
+This project uses **Markdown behavior instructions** as its rule layer and bundles local Python helpers for deterministic, error-prone operations. It calls no cloud API and runs no daemon: the rules guide the agent, while helpers enforce path safety, scaffold templates, write notes, detect indexes, and audit results.
 
 1. Where your knowledge base is (path)
 2. What it looks like (folder structure)
@@ -139,7 +138,7 @@ An Obsidian vault is just a **folder full of .md files**. No database, no propri
 - **Cross-linking notes** = inserting `[[filename|display text]]` in the content
 - **Structured metadata** = writing YAML frontmatter at the top of the file
 
-Every action the AI takes is a standard file operation. This means zero dependencies, zero network requests, zero extra cost. Your knowledge base stays entirely local — privacy by design.
+Runtime actions are local file operations. The rule layer has no service dependency; helpers require Python 3.11+ and PyYAML, and the installer keeps a missing PyYAML dependency inside the Skill's private support directory. Vault contents are not sent to a cloud service.
 
 ### Runtime Flow
 
@@ -210,7 +209,8 @@ That's it. The installer will:
 - Copy 8 note templates into your vault
 - Create native folder-named indexes from Folder Index settings, or `INDEX.md` fallbacks without the plugin
 - Write your vault path to `~/.obsidian-kb-config` (runtime config)
-- Install the skill file to your chosen AI platform's convention location
+- Install the complete standard Skill payload at each selected platform location
+- Configure a private helper runtime and run `vault-info` from a neutral directory as post-install verification
 
 By default, all platform entries are installed. Codex uses the standard
 `~/.agents/skills/obsidian-knowledge-base/SKILL.md`; QoderWork receives a copy
@@ -231,20 +231,20 @@ Tell your AI assistant:
 
 ### Manual Installation (Without the Installer)
 
-If you prefer manual control or the installer doesn't fit your needs:
+The standard Skill is no longer one `SKILL.md`; it also carries lazy references, helper code, and template assets. For manual setup, copy the full directory and provide a Python environment that can import PyYAML:
 
 ```bash
 # 1. Create the config file with your vault path
 echo "D:\MyKnowledgeBase" > ~/.obsidian-kb-config
 
-# 2. Copy the platform instruction file to the convention location
+# 2. Copy the complete standard Skill and remove the build-only header.md
 # QoderWork:
-mkdir -p ~/.qoderwork/skills/obsidian-knowledge-base
-cp skills/obsidian-knowledge-base/SKILL.md ~/.qoderwork/skills/obsidian-knowledge-base/SKILL.md
+cp -R skills/obsidian-knowledge-base ~/.qoderwork/skills/
+rm ~/.qoderwork/skills/obsidian-knowledge-base/header.md
 
 # OpenAI Codex:
-mkdir -p ~/.agents/skills/obsidian-knowledge-base
-cp skills/obsidian-knowledge-base/SKILL.md ~/.agents/skills/obsidian-knowledge-base/SKILL.md
+cp -R skills/obsidian-knowledge-base ~/.agents/skills/
+rm ~/.agents/skills/obsidian-knowledge-base/header.md
 
 # Claude Code:
 # Use the marker-aware installer to avoid overwriting an existing CLAUDE.md.
@@ -253,8 +253,9 @@ cp skills/obsidian-knowledge-base/SKILL.md ~/.agents/skills/obsidian-knowledge-b
 # Cursor:
 cp platforms/cursor/obsidian-kb.mdc ~/.cursor/rules/obsidian-kb.mdc
 
-# 3. Copy templates to your vault
-cp core/templates/en/*.md /your/vault/path/Templates/
+# 3. Seed missing templates without overwriting user templates
+python ~/.agents/skills/obsidian-knowledge-base/scripts/run_helper.py \
+  scaffold-templates /your/vault/path --apply
 ```
 
 ## Vault Structure
@@ -363,7 +364,7 @@ Re-running the installer idempotently updates the Codex/QoderWork Skill. Existin
 .\install.ps1 -Uninstall
 ```
 
-Uninstall removes the Codex/QoderWork Skills, Cursor rule, and config file, and strips marker blocks from `CLAUDE.md` and legacy `AGENTS.md`. Sibling skills, the Git checkout, the Vault, and notes remain untouched.
+Uninstall removes the Codex/QoderWork Skills, Cursor rule, private runtime, and marker blocks from `CLAUDE.md` and legacy `AGENTS.md`. Sibling skills, the Git checkout, the Vault, notes, and `~/.obsidian-kb-config` are preserved by default. Use `./install.sh --uninstall --purge-config` or `.\install.ps1 -Uninstall -PurgeConfig` to remove the config too.
 
 ## Sharing
 
@@ -398,27 +399,23 @@ obsidian-kb-skill/
 │   ├── references/             Full workflow specs (lazy-loaded: read only when about to save)
 │   │   ├── conversation-digest.md
 │   │   ├── git.md
-│   │   ├── note-creation.md    (compressed to 156 lines in v1.10)
+│   │   ├── note-creation.md    Full create workflow and installed runner usage
 │   │   ├── rules-and-errors.md
 │   │   ├── task-memory.md
 │   │   ├── update-note.md
 │   │   └── yaml-standards.md
 │   └── templates/              8 default Chinese templates (incl. conversation digest) + English templates in en/
-├── scripts/
-│   ├── audit_vault.py          Read-only Vault auditor (--json available)
-│   ├── create_note.py          Constraint-driven note writer (reads vault template, --audit / --suggest-links / --json)
-│   ├── detect_index.py         One-shot folder index strategy detection (folder-index/dataview/static)
-│   ├── process_inbox.py        Inbox filing (--plan preview / --apply / --json)
-│   ├── scaffold_templates.py   One-shot bootstrap of templates into Vault (refuses to overwrite user edits)
-│   ├── suggest_links.py        Link suggestions (read-only, scored by tags/title/type / --json)
-│   ├── update_note.py          Task-memory updater (--replace-decision / --audit / --json)
-│   └── vault_info.py           Cold-start context: vault path / validity / templates / 9 folder strategies
-├── tests/                      17 test files (build, templates, auditor, CLI, JSON, vault info, user template, ...)
+├── obsidian_kb_skill/
+│   └── scripts/                8 packaged CLIs, path-safety layer, and wheel resources
+├── tests/                      Build, installer, path-safety, CLI, wheel, and runtime tests
 ├── skills/
 │   └── obsidian-knowledge-base/
 │       ├── header.md           Standard Agent Skill header
+│       ├── agents/             Codex UI metadata
 │       ├── references/         Lazy-loaded references (copied by build.py)
-│       └── SKILL.md            Platform-independent generated Skill
+│       ├── scripts/            Launcher plus bundled helper package
+│       ├── assets/templates/   Chinese and English template assets
+│       └── SKILL.md            Platform-independent generated entry
 ├── platforms/
 │   ├── qoderwork/
 │   │   ├── references/
@@ -481,9 +478,9 @@ python -m pytest
 CI consumes the same lockfile and runs build checks and tests on Python 3.11 and
 3.14.
 
-After installing `.[dev]` (or any other install method), all scripts are also
-available as console commands, equivalent to running the corresponding `scripts/*.py`
-directly:
+After installing `.[dev]` or a wheel, all eight helpers are available as console
+commands. Installer-deployed standard Skills use `<skill-root>/scripts/run_helper.py`;
+both entry styles invoke the same Python implementation:
 
 ```bash
 obsidian-audit-vault        /path/to/vault --strict
@@ -505,22 +502,22 @@ tool can consume the output without parsing human-readable text.
 Use the read-only auditor to check required frontmatter, note types, unclosed code fences, broken or ambiguous wikilinks, and duplicate folder indexes:
 
 ```bash
-python scripts/audit_vault.py /path/to/vault --strict
+obsidian-audit-vault /path/to/vault --strict
 ```
 
 Exit code `0` means clean, `1` means findings were reported, and `2` means the path is not an Obsidian vault. The auditor never modifies files.
 
 > **Audit scope and tunables**
 > - The auditor automatically skips **hidden directories** (names starting with `.`) and known tool/metadata folders (`.git`, `.obsidian`, `.venv`, `.workbuddy`, ...). Files inside them are never treated as notes, so agent working memory under `.workbuddy/`, `.claude/`, `.cursor/`, etc. will not be falsely reported.
-> - `similar-title` (similar titles) and `orphan-note` (orphan notes) are **advisory** checks only — they never force or modify anything. `similar-title` uses a `difflib` similarity threshold of **0.85** (in `scripts/audit_vault.py`, `_audit_titles`: `ratio >= 0.85`). If your vault has many titles that differ only by a date prefix and the noise feels too loud, raise the threshold to `0.90` or similar to quiet it down — at the cost of possibly missing near-duplicate titles that are worth merging.
+> - `similar-title` (similar titles) and `orphan-note` (orphan notes) are **advisory** checks only — they never force or modify anything. `similar-title` uses a `difflib` similarity threshold of **0.85** (in `obsidian_kb_skill/scripts/audit_vault.py`, `_audit_titles`: `ratio >= 0.85`). If your vault has many titles that differ only by a date prefix and the noise feels too loud, raise the threshold to `0.90` or similar to quiet it down — at the cost of possibly missing near-duplicate titles that are worth merging.
 
 ### Filing the Inbox
 
 `process_inbox.py` files quick-capture / pending notes from `00-Inbox/` into the inferred target folder, filling in missing `date` / `type` / `tags`. By default it only prints the plan and changes nothing:
 
 ```bash
-python scripts/process_inbox.py /path/to/vault --plan    # read-only preview
-python scripts/process_inbox.py /path/to/vault --apply   # file notes (never overwrites existing files)
+obsidian-process-inbox /path/to/vault --plan    # read-only preview
+obsidian-process-inbox /path/to/vault --apply   # file notes (never overwrites existing files)
 ```
 
 The target folder is inferred from the note's `type` or body keywords (matching the routing table in `core/OBSIDIAN_KB.md`); when the Folder Index plugin is disabled, a link is appended to the target folder's static `INDEX.md`.
@@ -530,17 +527,17 @@ The target folder is inferred from the note's `type` or body keywords (matching 
 `suggest_links.py` scores candidate wikilink targets for a single note within a bounded scope (the note's folder plus up to two sibling folders) by shared tags, matching type, and title-token overlap. It only prints candidates and reasons, and never writes to files:
 
 ```bash
-python scripts/suggest_links.py /path/to/vault --note 30-Insights/some-note.md --top-n 10
+obsidian-suggest-links /path/to/vault --note 30-Insights/some-note.md --top-n 10
 ```
 
 Decide after human review whether to insert a link, so the vault is never changed automatically.
 
 ### Creating a Note (when no native write tool exists)
 
-`create_note.py` is a **constraint-based note creator**: when the environment has no native file-write tool (some CLI-only agents), call it instead of writing your own throwaway Python/shell script to do the I/O. By default it only prints the path and content it would write (dry run); add `--apply` to actually persist. On a name collision it appends `-2` / `-3` automatically and **never overwrites**.
+The `create-note` helper is a **constraint-based note creator**: when the environment has no native file-write tool (some CLI-only agents), call it instead of writing your own throwaway Python/shell script to do the I/O. By default it only prints the path and content it would write (dry run); add `--apply` to actually persist. On a name collision it appends `-2` / `-3` automatically and **never overwrites**.
 
 ```bash
-python scripts/create_note.py /path/to/vault \
+obsidian-create-note /path/to/vault \
     --type insight-note --title "Short Title" \
     --content-file body.md --apply
 ```
@@ -557,10 +554,10 @@ The **Task Memory Workflow** in `core/references/task-memory.md` closes the memo
 
 **Off by default, opt in** — the global env `OBSIDIAN_KB_TASK_MEMORY=on|off` (default `off`) is the master switch; per-task, the `task-memory: enabled` field turns it on. Say "开启任务记忆 / handoff" in a session to activate, "关闭" to deactivate. When off, there is zero overhead.
 
-`obsidian-update-note` is the matching **constraint-based updater**: it only changes structured frontmatter fields and only appends a timestamped line to `## Log` — it never overwrites your prose; `Log` is auto-capped to the last 30 entries (TTL); dry run by default, `--apply` to write. If the note does not exist it is initialized from the template (upsert), so one command both starts and updates a task:
+`obsidian-update-note` is the matching **constraint-based updater**: it backs up an existing note before writing, changes only structured frontmatter fields, and appends a timestamped line to `## Log` — it never overwrites your prose; `Log` is auto-capped to the last 30 entries (TTL); dry run by default, `--apply` to write. If the note does not exist it is initialized from the template (upsert), so one command both starts and updates a task:
 
 ```bash
-python scripts/update_note.py /path/to/vault \
+obsidian-update-note /path/to/vault \
     --note Tasks/foo/TASK.md --status active --step "implement X module" \
     --add-decision "Chose Postgres over Mongo (scale)" \
     --by WorkBuddy --log "scaffold done, handing data layer to Codex" --apply
@@ -568,10 +565,10 @@ python scripts/update_note.py /path/to/vault \
 
 ## Design Principles
 
-- **Just Markdown.** No databases, no APIs, no vendor lock-in. Your knowledge is plain text files that will outlive any app.
+- **Markdown data layer.** No database, cloud API, or vendor lock-in; the knowledge itself remains plain text.
 - **Agent-agnostic.** The core logic is platform-independent. Each AI tool gets a thin adapter file in its native format.
 - **Convention over configuration.** Sensible defaults for folder structure, naming, tags, and templates. Customize only what you need.
-- **Self-contained at runtime.** After installation, each platform file has everything it needs — no external dependencies.
+- **Self-contained after installation.** The standard Skill carries references, scripts, and assets; the installer explicitly configures and verifies the Python/PyYAML helper boundary.
 - **Local-first.** All data stays on your machine, no cloud services involved, privacy by design.
 
 ## FAQ
