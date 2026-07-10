@@ -15,21 +15,95 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-STANDARD_SKILL="$SCRIPT_DIR/skills/obsidian-knowledge-base/SKILL.md"
+STANDARD_SKILL_DIR="$SCRIPT_DIR/skills/obsidian-knowledge-base"
+SUPPORT_ROOT="$HOME/.obsidian-kb-skill"
+CANONICAL_SKILL="$SUPPORT_ROOT/skill"
+RUNTIME_FILE="$SUPPORT_ROOT/runtime.json"
+VENDOR_DIR="$SUPPORT_ROOT/vendor"
 VAULT_PATH=""
 PLATFORMS="qoderwork,claude-code,codex,cursor"
 LOCALE="zh-CN"
 FORCE_UPGRADE=false
 DO_UNINSTALL=false
+PURGE_CONFIG=false
+PYTHON_BIN=""
+
+copy_skill_payload() {
+  local source_dir="$1"
+  local destination_dir="$2"
+  if [ ! -f "$source_dir/SKILL.md" ]; then
+    echo "Missing standard Skill payload: $source_dir/SKILL.md" >&2
+    return 1
+  fi
+  rm -rf "$destination_dir"
+  mkdir -p "$destination_dir"
+  cp -R "$source_dir/." "$destination_dir/"
+  rm -f "$destination_dir/header.md"
+  find "$destination_dir" -name '.DS_Store' -delete
+  find "$destination_dir" -type d -name '__pycache__' -prune -exec rm -rf {} +
+  find "$destination_dir" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+  chmod +x "$destination_dir/scripts/run_helper.py"
+}
 
 install_standard_skill() {
-  local destination_dir="$1"
-  local destination="$destination_dir/SKILL.md"
-  mkdir -p "$destination_dir"
-  if [ -e "$destination" ] && [ "$STANDARD_SKILL" -ef "$destination" ]; then
-    return
+  copy_skill_payload "$CANONICAL_SKILL" "$1"
+}
+
+validate_platforms() {
+  local platform
+  local found=false
+  IFS=',' read -ra requested <<< "$PLATFORMS"
+  for platform in "${requested[@]}"; do
+    platform=$(echo "$platform" | tr -d ' ')
+    [ -n "$platform" ] || continue
+    found=true
+    case "$platform" in
+      qoderwork|claude-code|codex|cursor) ;;
+      *) echo "Unknown platform: $platform" >&2; return 1 ;;
+    esac
+  done
+  if [ "$found" = false ]; then
+    echo "No platforms selected." >&2
+    return 1
   fi
-  cp "$STANDARD_SKILL" "$destination"
+}
+
+setup_python_runtime() {
+  local candidate="${OBSIDIAN_KB_PYTHON:-}"
+  if [ -z "$candidate" ]; then
+    if command -v python3 >/dev/null 2>&1; then
+      candidate=$(command -v python3)
+    elif command -v python >/dev/null 2>&1; then
+      candidate=$(command -v python)
+    else
+      echo "Python 3.11+ is required to install bundled helpers." >&2
+      return 1
+    fi
+  fi
+  if ! "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+    echo "Python 3.11+ is required; unusable interpreter: $candidate" >&2
+    return 1
+  fi
+  PYTHON_BIN=$("$candidate" -c 'import sys; print(sys.executable)')
+  mkdir -p "$SUPPORT_ROOT"
+  "$PYTHON_BIN" - "$RUNTIME_FILE" "$PYTHON_BIN" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+python = sys.argv[2]
+path.write_text(
+    json.dumps({"schema_version": 1, "python": [python]}, indent=2) + "\n",
+    encoding="utf-8",
+)
+PY
+  if ! PYTHONPATH="$VENDOR_DIR${PYTHONPATH:+:$PYTHONPATH}" "$PYTHON_BIN" -c 'import yaml' 2>/dev/null; then
+    echo "-> Installing private PyYAML runtime dependency"
+    mkdir -p "$VENDOR_DIR"
+    "$PYTHON_BIN" -m pip install --disable-pip-version-check \
+      --target "$VENDOR_DIR" "PyYAML>=6"
+  fi
 }
 
 # Markers used to wrap injected content in shared files (CLAUDE.md, AGENTS.md).
@@ -127,6 +201,7 @@ while [[ $# -gt 0 ]]; do
     --locale) LOCALE="$2"; shift 2 ;;
     --force) FORCE_UPGRADE=true; shift ;;
     --uninstall) DO_UNINSTALL=true; shift ;;
+    --purge-config) PURGE_CONFIG=true; shift ;;
     --help)
       echo "Usage:"
       echo "  ./install.sh --vault /path/to/vault"
@@ -138,6 +213,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --locale LOCALE    Template language: zh-CN or en (default: zh-CN)"
       echo "  --force            Overwrite existing templates and replace marker-wrapped skill blocks"
       echo "  --uninstall        Remove installed skills and legacy marker blocks"
+      echo "  --purge-config     With --uninstall, also remove ~/.obsidian-kb-config"
       echo ""
       echo "Configuration sources (checked in order):"
       echo "  1. --vault argument"
@@ -155,6 +231,8 @@ case "$LOCALE" in
   *) echo "Unsupported locale: $LOCALE (expected zh-CN or en)"; exit 1 ;;
 esac
 
+validate_platforms
+
 if [ "$DO_UNINSTALL" = true ]; then
   echo ""
   echo "=== Obsidian Knowledge Base Skill Uninstaller ==="
@@ -171,6 +249,11 @@ if [ "$DO_UNINSTALL" = true ]; then
     rm -rf "$CODEX_SKILLS"
     echo "-> Removed: Codex skill ($CODEX_SKILLS)"
   fi
+  # Remove the canonical installed payload, private dependency, and runtime record.
+  if [ -d "$SUPPORT_ROOT" ] || [ -L "$SUPPORT_ROOT" ]; then
+    rm -rf "$SUPPORT_ROOT"
+    echo "-> Removed: Skill support runtime ($SUPPORT_ROOT)"
+  fi
   # Remove Cursor rule
   CURSOR_FILE="$HOME/.cursor/rules/obsidian-kb.mdc"
   if [ -f "$CURSOR_FILE" ]; then
@@ -185,10 +268,12 @@ if [ "$DO_UNINSTALL" = true ]; then
   if remove_marker_block "$HOME/AGENTS.md"; then
     echo "-> Cleaned: Codex skill block removed from $HOME/AGENTS.md"
   fi
-  # Remove config
-  if [ -f "$HOME/.obsidian-kb-config" ]; then
+  # Preserve config by default so reinstall keeps the user's Vault selection.
+  if [ "$PURGE_CONFIG" = true ] && [ -f "$HOME/.obsidian-kb-config" ]; then
     rm -f "$HOME/.obsidian-kb-config"
     echo "-> Removed: Config ($HOME/.obsidian-kb-config)"
+  elif [ -f "$HOME/.obsidian-kb-config" ]; then
+    echo "-> Preserved: Config ($HOME/.obsidian-kb-config)"
   fi
   echo ""
   echo "Note: Vault folder and its contents are NOT deleted."
@@ -236,13 +321,15 @@ if [ -z "$VAULT_PATH" ]; then
   exit 1
 fi
 
-# Resolve to absolute path
-if [ -d "$VAULT_PATH" ]; then
-  VAULT_PATH="$(cd "$VAULT_PATH" && pwd)"
-else
+# Validate the bundled helper runtime before mutating the Vault.
+setup_python_runtime
+
+# Create the Vault when needed, then always store its canonical absolute path.
+if [ ! -d "$VAULT_PATH" ]; then
   echo "-> Vault path does not exist, creating: $VAULT_PATH"
   mkdir -p "$VAULT_PATH"
 fi
+VAULT_PATH="$(cd -P "$VAULT_PATH" && pwd -P)"
 
 echo "=== Obsidian Knowledge Base Skill Installer ==="
 echo "Vault path: $VAULT_PATH"
@@ -254,6 +341,10 @@ echo ""
 # Step 1: Save vault config
 echo "-> Saving vault config to ~/.obsidian-kb-config"
 echo "$VAULT_PATH" > "$HOME/.obsidian-kb-config"
+
+# Install one canonical support copy used by compatibility adapters and as the
+# source for identical Codex/QoderWork payloads.
+copy_skill_payload "$STANDARD_SKILL_DIR" "$CANONICAL_SKILL"
 
 # Step 2: Initialize vault structure if not exists
 echo "-> Checking vault structure..."
@@ -272,9 +363,9 @@ fi
 
 for i in "${!TEMPLATE_FILES[@]}"; do
   if [ "$LOCALE" = "en" ]; then
-    src="$SCRIPT_DIR/core/templates/en/${TEMPLATE_FILES[$i]}"
+    src="$CANONICAL_SKILL/assets/templates/en/${TEMPLATE_FILES[$i]}"
   else
-    src="$SCRIPT_DIR/core/templates/${TEMPLATE_FILES[$i]}"
+    src="$CANONICAL_SKILL/assets/templates/${TEMPLATE_FILES[$i]}"
   fi
   dst="$VAULT_PATH/Templates/${TEMPLATE_NAMES[$i]}"
   if [ -f "$src" ]; then
@@ -463,10 +554,29 @@ for platform in "${PLATFORM_LIST[@]}"; do
       echo "  (Copy this to your project's .cursor/rules/ for project-level use)"
       ;;
     *)
-      echo "-> Unknown platform: $platform"
+      echo "-> Unknown platform: $platform" >&2
+      exit 1
       ;;
   esac
 done
+
+# Verify the installed product from a directory unrelated to the checkout.
+if [ ! -f "$CANONICAL_SKILL/references/note-creation.md" ]; then
+  echo "Post-install verification failed: missing bundled reference." >&2
+  exit 1
+fi
+VERIFY_DIR=$(mktemp -d)
+if ! (
+  cd "$VERIFY_DIR"
+  PYTHONPATH="" "$PYTHON_BIN" "$CANONICAL_SKILL/scripts/run_helper.py" \
+    vault-info "$VAULT_PATH" --json >/dev/null
+); then
+  rm -rf "$VERIFY_DIR"
+  echo "Post-install verification failed: bundled vault-info helper is unusable." >&2
+  exit 1
+fi
+rm -rf "$VERIFY_DIR"
+echo "-> Installed Skill runtime verified."
 
 echo ""
 echo "=== Installation complete! ==="
