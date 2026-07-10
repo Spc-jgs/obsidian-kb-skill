@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 
 - Invalid or unreadable settings now fail closed: the note write may succeed, but backup deletion is disabled and the new backup remains.
 - Retention scans only real timestamp directories and regular in-Vault files. Symlinks, unknown layouts, and unverifiable paths are retained; the just-created backup is protected even if filesystem clocks move backward.
+- New-target validation now rejects a dangling symlink in the final path component instead of treating it as absent and potentially writing through it outside the Vault.
 - Cleanup failures are warnings after a committed write rather than command failures that could cause an agent to retry. This release does not claim to eliminate concurrent filesystem replacement (TOCTOU), which remains future atomic-write/directory-handle work.
 
 ## [1.11.0] - 2026-07-10
