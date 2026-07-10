@@ -13,7 +13,7 @@ This workflow carries the *state of one long task* across agent handoffs. Exampl
 
 ## TASK.md structure
 
-Created via `create_note.py` (`--type task-memory --folder Tasks/<slug>`) or a native write tool:
+Created via `python <skill-root>/scripts/run_helper.py create-note` (`--type task-memory --folder Tasks/<slug>`) or a native write tool:
 
 ```yaml
 ---

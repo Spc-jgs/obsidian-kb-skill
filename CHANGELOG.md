@@ -30,6 +30,7 @@ All notable changes to this project will be documented in this file.
 - New relative Vault paths are canonicalized before being persisted, unknown platform names fail before Vault mutation, and PowerShell now includes the Digest template.
 - Corrected the `detect_index.py` shebang and removed documentation commands that referenced the deleted top-level `scripts/` package.
 - Template-driven note creation now replaces the template's first H1 with the requested note title; different filenames no longer retain the same placeholder heading and trigger false `duplicate-title` findings.
+- The gatekeeper now states that `update-note` is Task-Memory-only; ordinary project/person/daily edits follow the generic update reference with native file tools instead of being sent to an incompatible CLI.
 
 ## [1.10.0] - 2026-07-09
 

@@ -74,6 +74,12 @@ def test_core_has_pointers_to_references():
         assert m in text, f"core body missing pointer marker: {m!r}"
 
 
+def test_core_limits_update_helper_to_task_memory_notes():
+    text = CORE.read_text(encoding="utf-8")
+
+    assert "`update-note` is only for Task Memory" in text
+
+
 def test_core_body_does_not_inline_heavy_specs():
     text = CORE.read_text(encoding="utf-8")
     for bad in BODY_FORBIDDEN:
