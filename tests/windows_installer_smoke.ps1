@@ -23,6 +23,18 @@ function Get-PayloadFiles {
     } | Sort-Object)
 }
 
+function Assert-PayloadMatches {
+    param([string]$Source, [string]$Destination, [string]$Label)
+    $expected = Get-PayloadFiles $Source -ExcludeHeader
+    $actual = Get-PayloadFiles $Destination
+    Assert-True (-not (Compare-Object $expected $actual)) "$Label file set differs from source payload"
+    foreach ($relative in $expected) {
+        $sourceHash = (Get-FileHash -LiteralPath (Join-Path $Source $relative) -Algorithm SHA256).Hash
+        $destinationHash = (Get-FileHash -LiteralPath (Join-Path $Destination $relative) -Algorithm SHA256).Hash
+        Assert-True ($sourceHash -eq $destinationHash) "$Label hash differs for $relative"
+    }
+}
+
 try {
     New-Item -ItemType Directory -Path $Release, $HomeDir, $Neutral -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $Vault ".obsidian") -Force | Out-Null
@@ -41,7 +53,21 @@ try {
     $env:PYTHONPATH = ""
     $env:OBSIDIAN_KB_PYTHON = (Get-Command python).Source
 
-    & (Join-Path $Release "install.ps1") -VaultPath $Vault -Platforms "codex,qoderwork"
+    $WorkBuddy = Join-Path $HomeDir ".workbuddy\skills\obsidian-knowledge-base"
+    $OldClone = Join-Path $Sandbox "old-workbuddy-clone"
+    New-Item -ItemType Directory -Path $OldClone -Force | Out-Null
+    $OldSentinel = Join-Path $OldClone "keep.txt"
+    [System.IO.File]::WriteAllText($OldSentinel, "untouched")
+    New-Item -ItemType Directory -Path (Split-Path -Parent $WorkBuddy) -Force | Out-Null
+    $LinkTested = $false
+    try {
+        New-Item -ItemType SymbolicLink -Path $WorkBuddy -Target $OldClone -ErrorAction Stop | Out-Null
+        $LinkTested = $true
+    } catch {
+        Write-Host "SKIP: WorkBuddy directory symlink migration unavailable: $($_.Exception.Message)"
+    }
+
+    & (Join-Path $Release "install.ps1") -VaultPath $Vault -Platforms "codex,qoderwork,workbuddy"
 
     $Settings = Join-Path $HomeDir ".obsidian-kb-settings.json"
     Assert-True (Test-Path $Settings) "Global backup settings were not created"
@@ -58,24 +84,32 @@ try {
     $Support = Join-Path $HomeDir ".obsidian-kb-skill\skill"
     Assert-True (Test-Path (Join-Path $Codex "references\note-creation.md")) "Codex reference missing"
     Assert-True (Test-Path (Join-Path $Qoder "scripts\run_helper.py")) "Qoder runner missing"
+    Assert-True (Test-Path (Join-Path $WorkBuddy "manifest.json")) "WorkBuddy manifest missing"
     Assert-True (Test-Path (Join-Path $Support "assets\templates\digest-note.md")) "Support asset missing"
     Assert-True (Test-Path (Join-Path $Vault "Templates\Digest Note.md")) "Digest template missing"
-    Assert-True (-not (Compare-Object $ExpectedPayload (Get-PayloadFiles $Codex))) "Codex payload differs from source payload"
-    Assert-True (-not (Compare-Object $ExpectedPayload (Get-PayloadFiles $Qoder))) "Qoder payload differs from source payload"
-    Assert-True (-not (Compare-Object $ExpectedPayload (Get-PayloadFiles $Support))) "Support payload differs from source payload"
+    Assert-PayloadMatches (Join-Path $Release "skills\obsidian-knowledge-base") $Codex "Codex"
+    Assert-PayloadMatches (Join-Path $Release "skills\obsidian-knowledge-base") $Qoder "Qoder"
+    Assert-PayloadMatches (Join-Path $Release "skills\obsidian-knowledge-base") $WorkBuddy "WorkBuddy"
+    Assert-PayloadMatches (Join-Path $Release "skills\obsidian-knowledge-base") $Support "Support"
+    if ($LinkTested) {
+        Assert-True (([System.IO.File]::ReadAllText($OldSentinel)) -eq "untouched") "WorkBuddy symlink target was modified"
+    }
 
-    $MissingReference = Join-Path $Codex "references\note-creation.md"
-    $StaleReference = Join-Path $Codex "references\removed-in-upgrade.md"
+    $MissingReference = Join-Path $WorkBuddy "references\note-creation.md"
+    $StaleReference = Join-Path $WorkBuddy "references\removed-in-upgrade.md"
     $DailyTemplate = Join-Path $Vault "Templates\Daily Note.md"
     Remove-Item $MissingReference -Force
     [System.IO.File]::WriteAllText($StaleReference, "stale")
     [System.IO.File]::WriteAllText($DailyTemplate, "user-owned")
-    & (Join-Path $Release "install.ps1") -VaultPath $Vault -Platforms "codex,qoderwork"
+    & (Join-Path $Release "install.ps1") -VaultPath $Vault -Platforms "codex,qoderwork,workbuddy"
     $PreservedSettings = Get-Content $Settings -Raw | ConvertFrom-Json
     Assert-True ($PreservedSettings.backup.keep_per_note -eq 3) "Upgrade overwrote backup retention"
     Assert-True (Test-Path $MissingReference) "Upgrade did not restore missing payload file"
     Assert-True (-not (Test-Path $StaleReference)) "Upgrade kept stale payload file"
     Assert-True ((Get-Content $DailyTemplate -Raw) -eq "user-owned") "Upgrade overwrote user template"
+    $Sibling = Join-Path $HomeDir ".workbuddy\skills\keep-me\SKILL.md"
+    New-Item -ItemType Directory -Path (Split-Path -Parent $Sibling) -Force | Out-Null
+    [System.IO.File]::WriteAllText($Sibling, "keep")
 
     Remove-Item $Release -Recurse -Force
     Push-Location $Neutral
@@ -84,6 +118,14 @@ try {
         Assert-True ($LASTEXITCODE -eq 0) "Installed vault-info failed"
         $Info = $Json | ConvertFrom-Json
         Assert-True ($Info.valid -eq $true) "Installed vault-info did not validate the Vault"
+        $WorkBuddyJson = & $env:OBSIDIAN_KB_PYTHON (Join-Path $WorkBuddy "scripts\run_helper.py") doctor --json
+        Assert-True ($LASTEXITCODE -eq 0) "Installed WorkBuddy doctor failed"
+        $WorkBuddyDoctor = $WorkBuddyJson | ConvertFrom-Json
+        Assert-True ($WorkBuddyDoctor.ok -eq $true) "Installed WorkBuddy doctor was unhealthy"
+        $WorkBuddyInfoJson = & $env:OBSIDIAN_KB_PYTHON (Join-Path $WorkBuddy "scripts\run_helper.py") vault-info $Vault --json
+        Assert-True ($LASTEXITCODE -eq 0) "Installed WorkBuddy vault-info failed"
+        $WorkBuddyInfo = $WorkBuddyInfoJson | ConvertFrom-Json
+        Assert-True ($WorkBuddyInfo.valid -eq $true) "Installed WorkBuddy vault-info did not validate the Vault"
     } finally {
         Pop-Location
     }
@@ -116,6 +158,8 @@ try {
     $UninstallSettings = Get-Content $Settings -Raw | ConvertFrom-Json
     Assert-True ($UninstallSettings.backup.keep_per_note -eq 3) "Default uninstall changed backup retention"
     Assert-True (-not (Test-Path (Join-Path $HomeDir ".obsidian-kb-skill"))) "Support runtime survived uninstall"
+    Assert-True (-not (Test-Path $WorkBuddy)) "WorkBuddy Skill survived uninstall"
+    Assert-True (Test-Path $Sibling) "WorkBuddy sibling Skill was removed"
     Assert-True (Test-Path $Vault) "Uninstall removed Vault"
 
     & (Join-Path $Release "install.ps1") -VaultPath $Vault -Platforms "codex"

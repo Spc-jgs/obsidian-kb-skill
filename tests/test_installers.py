@@ -121,6 +121,17 @@ def _payload_files(root: Path) -> set[str]:
     return files
 
 
+def _payload_hashes(root: Path) -> dict[str, bytes]:
+    return {
+        relative: (root / relative).read_bytes()
+        for relative in _payload_files(root)
+    }
+
+
+def _workbuddy_skill(home: Path) -> Path:
+    return home / ".workbuddy" / "skills" / "obsidian-knowledge-base"
+
+
 def _run_release_installer(
     release: Path,
     *,
@@ -182,14 +193,21 @@ def test_bash_install_is_complete_and_survives_release_removal(tmp_path):
     vault = tmp_path / "vault"
     (vault / ".obsidian").mkdir(parents=True)
 
-    _run_release_installer(release, home=home, vault=vault, platforms="codex,qoderwork")
+    _run_release_installer(
+        release,
+        home=home,
+        vault=vault,
+        platforms="codex,qoderwork,workbuddy",
+    )
     shutil.rmtree(release)
 
     codex = home / ".agents" / "skills" / "obsidian-knowledge-base"
     qoder = home / ".qoderwork" / "skills" / "obsidian-knowledge-base"
+    workbuddy = _workbuddy_skill(home)
     canonical = home / ".obsidian-kb-skill" / "skill"
     assert _payload_files(codex) == expected
     assert _payload_files(qoder) == expected
+    assert _payload_files(workbuddy) == expected
     assert _payload_files(canonical) == expected
     assert (codex / "references" / "note-creation.md").is_file()
     assert (vault / "Templates" / "Digest Note.md").is_file()
@@ -201,6 +219,35 @@ def test_bash_install_is_complete_and_survives_release_removal(tmp_path):
     )
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["valid"] is True
+
+    doctor_result = _run_installed_helper(
+        workbuddy, "doctor", "--json", home=home, cwd=neutral
+    )
+    assert doctor_result.returncode == 0, doctor_result.stderr
+    assert json.loads(doctor_result.stdout)["ok"] is True
+    workbuddy_info = _run_installed_helper(
+        workbuddy, "vault-info", str(vault), "--json", home=home, cwd=neutral
+    )
+    assert workbuddy_info.returncode == 0, workbuddy_info.stderr
+    assert json.loads(workbuddy_info.stdout)["valid"] is True
+    module_probe = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            (
+                "import pathlib,sys;"
+                f"sys.path.insert(0,{str(workbuddy / 'scripts')!r});"
+                "import obsidian_kb_skill.scripts.doctor as module;"
+                "print(pathlib.Path(module.__file__).resolve())"
+            ),
+        ],
+        cwd=neutral,
+        capture_output=True,
+        text=True,
+    )
+    assert module_probe.returncode == 0, module_probe.stderr
+    assert Path(module_probe.stdout.strip()).is_relative_to(workbuddy.resolve())
 
     for index in range(4):
         result = _run_installed_helper(
@@ -518,12 +565,121 @@ def test_bash_uninstall_preserves_sibling_agent_skill(tmp_path):
     assert sibling.is_file()
 
 
+def test_bash_workbuddy_install_is_complete_and_manifested(tmp_path):
+    release = _copy_release_tree(tmp_path)
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    expected = _payload_hashes(release / "skills" / "obsidian-knowledge-base")
+
+    _run_release_installer(
+        release, home=home, vault=vault, platforms="workbuddy"
+    )
+
+    installed = _workbuddy_skill(home)
+    assert _payload_hashes(installed) == expected
+    manifest = json.loads((installed / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["version"] == "1.11.1"
+
+
+def test_bash_workbuddy_replaces_symlink_without_touching_target(tmp_path):
+    release = _copy_release_tree(tmp_path)
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    old = tmp_path / "old-clone"
+    (old / "nested").mkdir(parents=True)
+    (old / "keep.txt").write_text("untouched", encoding="utf-8")
+    (old / "nested" / "dirty.txt").write_text("dirty", encoding="utf-8")
+    before = _payload_hashes(old)
+    target = _workbuddy_skill(home)
+    target.parent.mkdir(parents=True)
+    try:
+        target.symlink_to(old, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("directory symlinks unavailable")
+
+    _run_release_installer(
+        release, home=home, vault=vault, platforms="workbuddy"
+    )
+
+    assert not target.is_symlink()
+    assert (target / "manifest.json").is_file()
+    assert _payload_hashes(old) == before
+
+
+def test_bash_workbuddy_upgrade_and_uninstall_preserve_sibling(tmp_path):
+    release = _copy_release_tree(tmp_path)
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    _run_release_installer(
+        release, home=home, vault=vault, platforms="workbuddy"
+    )
+    installed = _workbuddy_skill(home)
+    (installed / "references" / "note-creation.md").unlink()
+    (installed / "stale.md").write_text("stale", encoding="utf-8")
+    sibling = home / ".workbuddy" / "skills" / "keep-me" / "SKILL.md"
+    sibling.parent.mkdir(parents=True)
+    sibling.write_text("keep", encoding="utf-8")
+
+    _run_release_installer(
+        release, home=home, vault=vault, platforms="workbuddy"
+    )
+
+    assert (installed / "references" / "note-creation.md").is_file()
+    assert not (installed / "stale.md").exists()
+    _run_release_installer(
+        release,
+        home=home,
+        vault=vault,
+        platforms="workbuddy",
+        extra_args=("--uninstall",),
+    )
+    assert not installed.exists()
+    assert sibling.is_file()
+
+
+def test_bash_default_platforms_include_workbuddy(tmp_path):
+    release = _copy_release_tree(tmp_path)
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    env = {
+        **os.environ,
+        "HOME": str(home),
+        "OBSIDIAN_KB_PYTHON": sys.executable,
+        "PYTHONPATH": "",
+    }
+
+    subprocess.run(
+        ["bash", str(release / "install.sh"), "--vault", str(vault)],
+        cwd=release,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert (_workbuddy_skill(home) / "manifest.json").is_file()
+
+
 def test_powershell_installer_uses_standard_skill_for_codex_and_qoderwork():
     script = (ROOT / "install.ps1").read_text(encoding="utf-8")
 
     assert "skills\\obsidian-knowledge-base" in script
     assert ".agents\\skills\\obsidian-knowledge-base" in script
     assert "platforms\\qoderwork\\SKILL.md" not in script
+
+
+def test_powershell_installer_declares_workbuddy_parity():
+    script = (ROOT / "install.ps1").read_text(encoding="utf-8")
+
+    assert '"qoderwork,claude-code,codex,cursor,workbuddy"' in script
+    assert '"workbuddy"' in script
+    assert '.workbuddy\\skills\\obsidian-knowledge-base' in script
+    assert "Install-StandardSkill -DestinationDirectory $workBuddySkillDir" in script
+    assert "Remove-OwnedPath -Path $workBuddySkillDir" in script
 
 
 def test_powershell_installer_declares_complete_runtime_lifecycle():

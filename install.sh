@@ -2,7 +2,7 @@
 # Obsidian Knowledge Base Skill — Universal Installer
 #
 # Usage:
-#   ./install.sh --vault /path/to/vault [--platforms qoderwork,claude-code,codex,cursor]
+#   ./install.sh --vault /path/to/vault [--platforms qoderwork,claude-code,codex,cursor,workbuddy]
 #   ./install.sh  # reads vault path from .env file
 #
 # Configuration (priority order):
@@ -22,7 +22,7 @@ RUNTIME_FILE="$SUPPORT_ROOT/runtime.json"
 VENDOR_DIR="$SUPPORT_ROOT/vendor"
 SETTINGS_FILE="$HOME/.obsidian-kb-settings.json"
 VAULT_PATH=""
-PLATFORMS="qoderwork,claude-code,codex,cursor"
+PLATFORMS="qoderwork,claude-code,codex,cursor,workbuddy"
 LOCALE="zh-CN"
 FORCE_UPGRADE=false
 DO_UNINSTALL=false
@@ -59,7 +59,7 @@ validate_platforms() {
     [ -n "$platform" ] || continue
     found=true
     case "$platform" in
-      qoderwork|claude-code|codex|cursor) ;;
+      qoderwork|claude-code|codex|cursor|workbuddy) ;;
       *) echo "Unknown platform: $platform" >&2; return 1 ;;
     esac
   done
@@ -234,7 +234,7 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "Options:"
       echo "  --vault PATH       Path to your Obsidian vault"
-      echo "  --platforms LIST   Comma-separated: qoderwork,claude-code,codex,cursor (default: all)"
+      echo "  --platforms LIST   Comma-separated: qoderwork,claude-code,codex,cursor,workbuddy (default: all)"
       echo "  --locale LOCALE    Template language: zh-CN or en (default: zh-CN)"
       echo "  --force            Overwrite existing templates and replace marker-wrapped skill blocks"
       echo "  --uninstall        Remove installed skills and legacy marker blocks"
@@ -273,6 +273,12 @@ if [ "$DO_UNINSTALL" = true ]; then
   if [ -d "$CODEX_SKILLS" ] || [ -L "$CODEX_SKILLS" ]; then
     rm -rf "$CODEX_SKILLS"
     echo "-> Removed: Codex skill ($CODEX_SKILLS)"
+  fi
+  # Remove only this WorkBuddy Skill; preserve sibling Skills and symlink targets.
+  WORKBUDDY_SKILLS="$HOME/.workbuddy/skills/obsidian-knowledge-base"
+  if [ -d "$WORKBUDDY_SKILLS" ] || [ -L "$WORKBUDDY_SKILLS" ]; then
+    rm -rf "$WORKBUDDY_SKILLS"
+    echo "-> Removed: WorkBuddy skill ($WORKBUDDY_SKILLS)"
   fi
   # Remove the canonical installed payload, private dependency, and runtime record.
   if [ -d "$SUPPORT_ROOT" ] || [ -L "$SUPPORT_ROOT" ]; then
@@ -602,6 +608,11 @@ for platform in "${PLATFORM_LIST[@]}"; do
       CODEX_SKILLS="$HOME/.agents/skills/obsidian-knowledge-base"
       install_standard_skill "$CODEX_SKILLS"
       echo "-> Installed: Codex skill -> $CODEX_SKILLS/SKILL.md"
+      ;;
+    workbuddy)
+      WORKBUDDY_SKILLS="$HOME/.workbuddy/skills/obsidian-knowledge-base"
+      install_standard_skill "$WORKBUDDY_SKILLS"
+      echo "-> Installed: WorkBuddy skill -> $WORKBUDDY_SKILLS/SKILL.md"
       ;;
     cursor)
       CURSOR_DIR="$HOME/.cursor/rules"
