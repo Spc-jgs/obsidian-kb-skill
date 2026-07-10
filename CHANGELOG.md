@@ -32,6 +32,9 @@ All notable changes to this project will be documented in this file.
 - Template-driven note creation now replaces the template's first H1 with the requested note title; different filenames no longer retain the same placeholder heading and trigger false `duplicate-title` findings.
 - The gatekeeper now states that `update-note` is Task-Memory-only; ordinary project/person/daily edits follow the generic update reference with native file tools instead of being sent to an incompatible CLI.
 - Wheel metadata now uses an SPDX license string and explicit namespace-package discovery, eliminating setuptools deprecation and package-data ambiguity warnings.
+- Windows now delegates native drive and UNC containment to `Path.resolve()` + `relative_to()`, so an absolute path inside the Vault is accepted while different-volume escapes remain rejected.
+- All eight helper CLIs force UTF-8 stdout/stderr, preventing non-ASCII JSON and human output from failing on legacy Windows console code pages.
+- Wheel tests now use the declared, locked `build` development dependency and platform-native virtualenv script paths instead of a machine-local `/tmp/bldenv` assumption.
 
 ## [1.10.0] - 2026-07-09
 
