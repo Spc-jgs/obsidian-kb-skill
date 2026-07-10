@@ -20,6 +20,7 @@ from typing import Any
 
 import yaml
 
+from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.process_inbox import (
     TYPE_TO_FOLDER,
     _maybe_update_static_index,
@@ -245,6 +246,7 @@ def resolve_dest(vault: Path, folder: str, filename: str) -> Path:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     parser = argparse.ArgumentParser(
         description="Create one Obsidian note with validated frontmatter (never overwrites)."
     )

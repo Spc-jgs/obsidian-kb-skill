@@ -23,6 +23,7 @@ from typing import Any
 
 import yaml
 
+from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.create_note import (
     build_note,
     split_frontmatter,
@@ -156,6 +157,7 @@ def _append_log(body: str, line: str, max_lines: int = MAX_LOG_LINES) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     p = argparse.ArgumentParser(
         description="Update or initialize a task-memory note (handoff memory)."
     )

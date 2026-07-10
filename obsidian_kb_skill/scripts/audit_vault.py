@@ -15,6 +15,7 @@ from typing import Any, Iterable
 
 import yaml
 
+from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
     VaultPathError,
@@ -797,6 +798,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     args = _build_parser().parse_args(argv)
     try:
         vault = validate_vault_root(args.vault)

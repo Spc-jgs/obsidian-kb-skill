@@ -25,6 +25,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.audit_vault import (
     _folder_index_config,
     expected_folder_index,
@@ -100,6 +101,7 @@ def detect(vault: Path, folder: str) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     p = argparse.ArgumentParser(
         description="Detect a vault folder's index strategy (JSON)."
     )

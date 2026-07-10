@@ -19,6 +19,7 @@ import json
 import sys
 from pathlib import Path
 
+from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.resource_locator import ResourceError, template_dir
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
@@ -41,6 +42,7 @@ TEMPLATE_MAP: list[tuple[str, str, str]] = [
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     p = argparse.ArgumentParser(
         description="Bootstrap a vault's Templates/ from the skill's shipped starters."
     )

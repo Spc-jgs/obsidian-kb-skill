@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.audit_vault import (
     EXEMPT_NAMES,
     INDEX_TYPES,
@@ -144,6 +145,7 @@ def suggest_links(vault: Path, note_path: Path, top_n: int = 10) -> list[tuple[P
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     parser = argparse.ArgumentParser(
         description="Suggest wikilink targets for a single note (read-only)."
     )

@@ -20,6 +20,7 @@ from typing import Any
 
 import yaml
 
+from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.audit_vault import (
     _frontmatter,
     _folder_index_config,
@@ -225,6 +226,7 @@ def _format_plan(plan: dict[str, Any]) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     parser = argparse.ArgumentParser(
         description="Propose or apply filing of Obsidian vault Inbox notes."
     )
