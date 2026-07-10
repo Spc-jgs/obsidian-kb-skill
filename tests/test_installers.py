@@ -163,6 +163,7 @@ def _run_installed_helper(
 ) -> subprocess.CompletedProcess:
     env = os.environ.copy()
     env["HOME"] = str(home)
+    env["USERPROFILE"] = str(home)
     env["PYTHONPATH"] = ""
     return subprocess.run(
         [sys.executable, str(skill / "scripts" / "run_helper.py"), helper, *args],
@@ -200,6 +201,29 @@ def test_bash_install_is_complete_and_survives_release_removal(tmp_path):
     )
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["valid"] is True
+
+    for index in range(4):
+        result = _run_installed_helper(
+            codex,
+            "update-note",
+            str(vault),
+            "--note",
+            "Tasks/demo/TASK.md",
+            "--step",
+            f"step-{index}",
+            "--apply",
+            "--no-audit",
+            "--json",
+            home=home,
+            cwd=neutral,
+        )
+        assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["backup_cleanup"]["keep_per_note"] == 1
+    backups = list(
+        (vault / ".obsidian-kb-backups").glob("*/Tasks/demo/TASK.md")
+    )
+    assert len(backups) == 1
 
 
 def test_bash_upgrade_restores_payload_removes_stale_and_preserves_vault_template(tmp_path):
