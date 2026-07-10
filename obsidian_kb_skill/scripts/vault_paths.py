@@ -98,27 +98,25 @@ def _assert_contained(root: Path, resolved: Path, label: str) -> Path:
 def validate_vault_root(vault: Union[str, Path]) -> Path:
     """Return the canonical Vault root, or raise InvalidVaultRootError.
 
-    The root must be a real directory (a symlink root is rejected so containment
-    checks on children are never silently redirected), must exist, and must
-    already be contained in itself.
+    The root MAY be a symlink (e.g. ``~/ObsidianVault -> /mnt/data/ObsidianVault``)
+    as long as it resolves to a real, existing directory. The returned path is the
+    *resolved* (canonical) directory, and every downstream containment check must
+    use it — never the raw user-supplied path. Rejected cases:
+
+    * a broken symlink (resolves to nothing),
+    * a symlink/file that is not a directory,
+    * a symlink loop or any unresolvable path.
     """
-    raw = Path(vault).expanduser()
-    if raw.is_symlink():
-        raise InvalidVaultRootError(
-            f"Vault root must be a real directory, not a symlink: {vault}"
-        )
     try:
-        root = raw.resolve(strict=True)
-    except (FileNotFoundError, RuntimeError) as exc:
+        root = Path(vault).expanduser().resolve(strict=True)
+    except (FileNotFoundError, RuntimeError, OSError) as exc:
         raise InvalidVaultRootError(
-            f"Vault root does not exist or is unresolvable: {vault}"
+            f"Vault root does not exist or cannot be resolved: {vault}"
         ) from exc
     if not root.is_dir():
-        raise InvalidVaultRootError(f"Vault root is not a directory: {vault}")
-    try:
-        root.relative_to(root)
-    except ValueError as exc:  # pragma: no cover - defensive
-        raise InvalidVaultRootError(f"Vault root is not a usable directory: {vault}") from exc
+        raise InvalidVaultRootError(
+            f"Vault root is not a directory (or is a broken symlink): {vault}"
+        )
     return root
 
 

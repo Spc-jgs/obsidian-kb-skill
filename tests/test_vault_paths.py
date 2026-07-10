@@ -49,13 +49,68 @@ def test_vault_root_must_exist(tmp_path):
         validate_vault_root(tmp_path / "nope")
 
 
-def test_vault_root_rejects_symlink_to_outside(tmp_path):
-    outside = tmp_path / "outside"
-    outside.mkdir()
+def test_vault_root_allows_symlink_to_directory(tmp_path):
+    real = tmp_path / "realvault"
+    real.mkdir()
+    (real / ".obsidian").mkdir()
     link = tmp_path / "vaultlink"
-    _safe_symlink(outside, link)
+    _safe_symlink(real, link)
+    got = validate_vault_root(link)
+    assert got == real.resolve()
+
+
+def test_vault_root_rejects_symlink_to_file(tmp_path):
+    real = tmp_path / "realdir"
+    real.mkdir()
+    f = real / "note.md"
+    f.write_text("x", encoding="utf-8")
+    link = tmp_path / "vaultlink"
+    _safe_symlink(f, link)
     with pytest.raises(InvalidVaultRootError):
         validate_vault_root(link)
+
+
+def test_vault_root_rejects_broken_symlink(tmp_path):
+    missing = tmp_path / "nonexistent_dir"
+    link = tmp_path / "vaultlink"
+    _safe_symlink(missing, link)
+    with pytest.raises(InvalidVaultRootError):
+        validate_vault_root(link)
+
+
+def test_vault_root_rejects_symlink_loop(tmp_path):
+    a = tmp_path / "loop_a"
+    b = tmp_path / "loop_b"
+    try:
+        a.symlink_to(b)
+        b.symlink_to(a)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not supported on this filesystem")
+    with pytest.raises(InvalidVaultRootError):
+        validate_vault_root(a)
+
+
+def test_symlink_root_rejects_escape_underneath(tmp_path):
+    real = tmp_path / "realvault"
+    real.mkdir()
+    (real / ".obsidian").mkdir()
+    link = tmp_path / "vaultlink"
+    _safe_symlink(real, link)
+    with pytest.raises(PathOutsideVaultError):
+        resolve_existing_within_vault(link, "../outside/secret.md")
+
+
+def test_symlink_root_allows_inside_file(tmp_path):
+    real = tmp_path / "realvault"
+    real.mkdir()
+    (real / ".obsidian").mkdir()
+    (real / "30-Insights").mkdir()
+    note = real / "30-Insights" / "A.md"
+    note.write_text("x", encoding="utf-8")
+    link = tmp_path / "vaultlink"
+    _safe_symlink(real, link)
+    got = resolve_existing_within_vault(link, "30-Insights/A.md")
+    assert got == note.resolve()
 
 
 # --- existing-path resolution ----------------------------------------------
