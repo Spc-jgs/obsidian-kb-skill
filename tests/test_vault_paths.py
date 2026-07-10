@@ -228,6 +228,20 @@ def test_target_symlink_parent_escapes(tmp_path):
         resolve_target_within_vault(vault, "30-Insights/escape/New.md")
 
 
+def test_target_broken_symlink_final_component_is_rejected(tmp_path):
+    vault = _make_vault(tmp_path)
+    outside = tmp_path / "outside" / "created.md"
+    outside.parent.mkdir()
+    link = vault / "30-Insights" / "New.md"
+    _safe_symlink(outside, link)
+
+    with pytest.raises(PathOutsideVaultError):
+        resolve_target_within_vault(vault, "30-Insights/New.md")
+
+    assert link.is_symlink()
+    assert not outside.exists()
+
+
 # --- foreign-OS path detection (Windows logic) ---------------------------
 #
 # We cannot instantiate an OS-bound WindowsPath on a POSIX test host, so the

@@ -11,6 +11,7 @@ import pytest
 import yaml
 
 from obsidian_kb_skill.scripts.backup_policy import CleanupResult
+from obsidian_kb_skill.scripts.vault_paths import PathOutsideVaultError
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
@@ -108,6 +109,31 @@ def test_backup_note_never_overwrites_same_timestamp(vault):
     assert second.read_bytes() == b"second"
     assert first != second
     assert second.parents[2].name == "2026-07-10-123456-2"
+
+
+def test_backup_note_rejects_broken_symlink_target_without_writing_outside(vault):
+    note = _note(vault)
+    note.parent.mkdir(parents=True)
+    note.write_bytes(b"original")
+    outside = vault.parent / "outside" / "TASK.md"
+    outside.parent.mkdir()
+    link = (
+        vault
+        / ".obsidian-kb-backups"
+        / "2026-07-10-123456"
+        / "Tasks/foo/TASK.md"
+    )
+    link.parent.mkdir(parents=True)
+    try:
+        link.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable")
+
+    with pytest.raises(PathOutsideVaultError):
+        update_note.backup_note(vault, note, timestamp="2026-07-10-123456")
+
+    assert link.is_symlink()
+    assert not outside.exists()
 
 
 def test_backup_failure_aborts_without_modifying_note(vault, monkeypatch, capsys):
