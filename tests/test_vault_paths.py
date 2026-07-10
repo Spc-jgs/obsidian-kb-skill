@@ -240,6 +240,7 @@ def test_target_symlink_parent_escapes(tmp_path):
 #   3. The pure Windows parser separates backslash paths exactly as Windows
 #      would (proves the logic, not just POSIX behaviour).
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX foreign-path guard")
 def test_posix_rejects_windows_drive_path(tmp_path):
     vault = _make_vault(tmp_path)
     assert _is_foreign_path("C:\\evil\\x.md")
@@ -247,6 +248,7 @@ def test_posix_rejects_windows_drive_path(tmp_path):
         resolve_target_within_vault(vault, "C:\\evil\\x.md")
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX foreign-path guard")
 def test_posix_rejects_unc_path(tmp_path):
     vault = _make_vault(tmp_path)
     assert _is_foreign_path("\\\\server\\share\\x.md")

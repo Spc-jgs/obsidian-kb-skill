@@ -155,9 +155,13 @@ def test_installed_cli_works_without_repo(tmp_path):
             "--title", "wheel-proven", "--apply", "--json",
         ],
         cwd=work,
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
+    )
+    assert res.returncode == 0, (
+        f"installed create-note failed ({res.returncode})\n"
+        f"stdout:\n{res.stdout}\nstderr:\n{res.stderr}"
     )
     assert (vault / "30-Insights").exists()
     created = sorted((vault / "30-Insights").glob("*.md"))
