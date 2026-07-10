@@ -39,6 +39,10 @@ from typing import Any
 
 from obsidian_kb_skill.scripts.detect_index import detect
 from obsidian_kb_skill.scripts.audit_vault import _folder_index_config
+from obsidian_kb_skill.scripts.vault_paths import (
+    InvalidVaultRootError,
+    validate_vault_root,
+)
 
 
 # Note-bearing folders that get an index strategy; Templates/Attachments are
@@ -119,7 +123,12 @@ def main(argv: list[str] | None = None) -> int:
         "--json", action="store_true", help="Emit JSON (this tool does so by default)"
     )
     args = p.parse_args(argv)
-    info = collect(args.vault.expanduser())
+    try:
+        vault = validate_vault_root(args.vault)
+    except InvalidVaultRootError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    info = collect(vault)
     print(json.dumps(info, ensure_ascii=False, indent=2))
     return 0 if info["valid"] else 2
 

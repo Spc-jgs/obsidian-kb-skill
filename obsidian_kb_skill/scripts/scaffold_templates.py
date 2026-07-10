@@ -19,6 +19,10 @@ import sys
 from pathlib import Path
 
 from obsidian_kb_skill.scripts.resource_locator import ResourceError, template_dir
+from obsidian_kb_skill.scripts.vault_paths import (
+    InvalidVaultRootError,
+    validate_vault_root,
+)
 
 # Map note type -> (template filename used inside the vault, source file name
 # in core/templates/). These are shipped starter files; users may edit the
@@ -55,8 +59,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = p.parse_args(argv)
 
-    vault = args.vault.expanduser().resolve()
-    if not vault.is_dir() or not (vault / ".obsidian").is_dir():
+    try:
+        vault = validate_vault_root(args.vault)
+    except InvalidVaultRootError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if not (vault / ".obsidian").is_dir():
         print(f"error: not an Obsidian vault: {vault}", file=sys.stderr)
         return 2
 

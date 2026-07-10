@@ -25,6 +25,13 @@ from obsidian_kb_skill.scripts.audit_vault import (
     _markdown_files,
     _note_title,
 )
+from obsidian_kb_skill.scripts.vault_paths import (
+    InvalidVaultRootError,
+    VaultPathError,
+    report_cli_violation,
+    resolve_existing_within_vault,
+    validate_vault_root,
+)
 
 
 def scope_folders(vault: Path, note: Path) -> list[Path]:
@@ -148,15 +155,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    vault = args.vault.expanduser().resolve()
-    if not vault.is_dir() or not (vault / ".obsidian").is_dir():
+    try:
+        vault = validate_vault_root(args.vault)
+    except InvalidVaultRootError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if not (vault / ".obsidian").is_dir():
         print(f"error: not an Obsidian vault: {vault}", file=sys.stderr)
         return 2
-    note = args.note.expanduser()
-    if not note.is_absolute():
-        note = (vault / note).resolve()
-    else:
-        note = note.resolve()
+    try:
+        note = resolve_existing_within_vault(vault, args.note, label="--note")
+    except VaultPathError as exc:
+        return report_cli_violation(exc, param="--note", json_mode=args.json)
     if not note.is_file():
         print(f"error: note not found: {note}", file=sys.stderr)
         return 2

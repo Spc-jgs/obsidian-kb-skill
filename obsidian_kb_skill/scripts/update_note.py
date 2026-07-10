@@ -30,6 +30,15 @@ from obsidian_kb_skill.scripts.create_note import (
     audit_note,
 )
 from obsidian_kb_skill.scripts.suggest_links import suggest_links
+from obsidian_kb_skill.scripts.vault_paths import (
+    InvalidVaultRootError,
+    PathNotFoundError,
+    VaultPathError,
+    report_cli_violation,
+    resolve_existing_within_vault,
+    resolve_target_within_vault,
+    validate_vault_root,
+)
 
 MAX_LOG_LINES = 30
 
@@ -174,13 +183,28 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = p.parse_args(argv)
 
-    vault = args.vault.expanduser().resolve()
+    try:
+        vault = validate_vault_root(args.vault)
+    except InvalidVaultRootError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     validate_vault(vault)
 
-    note_path = Path(args.note)
-    if not note_path.is_absolute():
-        note_path = (vault / note_path).resolve()
-    note_path = note_path
+    # Enforce the Vault boundary on the note path. An existing note is resolved
+    # with symlinks followed (so a symlink-to-outside is caught); a not-yet
+    # existing note (upsert target) is resolved as a new target so a symlink
+    # *parent* cannot redirect the write outside the Vault. Both paths funnel
+    # through vault_paths — no ad-hoc join/resolve here.
+    try:
+        note_path = resolve_existing_within_vault(vault, args.note, label="--note")
+    except PathNotFoundError:
+        # Not-yet-existing note (upsert target): validate as a new path.
+        try:
+            note_path = resolve_target_within_vault(vault, args.note, label="--note")
+        except VaultPathError as exc:
+            return report_cli_violation(exc, param="--note", json_mode=args.json)
+    except VaultPathError as exc:
+        return report_cli_violation(exc, param="--note", json_mode=args.json)
 
     # --- Load or initialize -------------------------------------------------
     if note_path.exists():

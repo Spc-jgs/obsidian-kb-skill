@@ -15,6 +15,14 @@ from typing import Any, Iterable
 
 import yaml
 
+from obsidian_kb_skill.scripts.vault_paths import (
+    InvalidVaultRootError,
+    VaultPathError,
+    report_cli_violation,
+    resolve_existing_within_vault,
+    validate_vault_root,
+)
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -728,8 +736,8 @@ def audit_note(vault: Path, note: Path) -> list[Finding]:
     scope of a post-write self-check (Step 9): frontmatter validity, broken
     wikilinks, unresolved placeholders, required web-clip fields, etc.
     """
-    vault = vault.resolve()
-    note = note.resolve()
+    vault = validate_vault_root(vault)
+    note = resolve_existing_within_vault(vault, note, label="--note")
     all_findings = audit_vault(vault)
     rel = note.relative_to(vault).as_posix()
     return [
@@ -790,8 +798,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
-    vault = args.vault.expanduser().resolve()
-    if not vault.is_dir() or not (vault / ".obsidian").is_dir():
+    try:
+        vault = validate_vault_root(args.vault)
+    except InvalidVaultRootError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if not (vault / ".obsidian").is_dir():
         print(f"error: not an Obsidian vault: {vault}", file=sys.stderr)
         return 2
     findings = audit_vault(vault)

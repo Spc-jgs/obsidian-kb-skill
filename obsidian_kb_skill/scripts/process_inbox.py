@@ -25,6 +25,13 @@ from obsidian_kb_skill.scripts.audit_vault import (
     _folder_index_config,
     _note_title,
 )
+from obsidian_kb_skill.scripts.vault_paths import (
+    InvalidVaultRootError,
+    VaultPathError,
+    report_cli_violation,
+    resolve_target_within_vault,
+    validate_vault_root,
+)
 
 # Mirror of the Note Types and Routing table in core/OBSIDIAN_KB.md.
 TYPE_TO_FOLDER = {
@@ -235,10 +242,21 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    vault = args.vault.expanduser().resolve()
-    if not vault.is_dir() or not (vault / ".obsidian").is_dir():
+    try:
+        vault = validate_vault_root(args.vault)
+    except InvalidVaultRootError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if not (vault / ".obsidian").is_dir():
         print(f"error: not an Obsidian vault: {vault}", file=sys.stderr)
         return 2
+
+    # The Inbox folder must live inside the Vault. Reading from an external
+    # directory is rejected by default (no silent import of outside files).
+    try:
+        resolve_target_within_vault(vault, args.inbox, label="--inbox")
+    except VaultPathError as exc:
+        return report_cli_violation(exc, param="--inbox", json_mode=args.json)
 
     plans = process_vault(vault, apply=args.apply, inbox_name=args.inbox, silent=args.json)
     if args.json:

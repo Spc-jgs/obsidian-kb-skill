@@ -26,6 +26,15 @@ from obsidian_kb_skill.scripts.process_inbox import (
 )
 from obsidian_kb_skill.scripts.audit_vault import audit_note
 from obsidian_kb_skill.scripts.suggest_links import suggest_links
+from obsidian_kb_skill.scripts.vault_paths import (
+    EXIT_PATH_VIOLATION,
+    InvalidVaultRootError,
+    VaultPathError,
+    report_cli_violation,
+    resolve_existing_within_vault,
+    resolve_target_within_vault,
+    validate_vault_root,
+)
 
 DEFAULT_TAG_BY_TYPE = {
     "daily-note": "daily",
@@ -256,8 +265,31 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    vault = args.vault.expanduser().resolve()
+    try:
+        vault = validate_vault_root(args.vault)
+    except InvalidVaultRootError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     validate_vault(vault)
+
+    # Enforce the Vault path boundary on every user-supplied path before any
+    # read or write. Routing through vault_paths (never Path() + startswith)
+    # is the single defense against ../ traversal, absolute escapes, symlink
+    # redirects, and Windows drive/UNC spoofing.
+    if args.folder:
+        try:
+            resolve_target_within_vault(vault, args.folder, label="--folder")
+        except VaultPathError as exc:
+            return report_cli_violation(exc, param="--folder", json_mode=args.json)
+    if args.content_file:
+        try:
+            resolve_existing_within_vault(
+                vault, args.content_file, label="--content-file"
+            )
+        except VaultPathError as exc:
+            return report_cli_violation(
+                exc, param="--content-file", json_mode=args.json
+            )
 
     date = args.date or datetime.date.today().isoformat()
     tags = [t.strip() for t in args.tags.split(",")] if args.tags else None

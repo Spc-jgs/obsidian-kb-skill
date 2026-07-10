@@ -29,6 +29,13 @@ from obsidian_kb_skill.scripts.audit_vault import (
     _folder_index_config,
     expected_folder_index,
 )
+from obsidian_kb_skill.scripts.vault_paths import (
+    InvalidVaultRootError,
+    VaultPathError,
+    report_cli_violation,
+    resolve_target_within_vault,
+    validate_vault_root,
+)
 
 
 def _index_file_in(folder: Path) -> Path | None:
@@ -106,7 +113,15 @@ def main(argv: list[str] | None = None) -> int:
         help="Emit JSON (this tool does so by default)",
     )
     args = p.parse_args(argv)
-    vault = args.vault.expanduser().resolve()
+    try:
+        vault = validate_vault_root(args.vault)
+    except InvalidVaultRootError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    try:
+        resolve_target_within_vault(vault, args.folder, label="--folder")
+    except VaultPathError as exc:
+        return report_cli_violation(exc, param="--folder", json_mode=args.json)
     out = detect(vault, args.folder)
     print(json.dumps(out, ensure_ascii=False, indent=2))
     return 0
