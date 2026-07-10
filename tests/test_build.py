@@ -143,6 +143,40 @@ class TestBuildAdapter:
 # ---------- end-to-end against the real repo ----------
 
 class TestEndToEnd:
+    def test_standard_skill_has_required_resource_directories(self):
+        root = ROOT / "skills" / "obsidian-knowledge-base"
+
+        assert (root / "SKILL.md").is_file()
+        assert (root / "agents" / "openai.yaml").is_file()
+        assert (root / "references" / "note-creation.md").is_file()
+        assert (root / "scripts" / "run_helper.py").is_file()
+        assert (
+            root
+            / "scripts"
+            / "obsidian_kb_skill"
+            / "scripts"
+            / "create_note.py"
+        ).is_file()
+        assert (root / "assets" / "templates" / "digest-note.md").is_file()
+
+    def test_generated_tree_drift_reports_missing_changed_and_extra(self, tmp_path):
+        src = tmp_path / "src"
+        dst = tmp_path / "dst"
+        src.mkdir()
+        dst.mkdir()
+        (src / "same.md").write_text("same", encoding="utf-8")
+        (src / "changed.md").write_text("new", encoding="utf-8")
+        (src / "missing.md").write_text("missing", encoding="utf-8")
+        (dst / "same.md").write_text("same", encoding="utf-8")
+        (dst / "changed.md").write_text("old", encoding="utf-8")
+        (dst / "extra.md").write_text("extra", encoding="utf-8")
+
+        assert build.tree_drift(src, dst, exclude=lambda _: False) == [
+            "changed: changed.md",
+            "extra: extra.md",
+            "missing: missing.md",
+        ]
+
     def test_standard_agent_skill_is_a_build_target(self):
         outputs = {
             target.output.relative_to(ROOT).as_posix()

@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+"""Suggest wikilink targets for a single note, read-only.
+
+Scans a bounded scope (the note's folder plus up to two sibling folders), scores
+each candidate by shared tags, matching type, and title-token overlap, and prints
+the top candidates with reasons. It never writes to the vault — a human decides
+whether to insert a link.
+
+Reuses vault-parsing helpers from audit_vault.py.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+from obsidian_kb_skill.scripts.audit_vault import (
+    EXEMPT_NAMES,
+    INDEX_TYPES,
+    _frontmatter,
+    _is_ignored,
+    _markdown_files,
+    _note_title,
+)
+from obsidian_kb_skill.scripts.vault_paths import (
+    InvalidVaultRootError,
+    VaultPathError,
+    report_cli_violation,
+    resolve_existing_within_vault,
+    validate_vault_root,
+)
+
+
+def scope_folders(vault: Path, note: Path) -> list[Path]:
+    folder = note.parent
+    if folder == vault:
+        subs = [
+            d
+            for d in vault.iterdir()
+            if d.is_dir() and not _is_ignored(d.relative_to(vault))
+        ]
+        return sorted(subs)[:3]
+    parent = folder.parent
+    siblings = sorted(
+        d
+        for d in parent.iterdir()
+        if d.is_dir() and d != folder and not _is_ignored(d.relative_to(vault))
+    )
+    return [folder] + siblings[:2]
+
+
+def candidate_notes(vault: Path, note: Path) -> list[tuple[Path, dict[str, Any] | None]]:
+    scope = set(scope_folders(vault, note))
+    candidates: list[tuple[Path, dict[str, Any] | None]] = []
+    for path in _markdown_files(vault):
+        if path == note:
+            continue
+        if path.parent not in scope:
+            continue
+        relative = path.relative_to(vault)
+        if relative.parts and relative.parts[0] == "Templates":
+            continue
+        if relative.name in EXEMPT_NAMES:
+            continue
+        metadata, _ = _frontmatter(path.read_text(encoding="utf-8"))
+        if metadata and metadata.get("type") in INDEX_TYPES:
+            continue
+        candidates.append((path, metadata))
+    return candidates
+
+
+def _tags(metadata: dict[str, Any] | None) -> set[str]:
+    raw = (metadata or {}).get("tags")
+    if not raw:
+        return set()
+    values = raw if isinstance(raw, list) else [raw]
+    return {str(tag).lower() for tag in values if str(tag).strip()}
+
+
+def _title_tokens(title: str) -> set[str]:
+    if not title:
+        return set()
+    return {tok for tok in re.split(r"[^a-z0-9]+", title.lower()) if len(tok) >= 4}
+
+
+def _related_targets(metadata: dict[str, Any] | None) -> set[str]:
+    related = (metadata or {}).get("related")
+    targets: set[str] = set()
+    if isinstance(related, list):
+        for entry in related:
+            if isinstance(entry, str):
+                stripped = entry.strip()
+                if stripped.startswith("[[") and stripped.endswith("]]"):
+                    inner = stripped[2:-2].split("|")[0].split("#")[0].split("^")[0].strip().lower()
+                    targets.add(inner)
+    return targets
+
+
+def score_pair(
+    target_meta: dict[str, Any] | None,
+    cand_meta: dict[str, Any] | None,
+    target_title: str,
+    cand_title: str,
+) -> tuple[int, list[str]]:
+    score = 0
+    reasons: list[str] = []
+    shared = _tags(target_meta) & _tags(cand_meta)
+    if shared:
+        score += 2 * len(shared)
+        reasons.append("shared tags: " + ", ".join(sorted(shared)))
+    t_type = (target_meta or {}).get("type")
+    c_type = (cand_meta or {}).get("type")
+    if t_type and t_type == c_type:
+        score += 1
+        reasons.append(f"same type: {t_type}")
+    overlap = _title_tokens(target_title) & _title_tokens(cand_title)
+    if overlap:
+        score += len(overlap)
+        reasons.append("title overlap: " + ", ".join(sorted(overlap)))
+    return score, reasons
+
+
+def suggest_links(vault: Path, note_path: Path, top_n: int = 10) -> list[tuple[Path, int, list[str]]]:
+    vault = vault.resolve()
+    note = note_path.resolve()
+    text = note.read_text(encoding="utf-8")
+    metadata, _ = _frontmatter(text)
+    title = _note_title(note, text)
+    related = _related_targets(metadata)
+
+    results: list[tuple[Path, int, list[str]]] = []
+    for path, cand_meta in candidate_notes(vault, note):
+        cand_title = _note_title(path, path.read_text(encoding="utf-8"))
+        if path.stem.lower() in related or cand_title.lower() in related:
+            continue
+        score, reasons = score_pair(metadata, cand_meta, title, cand_title)
+        if score > 0:
+            results.append((path, score, reasons))
+    results.sort(key=lambda item: (-item[1], item[0].as_posix()))
+    return results[:top_n]
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Suggest wikilink targets for a single note (read-only)."
+    )
+    parser.add_argument("vault", type=Path, help="Path to the Obsidian vault")
+    parser.add_argument("--note", type=Path, required=True, help="Note to suggest links for")
+    parser.add_argument("--top-n", type=int, default=10, help="Max candidates to print")
+    parser.add_argument(
+        "--json", action="store_true", help="Emit suggestions as JSON instead of text"
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        vault = validate_vault_root(args.vault)
+    except InvalidVaultRootError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if not (vault / ".obsidian").is_dir():
+        print(f"error: not an Obsidian vault: {vault}", file=sys.stderr)
+        return 2
+    try:
+        note = resolve_existing_within_vault(vault, args.note, label="--note")
+    except VaultPathError as exc:
+        return report_cli_violation(exc, param="--note", json_mode=args.json)
+    if not note.is_file():
+        print(f"error: note not found: {note}", file=sys.stderr)
+        return 2
+
+    results = suggest_links(vault, note, args.top_n)
+    if args.json:
+        out = [
+            {"path": path.as_posix(), "score": score, "reasons": reasons}
+            for path, score, reasons in results
+        ]
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
+    if not results:
+        print("No link suggestions found.")
+    for path, score, reasons in results:
+        print(f"{score:>3}  {path.as_posix()}")
+        for reason in reasons:
+            print(f"        - {reason}")
+    print(f"{len(results)} suggestion(s) for {note.as_posix()}.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
