@@ -40,7 +40,7 @@
     "scripts/obsidian_kb_skill/scripts/update_note.py": "064a8e97fe285c06a2e3bcd2fad5f4d81bf7cba8c24e6ad511d53e82a59f41f2",
     "scripts/obsidian_kb_skill/scripts/vault_info.py": "8931a584c348cfa23b88e3a6b357baee2b46250b1faeb3469584a6d3725b6a44",
     "scripts/obsidian_kb_skill/scripts/vault_paths.py": "5eb90ea7b46258b79c3e6e4f2361736639fd9a668e97361c1cde0205c55aec2d",
-    "scripts/run_helper.py": "997184e300d00d3de45c7dba1dd300938e2ae35a15ee7e034aa72c4999bcc2a3"
+    "scripts/run_helper.py": "e28220275f2b0ff2f1a59e69cb86f214eb71c37cd5b29577cf8064f473524907"
   },
   "product": "obsidian-kb-skill",
   "schema_version": 1,

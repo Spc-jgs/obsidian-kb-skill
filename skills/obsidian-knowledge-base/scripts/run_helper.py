@@ -19,6 +19,7 @@ HELPERS = {
     "vault-info": "obsidian_kb_skill.scripts.vault_info",
     "detect-index": "obsidian_kb_skill.scripts.detect_index",
     "scaffold-templates": "obsidian_kb_skill.scripts.scaffold_templates",
+    "doctor": "obsidian_kb_skill.scripts.doctor",
 }
 
 
@@ -49,32 +50,51 @@ def helper_environment(skill_root: Path, *, home: Path | None = None) -> dict[st
     python_paths = [str(scripts_dir)]
     if vendor_dir.is_dir():
         python_paths.append(str(vendor_dir))
-    existing = os.environ.get("PYTHONPATH")
-    if existing:
-        python_paths.append(existing)
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join(python_paths)
     env["OBSIDIAN_KB_SKILL_ROOT"] = str(skill_root)
     return env
 
 
-def main(argv: list[str] | None = None) -> int:
+def parse_dispatch(argv: list[str] | None = None) -> tuple[str, list[str]]:
+    """Parse only the helper token and preserve all child arguments verbatim."""
+    arguments = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(
         description="Run a helper bundled with the Obsidian Knowledge Base Skill."
     )
     parser.add_argument("helper", choices=sorted(HELPERS))
-    args, forwarded = parser.parse_known_args(argv)
+    if not arguments or arguments[0] in {"-h", "--help"}:
+        parser.parse_args(arguments)
+        raise AssertionError("argparse help should exit")
+    if arguments[0] not in HELPERS:
+        parser.parse_args(arguments[:1])
+        raise AssertionError("argparse validation should exit")
+    helper = arguments[0]
+    forwarded = arguments[1:]
+    if forwarded[:1] == ["--"]:
+        forwarded = forwarded[1:]
+    return helper, forwarded
+
+
+def main(argv: list[str] | None = None) -> int:
+    helper, forwarded = parse_dispatch(argv)
     skill_root = Path(__file__).resolve().parent.parent
+    command = [sys.executable] if helper == "doctor" else None
+    if command is None:
+        try:
+            command = python_command()
+        except RuntimeError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 3
     try:
-        command = python_command()
-    except RuntimeError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        return subprocess.run(
+            [*command, "-m", HELPERS[helper], *forwarded],
+            env=helper_environment(skill_root),
+            check=False,
+        ).returncode
+    except OSError as exc:
+        print(f"error: helper runtime failed: {exc}", file=sys.stderr)
         return 3
-    return subprocess.run(
-        [*command, "-m", HELPERS[args.helper], *forwarded],
-        env=helper_environment(skill_root),
-        check=False,
-    ).returncode
 
 
 if __name__ == "__main__":
