@@ -150,6 +150,23 @@ function Initialize-PythonRuntime {
     return $resolved
 }
 
+function Assert-ValidMarkerBlock {
+    param([string]$TargetFile)
+    if (-not (Test-Path $TargetFile)) { return }
+    $existing = Read-Text -Path $TargetFile
+    $beginPattern = '(?m)^' + [regex]::Escape($MarkerBegin) + '\r?$'
+    $endPattern = '(?m)^' + [regex]::Escape($MarkerEnd) + '\r?$'
+    $begins = [regex]::Matches($existing, $beginPattern)
+    $ends = [regex]::Matches($existing, $endPattern)
+    if ($begins.Count -eq 0 -and $ends.Count -eq 0) { return }
+    if ($begins.Count -ne 1 -or $ends.Count -ne 1) {
+        throw "Malformed marker block in $TargetFile`: expected exactly one begin/end pair; file was not modified."
+    }
+    if ($begins[0].Index -ge $ends[0].Index) {
+        throw "Malformed marker block in $TargetFile`: markers are reversed; file was not modified."
+    }
+}
+
 # Insert or replace a marker-wrapped block inside an existing file.
 # - If file does not exist: write the block as the entire file.
 # - If file exists and contains the markers: replace the block in place.
@@ -160,12 +177,13 @@ function Set-MarkerBlock {
         [string]$BlockBody
     )
     $wrapped = "$MarkerBegin`n$BlockBody`n$MarkerEnd"
+    Assert-ValidMarkerBlock -TargetFile $TargetFile
     if (-not (Test-Path $TargetFile)) {
         Write-Utf8NoBom -Path $TargetFile -Content "$wrapped`n"
         return "installed"
     }
     $existing = Read-Text -Path $TargetFile
-    $pattern = [regex]::Escape($MarkerBegin) + "[\s\S]*?" + [regex]::Escape($MarkerEnd)
+    $pattern = '(?ms)^' + [regex]::Escape($MarkerBegin) + '\r?\n.*?^' + [regex]::Escape($MarkerEnd) + '\r?$'
     if ([regex]::IsMatch($existing, $pattern)) {
         # Use a MatchEvaluator so the wrapped block is treated as a literal string
         # (avoids $1 / $& substitution surprises inside the replacement text).
@@ -184,8 +202,9 @@ function Set-MarkerBlock {
 function Remove-MarkerBlock {
     param([string]$TargetFile)
     if (-not (Test-Path $TargetFile)) { return $false }
+    Assert-ValidMarkerBlock -TargetFile $TargetFile
     $existing = Read-Text -Path $TargetFile
-    $pattern = "(\r?\n)*" + [regex]::Escape($MarkerBegin) + "[\s\S]*?" + [regex]::Escape($MarkerEnd) + "(\r?\n)*"
+    $pattern = '(?ms)(\r?\n)*^' + [regex]::Escape($MarkerBegin) + '\r?\n.*?^' + [regex]::Escape($MarkerEnd) + '\r?$(\r?\n)*'
     if (-not [regex]::IsMatch($existing, $pattern)) { return $false }
     $stripped = [regex]::Replace($existing, $pattern, "`n").TrimEnd("`r","`n") + "`n"
     if ($stripped.Trim().Length -eq 0) {

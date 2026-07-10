@@ -82,6 +82,22 @@ try {
     Copy-Item (Join-Path $RepoRoot "skills") $Release -Recurse
     Copy-Item (Join-Path $RepoRoot "platforms") $Release -Recurse
     Copy-Item (Join-Path $RepoRoot "core") $Release -Recurse
+
+    $ClaudeDir = Join-Path $HomeDir ".claude"
+    $ClaudeFile = Join-Path $ClaudeDir "CLAUDE.md"
+    New-Item -ItemType Directory -Path $ClaudeDir -Force | Out-Null
+    $Malformed = "user content`n<!-- BEGIN obsidian-kb-skill -->`norphaned`nkeep me`n"
+    [System.IO.File]::WriteAllText($ClaudeFile, $Malformed)
+    $MarkerFailed = $false
+    try {
+        & (Join-Path $Release "install.ps1") -VaultPath $Vault -Platforms "claude-code"
+    } catch {
+        $MarkerFailed = $true
+    }
+    Assert-True $MarkerFailed "Malformed PowerShell marker install did not fail"
+    Assert-True (([System.IO.File]::ReadAllText($ClaudeFile)) -eq $Malformed) "Malformed marker file was modified"
+    Remove-Item $ClaudeFile -Force
+
     & (Join-Path $Release "install.ps1") -VaultPath $Vault -Platforms "codex" -Uninstall
     Assert-True (Test-Path (Join-Path $HomeDir ".obsidian-kb-config")) "Default uninstall removed config"
     Assert-True (-not (Test-Path (Join-Path $HomeDir ".obsidian-kb-skill"))) "Support runtime survived uninstall"

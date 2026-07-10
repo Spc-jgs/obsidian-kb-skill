@@ -111,6 +111,27 @@ PY
 MARKER_BEGIN="<!-- BEGIN obsidian-kb-skill -->"
 MARKER_END="<!-- END obsidian-kb-skill -->"
 
+validate_marker_file() {
+  local target="$1"
+  [ -f "$target" ] || return 0
+  local begin_count end_count begin_line end_line
+  begin_count=$(grep -cFx "$MARKER_BEGIN" "$target" || true)
+  end_count=$(grep -cFx "$MARKER_END" "$target" || true)
+  if [ "$begin_count" -eq 0 ] && [ "$end_count" -eq 0 ]; then
+    return 0
+  fi
+  if [ "$begin_count" -ne 1 ] || [ "$end_count" -ne 1 ]; then
+    echo "Malformed marker block in $target: expected exactly one begin/end pair; file was not modified." >&2
+    return 2
+  fi
+  begin_line=$(grep -nFx "$MARKER_BEGIN" "$target" | cut -d: -f1)
+  end_line=$(grep -nFx "$MARKER_END" "$target" | cut -d: -f1)
+  if [ "$begin_line" -ge "$end_line" ]; then
+    echo "Malformed marker block in $target: markers are reversed; file was not modified." >&2
+    return 2
+  fi
+}
+
 # Insert or replace a marker-wrapped block in a target file.
 # Args: $1 = target file, $2 = source file containing the body to inject
 # Echoes one of: installed | upgraded | appended
@@ -122,20 +143,22 @@ set_marker_block() {
   local wrapped
   wrapped=$'\n'"$MARKER_BEGIN"$'\n'"$body"$'\n'"$MARKER_END"$'\n'
 
+  validate_marker_file "$target" || return 2
+
   if [ ! -f "$target" ]; then
     printf '%s' "${wrapped#$'\n'}" > "$target"
     echo "installed"
     return
   fi
 
-  if grep -qF "$MARKER_BEGIN" "$target"; then
+  if grep -qFx "$MARKER_BEGIN" "$target"; then
     # Replace existing block via awk (portable; no GNU-specific sed flags).
     local tmp
     tmp=$(mktemp)
     awk -v begin="$MARKER_BEGIN" -v end="$MARKER_END" -v repl_file="$src" '
       BEGIN { in_block = 0; printed = 0 }
       {
-        if (!in_block && index($0, begin)) {
+        if (!in_block && $0 == begin) {
           in_block = 1
           if (!printed) {
             print begin
@@ -147,7 +170,7 @@ set_marker_block() {
           next
         }
         if (in_block) {
-          if (index($0, end)) { in_block = 0 }
+          if ($0 == end) { in_block = 0 }
           next
         }
         print
@@ -170,15 +193,16 @@ set_marker_block() {
 remove_marker_block() {
   local target="$1"
   if [ ! -f "$target" ]; then return 1; fi
-  if ! grep -qF "$MARKER_BEGIN" "$target"; then return 1; fi
+  validate_marker_file "$target" || return 2
+  if ! grep -qFx "$MARKER_BEGIN" "$target"; then return 1; fi
   local tmp
   tmp=$(mktemp)
   awk -v begin="$MARKER_BEGIN" -v end="$MARKER_END" '
     BEGIN { in_block = 0 }
     {
-      if (!in_block && index($0, begin)) { in_block = 1; next }
+      if (!in_block && $0 == begin) { in_block = 1; next }
       if (in_block) {
-        if (index($0, end)) { in_block = 0 }
+        if ($0 == end) { in_block = 0 }
         next
       }
       print
@@ -263,10 +287,14 @@ if [ "$DO_UNINSTALL" = true ]; then
   # Strip marker-wrapped block from Claude Code CLAUDE.md
   if remove_marker_block "$HOME/.claude/CLAUDE.md"; then
     echo "-> Cleaned: Claude Code skill block removed from $HOME/.claude/CLAUDE.md"
+  elif [ "$?" -eq 2 ]; then
+    exit 1
   fi
   # Strip marker-wrapped block from Codex AGENTS.md
   if remove_marker_block "$HOME/AGENTS.md"; then
     echo "-> Cleaned: Codex skill block removed from $HOME/AGENTS.md"
+  elif [ "$?" -eq 2 ]; then
+    exit 1
   fi
   # Preserve config by default so reinstall keeps the user's Vault selection.
   if [ "$PURGE_CONFIG" = true ] && [ -f "$HOME/.obsidian-kb-config" ]; then

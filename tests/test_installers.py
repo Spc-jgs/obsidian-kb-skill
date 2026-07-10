@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from obsidian_kb_skill.scripts.audit_vault import audit_vault
 
 
@@ -276,6 +278,47 @@ def test_bash_uninstall_preserves_config_and_explicit_purge_removes_it(tmp_path)
         extra_args=("--uninstall", "--purge-config"),
     )
     assert not config.exists()
+
+
+@pytest.mark.parametrize(
+    "existing",
+    [
+        "user content\n<!-- BEGIN obsidian-kb-skill -->\norphaned\nkeep me\n",
+        "user content\n<!-- END obsidian-kb-skill -->\nkeep me\n",
+        (
+            "user content\n<!-- END obsidian-kb-skill -->\n"
+            "middle\n<!-- BEGIN obsidian-kb-skill -->\nkeep me\n"
+        ),
+        (
+            "user content\n<!-- BEGIN obsidian-kb-skill -->\none\n"
+            "<!-- END obsidian-kb-skill -->\n"
+            "middle\n<!-- BEGIN obsidian-kb-skill -->\ntwo\n"
+            "<!-- END obsidian-kb-skill -->\nkeep me\n"
+        ),
+    ],
+    ids=("lone-begin", "lone-end", "reversed", "duplicate-blocks"),
+)
+def test_bash_malformed_marker_fails_without_modifying_shared_file(tmp_path, existing):
+    release = _copy_release_tree(tmp_path)
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    shared = home / ".claude" / "CLAUDE.md"
+    shared.parent.mkdir(parents=True)
+    shared.write_text(existing, encoding="utf-8")
+    before = shared.read_bytes()
+
+    result = _run_release_installer(
+        release,
+        home=home,
+        vault=vault,
+        platforms="claude-code",
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "malformed marker" in (result.stdout + result.stderr).lower()
+    assert shared.read_bytes() == before
 
 
 def test_bash_installer_uses_native_folder_named_indexes(tmp_path):
