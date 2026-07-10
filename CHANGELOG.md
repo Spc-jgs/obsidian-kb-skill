@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.11.1] - 2026-07-10
+
+### Added
+
+- **Bounded per-note backup retention**: `update-note` keeps one write-before backup per relative note path by default. Users can set `backup.keep_per_note` from 1 through 1000 in the global `~/.obsidian-kb-settings.json` file.
+- **Installed-product retention proof**: source, standard Skill, disposable installer, and wheel tests run the updater from neutral directories and verify the configured retained count without borrowing repository modules.
+
+### Changed
+
+- Backup cleanup runs inside the helper only after a successful note write. Agents never enumerate or delete backups, so cleanup costs no model tokens and cannot create an AI-driven deletion loop.
+- Bash and PowerShell create global settings only when absent, preserve user edits during upgrade and default uninstall, and remove them only with explicit config purge.
+
+### Fixed
+
+- Invalid or unreadable settings now fail closed: the note write may succeed, but backup deletion is disabled and the new backup remains.
+- Retention scans only real timestamp directories and regular in-Vault files. Symlinks, unknown layouts, and unverifiable paths are retained; the just-created backup is protected even if filesystem clocks move backward.
+- Cleanup failures are warnings after a committed write rather than command failures that could cause an agent to retry. This release does not claim to eliminate concurrent filesystem replacement (TOCTOU), which remains future atomic-write/directory-handle work.
+
 ## [1.11.0] - 2026-07-10
 
 ### Added
