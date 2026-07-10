@@ -51,7 +51,7 @@ updated: 2026-07-09T16:00
 **Outgoing agent (before yielding):**
 1. Resolve & validate the vault; locate `Tasks/<slug>/TASK.md`.
 2. Update: set `step`, append to `decisions` / `open` / `artifacts` as needed, add self to `agents`, append one `Log` line (`[<agent>] <finished / next>`). Bump `updated`.
-   - Prefer the constraint-based updater `scripts/update_note.py` (`obsidian-update-note`): writes only frontmatter + Log, never clobbers prose, caps Log. Dry-run by default; `--apply` to write.
+   - Prefer the constraint-based updater `python <skill-root>/scripts/run_helper.py update-note` (`obsidian-update-note` when the wheel is installed): writes only frontmatter + Log, never clobbers prose, caps Log. Dry-run by default; `--apply` to write.
    - **Conflict resolution (Mem0-style):** before appending a decision, check existing `decisions`. If the new info *contradicts* an old one, replace it instead of piling on: `--replace-decision "old substring::new decision"`. If no match, it appends as new.
    - Native-write agents may edit directly instead.
 3. Hand the next agent (or user) the task slug.

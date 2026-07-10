@@ -33,7 +33,7 @@ If a task genuinely needs to exceed these caps (e.g. bulk import of 20 notes), *
 10. **Respect cost limits** — do not scan the entire vault for a single save
 11. **One index owner** — let Folder Index or Dataview own generated listings; update subfolder and parent indexes only in Static mode
 12. **Bounded capture** — Default to one target note per invocation. Multiple solutions inside one source can stay in one focused note. If the source contains multiple independently reusable topics, ask the user before creating multiple notes; without confirmation, create one aggregate note and suggest later extraction.
-13. **Use the provided write helper** — if your environment lacks a native file-write tool, call `scripts/create_note.py` instead of writing your own ad-hoc script to save the note.
+13. **Use the provided write helper** — if your environment lacks a native file-write tool, call `python <skill-root>/scripts/run_helper.py create-note` instead of writing your own ad-hoc script to save the note.
 
 
 ## Error Handling

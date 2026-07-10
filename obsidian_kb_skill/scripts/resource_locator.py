@@ -4,12 +4,12 @@
 This module is the ONLY place that resolves where ``templates/`` and
 ``references/`` come from. No other script may build these paths by hand.
 
-Resolution order (see the v1.10.1 decision):
+Resolution order (see the v1.11.0 distribution contract):
 
-1. ``--skill-root`` (explicit CLI argument) — MUST be a directory that actually
-   contains ``templates/`` and ``references/``. If it is given but invalid, we
-   RAISE immediately and never silently fall back. This keeps config mistakes
-   visible instead of masking them behind the bundled copy.
+1. ``--skill-root`` (explicit CLI argument) — MUST be either a standard Skill
+   root containing ``assets/templates/`` and ``references/`` or the legacy
+   development resource root containing ``templates/`` and ``references/``.
+   If it is given but invalid, we RAISE immediately and never silently fall back.
 2. ``OBSIDIAN_KB_SKILL_ROOT`` (environment variable) — same validity rule.
 3. ``importlib.resources`` — the bundled copy shipped inside the installed
    wheel (``scripts/resources/`` as package data). This is the DEFAULT for a
@@ -53,9 +53,16 @@ class SkillResources:
         return f"SkillResources(source={self.source!r})"
 
 
+def _templates_under(root: Path) -> Path:
+    standard = root / "assets" / _TEMPLATE_SUBDIR
+    if standard.is_dir():
+        return standard
+    return root / _TEMPLATE_SUBDIR
+
+
 def _is_valid_root(root: Path) -> bool:
-    """A usable root must expose both a templates/ and a references/ dir."""
-    return (root / _TEMPLATE_SUBDIR).is_dir() and (root / _REFERENCE_SUBDIR).is_dir()
+    """A usable root exposes templates and references in a supported layout."""
+    return _templates_under(root).is_dir() and (root / _REFERENCE_SUBDIR).is_dir()
 
 
 def _from_explicit_root(root: Path, label: str) -> SkillResources:
@@ -63,11 +70,12 @@ def _from_explicit_root(root: Path, label: str) -> SkillResources:
     if not root.is_dir() or not _is_valid_root(root):
         raise ResourceError(
             f"{label} does not point at a valid skill root "
-            f"(need {_TEMPLATE_SUBDIR}/ and {_REFERENCE_SUBDIR}/ under it): {root}"
+            f"(need assets/{_TEMPLATE_SUBDIR}/ + {_REFERENCE_SUBDIR}/, or the "
+            f"legacy {_TEMPLATE_SUBDIR}/ + {_REFERENCE_SUBDIR}/ layout): {root}"
         )
     return SkillResources(
         source=label,
-        templates_dir=root / _TEMPLATE_SUBDIR,
+        templates_dir=_templates_under(root),
         references_dir=root / _REFERENCE_SUBDIR,
     )
 
