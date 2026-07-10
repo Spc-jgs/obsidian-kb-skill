@@ -3,6 +3,7 @@
 Covers: upsert init, field updates, Log append, Log TTL cap, list de-dup,
 and dry-run safety.
 """
+import json
 import pathlib
 import sys
 
@@ -40,6 +41,97 @@ def test_dry_run_does_not_write(vault):
     rc = update_note.main([str(vault), "--note", "Tasks/foo/TASK.md"])
     assert rc == 0
     assert not note.exists()  # nothing written without --apply
+
+
+def test_existing_note_is_backed_up_before_apply_and_reported_in_json(
+    vault, monkeypatch, capsys
+):
+    note = _note(vault)
+    update_note.main([str(vault), "--note", "Tasks/foo/TASK.md", "--apply"])
+    original = note.read_bytes()
+    capsys.readouterr()
+    monkeypatch.setattr(
+        update_note, "_backup_timestamp", lambda: "2026-07-10-123456"
+    )
+
+    rc = update_note.main(
+        [
+            str(vault),
+            "--note",
+            "Tasks/foo/TASK.md",
+            "--add-open",
+            "verify release",
+            "--apply",
+            "--no-audit",
+            "--json",
+        ]
+    )
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["backup"] == (
+        ".obsidian-kb-backups/2026-07-10-123456/Tasks/foo/TASK.md"
+    )
+    backup = vault / payload["backup"]
+    assert backup.read_bytes() == original
+    assert note.read_bytes() != original
+
+
+def test_existing_note_dry_run_creates_no_backup(vault, capsys):
+    update_note.main([str(vault), "--note", "Tasks/foo/TASK.md", "--apply"])
+    capsys.readouterr()
+
+    rc = update_note.main(
+        [str(vault), "--note", "Tasks/foo/TASK.md", "--add-open", "preview"]
+    )
+
+    assert rc == 0
+    assert not (vault / ".obsidian-kb-backups").exists()
+
+
+def test_backup_note_never_overwrites_same_timestamp(vault):
+    note = _note(vault)
+    note.parent.mkdir(parents=True)
+    note.write_bytes(b"first")
+
+    first = update_note.backup_note(
+        vault, note, timestamp="2026-07-10-123456"
+    )
+    note.write_bytes(b"second")
+    second = update_note.backup_note(
+        vault, note, timestamp="2026-07-10-123456"
+    )
+
+    assert first.read_bytes() == b"first"
+    assert second.read_bytes() == b"second"
+    assert first != second
+    assert second.parents[2].name == "2026-07-10-123456-2"
+
+
+def test_backup_failure_aborts_without_modifying_note(vault, monkeypatch, capsys):
+    note = _note(vault)
+    update_note.main([str(vault), "--note", "Tasks/foo/TASK.md", "--apply"])
+    original = note.read_bytes()
+    capsys.readouterr()
+
+    def fail_backup(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(update_note, "backup_note", fail_backup)
+    rc = update_note.main(
+        [
+            str(vault),
+            "--note",
+            "Tasks/foo/TASK.md",
+            "--add-open",
+            "must not land",
+            "--apply",
+        ]
+    )
+
+    assert rc != 0
+    assert "backup failed" in capsys.readouterr().err.lower()
+    assert note.read_bytes() == original
 
 
 def test_update_sets_step_and_appends_decision_and_log(vault):

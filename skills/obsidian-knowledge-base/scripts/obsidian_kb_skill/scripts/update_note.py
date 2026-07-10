@@ -57,6 +57,34 @@ def _now() -> str:
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
+def _backup_timestamp() -> str:
+    return datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
+
+
+def backup_note(
+    vault: Path,
+    note_path: Path,
+    *,
+    timestamp: str | None = None,
+) -> Path:
+    """Copy an existing note byte-for-byte into a unique in-Vault backup path."""
+    relative = note_path.relative_to(vault)
+    base = timestamp or _backup_timestamp()
+    suffix = 1
+    while True:
+        directory = base if suffix == 1 else f"{base}-{suffix}"
+        backup_relative = Path(".obsidian-kb-backups") / directory / relative
+        backup_path = resolve_target_within_vault(
+            vault, backup_relative, label="backup path"
+        )
+        if not backup_path.exists():
+            break
+        suffix += 1
+    backup_path.parent.mkdir(parents=True, exist_ok=True)
+    backup_path.write_bytes(note_path.read_bytes())
+    return backup_path
+
+
 def _extend_list(existing: Any, additions: list[str]) -> list[str]:
     """Append additions to a list, de-duplicating while preserving order."""
     seq = list(existing) if isinstance(existing, list) else []
@@ -273,6 +301,7 @@ def main(argv: list[str] | None = None) -> int:
         "rendered": rendered,
         "applied": False,
         "dry_run": not args.apply,
+        "backup": None,
         "audit": None,
         "suggested_links": None,
     }
@@ -288,6 +317,33 @@ def main(argv: list[str] | None = None) -> int:
             print("----------------------------------")
             print("(dry run) pass --apply to write the file.")
         return 0
+
+    if action == "update":
+        try:
+            backup_path = backup_note(vault, note_path)
+        except VaultPathError as exc:
+            return report_cli_violation(exc, param="backup", json_mode=args.json)
+        except OSError as exc:
+            if args.json:
+                print(
+                    json.dumps(
+                        {
+                            "schema_version": "1.0",
+                            "ok": False,
+                            "command": "update-note",
+                            "error": {
+                                "code": "BACKUP_FAILED",
+                                "message": f"backup failed: {exc}",
+                                "details": {},
+                            },
+                        },
+                        ensure_ascii=False,
+                    )
+                )
+            else:
+                print(f"error: backup failed: {exc}", file=sys.stderr)
+            return 3
+        result["backup"] = backup_path.relative_to(vault).as_posix()
 
     note_path.parent.mkdir(parents=True, exist_ok=True)
     note_path.write_bytes(rendered.encode("utf-8"))
@@ -332,6 +388,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
         print(f"{action}d: {note_path}")
+        if result["backup"]:
+            print(f"backup : {result['backup']}")
     return 0
 
 
