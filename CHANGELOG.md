@@ -29,6 +29,7 @@ All notable changes to this project will be documented in this file.
 - Marker-managed shared files now fail closed on lone, reversed, or duplicate markers instead of risking truncation or silent cleanup.
 - New relative Vault paths are canonicalized before being persisted, unknown platform names fail before Vault mutation, and PowerShell now includes the Digest template.
 - Corrected the `detect_index.py` shebang and removed documentation commands that referenced the deleted top-level `scripts/` package.
+- Template-driven note creation now replaces the template's first H1 with the requested note title; different filenames no longer retain the same placeholder heading and trigger false `duplicate-title` findings.
 
 ## [1.10.0] - 2026-07-09
 

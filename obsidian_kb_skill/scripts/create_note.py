@@ -144,6 +144,20 @@ def _substitute_date(text: str, date: str) -> str:
     return text.replace("{{date}}", date)
 
 
+def _render_template_body(text: str, *, date: str, title: str) -> str:
+    """Fill template variables and bind its first H1 to the requested title."""
+    heading = " ".join(title.splitlines()).strip() or "untitled"
+    rendered = _substitute_date(text, date).replace("{{title}}", heading)
+    lines = rendered.splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        if line.startswith("# "):
+            newline = "\n" if line.endswith("\n") else ""
+            lines[index] = f"# {heading}{newline}"
+            return "".join(lines)
+    separator = "" if not rendered or rendered.startswith("\n") else "\n"
+    return f"# {heading}\n{separator}{rendered}"
+
+
 def build_note(
     *,
     note_type: str,
@@ -179,11 +193,13 @@ def build_note(
     user_template = _load_user_template(vault, note_type)
     user_tpl_meta, user_tpl_body = user_template if user_template else ({}, "")
 
-    # Body: explicit body wins, else user template body (with {{date}} filled).
+    # Body: explicit body wins. A template body has date/title variables filled
+    # and its first H1 is the requested note title; user-owned explicit content
+    # is never rewritten.
     if body.strip():
         final_body = body
     elif user_tpl_body:
-        final_body = _substitute_date(user_tpl_body, date)
+        final_body = _render_template_body(user_tpl_body, date=date, title=title)
     else:
         final_body = f"# {title}\n"
 

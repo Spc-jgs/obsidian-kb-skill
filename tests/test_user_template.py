@@ -67,6 +67,49 @@ def test_user_template_body_used_when_no_content(tmp_path):
     assert "source" in meta
 
 
+def test_user_template_first_h1_is_replaced_with_requested_title(tmp_path):
+    vault = _vault_with_template(
+        tmp_path,
+        type_name="insight-note",
+        tpl_filename="Insight Note.md",
+        tpl_fm={"type": "insight-note", "tags": ["insight"]},
+        tpl_body="# 洞察标题\n\n## Details\n\nKeep this section.\n",
+    )
+
+    _, rendered = build_note(
+        note_type="insight-note",
+        title="Runtime Proof",
+        date="2026-07-10",
+        body="",
+        vault=vault,
+    )
+
+    assert "# Runtime Proof\n" in rendered
+    assert "# 洞察标题" not in rendered
+    assert "## Details" in rendered
+
+
+def test_explicit_body_keeps_caller_owned_h1(tmp_path):
+    vault = _vault_with_template(
+        tmp_path,
+        type_name="insight-note",
+        tpl_filename="Insight Note.md",
+        tpl_fm={"type": "insight-note", "tags": ["insight"]},
+        tpl_body="# Template Placeholder\n",
+    )
+
+    _, rendered = build_note(
+        note_type="insight-note",
+        title="Filename Title",
+        date="2026-07-10",
+        body="# Caller-owned Heading\n\nBody.\n",
+        vault=vault,
+    )
+
+    assert "# Caller-owned Heading" in rendered
+    assert "# Filename Title" not in rendered
+
+
 def test_explicit_body_overrides_user_template(tmp_path):
     vault = _vault_with_template(
         tmp_path,
