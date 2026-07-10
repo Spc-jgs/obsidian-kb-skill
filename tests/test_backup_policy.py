@@ -62,6 +62,9 @@ def test_invalid_retention_disables_pruning(tmp_path, value):
         (json.dumps({"schema_version": 1, "backup": None}), 1),
         (json.dumps({"schema_version": 1, "backup": {}}), 1),
         (json.dumps({"schema_version": 2, "backup": {"keep_per_note": 1}}), 2),
+        (json.dumps({"schema_version": True, "backup": {"keep_per_note": 1}}), True),
+        (json.dumps({"schema_version": 1.0, "backup": {"keep_per_note": 1}}), 1.0),
+        (json.dumps({"schema_version": "1", "backup": {"keep_per_note": 1}}), "1"),
     ],
 )
 def test_malformed_or_unsupported_settings_disable_pruning(

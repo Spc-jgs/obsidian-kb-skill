@@ -67,7 +67,9 @@ def load_backup_policy(home: Path | None = None) -> BackupPolicy:
             (f"invalid settings; backup deletion disabled: {exc}",),
         )
     valid = (
-        schema == 1
+        isinstance(schema, int)
+        and not isinstance(schema, bool)
+        and schema == 1
         and isinstance(value, int)
         and not isinstance(value, bool)
         and 1 <= value <= MAX_KEEP_PER_NOTE
