@@ -14,7 +14,10 @@ Outputs are written with UTF-8 (no BOM) and LF line endings.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -80,6 +83,8 @@ STANDARD_SKILL_ROOT = ROOT / "skills" / "obsidian-knowledge-base"
 STANDARD_ASSETS_DST = STANDARD_SKILL_ROOT / "assets" / "templates"
 STANDARD_HELPER_SRC = ROOT / "obsidian_kb_skill"
 STANDARD_HELPER_DST = STANDARD_SKILL_ROOT / "scripts" / "obsidian_kb_skill"
+PYPROJECT = ROOT / "pyproject.toml"
+STANDARD_MANIFEST = STANDARD_SKILL_ROOT / "manifest.json"
 
 
 def read_text(path: Path) -> str:
@@ -154,6 +159,49 @@ def _exclude_housekeeping(relative: Path) -> bool:
     return any(part in {".DS_Store", "__pycache__"} for part in relative.parts) or (
         relative.suffix in {".pyc", ".pyo"}
     )
+
+
+def project_version(pyproject: Path = PYPROJECT) -> str:
+    """Return the distribution version from ``pyproject.toml``."""
+    with pyproject.open("rb") as handle:
+        payload = tomllib.load(handle)
+    return str(payload["project"]["version"])
+
+
+def _exclude_manifest_file(relative: Path) -> bool:
+    return (
+        _exclude_housekeeping(relative)
+        or relative == Path("header.md")
+        or relative == Path("manifest.json")
+    )
+
+
+def skill_payload_files(root: Path) -> dict[str, Path]:
+    """Return every regular installable Skill payload file in stable order."""
+    return {
+        relative: path
+        for relative, path in sorted(
+            _file_map(root, exclude=_exclude_manifest_file).items()
+        )
+        if not path.is_symlink()
+    }
+
+
+def build_skill_manifest(root: Path, version: str) -> dict[str, object]:
+    files = {
+        relative: hashlib.sha256(path.read_bytes()).hexdigest()
+        for relative, path in skill_payload_files(root).items()
+    }
+    return {
+        "schema_version": 1,
+        "product": "obsidian-kb-skill",
+        "version": version,
+        "files": dict(sorted(files.items())),
+    }
+
+
+def render_skill_manifest(payload: dict[str, object]) -> str:
+    return json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
 def _exclude_standard_helper(relative: Path) -> bool:
@@ -270,6 +318,19 @@ def main() -> int:
         else:
             sync_exact_tree(src, dst, exclude=exclude)
             print(f"  synced {dst.relative_to(ROOT)}")
+
+    manifest_text = render_skill_manifest(
+        build_skill_manifest(STANDARD_SKILL_ROOT, project_version())
+    )
+    if args.check:
+        if (
+            not STANDARD_MANIFEST.is_file()
+            or read_text(STANDARD_MANIFEST) != manifest_text
+        ):
+            drift.append(STANDARD_MANIFEST.relative_to(ROOT).as_posix())
+    else:
+        write_text(STANDARD_MANIFEST, manifest_text)
+        print(f"  wrote {STANDARD_MANIFEST.relative_to(ROOT)}")
 
     if args.check:
         if drift:
