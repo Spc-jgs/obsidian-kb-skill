@@ -7,15 +7,18 @@ script only seeds the folder with sensible starter templates the first time; aft
 that the user is expected to edit them in their vault (Obsidian), and re-running
 this script will NOT overwrite the user's edits (use --force if you really mean it).
 
-The shipped templates live in `core/templates/<slug>.md` next to the skill body,
-so users can read them in the skill source even after they're overridden in the
-vault — but at write time, the vault template wins.
+The shipped templates are resolved by ``resource_locator`` (an installed wheel's
+bundled copy by default, or ``--skill-root`` / ``OBSIDIAN_KB_SKILL_ROOT`` when set).
+They also live at ``core/templates/`` in a source checkout, but at write time the
+vault template wins.
 """
 from __future__ import annotations
 
 import argparse
 import sys
 from pathlib import Path
+
+from obsidian_kb_skill.scripts.resource_locator import ResourceError, template_dir
 
 # Map note type -> (template filename used inside the vault, source file name
 # in core/templates/). These are shipped starter files; users may edit the
@@ -46,8 +49,9 @@ def main(argv: list[str] | None = None) -> int:
         help="Overwrite existing templates (DESTRUCTIVE: clobbers your edits)",
     )
     p.add_argument(
-        "--skill-root", type=Path, default=Path(__file__).resolve().parent.parent,
-        help="Skill root containing core/templates/ (advanced)",
+        "--skill-root", type=Path,
+        help="Explicit skill root containing templates/ and references/ (advanced). "
+             "If given but invalid, the command fails instead of falling back.",
     )
     args = p.parse_args(argv)
 
@@ -56,10 +60,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: not an Obsidian vault: {vault}", file=sys.stderr)
         return 2
 
-    src_dir = args.skill_root / "core" / "templates"
-    if not src_dir.is_dir():
-        print(f"error: shipped templates not found at {src_dir}", file=sys.stderr)
-        return 2
+    try:
+        src_dir = template_dir(skill_root=args.skill_root)
+    except ResourceError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
 
     templates_dir = vault / "Templates"
     templates_dir.mkdir(parents=True, exist_ok=True)

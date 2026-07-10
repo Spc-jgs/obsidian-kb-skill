@@ -20,10 +20,11 @@ from typing import Any
 
 import yaml
 
-try:
-    from audit_vault import _frontmatter, _folder_index_config, _note_title
-except ImportError:  # allow `python -m scripts.process_inbox`
-    from scripts.audit_vault import _frontmatter, _folder_index_config, _note_title
+from obsidian_kb_skill.scripts.audit_vault import (
+    _frontmatter,
+    _folder_index_config,
+    _note_title,
+)
 
 # Mirror of the Note Types and Routing table in core/OBSIDIAN_KB.md.
 TYPE_TO_FOLDER = {

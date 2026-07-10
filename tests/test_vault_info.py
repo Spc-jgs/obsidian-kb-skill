@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.vault_info import collect
+from obsidian_kb_skill.scripts.vault_info import collect
 
 
 def _make_vault(root: Path) -> Path:

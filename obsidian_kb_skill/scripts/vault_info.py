@@ -37,15 +37,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-try:
-    from detect_index import detect
-except ImportError:  # allow `python -m scripts.vault_info`
-    from scripts.detect_index import detect
-
-try:
-    from audit_vault import _folder_index_config
-except ImportError:  # allow `python -m scripts.vault_info`
-    from scripts.audit_vault import _folder_index_config
+from obsidian_kb_skill.scripts.detect_index import detect
+from obsidian_kb_skill.scripts.audit_vault import _folder_index_config
 
 
 # Note-bearing folders that get an index strategy; Templates/Attachments are

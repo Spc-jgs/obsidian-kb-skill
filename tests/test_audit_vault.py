@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.audit_vault import audit_vault
+from obsidian_kb_skill.scripts.audit_vault import audit_vault
 
 
 def codes(vault: Path) -> set[str]:

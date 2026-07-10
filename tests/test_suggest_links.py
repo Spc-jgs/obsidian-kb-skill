@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.suggest_links import suggest_links
+from obsidian_kb_skill.scripts.suggest_links import suggest_links
 
 
 def make_vault(tmp_path: Path) -> Path:

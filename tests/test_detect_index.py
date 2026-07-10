@@ -7,8 +7,8 @@ import sys
 import pytest
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO / "scripts"))
-import detect_index  # noqa: E402
+sys.path.insert(0, str(REPO))
+import obsidian_kb_skill.scripts.detect_index as detect_index  # noqa: E402
 
 
 def _make_vault(tmp_path, *, folder_index=False, dataview=False):
@@ -68,10 +68,11 @@ def test_dataview_mode_detected(tmp_path):
 
 def test_json_output_is_valid_and_machine_readable(tmp_path):
     vault = _make_vault(tmp_path)
+    env = {**__import__("os").environ, "PYTHONPATH": str(REPO)}
     result = subprocess.run(
-        [sys.executable, str(REPO / "scripts" / "detect_index.py"),
+        [sys.executable, "-m", "obsidian_kb_skill.scripts.detect_index",
          str(vault), "--folder", "30-Insights"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, env=env,
     )
     assert result.returncode == 0
     parsed = json.loads(result.stdout)

@@ -23,22 +23,13 @@ from typing import Any
 
 import yaml
 
-try:
-    from create_note import (
-        build_note,
-        split_frontmatter,
-        validate_vault,
-        audit_note,
-    )
-    from suggest_links import suggest_links
-except ImportError:  # allow `python -m scripts.update_note`
-    from scripts.create_note import (
-        build_note,
-        split_frontmatter,
-        validate_vault,
-        audit_note,
-    )
-    from scripts.suggest_links import suggest_links
+from obsidian_kb_skill.scripts.create_note import (
+    build_note,
+    split_frontmatter,
+    validate_vault,
+    audit_note,
+)
+from obsidian_kb_skill.scripts.suggest_links import suggest_links
 
 MAX_LOG_LINES = 30
 

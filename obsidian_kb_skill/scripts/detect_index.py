@@ -25,10 +25,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-try:
-    from audit_vault import _folder_index_config, expected_folder_index
-except ImportError:  # allow `python -m scripts.detect_index`
-    from scripts.audit_vault import _folder_index_config, expected_folder_index
+from obsidian_kb_skill.scripts.audit_vault import (
+    _folder_index_config,
+    expected_folder_index,
+)
 
 
 def _index_file_in(folder: Path) -> Path | None:

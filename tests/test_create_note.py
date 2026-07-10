@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.create_note import (
+from obsidian_kb_skill.scripts.create_note import (
     build_note,
     resolve_dest,
     sanitize_filename,
@@ -15,7 +15,18 @@ from scripts.create_note import (
 )
 
 ROOT = Path(__file__).resolve().parent.parent
-SCRIPT = ROOT / "scripts" / "create_note.py"
+ENV = {**__import__("os").environ, "PYTHONPATH": str(ROOT)}
+
+
+def _run(*args: str) -> subprocess.CompletedProcess:
+    """Run the script as a module with the repo root importable."""
+    return subprocess.run(
+        [sys.executable, "-m", "obsidian_kb_skill.scripts.create_note", *args],
+        cwd=str(ROOT),
+        env=ENV,
+        capture_output=True,
+        text=True,
+    )
 
 
 def make_vault(tmp_path: Path) -> Path:
@@ -72,9 +83,10 @@ def test_resolve_dest_appends_suffix(tmp_path):
 def test_dry_run_writes_nothing(tmp_path):
     vault = make_vault(tmp_path)
     r = subprocess.run(
-        [sys.executable, str(SCRIPT), str(vault), "--type", "insight-note",
+        [sys.executable, "-m", "obsidian_kb_skill.scripts.create_note", str(vault), "--type", "insight-note",
          "--title", "Dry", "--stdin"],
         input="# dry\n", capture_output=True, text=True, cwd=ROOT,
+        env=ENV,
     )
     assert r.returncode == 0
     assert "dry run" in r.stdout
@@ -87,9 +99,10 @@ def test_apply_creates_note_and_updates_index(tmp_path):
         "# Insights\n\n## Recent\n", encoding="utf-8"
     )
     r = subprocess.run(
-        [sys.executable, str(SCRIPT), str(vault), "--type", "insight-note",
-         "--title", "Created", "--stdin", "--apply"],
+        [sys.executable, "-m", "obsidian_kb_skill.scripts.create_note", str(vault), "--type", "insight-note",
+         "--title", "Created", "--stdin", "--date", "2026-07-09", "--apply"],
         input="# body\n", capture_output=True, text=True, cwd=ROOT,
+        env=ENV,
     )
     assert r.returncode == 0, r.stderr
     created = vault / "30-Insights" / "2026-07-09 Created.md"
@@ -105,9 +118,10 @@ def test_apply_refuses_non_vault(tmp_path):
     not_vault = tmp_path / "notvault"
     not_vault.mkdir()
     r = subprocess.run(
-        [sys.executable, str(SCRIPT), str(not_vault), "--type", "insight-note",
-         "--title", "X", "--stdin", "--apply"],
+        [sys.executable, "-m", "obsidian_kb_skill.scripts.create_note", str(not_vault), "--type", "insight-note",
+         "--title", "X", "--stdin", "--date", "2026-07-09", "--apply"],
         input="x", capture_output=True, text=True, cwd=ROOT,
+        env=ENV,
     )
     assert r.returncode == 2
     assert not list(not_vault.glob("*.md"))
@@ -117,9 +131,10 @@ def test_apply_never_overwrites(tmp_path):
     vault = make_vault(tmp_path)
     (vault / "30-Insights" / "2026-07-09 Dup.md").write_text("orig", encoding="utf-8")
     r = subprocess.run(
-        [sys.executable, str(SCRIPT), str(vault), "--type", "insight-note",
-         "--title", "Dup", "--stdin", "--apply"],
+        [sys.executable, "-m", "obsidian_kb_skill.scripts.create_note", str(vault), "--type", "insight-note",
+         "--title", "Dup", "--stdin", "--date", "2026-07-09", "--apply"],
         input="new", capture_output=True, text=True, cwd=ROOT,
+        env=ENV,
     )
     assert r.returncode == 0
     assert (vault / "30-Insights" / "2026-07-09 Dup-2.md").is_file()
@@ -129,10 +144,11 @@ def test_apply_never_overwrites(tmp_path):
 def test_apply_runs_automatic_audit_ok(tmp_path):
     vault = make_vault(tmp_path)
     r = subprocess.run(
-        [sys.executable, str(SCRIPT), str(vault), "--type", "insight-note",
-         "--title", "Audited", "--stdin", "--apply"],
+        [sys.executable, "-m", "obsidian_kb_skill.scripts.create_note", str(vault), "--type", "insight-note",
+         "--title", "Audited", "--stdin", "--date", "2026-07-09", "--apply"],
         input="# Insight\n\nThis is the actual note content.\n",
         capture_output=True, text=True, cwd=ROOT,
+        env=ENV,
     )
     assert r.returncode == 0, r.stderr
     assert "AUDIT: OK" in r.stdout
@@ -141,9 +157,10 @@ def test_apply_runs_automatic_audit_ok(tmp_path):
 def test_apply_audit_flags_broken_wikilink(tmp_path):
     vault = make_vault(tmp_path)
     r = subprocess.run(
-        [sys.executable, str(SCRIPT), str(vault), "--type", "insight-note",
-         "--title", "Broken", "--stdin", "--apply"],
+        [sys.executable, "-m", "obsidian_kb_skill.scripts.create_note", str(vault), "--type", "insight-note",
+         "--title", "Broken", "--stdin", "--date", "2026-07-09", "--apply"],
         input="see [[No Such Note]]\n", capture_output=True, text=True, cwd=ROOT,
+        env=ENV,
     )
     assert r.returncode == 0, r.stderr
     assert "AUDIT:" in r.stdout
@@ -153,10 +170,11 @@ def test_apply_audit_flags_broken_wikilink(tmp_path):
 def test_no_audit_suppresses_audit(tmp_path):
     vault = make_vault(tmp_path)
     r = subprocess.run(
-        [sys.executable, str(SCRIPT), str(vault), "--type", "insight-note",
-         "--title", "Quiet", "--stdin", "--apply", "--no-audit"],
+        [sys.executable, "-m", "obsidian_kb_skill.scripts.create_note", str(vault), "--type", "insight-note",
+         "--title", "Quiet", "--stdin", "--date", "2026-07-09", "--apply", "--no-audit"],
         input="# Insight\n\nThis is the actual note content.\n",
         capture_output=True, text=True, cwd=ROOT,
+        env=ENV,
     )
     assert r.returncode == 0, r.stderr
     assert "AUDIT:" not in r.stdout
@@ -170,9 +188,10 @@ def test_suggest_links_after_create(tmp_path):
         encoding="utf-8",
     )
     r = subprocess.run(
-        [sys.executable, str(SCRIPT), str(vault), "--type", "insight-note",
-         "--title", "New", "--stdin", "--apply", "--suggest-links"],
+        [sys.executable, "-m", "obsidian_kb_skill.scripts.create_note", str(vault), "--type", "insight-note",
+         "--title", "New", "--stdin", "--date", "2026-07-09", "--apply", "--suggest-links"],
         input="# New\n\nFresh content.\n", capture_output=True, text=True, cwd=ROOT,
+        env=ENV,
     )
     assert r.returncode == 0, r.stderr
     assert "SUGGESTED LINKS" in r.stdout

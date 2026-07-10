@@ -20,14 +20,12 @@ from typing import Any
 
 import yaml
 
-try:
-    from process_inbox import TYPE_TO_FOLDER, _maybe_update_static_index
-    from audit_vault import audit_note
-    from suggest_links import suggest_links
-except ImportError:  # allow `python -m scripts.create_note`
-    from scripts.process_inbox import TYPE_TO_FOLDER, _maybe_update_static_index
-    from scripts.audit_vault import audit_note
-    from scripts.suggest_links import suggest_links
+from obsidian_kb_skill.scripts.process_inbox import (
+    TYPE_TO_FOLDER,
+    _maybe_update_static_index,
+)
+from obsidian_kb_skill.scripts.audit_vault import audit_note
+from obsidian_kb_skill.scripts.suggest_links import suggest_links
 
 DEFAULT_TAG_BY_TYPE = {
     "daily-note": "daily",

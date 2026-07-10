@@ -15,8 +15,9 @@ REPO = Path(__file__).resolve().parents[1]
 
 
 def _run(args: list[str]) -> dict:
+    env = {**__import__("os").environ, "PYTHONPATH": str(REPO)}
     r = subprocess.run(
-        [sys.executable] + args, capture_output=True, text=True, cwd=str(REPO)
+        [sys.executable] + args, capture_output=True, text=True, cwd=str(REPO), env=env
     )
     assert r.returncode == 0, f"stderr={r.stderr!r}\nstdout={r.stdout!r}"
     return json.loads(r.stdout)
@@ -37,7 +38,7 @@ def test_audit_vault_json(tmp_path):
     (vault / "30-Insights" / "Bad.md").write_text(
         "---\ndate: 2026-07-09\ntags: [a, b, c, d, e, f]\n---\n", encoding="utf-8"
     )
-    out = _run([str(REPO / "scripts" / "audit_vault.py"), str(vault), "--json"])
+    out = _run(["-m", "obsidian_kb_skill.scripts.audit_vault", str(vault), "--json"])
     assert "count" in out and "findings" in out
     assert isinstance(out["findings"], list)
     # Each finding has code/path/message.
@@ -59,7 +60,7 @@ def test_suggest_links_json(tmp_path):
         encoding="utf-8",
     )
     out = _run([
-        str(REPO / "scripts" / "suggest_links.py"), str(vault),
+        "-m", "obsidian_kb_skill.scripts.suggest_links", str(vault),
         "--note", str(note), "--json",
     ])
     assert isinstance(out, list)
@@ -73,7 +74,7 @@ def test_suggest_links_json(tmp_path):
 def test_detect_index_json(tmp_path):
     vault = _make_vault(tmp_path)
     out = _run([
-        str(REPO / "scripts" / "detect_index.py"), str(vault),
+        "-m", "obsidian_kb_skill.scripts.detect_index", str(vault),
         "--folder", "30-Insights",
     ])
     # Already JSON by default; check the schema.
@@ -87,7 +88,7 @@ def test_detect_index_json(tmp_path):
 
 def test_vault_info_json(tmp_path):
     vault = _make_vault(tmp_path)
-    out = _run([str(REPO / "scripts" / "vault_info.py"), str(vault)])
+    out = _run(["-m", "obsidian_kb_skill.scripts.vault_info", str(vault)])
     assert out["valid"] is True
     assert "validation" in out
     assert "templates" in out
@@ -107,7 +108,7 @@ def test_process_inbox_plan_json(tmp_path):
         "# Some Insight\nidea\n", encoding="utf-8"
     )
     out = _run([
-        str(REPO / "scripts" / "process_inbox.py"), str(vault), "--json",
+        "-m", "obsidian_kb_skill.scripts.process_inbox", str(vault), "--json",
     ])
     assert isinstance(out, list)
     assert out and out[0]["target"] == "30-Insights"
@@ -118,7 +119,7 @@ def test_process_inbox_plan_json(tmp_path):
 def test_create_note_dry_run_json(tmp_path):
     vault = _make_vault(tmp_path)
     out = _run([
-        str(REPO / "scripts" / "create_note.py"), str(vault),
+        "-m", "obsidian_kb_skill.scripts.create_note", str(vault),
         "--type", "insight-note", "--title", "Json", "--stdin", "--json",
     ])
     assert out["dry_run"] is True
@@ -131,7 +132,7 @@ def test_create_note_dry_run_json(tmp_path):
 def test_create_note_apply_json(tmp_path):
     vault = _make_vault(tmp_path)
     out = _run([
-        str(REPO / "scripts" / "create_note.py"), str(vault),
+        "-m", "obsidian_kb_skill.scripts.create_note", str(vault),
         "--type", "insight-note", "--title", "Wrote", "--stdin",
         "--apply", "--no-audit", "--json",
     ])
@@ -144,7 +145,7 @@ def test_create_note_apply_json(tmp_path):
 def test_create_note_apply_with_audit_json(tmp_path):
     vault = _make_vault(tmp_path)
     r = subprocess.run(
-        [sys.executable, str(REPO / "scripts" / "create_note.py"), str(vault),
+        [sys.executable, "-m", "obsidian_kb_skill.scripts.create_note", str(vault),
          "--type", "insight-note", "--title", "Audited", "--stdin",
          "--apply", "--json"],
         input="# Insight\n\nReal body content here.\n",
@@ -162,7 +163,7 @@ def test_update_note_dry_run_json(tmp_path):
     vault = _make_vault(tmp_path)
     note = vault / "Tasks" / "foo" / "TASK.md"
     out = _run([
-        str(REPO / "scripts" / "update_note.py"), str(vault),
+        "-m", "obsidian_kb_skill.scripts.update_note", str(vault),
         "--note", str(note.relative_to(vault)), "--json",
     ])
     assert out["dry_run"] is True
@@ -172,7 +173,7 @@ def test_update_note_dry_run_json(tmp_path):
 def test_update_note_apply_json(tmp_path):
     vault = _make_vault(tmp_path)
     out = _run([
-        str(REPO / "scripts" / "update_note.py"), str(vault),
+        "-m", "obsidian_kb_skill.scripts.update_note", str(vault),
         "--note", "Tasks/foo/TASK.md", "--apply", "--no-audit", "--json",
     ])
     assert out["applied"] is True

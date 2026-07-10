@@ -18,10 +18,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _run(*args: str, vault: Path) -> subprocess.CompletedProcess:
-    # Run from the repo root so `scripts` is importable as a package.
+    # Run so `obsidian_kb_skill` is importable as a package.
+    env = {**__import__("os").environ, "PYTHONPATH": str(REPO_ROOT)}
     return subprocess.run(
         [sys.executable, "-m", *args, str(vault)],
         cwd=str(REPO_ROOT),
+        env=env,
         capture_output=True,
         text=True,
     )
@@ -41,7 +43,7 @@ def _make_vault(
 
 def test_audit_vault_clean_vault_exits_zero(tmp_path):
     vault = _make_vault(tmp_path)
-    result = _run("scripts.audit_vault", vault=vault)
+    result = _run("obsidian_kb_skill.scripts.audit_vault", vault=vault)
     assert result.returncode == 0, result.stderr
     assert "0 finding(s)" in result.stdout
 
@@ -52,7 +54,7 @@ def test_process_inbox_apply_moves_and_fills_note(tmp_path):
     # keyword "analysis" routes to 30-Insights; no frontmatter yet.
     inbox_note.write_text("# A stray analysis idea\n\nSome insight worth keeping.\n", encoding="utf-8")
 
-    result = _run("scripts.process_inbox", "--apply", vault=vault)
+    result = _run("obsidian_kb_skill.scripts.process_inbox", "--apply", vault=vault)
     assert result.returncode == 0, result.stderr
     assert "moved:" in result.stdout
     assert "1 Inbox note(s) applied." in result.stdout
@@ -78,7 +80,7 @@ def test_process_inbox_apply_updates_static_index(tmp_path):
         "# An analysis worth keeping\n\nRead about something useful.\n", encoding="utf-8"
     )
 
-    result = _run("scripts.process_inbox", "--apply", vault=vault)
+    result = _run("obsidian_kb_skill.scripts.process_inbox", "--apply", vault=vault)
     assert result.returncode == 0, result.stderr
 
     index_text = (vault / "30-Insights" / "INDEX.md").read_text(encoding="utf-8")
@@ -90,7 +92,7 @@ def test_process_inbox_plan_is_read_only(tmp_path):
     inbox_note = vault / "00-Inbox" / "thought.md"
     inbox_note.write_text("# Quick thought\n\nAn idea.\n", encoding="utf-8")
 
-    result = _run("scripts.process_inbox", "--plan", vault=vault)
+    result = _run("obsidian_kb_skill.scripts.process_inbox", "--plan", vault=vault)
     assert result.returncode == 0, result.stderr
     assert "FILE" in result.stdout
     # Nothing moved in plan mode.
@@ -115,7 +117,7 @@ def test_suggest_links_finds_shared_tag_candidate(tmp_path):
         encoding="utf-8",
     )
 
-    result = _run("scripts.suggest_links", "--note", "30-Insights/Alpha.md", vault=vault)
+    result = _run("obsidian_kb_skill.scripts.suggest_links", "--note", "30-Insights/Alpha.md", vault=vault)
     assert result.returncode == 0, result.stderr
     assert "Beta.md" in result.stdout
     assert "shared tags" in result.stdout
@@ -139,7 +141,7 @@ def test_suggest_links_excludes_already_related(tmp_path):
         encoding="utf-8",
     )
 
-    result = _run("scripts.suggest_links", "--note", "30-Insights/Alpha.md", vault=vault)
+    result = _run("obsidian_kb_skill.scripts.suggest_links", "--note", "30-Insights/Alpha.md", vault=vault)
     assert result.returncode == 0, result.stderr
     assert "0 suggestion(s)" in result.stdout
 
@@ -147,6 +149,6 @@ def test_suggest_links_excludes_already_related(tmp_path):
 def test_cli_rejects_non_vault(tmp_path):
     not_a_vault = tmp_path / "notvault"
     not_a_vault.mkdir()
-    result = _run("scripts.audit_vault", vault=not_a_vault)
+    result = _run("obsidian_kb_skill.scripts.audit_vault", vault=not_a_vault)
     assert result.returncode == 2
     assert "not an Obsidian vault" in result.stderr

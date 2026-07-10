@@ -64,9 +64,38 @@ TARGETS = [
 # generated artifact so the relative path in the pointer resolves for every agent.
 REFERENCES_SRC = ROOT / "core" / "references"
 
+# Bundled runtime templates/references that ship inside the wheel. They are kept
+# in sync from core/ so the wheel carries the same single source of truth that
+# the repo reads. This is the resource_locator's default (importlib.resources) path.
+PACKAGED_RESOURCES = ROOT / "obsidian_kb_skill" / "scripts" / "resources"
+PACKAGED_TEMPLATES_SRC = ROOT / "core" / "templates"
+PACKAGED_REFERENCES_SRC = REFERENCES_SRC
+PACKAGED_TEMPLATES_DST = PACKAGED_RESOURCES / "templates"
+PACKAGED_REFERENCES_DST = PACKAGED_RESOURCES / "references"
+
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def sync_tree(src: Path, dst: Path) -> None:
+    """Mirror src/ into dst/ (overwrite dst files with src content).
+
+    Used to keep the wheel-bundled scripts/resources/ in sync with core/, the
+    single source of truth. Non-.md housekeeping files (e.g. .DS_Store) are
+    skipped so they don't pollute the packaged resources.
+    """
+    if not src.is_dir():
+        return
+    dst.mkdir(parents=True, exist_ok=True)
+    for item in sorted(src.iterdir()):
+        if item.name == ".DS_Store":
+            continue
+        target = dst / item.name
+        if item.is_dir():
+            sync_tree(item, target)
+        else:
+            target.write_bytes(item.read_bytes())
 
 
 def write_text(path: Path, content: str) -> None:
@@ -161,6 +190,13 @@ def main() -> int:
             return 1
         print("All generated artifacts are up to date.")
         return 0
+
+    # Keep wheel-bundled resources in sync with core/ (single source of truth).
+    sync_tree(PACKAGED_TEMPLATES_SRC, PACKAGED_TEMPLATES_DST)
+    sync_tree(PACKAGED_REFERENCES_SRC, PACKAGED_REFERENCES_DST)
+    print(
+        f"  synced resources -> {PACKAGED_RESOURCES.relative_to(ROOT).as_posix()}"
+    )
 
     print(f"\nBuilt {len(TARGETS)} artifacts from core/OBSIDIAN_KB.md.")
     return 0

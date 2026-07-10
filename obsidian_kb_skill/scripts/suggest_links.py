@@ -17,24 +17,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
-try:
-    from audit_vault import (
-        EXEMPT_NAMES,
-        INDEX_TYPES,
-        _frontmatter,
-        _is_ignored,
-        _markdown_files,
-        _note_title,
-    )
-except ImportError:  # allow `python -m scripts.suggest_links`
-    from scripts.audit_vault import (
-        EXEMPT_NAMES,
-        INDEX_TYPES,
-        _frontmatter,
-        _is_ignored,
-        _markdown_files,
-        _note_title,
-    )
+from obsidian_kb_skill.scripts.audit_vault import (
+    EXEMPT_NAMES,
+    INDEX_TYPES,
+    _frontmatter,
+    _is_ignored,
+    _markdown_files,
+    _note_title,
+)
 
 
 def scope_folders(vault: Path, note: Path) -> list[Path]:

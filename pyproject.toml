@@ -16,17 +16,20 @@ dependencies = ["PyYAML>=6"]
 dev = ["pytest>=7"]
 
 [tool.setuptools]
-packages = ["scripts"]
+packages = ["obsidian_kb_skill", "obsidian_kb_skill.scripts", "obsidian_kb_skill.scripts.resources"]
+
+[tool.setuptools.package-data]
+"obsidian_kb_skill.scripts.resources" = ["templates/**/*", "references/**/*"]
 
 [project.scripts]
-obsidian-audit-vault = "scripts.audit_vault:main"
-obsidian-process-inbox = "scripts.process_inbox:main"
-obsidian-suggest-links = "scripts.suggest_links:main"
-obsidian-create-note = "scripts.create_note:main"
-obsidian-update-note = "scripts.update_note:main"
-obsidian-vault-info = "scripts.vault_info:main"
-obsidian-detect-index = "scripts.detect_index:main"
-obsidian-scaffold-templates = "scripts.scaffold_templates:main"
+obsidian-audit-vault = "obsidian_kb_skill.scripts.audit_vault:main"
+obsidian-process-inbox = "obsidian_kb_skill.scripts.process_inbox:main"
+obsidian-suggest-links = "obsidian_kb_skill.scripts.suggest_links:main"
+obsidian-create-note = "obsidian_kb_skill.scripts.create_note:main"
+obsidian-update-note = "obsidian_kb_skill.scripts.update_note:main"
+obsidian-vault-info = "obsidian_kb_skill.scripts.vault_info:main"
+obsidian-detect-index = "obsidian_kb_skill.scripts.detect_index:main"
+obsidian-scaffold-templates = "obsidian_kb_skill.scripts.scaffold_templates:main"
 
 [tool.uv]
 required-version = "==0.11.26"

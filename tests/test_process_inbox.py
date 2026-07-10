@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.process_inbox import process_vault
+from obsidian_kb_skill.scripts.process_inbox import process_vault
 
 
 def make_vault(tmp_path: Path) -> Path:

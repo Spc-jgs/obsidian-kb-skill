@@ -13,10 +13,9 @@ from pathlib import Path
 
 import yaml
 
-from scripts.create_note import build_note
+from obsidian_kb_skill.scripts.create_note import build_note
 
 REPO = Path(__file__).resolve().parents[1]
-SCRIPT = REPO / "scripts" / "create_note.py"
 
 
 def _vault_with_template(
@@ -146,10 +145,13 @@ def test_cli_create_uses_user_template(tmp_path):
         tpl_fm={"type": "insight-note", "tags": ["insight"]},
         tpl_body="## Custom Section\n\nDate marker: {{date}}\n",
     )
+    env = {**__import__("os").environ, "PYTHONPATH": str(REPO)}
     r = subprocess.run(
-        [sys.executable, str(SCRIPT), str(vault), "--type", "insight-note",
-         "--title", "FromTpl", "--apply", "--no-audit"],
-        capture_output=True, text=True, cwd=REPO,
+        [sys.executable, "-m", "obsidian_kb_skill.scripts.create_note",
+         str(vault), "--type", "insight-note",
+         "--title", "FromTpl", "--date", "2026-07-09",
+         "--apply", "--no-audit"],
+        capture_output=True, text=True, cwd=REPO, env=env,
     )
     assert r.returncode == 0, r.stderr
     note = vault / "30-Insights" / "2026-07-09 FromTpl.md"

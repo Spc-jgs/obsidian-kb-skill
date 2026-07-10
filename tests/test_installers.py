@@ -6,7 +6,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from scripts.audit_vault import audit_vault
+from obsidian_kb_skill.scripts.audit_vault import audit_vault
 
 
 ROOT = Path(__file__).resolve().parent.parent

@@ -1,0 +1,5 @@
+# Runtime resources that must ship inside the wheel/sdist so the CLI works
+# after `pip install` (no clone required). These mirror core/templates and
+# core/references; build.py keeps obsidian_kb_skill/scripts/resources/ in sync.
+include obsidian_kb_skill/scripts/resources/templates/**
+include obsidian_kb_skill/scripts/resources/references/**
