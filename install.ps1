@@ -716,6 +716,10 @@ try {
     $env:PYTHONPATH = ""
     Push-Location $verifyDir
     try {
+        & $PythonExecutable (Join-Path $CanonicalSkill "scripts\run_helper.py") doctor --json | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Post-install verification failed: bundled doctor reported an unhealthy install."
+        }
         & $PythonExecutable (Join-Path $CanonicalSkill "scripts\run_helper.py") vault-info $VaultPath --json | Out-Null
         if ($LASTEXITCODE -ne 0) {
             throw "Post-install verification failed: bundled vault-info helper is unusable."
@@ -734,6 +738,7 @@ Write-Host "=== Installation complete! ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Your vault is at: $VaultPath"
 Write-Host "Open this folder in Obsidian to start using your knowledge base."
+Write-Host "Diagnose: $CanonicalSkill\scripts\run_helper.py doctor --json"
 Write-Host ""
 Write-Host "To save notes, just tell your AI assistant:"
 Write-Host '  "Save this to my knowledge base"'

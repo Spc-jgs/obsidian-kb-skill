@@ -579,7 +579,7 @@ def test_bash_workbuddy_install_is_complete_and_manifested(tmp_path):
     installed = _workbuddy_skill(home)
     assert _payload_hashes(installed) == expected
     manifest = json.loads((installed / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == "1.11.1"
+    assert manifest["version"] == "1.12.0"
 
 
 def test_bash_workbuddy_replaces_symlink_without_touching_target(tmp_path):
@@ -695,6 +695,16 @@ def test_powershell_installer_declares_complete_runtime_lifecycle():
         "Post-install verification",
     ):
         assert marker in script
+
+
+def test_installers_document_workbuddy_and_doctor():
+    bash = (ROOT / "install.sh").read_text(encoding="utf-8")
+    powershell = (ROOT / "install.ps1").read_text(encoding="utf-8")
+
+    assert "workbuddy" in bash
+    assert "workbuddy" in powershell
+    assert "run_helper.py doctor --json" in bash
+    assert "run_helper.py doctor --json" in powershell
 
 
 def test_ci_executes_windows_installer_smoke():

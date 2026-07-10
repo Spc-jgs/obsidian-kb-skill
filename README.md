@@ -1,8 +1,8 @@
 # Obsidian Knowledge Base Skill
 
-**v1.11.1** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.12.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
-一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
+一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor、WorkBuddy）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
 [English Version](README_EN.md)
 
@@ -26,19 +26,17 @@
 
 你的知识以结构化的方式自动积累，从 10 条笔记到 10000 条都能轻松管理。
 
-## v1.11 新增的能力
+## v1.12 新增的能力
 
-v1.11 把仓库从「入口文件能复制」升级为真正可独立运行的标准 Skill：
+v1.12 把完整标准 Skill 正式接入 WorkBuddy，并让安装状态可以独立诊断：
 
-- 标准目录完整包含 `SKILL.md`、`agents/`、`references/`、`scripts/`、`assets/`；删除源码仓库后，已安装 Skill 仍可工作。
-- `scripts/run_helper.py` 是统一的 Skill-local launcher，8 个 helper 都能通过它调用并提供机器可读输出。
-- Bash 与 PowerShell 安装器安装相同载荷，自动选择 Python 3.11+；缺少 PyYAML 时只安装到 `~/.obsidian-kb-skill/vendor/`，不污染全局环境。
-- 安装后会在中立工作目录真实调用 `vault-info` 验收，不再把「复制成功」当作「安装可用」。
-- `update-note` 在修改现有笔记前强制创建字节级备份；写入成功后由 helper 按笔记自动清理，默认只保留 1 份，AI 不参与枚举或删除。
-- malformed marker 会 fail closed，避免破损的 `CLAUDE.md` / `AGENTS.md` marker 吞掉用户内容。
-- `build.py --check` 现在覆盖平台 references、wheel resources、Skill assets 和 bundled helper code 的全量漂移。
+- Bash 与 PowerShell 会把同一份完整 payload 安装到 `~/.workbuddy/skills/obsidian-knowledge-base/`；升级替换旧 symlink 入口但不修改其 clone 目标，卸载保留同级其他 Skill。
+- 标准 Skill 带确定性的 `manifest.json`；只读 `doctor --json` 会核对 payload、runtime、依赖和关键 resources，不执行修复或删除。
+- `run_helper.py <helper> --help` 现在直接转发到 9 个 helper；坏掉的 `runtime.json` 也不会阻止 doctor 给出诊断。
+- `create-note` 的 stdin/content-file frontmatter 合并与优先级已进入 CLI help、reference 和回归测试，`source`、`related` 不再需要靠猜参数发现。
+- 安装产品测试会在删除 release 源目录后，从 WorkBuddy 副本运行 doctor 与核心 helper；发布前还要完成真实 WorkBuddy 前向任务和 P0 审计。
 
-完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.11.1]` 段。详细用法在 `core/references/note-creation.md` 里按需加载。
+完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.12.0]` 段。详细用法在 `core/references/note-creation.md` 里按需加载。
 
 ## 下载
 
@@ -162,9 +160,10 @@ AI 智能体内部执行：
 | **QoderWork / Qoder CLI** | `SKILL.md` | `~/.qoderwork/skills/obsidian-knowledge-base/` |
 | **Claude Code** | `CLAUDE.md` | `~/.claude/CLAUDE.md` |
 | **OpenAI Codex** | 标准 `SKILL.md` | `~/.agents/skills/obsidian-knowledge-base/` |
+| **WorkBuddy** | 标准 `SKILL.md` | `~/.workbuddy/skills/obsidian-knowledge-base/` |
 | **Cursor** | `obsidian-kb.mdc` | `~/.cursor/rules/obsidian-kb.mdc` |
 
-标准 Skill 与四个平台兼容产物包含**完全一致的核心指令**。注意：`~/.agents/skills` 是 Codex 用户级发现路径，不代表所有 Agent 都会自动扫描该目录。
+标准 Skill 与平台兼容产物包含**完全一致的核心指令**。注意：`~/.agents/skills` 是 Codex 用户级发现路径，不代表所有 Agent 都会自动扫描该目录。
 
 ## 快速开始
 
@@ -212,9 +211,15 @@ chmod +x install.sh
 - 将完整标准 Skill 载荷安装到对应 AI 平台的约定位置
 - 配置私有 helper runtime，并从中立目录运行 `vault-info` 做安装后验收
 
-默认会安装所有平台入口。其中 Codex 使用标准
-`~/.agents/skills/obsidian-knowledge-base/SKILL.md`，QoderWork 使用相同
-标准 Skill 的副本；Claude Code 和 Cursor 使用各自兼容文件。
+默认会安装所有平台入口。其中 Codex、QoderWork 和 WorkBuddy 使用同一
+标准 Skill 的完整副本；WorkBuddy 的位置是
+`~/.workbuddy/skills/obsidian-knowledge-base`。Claude Code 和 Cursor 使用各自兼容文件。
+
+可随时从任意工作目录运行只读诊断：
+
+```bash
+python ~/.workbuddy/skills/obsidian-knowledge-base/scripts/run_helper.py doctor --json
+```
 
 ### 4. 用 Obsidian 打开
 
@@ -325,6 +330,9 @@ echo "/新的/知识库/路径" > ~/.obsidian-kb-config
 # 只装 QoderWork 和 Claude Code
 ./install.sh --platforms qoderwork,claude-code
 
+# 只装 WorkBuddy
+./install.sh --platforms workbuddy
+
 # 只装 Cursor
 .\install.ps1 -Platforms "cursor"
 ```
@@ -342,7 +350,7 @@ Windows PowerShell 使用 `-Locale zh-CN` 或 `-Locale en`。已有模板不会�
 
 ### 升级 Skill 和模板
 
-重新运行安装脚本会幂等更新 Codex/QoderWork Skill。已有模板默认不会被覆盖；使用 `--force` 强制更新模板，并替换 Claude Code 文件中 marker 包裹的 skill 块：
+重新运行安装脚本会幂等更新 Codex/QoderWork/WorkBuddy Skill。已有模板默认不会被覆盖；使用 `--force` 强制更新模板，并替换 Claude Code 文件中 marker 包裹的 skill 块：
 
 ```bash
 # macOS / Linux
@@ -364,7 +372,7 @@ Windows PowerShell 使用 `-Locale zh-CN` 或 `-Locale en`。已有模板不会�
 .\install.ps1 -Uninstall
 ```
 
-卸载会移除 Codex/QoderWork Skill、Cursor 规则、私有 runtime，并且**自动从 `CLAUDE.md` / 旧版 `AGENTS.md` 中删除 marker block**。同级其他 Skill、Git checkout、Obsidian Vault、笔记、`~/.obsidian-kb-config` 和 `~/.obsidian-kb-settings.json` 默认保留；升级和默认卸载都会保留用户的备份数量配置。需要同时清除这两份配置时使用 `./install.sh --uninstall --purge-config` 或 `.\install.ps1 -Uninstall -PurgeConfig`。
+卸载会移除 Codex/QoderWork Skill、仅移除 WorkBuddy 自己的 `obsidian-knowledge-base` 目录、Cursor 规则、私有 runtime，并且**自动从 `CLAUDE.md` / 旧版 `AGENTS.md` 中删除 marker block**。WorkBuddy 和其他平台的同级 Skill、旧 symlink 指向的 Git checkout、Obsidian Vault、笔记、`~/.obsidian-kb-config` 和 `~/.obsidian-kb-settings.json` 默认保留；升级和默认卸载都会保留用户的备份数量配置。需要同时清除这两份配置时使用 `./install.sh --uninstall --purge-config` 或 `.\install.ps1 -Uninstall -PurgeConfig`。
 
 ## 分享给别人
 

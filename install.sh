@@ -637,6 +637,8 @@ VERIFY_DIR=$(mktemp -d)
 if ! (
   cd "$VERIFY_DIR"
   PYTHONPATH="" "$PYTHON_BIN" "$CANONICAL_SKILL/scripts/run_helper.py" \
+    doctor --json >/dev/null &&
+  PYTHONPATH="" "$PYTHON_BIN" "$CANONICAL_SKILL/scripts/run_helper.py" \
     vault-info "$VAULT_PATH" --json >/dev/null
 ); then
   rm -rf "$VERIFY_DIR"
@@ -651,6 +653,7 @@ echo "=== Installation complete! ==="
 echo ""
 echo "Your vault is at: $VAULT_PATH"
 echo "Open this folder in Obsidian to start using your knowledge base."
+echo "Diagnose: $CANONICAL_SKILL/scripts/run_helper.py doctor --json"
 echo ""
 echo "To save notes, just tell your AI assistant:"
 echo '  "Save this to my knowledge base"'
