@@ -287,6 +287,68 @@ def test_bash_uninstall_preserves_config_and_explicit_purge_removes_it(tmp_path)
     assert not config.exists()
 
 
+def test_bash_settings_created_preserved_and_purged(tmp_path):
+    release = _copy_release_tree(tmp_path)
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    settings = home / ".obsidian-kb-settings.json"
+
+    _run_release_installer(release, home=home, vault=vault)
+    assert json.loads(settings.read_text(encoding="utf-8")) == {
+        "schema_version": 1,
+        "backup": {"keep_per_note": 1},
+    }
+
+    custom = '{"schema_version":1,"backup":{"keep_per_note":3}}\n'
+    settings.write_text(custom, encoding="utf-8")
+    _run_release_installer(release, home=home, vault=vault)
+    assert settings.read_text(encoding="utf-8") == custom
+
+    _run_release_installer(
+        release,
+        home=home,
+        vault=vault,
+        extra_args=("--uninstall",),
+    )
+    assert settings.read_text(encoding="utf-8") == custom
+
+    _run_release_installer(release, home=home, vault=vault)
+    _run_release_installer(
+        release,
+        home=home,
+        vault=vault,
+        extra_args=("--uninstall", "--purge-config"),
+    )
+    assert not settings.exists()
+
+
+def test_bash_install_does_not_write_through_broken_settings_symlink(tmp_path):
+    release = _copy_release_tree(tmp_path)
+    home = tmp_path / "home"
+    home.mkdir()
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    outside = tmp_path / "outside-settings.json"
+    settings = home / ".obsidian-kb-settings.json"
+    try:
+        settings.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable")
+
+    _run_release_installer(release, home=home, vault=vault)
+
+    assert settings.is_symlink()
+    assert not outside.exists()
+
+
+def test_powershell_installer_declares_global_backup_settings_contract():
+    script = (ROOT / "install.ps1").read_text(encoding="utf-8")
+    assert ".obsidian-kb-settings.json" in script
+    assert "keep_per_note" in script
+    assert "PurgeConfig" in script
+
+
 @pytest.mark.parametrize(
     "existing",
     [
