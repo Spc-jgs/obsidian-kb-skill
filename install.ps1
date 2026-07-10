@@ -363,27 +363,38 @@ if (-not $VaultPath) {
 
 $PythonExecutable = Initialize-PythonRuntime
 
-# Create the global retention policy exactly once. Python's exclusive-create
-# mode preserves user edits and refuses to write through an existing symlink.
-$InitializeSettings = @'
-import json
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-try:
-    with path.open("x", encoding="utf-8") as handle:
-        json.dump(
-            {"schema_version": 1, "backup": {"keep_per_note": 1}},
-            handle,
-            indent=2,
-        )
-        handle.write("\n")
-except FileExistsError:
-    pass
-'@
-& $PythonExecutable -c $InitializeSettings $SettingsFile
-if ($LASTEXITCODE -ne 0) { throw "Could not initialize global backup settings." }
+# Create the global retention policy exactly once. FileMode.CreateNew preserves
+# user edits and refuses to write through an existing symlink without relying
+# on PowerShell 5.1's external-command quoting rules.
+$settingsStream = $null
+try {
+    $settingsStream = [System.IO.File]::Open(
+        $SettingsFile,
+        [System.IO.FileMode]::CreateNew,
+        [System.IO.FileAccess]::Write,
+        [System.IO.FileShare]::None
+    )
+} catch [System.IO.IOException] {
+    $settingsItem = Get-Item -LiteralPath $SettingsFile -Force -ErrorAction SilentlyContinue
+    if ($null -eq $settingsItem) { throw }
+}
+if ($null -ne $settingsStream) {
+    $settingsWriter = $null
+    try {
+        $settingsWriter = [System.IO.StreamWriter]::new($settingsStream, $Utf8NoBom)
+        $settingsJson = @{
+            schema_version = 1
+            backup = @{ keep_per_note = 1 }
+        } | ConvertTo-Json -Depth 3
+        $settingsWriter.Write($settingsJson + "`n")
+    } finally {
+        if ($null -ne $settingsWriter) {
+            $settingsWriter.Dispose()
+        } else {
+            $settingsStream.Dispose()
+        }
+    }
+}
 
 Write-Host ""
 Write-Host "=== Obsidian Knowledge Base Skill Installer ===" -ForegroundColor Cyan

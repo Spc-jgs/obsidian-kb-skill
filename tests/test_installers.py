@@ -371,6 +371,9 @@ def test_powershell_installer_declares_global_backup_settings_contract():
     assert ".obsidian-kb-settings.json" in script
     assert "keep_per_note" in script
     assert "PurgeConfig" in script
+    assert "[System.IO.FileMode]::CreateNew" in script
+    assert "ConvertTo-Json -Depth 3" in script
+    assert "$PythonExecutable -c" not in script
 
 
 @pytest.mark.parametrize(
