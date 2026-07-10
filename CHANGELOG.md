@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-07-10
+
+### Added
+
+- **Complete standard Skill payload**: `skills/obsidian-knowledge-base/` now ships `SKILL.md`, Codex UI metadata, lazy references, executable helpers, and Chinese/English template assets as one installable unit.
+- **Skill-local helper launcher**: `scripts/run_helper.py` dispatches all eight helpers from the installed payload and works from a neutral directory without importing the source checkout.
+- **Private installer runtime**: Bash and PowerShell select Python 3.11+, record the interpreter under `~/.obsidian-kb-skill/runtime.json`, and install a missing PyYAML only under the product-owned `vendor/` directory.
+- **Behavioral Windows gate**: GitHub Actions now executes a disposable PowerShell install/upgrade/uninstall scenario on `windows-latest`, including post-source-removal helper execution.
+- **Machine-readable scaffolding**: `scaffold-templates --json` completes the JSON contract across all eight helpers.
+
+### Changed
+
+- Bash and PowerShell install the same complete payload for Codex/QoderWork and a canonical compatibility payload at `~/.obsidian-kb-skill/skill/` for Claude Code and Cursor.
+- Install and upgrade refresh product-owned Skill files exactly, restore newly added or missing resources, remove stale owned files, and continue preserving user-edited Vault templates unless force is explicit.
+- Uninstall preserves `~/.obsidian-kb-config` by default; `--purge-config` / `-PurgeConfig` removes it explicitly.
+- `build.py --check` now detects missing, changed, and extra files across platform references, wheel resources, standard Skill assets, and bundled helper code.
+- Wheel packaging is self-contained under `obsidian_kb_skill`, exposes all eight console scripts, and resolves templates/references through packaged resources outside the checkout.
+
+### Fixed
+
+- Every CLI now validates a canonical Vault boundary and rejects traversal, absolute escapes, prefix-confusion paths, and static symlink escapes. Valid symlink Vault roots resolve to their canonical directory; broken links, loops, and links to files are rejected.
+- `update-note` now creates a byte-for-byte, non-overwriting backup under `.obsidian-kb-backups/<timestamp>/...` before every in-place update and aborts the write when backup creation fails.
+- Marker-managed shared files now fail closed on lone, reversed, or duplicate markers instead of risking truncation or silent cleanup.
+- New relative Vault paths are canonicalized before being persisted, unknown platform names fail before Vault mutation, and PowerShell now includes the Digest template.
+- Corrected the `detect_index.py` shebang and removed documentation commands that referenced the deleted top-level `scripts/` package.
+
 ## [1.10.0] - 2026-07-09
 
 ### Added

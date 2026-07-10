@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.10.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.11.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -26,20 +26,19 @@
 
 你的知识以结构化的方式自动积累，从 10 条笔记到 10000 条都能轻松管理。
 
-## v1.10 新增的能力
+## v1.11 新增的能力
 
-v1.10 把更多确定性步骤从「AI 手动完成」搬到「脚本自动完成」，让 agent 把 token 留给真正需要理解语义的环节：
+v1.11 把仓库从「入口文件能复制」升级为真正可独立运行的标准 Skill：
 
-- **`scripts/detect_index.py`** — 单次调用返回文件夹索引策略（folder-index / dataview / static），替代 AI 读 `community-plugins.json` + `data.json` + 推理的多步操作
-- **`scripts/vault_info.py`** — 冷启动上下文：vault 路径、有效性、模板列表、9 套文件夹索引策略，一次 JSON 调用拿到
-- **写后自动审计** — `create_note.py` / `update_note.py` 写完自动跑 per-note 审计，发现 `broken-wikilink` / `unresolved-placeholder` / frontmatter 缺失；不再需要 AI 手动重读笔记核对
-- **`--suggest-links`** — `create_note.py` / `update_note.py` 落盘后自动跑链接建议，输出打分后的候选
-- **`scripts/scaffold_templates.py`** — 一次性 bootstrap 模板到 vault，**绝不覆盖用户已编辑的模板**（用 `--force` 才覆盖）
-- **`--json` on every CLI** — 所有 8 个 CLI 脚本都支持 `--json`，输出机器可读 schema；agent 不需要解析人类文本
+- 标准目录完整包含 `SKILL.md`、`agents/`、`references/`、`scripts/`、`assets/`；删除源码仓库后，已安装 Skill 仍可工作。
+- `scripts/run_helper.py` 是统一的 Skill-local launcher，8 个 helper 都能通过它调用并提供机器可读输出。
+- Bash 与 PowerShell 安装器安装相同载荷，自动选择 Python 3.11+；缺少 PyYAML 时只安装到 `~/.obsidian-kb-skill/vendor/`，不污染全局环境。
+- 安装后会在中立工作目录真实调用 `vault-info` 验收，不再把「复制成功」当作「安装可用」。
+- `update-note` 在修改现有笔记前强制创建字节级备份；同秒多次更新也不会覆盖旧备份。
+- malformed marker 会 fail closed，避免破损的 `CLAUDE.md` / `AGENTS.md` marker 吞掉用户内容。
+- `build.py --check` 现在覆盖平台 references、wheel resources、Skill assets 和 bundled helper code 的全量漂移。
 
-架构上 v1.10 还修了一个**真 bug**：`REQUIRED_TYPES` 之前漏了 `task-memory`，所以 v1.9.x 写任务记忆笔记都会被错误标记 `invalid-type`——P3 的自动审计暴露并修了它。
-
-完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.10.0]` 段。详细用法在 `core/references/note-creation.md` 里按需加载。
+完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.11.0]` 段。详细用法在 `core/references/note-creation.md` 里按需加载。
 
 ## 下载
 
@@ -57,18 +56,18 @@ cd obsidian-kb-skill
 3. 选择 **Download ZIP**
 4. 解压到你想要的目录
 
-### 方式三：只拿标准 Skill 或平台兼容文件
+### 方式三：只拿标准 Skill 目录或平台兼容文件
 
 如果你已经有知识库结构和模板，可以只复制对应平台的指令文件：
 
 | 你用的 AI 工具 | 需要的文件 | 直接链接 |
 |--------------|-----------|---------|
-| Agent Skills / Codex / QoderWork | `skills/obsidian-knowledge-base/SKILL.md` | [SKILL.md](skills/obsidian-knowledge-base/SKILL.md) |
+| Agent Skills / Codex / QoderWork | 完整的 `skills/obsidian-knowledge-base/` | [Skill 入口](skills/obsidian-knowledge-base/SKILL.md) |
 | Claude Code | `platforms/claude-code/CLAUDE.md` | [CLAUDE.md](platforms/claude-code/CLAUDE.md) |
 | OpenAI Codex（兼容入口） | `platforms/codex/AGENTS.md` | [AGENTS.md](platforms/codex/AGENTS.md) |
 | Cursor | `platforms/cursor/obsidian-kb.mdc` | [obsidian-kb.mdc](platforms/cursor/obsidian-kb.mdc) |
 
-这些文件包含完整的 Agent 工作流，但**单独复制指令文件不会初始化知识库**，也不会创建模板或 `~/.obsidian-kb-config`。首次使用建议运行安装脚本；只有已有 Vault 的用户才适合单文件安装。
+兼容文件只提供入口规则；references、assets 和 helpers 来自安装器创建的 `~/.obsidian-kb-skill/skill/`。**单独复制一个指令文件既不是完整标准 Skill，也不会初始化 Vault**。首次使用和跨平台兼容入口都建议运行安装脚本。
 
 ## 使用场景
 
@@ -100,7 +99,7 @@ cd obsidian-kb-skill
 
 ### 核心思路：用 Markdown 指令教会 AI 做事
 
-这个 Skill 的本质是一个 **Markdown 格式的行为指令文件**。它不包含任何代码，不调用任何 API，不运行任何服务。它只是用自然语言告诉 AI 智能体：
+这个项目以 **Markdown 行为指令**为规则层，并附带本地 Python helper 处理容易出错的确定性步骤。它不调用云 API、不运行常驻服务；规则告诉 AI 智能体如何工作，脚本负责路径校验、模板脚手架、写入、索引检测和审计：
 
 1. 你的知识库在哪里（路径）
 2. 知识库长什么样（文件夹结构）
@@ -138,7 +137,7 @@ Obsidian 知识库的底层就是一个**装满 .md 文件的文件夹**。没�
 - **关联笔记** = 在内容里插入 `[[filename|显示文本]]`
 - **结构化元数据** = 在文件头部写 YAML frontmatter
 
-AI 做的每一件事都是标准的文件操作。这意味着零依赖、零网络请求、零额外成本。你的知识库完全在本地，隐私安全。
+运行时只做本地文件操作。规则层没有服务依赖；helper 需要 Python 3.11+ 和 PyYAML，安装器会把缺失的 PyYAML 放进 Skill 私有目录。知识库内容不会发送到云端。
 
 ### 运行时流程
 
@@ -209,7 +208,8 @@ chmod +x install.sh
 - 复制 8 个笔记模板到你的知识库
 - 根据 Folder Index 配置创建目录同名索引，未使用插件时创建 `INDEX.md` 导航文件
 - 将知识库路径写入 `~/.obsidian-kb-config`（运行时配置）
-- 将 Skill 文件安装到对应 AI 平台的约定位置
+- 将完整标准 Skill 载荷安装到对应 AI 平台的约定位置
+- 配置私有 helper runtime，并从中立目录运行 `vault-info` 做安装后验收
 
 默认会安装所有平台入口。其中 Codex 使用标准
 `~/.agents/skills/obsidian-knowledge-base/SKILL.md`，QoderWork 使用相同
@@ -230,20 +230,20 @@ chmod +x install.sh
 
 ### 手动安装（不用安装脚本）
 
-如果你更喜欢手动操作，或者安装脚本不满足你的需求：
+标准 Skill 不再是单个 `SKILL.md`，还包含按需 references、helper code 和模板 assets。最安全的手动方式是复制完整目录；Python 环境需自行保证能导入 PyYAML：
 
 ```bash
 # 1. 创建配置文件，写入知识库路径
 echo "D:\MyKnowledgeBase" > ~/.obsidian-kb-config
 
-# 2. 复制对应平台的指令文件到约定位置
+# 2. 复制完整标准 Skill 目录到约定位置，并移除构建用 header.md
 # QoderWork:
-mkdir -p ~/.qoderwork/skills/obsidian-knowledge-base
-cp skills/obsidian-knowledge-base/SKILL.md ~/.qoderwork/skills/obsidian-knowledge-base/SKILL.md
+cp -R skills/obsidian-knowledge-base ~/.qoderwork/skills/
+rm ~/.qoderwork/skills/obsidian-knowledge-base/header.md
 
 # OpenAI Codex:
-mkdir -p ~/.agents/skills/obsidian-knowledge-base
-cp skills/obsidian-knowledge-base/SKILL.md ~/.agents/skills/obsidian-knowledge-base/SKILL.md
+cp -R skills/obsidian-knowledge-base ~/.agents/skills/
+rm ~/.agents/skills/obsidian-knowledge-base/header.md
 
 # Claude Code：
 # 为避免覆盖已有 ~/.claude/CLAUDE.md，建议使用安装脚本的 marker 安装方式。
@@ -252,8 +252,9 @@ cp skills/obsidian-knowledge-base/SKILL.md ~/.agents/skills/obsidian-knowledge-b
 # Cursor:
 cp platforms/cursor/obsidian-kb.mdc ~/.cursor/rules/obsidian-kb.mdc
 
-# 3. 复制模板到知识库
-cp core/templates/*.md /你的知识库路径/Templates/
+# 3. 首次填充模板（不会覆盖已有模板）
+python ~/.agents/skills/obsidian-knowledge-base/scripts/run_helper.py \
+  scaffold-templates /你的知识库路径 --apply
 ```
 
 ## 知识库结构
@@ -362,7 +363,7 @@ Windows PowerShell 使用 `-Locale zh-CN` 或 `-Locale en`。已有模板不会�
 .\install.ps1 -Uninstall
 ```
 
-卸载会移除 Codex/QoderWork Skill、Cursor 规则、配置文件，并且**自动从 `CLAUDE.md` / 旧版 `AGENTS.md` 中删除 marker block**。同级其他 Skill、Git checkout、Obsidian Vault 和笔记都不会被删除。
+卸载会移除 Codex/QoderWork Skill、Cursor 规则、私有 runtime，并且**自动从 `CLAUDE.md` / 旧版 `AGENTS.md` 中删除 marker block**。同级其他 Skill、Git checkout、Obsidian Vault、笔记和 `~/.obsidian-kb-config` 默认保留。需要同时清除配置时使用 `./install.sh --uninstall --purge-config` 或 `.\install.ps1 -Uninstall -PurgeConfig`。
 
 ## 分享给别人
 
@@ -397,27 +398,23 @@ obsidian-kb-skill/
 │   ├── references/             完整工作流规范（懒加载：agent 准备落盘时才读）
 │   │   ├── conversation-digest.md
 │   │   ├── git.md
-│   │   ├── note-creation.md    （v1.10 压缩到 156 行）
+│   │   ├── note-creation.md    完整创建流程与 installed runner 用法
 │   │   ├── rules-and-errors.md
 │   │   ├── task-memory.md
 │   │   ├── update-note.md
 │   │   └── yaml-standards.md
 │   └── templates/              8 个默认中文模板（含对话摘要）+ en/ 英文模板
-├── scripts/
-│   ├── audit_vault.py          只读知识库审计器（--json 可用）
-│   ├── create_note.py          约束型笔记创建器（读 vault 模板，--audit / --suggest-links / --json）
-│   ├── detect_index.py         单次调用检测文件夹索引策略（folder-index/dataview/static）
-│   ├── process_inbox.py        Inbox 收件箱归档（--plan 预览 / --apply 执行 / --json）
-│   ├── scaffold_templates.py   一次性 bootstrap 模板到 Vault（不覆盖用户已编辑的）
-│   ├── suggest_links.py        链接建议（只读，按标签/标题/类型打分 / --json）
-│   ├── update_note.py          任务记忆更新器（--replace-decision / --audit / --json）
-│   └── vault_info.py           冷启动上下文：vault 路径/有效性/模板列表/9 套索引策略
-├── tests/                      17 个测试文件，覆盖 build、模板、审计、CLI、JSON 输出等
+├── obsidian_kb_skill/
+│   └── scripts/                8 个可打包 CLI、路径安全层与 wheel resources
+├── tests/                      build、安装器、路径安全、CLI、wheel 与真实运行测试
 ├── skills/
 │   └── obsidian-knowledge-base/
 │       ├── header.md           标准 Agent Skill 头部
+│       ├── agents/             Codex UI 元数据
 │       ├── references/         懒加载 references（由 build.py 复制）
-│       └── SKILL.md            平台无关的标准生成产物
+│       ├── scripts/            launcher + bundled helper package
+│       ├── assets/templates/   中英文模板 assets
+│       └── SKILL.md            平台无关的标准生成入口
 ├── platforms/
 │   ├── qoderwork/
 │   │   ├── references/
@@ -477,7 +474,7 @@ python -m pytest
 
 CI 使用同一 lockfile，分别在 Python 3.11 和 3.14 上运行构建检查与测试。
 
-安装 `.[dev]`（或任意方式安装本项目）后，所有脚本还会以控制台命令形式提供，等价于直接运行对应的 `scripts/*.py`：
+安装 `.[dev]` 或 wheel 后，8 个 helper 以控制台命令形式提供。通过安装脚本部署的标准 Skill 则使用 `<skill-root>/scripts/run_helper.py`；两种入口调用同一套 Python 实现：
 
 ```bash
 obsidian-audit-vault        /你的知识库路径 --strict
@@ -497,22 +494,22 @@ obsidian-scaffold-templates /你的知识库路径 --apply
 使用只读审计器检查必填 frontmatter、笔记类型、未闭合代码块、断裂或歧义 wikilink，以及重复文件夹索引：
 
 ```bash
-python scripts/audit_vault.py /你的知识库路径 --strict
+obsidian-audit-vault /你的知识库路径 --strict
 ```
 
 无问题时退出码为 `0`；发现问题时为 `1`；路径不是 Obsidian Vault 时为 `2`。审计器不会修改任何文件。
 
 > **审计范围与可调项**
 > - 审计器会自动跳过**隐藏目录**（以 `.` 开头的文件夹）和已知工具元数据目录（`.git`、`.obsidian`、`.venv`、`.workbuddy` 等），这些目录里的文件不会被当作笔记检查。因此放在 `.workbuddy/` 下的 agent 工作记忆、`.claude/`、`.cursor/` 等 AI 工具元数据不会误报。
-> - `similar-title`（相似标题）与 `orphan-note`（孤立笔记）等属于**建议性**检查，不强制、不改文件。`similar-title` 用 `difflib` 相似度阈值 **0.85** 判定（源码位于 `scripts/audit_vault.py` 的 `_audit_titles`：`ratio >= 0.85`）。若你的 vault 里大量标题只是日期前缀不同、觉得噪声太吵，可把阈值上调到 `0.90` 等来降噪——代价是可能漏掉真正该合并的近重复标题。
+> - `similar-title`（相似标题）与 `orphan-note`（孤立笔记）等属于**建议性**检查，不强制、不改文件。`similar-title` 用 `difflib` 相似度阈值 **0.85** 判定（源码位于 `obsidian_kb_skill/scripts/audit_vault.py` 的 `_audit_titles`：`ratio >= 0.85`）。若你的 vault 里大量标题只是日期前缀不同、觉得噪声太吵，可把阈值上调到 `0.90` 等来降噪——代价是可能漏掉真正该合并的近重复标题。
 
 ### 归档 Inbox 收件箱
 
 `process_inbox.py` 把 `00-Inbox/` 里的速记/待处理笔记归类、填入缺失的 `date`/`type`/`tags` 并移动到推断出的目标文件夹。默认只输出计划，不改动任何文件：
 
 ```bash
-python scripts/process_inbox.py /你的知识库路径 --plan     # 只读预览
-python scripts/process_inbox.py /你的知识库路径 --apply    # 执行归档（绝不覆盖已存在文件）
+obsidian-process-inbox /你的知识库路径 --plan     # 只读预览
+obsidian-process-inbox /你的知识库路径 --apply    # 执行归档（绝不覆盖已存在文件）
 ```
 
 目标文件夹由笔记 `type` 或正文关键词推断（与 `core/OBSIDIAN_KB.md` 的路由表一致）；当 Folder Index 插件未启用时，会向目标文件夹的静态 `INDEX.md` 追加一条链接。
@@ -522,17 +519,17 @@ python scripts/process_inbox.py /你的知识库路径 --apply    # 执行归档
 `suggest_links.py` 针对单篇笔记，在受限范围内（笔记所在文件夹 + 最多 2 个兄弟文件夹）按共享标签、相同类型、标题词重叠打分，只输出候选与理由，永不写入文件：
 
 ```bash
-python scripts/suggest_links.py /你的知识库路径 --note 30-Insights/某笔记.md --top-n 10
+obsidian-suggest-links /你的知识库路径 --note 30-Insights/某笔记.md --top-n 10
 ```
 
 人审后自行决定是否插入，避免自动改动知识库。
 
 ### 创建笔记（无原生写工具时）
 
-`create_note.py` 是**约束型笔记创建器**：当运行环境没有原生写文件工具（部分纯 CLI 智能体）时，调用它而非自己临时写一段 Python/Shell 脚本来做文件 I/O。默认只打印将要写入的路径与内容（dry-run），加 `--apply` 才真正落盘；遇到同名文件会自动加 `-2`/`-3` 后缀，**绝不覆盖**。
+`create-note` helper 是**约束型笔记创建器**：当运行环境没有原生写文件工具（部分纯 CLI 智能体）时，调用它而非自己临时写一段 Python/Shell 脚本来做文件 I/O。默认只打印将要写入的路径与内容（dry-run），加 `--apply` 才真正落盘；遇到同名文件会自动加 `-2`/`-3` 后缀，**绝不覆盖**。
 
 ```bash
-python scripts/create_note.py /你的知识库路径 \
+obsidian-create-note /你的知识库路径 \
     --type insight-note --title "短标题" \
     --content-file 正文.md --apply
 ```
@@ -549,14 +546,14 @@ python scripts/create_note.py /你的知识库路径 \
 
 > 为省 token，**所有完整工作流（含本段）都不内联在主文件**：`core/OBSIDIAN_KB.md` 只是一个 **21 行**的「门禁」——显眼的 `DO NOT auto-save` + 指向 `core/references/*` 的指针。agent 加载技能几乎零 token 成本；只有真正准备落盘时，才按指针去读对应 references 文件。
 
-`obsidian-update-note` 是配套的约束型更新器（只改 frontmatter + 追加带时间戳的 Log、绝不覆盖散文、Log 截断到 30 条、默认 dry-run）。完整用法见 `core/references/task-memory.md`。
+`obsidian-update-note` 是配套的约束型更新器（写前备份、只改 frontmatter + 追加带时间戳的 Log、绝不覆盖散文、Log 截断到 30 条、默认 dry-run）。完整用法见 `core/references/task-memory.md`。
 
 ## 设计原则
 
-- **纯 Markdown。** 没有数据库、没有 API、没有厂商锁定。你的知识就是纯文本文件，比任何 App 都持久。
+- **Markdown 数据层。** 没有数据库、没有云 API、没有厂商锁定；知识本身始终是纯文本文件。
 - **智能体无关。** 核心逻辑与平台无关。每个 AI 工具只得到一个薄薄的适配器文件。
 - **约定优于配置。** 文件夹结构、命名、标签、模板都有合理的默认值。只自定义你需要的部分。
-- **运行时自包含。** 安装后，每个平台文件包含所需的一切——没有外部依赖。
+- **安装后自包含。** 标准 Skill 带 references、scripts 和 assets；helper 的 Python/PyYAML 边界由安装器显式配置和验收。
 - **本地优先。** 所有数据都在你的机器上，不经过任何云服务，隐私完全可控。
 
 ## 常见问题

@@ -191,6 +191,12 @@ class TestEndToEnd:
         assert "name: obsidian-knowledge-base" in text
         assert "description:" in text
 
+    def test_standard_agent_skill_description_is_trigger_only(self):
+        header = ROOT / "skills" / "obsidian-knowledge-base" / "header.md"
+        text = header.read_text(encoding="utf-8")
+
+        assert 'description: "Use when ' in text
+
     def test_qoderwork_compatibility_target_reuses_standard_header(self):
         targets = {target.name: target for target in build.TARGETS}
 
@@ -286,12 +292,12 @@ def test_readmes_do_not_tell_users_to_edit_generated_platform_files():
     assert "Edit the platform instruction file's tagging section" not in readme_en
 
 
-def test_readmes_warn_that_single_file_install_needs_vault_setup():
+def test_readmes_warn_that_one_instruction_file_is_not_a_complete_install():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     readme_en = (ROOT / "README_EN.md").read_text(encoding="utf-8")
 
-    assert "单独复制指令文件不会初始化知识库" in readme
-    assert "Copying an instruction file alone does not initialize the Vault" in readme_en
+    assert "单独复制一个指令文件既不是完整标准 Skill" in readme
+    assert "Copying one instruction file is neither a complete standard Skill" in readme_en
 
 
 def test_codex_compatibility_adapter_points_to_standard_skill():

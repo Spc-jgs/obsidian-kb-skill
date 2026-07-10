@@ -1,7 +1,6 @@
 ---
 name: obsidian-knowledge-base
-description: "Save/update notes in an Obsidian vault. Invoke ONLY on explicit save intent ('save to Obsidian', '沉淀', '记一下'). Never for Q&A/debug/chat."
+description: "Use when the user explicitly asks to save, create, update, archive, or remember content in an Obsidian vault. Do not use for Q&A, debugging, or casual chat without explicit save intent."
 ---
 
 # Obsidian Personal Knowledge Base
-
