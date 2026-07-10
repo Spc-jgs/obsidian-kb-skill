@@ -68,6 +68,53 @@ def test_split_frontmatter_merges():
     assert body.strip() == "# Body"
 
 
+def test_input_frontmatter_overrides_template_and_cli_fields_win(tmp_path):
+    vault = make_vault(tmp_path)
+    (vault / "Templates" / "Insight Note.md").write_text(
+        "---\n"
+        "source: template\n"
+        "related: ['[[template-note]]']\n"
+        "tags: [template]\n"
+        "date: 2000-01-01\n"
+        "type: template-type\n"
+        "---\n"
+        "# Template\n",
+        encoding="utf-8",
+    )
+
+    _, rendered = build_note(
+        note_type="insight-note",
+        title="T",
+        date="2026-07-11",
+        body="# Body\n",
+        given_meta={
+            "source": "stdin",
+            "related": ["[[stdin-note]]"],
+            "tags": ["stdin"],
+            "date": "1999-01-01",
+            "type": "stdin-type",
+        },
+        tags=["cli"],
+        vault=vault,
+    )
+
+    meta, _ = split_frontmatter(rendered)
+    assert meta["source"] == "stdin"
+    assert meta["related"] == ["[[stdin-note]]"]
+    assert meta["tags"] == ["cli"]
+    assert meta["type"] == "insight-note"
+    assert meta["date"] == "2026-07-11"
+
+
+def test_stdin_help_mentions_frontmatter_merge():
+    result = _run("--help")
+    normalized = " ".join(result.stdout.lower().split())
+
+    assert result.returncode == 0
+    assert "--stdin" in result.stdout
+    assert "optional frontmatter is merged" in normalized
+
+
 def test_sanitize_filename_strips_unsafe():
     assert "/" not in sanitize_filename('a/b:c*?"<>|')
     assert sanitize_filename("   ") == "untitled"
