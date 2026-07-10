@@ -228,7 +228,9 @@ def test_skill_runner_keeps_double_dash_compatibility(tmp_path):
     )
 
     assert result.returncode == 0, result.stderr
-    assert "obsidian_kb_skill.scripts.create_note" in result.stdout
+    assert "usage:" in result.stdout.lower()
+    assert "--type" in result.stdout
+    assert "--title" in result.stdout
     assert "Run a helper bundled" not in result.stdout
 
 

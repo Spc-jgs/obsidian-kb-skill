@@ -14,6 +14,12 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def test_repository_enforces_lf_payload_checkouts():
+    attributes = (ROOT / ".gitattributes").read_text(encoding="utf-8")
+
+    assert "* text=auto eol=lf" in attributes.splitlines()
+
+
 def _load_build_module():
     """Load build.py as a module without executing main()."""
     spec = importlib.util.spec_from_file_location("build", ROOT / "build.py")
