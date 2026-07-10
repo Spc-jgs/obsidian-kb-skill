@@ -23,8 +23,17 @@ param(
 
     [switch]$Help,
 
-    [switch]$Uninstall
+    [switch]$Uninstall,
+
+    [switch]$PurgeConfig
 )
+
+$ErrorActionPreference = "Stop"
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$SupportRoot = Join-Path $env:USERPROFILE ".obsidian-kb-skill"
+$CanonicalSkill = Join-Path $SupportRoot "skill"
+$RuntimeFile = Join-Path $SupportRoot "runtime.json"
+$VendorDir = Join-Path $SupportRoot "vendor"
 
 # Markers used to wrap injected content in shared files (CLAUDE.md, AGENTS.md).
 # These let us upgrade and uninstall idempotently without touching the user's other content.
@@ -44,21 +53,101 @@ function Read-Text {
     return [System.IO.File]::ReadAllText($Path)
 }
 
-function Install-StandardSkill {
+function Copy-SkillPayload {
     param(
-        [string]$Source,
+        [string]$SourceDirectory,
         [string]$DestinationDirectory
     )
+    if (-not (Test-Path (Join-Path $SourceDirectory "SKILL.md"))) {
+        throw "Missing standard Skill payload: $SourceDirectory\SKILL.md"
+    }
+    if (Test-Path $DestinationDirectory) {
+        Remove-Item $DestinationDirectory -Recurse -Force
+    }
     New-Item -ItemType Directory -Path $DestinationDirectory -Force | Out-Null
-    $destination = Join-Path $DestinationDirectory "SKILL.md"
-    if (Test-Path $destination) {
-        $sourcePath = (Resolve-Path $Source).Path
-        $destinationPath = (Resolve-Path $destination).Path
-        if ($sourcePath -eq $destinationPath) {
-            return
+    Get-ChildItem -LiteralPath $SourceDirectory -Force | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination $DestinationDirectory -Recurse -Force
+    }
+    $header = Join-Path $DestinationDirectory "header.md"
+    if (Test-Path $header) { Remove-Item $header -Force }
+    Get-ChildItem -LiteralPath $DestinationDirectory -Recurse -Force | Where-Object {
+        $_.Name -eq ".DS_Store" -or $_.Name -eq "__pycache__" -or
+        $_.Extension -eq ".pyc" -or $_.Extension -eq ".pyo"
+    } | Sort-Object { $_.FullName.Length } -Descending | Remove-Item -Recurse -Force
+}
+
+function Install-StandardSkill {
+    param([string]$DestinationDirectory)
+    Copy-SkillPayload -SourceDirectory $CanonicalSkill -DestinationDirectory $DestinationDirectory
+}
+
+function Test-PythonCommand {
+    param([string[]]$Command)
+    $executable = $Command[0]
+    $prefix = @($Command | Select-Object -Skip 1)
+    try {
+        & $executable @prefix -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)" 2>$null
+        return $LASTEXITCODE -eq 0
+    } catch {
+        return $false
+    }
+}
+
+function Initialize-PythonRuntime {
+    $candidates = @()
+    if ($env:OBSIDIAN_KB_PYTHON) {
+        $candidates += ,@($env:OBSIDIAN_KB_PYTHON)
+    } else {
+        foreach ($name in @("python", "python3")) {
+            $command = Get-Command $name -ErrorAction SilentlyContinue
+            if ($command) { $candidates += ,@($command.Source) }
+        }
+        $py = Get-Command "py" -ErrorAction SilentlyContinue
+        if ($py) { $candidates += ,@($py.Source, "-3") }
+    }
+
+    $selected = $null
+    foreach ($candidate in $candidates) {
+        if (Test-PythonCommand -Command $candidate) {
+            $selected = $candidate
+            break
         }
     }
-    Copy-Item $Source $destination -Force
+    if (-not $selected) {
+        throw "Python 3.11+ is required to install bundled helpers. Set OBSIDIAN_KB_PYTHON to a usable interpreter."
+    }
+
+    $executable = $selected[0]
+    $prefix = @($selected | Select-Object -Skip 1)
+    $resolved = (& $executable @prefix -c "import sys; print(sys.executable)").Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $resolved) {
+        throw "Could not resolve the selected Python interpreter."
+    }
+    New-Item -ItemType Directory -Path $SupportRoot -Force | Out-Null
+    $runtime = @{
+        schema_version = 1
+        python = @($resolved)
+    } | ConvertTo-Json
+    Write-Utf8NoBom -Path $RuntimeFile -Content ($runtime + "`n")
+
+    $oldPythonPath = $env:PYTHONPATH
+    try {
+        if ($oldPythonPath) {
+            $env:PYTHONPATH = $VendorDir + [System.IO.Path]::PathSeparator + $oldPythonPath
+        } else {
+            $env:PYTHONPATH = $VendorDir
+        }
+        & $resolved -c "import yaml" 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "-> Installing private PyYAML runtime dependency" -ForegroundColor Cyan
+            New-Item -ItemType Directory -Path $VendorDir -Force | Out-Null
+            & $resolved -m pip install --disable-pip-version-check --target $VendorDir "PyYAML>=6" | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw "Failed to install private PyYAML dependency." }
+        }
+    } finally {
+        $env:PYTHONPATH = $oldPythonPath
+    }
+    return $resolved
 }
 
 # Insert or replace a marker-wrapped block inside an existing file.
@@ -121,6 +210,7 @@ if ($Help) {
     Write-Host "  -Locale LOCALE     Template language: zh-CN or en (default: zh-CN)"
     Write-Host "  -Force             Overwrite existing templates and refresh installed skill content"
     Write-Host "  -Uninstall         Remove installed skills and legacy marker blocks"
+    Write-Host "  -PurgeConfig       With -Uninstall, also remove ~/.obsidian-kb-config"
     Write-Host "  -Help              Show this help message"
     Write-Host ""
     Write-Host "Configuration sources (checked in order):"
@@ -129,6 +219,15 @@ if ($Help) {
     Write-Host "  3. OBSIDIAN_KB_VAULT environment variable"
     Write-Host "  4. ~/.obsidian-kb-config (from previous install)"
     exit 0
+}
+
+$platformList = @($Platforms -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$validPlatforms = @("qoderwork", "claude-code", "codex", "cursor")
+if ($platformList.Count -eq 0) { throw "No platforms selected." }
+foreach ($platform in $platformList) {
+    if ($validPlatforms -notcontains $platform) {
+        throw "Unknown platform: $platform"
+    }
 }
 
 if ($Uninstall) {
@@ -150,6 +249,11 @@ if ($Uninstall) {
         Write-Host "-> Removed: Codex skill ($codexSkillDir)" -ForegroundColor Green
     }
 
+    if (Test-Path $SupportRoot) {
+        Remove-Item $SupportRoot -Recurse -Force
+        Write-Host "-> Removed: Skill support runtime ($SupportRoot)" -ForegroundColor Green
+    }
+
     # Remove Cursor rule
     $cursorFile = Join-Path $env:USERPROFILE ".cursor\rules\obsidian-kb.mdc"
     if (Test-Path $cursorFile) {
@@ -169,11 +273,13 @@ if ($Uninstall) {
         Write-Host "-> Cleaned: Codex skill block removed from $codexFile" -ForegroundColor Green
     }
 
-    # Remove config file
+    # Preserve config by default so reinstall keeps the user's Vault selection.
     $configFile = Join-Path $env:USERPROFILE ".obsidian-kb-config"
-    if (Test-Path $configFile) {
+    if ($PurgeConfig -and (Test-Path $configFile)) {
         Remove-Item $configFile -Force
         Write-Host "-> Removed: Config ($configFile)" -ForegroundColor Green
+    } elseif (Test-Path $configFile) {
+        Write-Host "-> Preserved: Config ($configFile)" -ForegroundColor Cyan
     }
 
     Write-Host ""
@@ -181,9 +287,6 @@ if ($Uninstall) {
     Write-Host "Uninstall complete." -ForegroundColor Cyan
     exit 0
 }
-
-$ErrorActionPreference = "Stop"
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Resolve vault path from multiple sources
 if (-not $VaultPath) {
@@ -231,6 +334,8 @@ if (-not $VaultPath) {
     exit 1
 }
 
+$PythonExecutable = Initialize-PythonRuntime
+
 Write-Host ""
 Write-Host "=== Obsidian Knowledge Base Skill Installer ===" -ForegroundColor Cyan
 Write-Host "Vault path: $VaultPath"
@@ -239,21 +344,22 @@ Write-Host "Locale:     $Locale"
 if ($Force) { Write-Host "Mode:       FORCE (overwrite existing templates and skill blocks)" -ForegroundColor Yellow }
 Write-Host ""
 
-# Resolve vault path (compatible with Windows PowerShell 5.1+)
-$resolvedPath = Resolve-Path $VaultPath -ErrorAction SilentlyContinue
-if ($resolvedPath) {
-    $VaultPath = $resolvedPath.Path
-} else {
-    if (-not (Test-Path $VaultPath)) {
-        Write-Host "-> Vault path does not exist, creating: $VaultPath" -ForegroundColor Yellow
-        New-Item -ItemType Directory -Path $VaultPath -Force | Out-Null
-    }
+# Create the Vault when needed, then always save its canonical absolute path.
+if (-not (Test-Path $VaultPath)) {
+    Write-Host "-> Vault path does not exist, creating: $VaultPath" -ForegroundColor Yellow
+    New-Item -ItemType Directory -Path $VaultPath -Force | Out-Null
 }
+$VaultPath = (Resolve-Path $VaultPath).Path
 
 # Step 1: Save vault config
 $configFile = Join-Path $env:USERPROFILE ".obsidian-kb-config"
 Write-Host "-> Saving vault config to $configFile"
 Write-Utf8NoBom -Path $configFile -Content $VaultPath
+
+# Install one canonical support copy used by compatibility adapters and as the
+# source for identical Codex/QoderWork payloads.
+$standardSkillDir = Join-Path $ScriptDir "skills\obsidian-knowledge-base"
+Copy-SkillPayload -SourceDirectory $standardSkillDir -DestinationDirectory $CanonicalSkill
 
 # Step 2: Initialize vault structure
 Write-Host "-> Checking vault structure..."
@@ -274,6 +380,7 @@ $templateMap = @{
     "web-clip.md" = "Web Clip.md"
     "insight-note.md" = "Insight Note.md"
     "person-note.md" = "Person Note.md"
+    "digest-note.md" = "Digest Note.md"
 }
 
 # Legacy upgrade flag support (env var or string sentinel) -- superseded by -Force switch.
@@ -287,9 +394,9 @@ if ($forceUpgrade -and -not $Force.IsPresent) {
 
 foreach ($src in $templateMap.Keys) {
     if ($Locale -eq "en") {
-        $srcPath = Join-Path $ScriptDir "core\templates\en\$src"
+        $srcPath = Join-Path $CanonicalSkill "assets\templates\en\$src"
     } else {
-        $srcPath = Join-Path $ScriptDir "core\templates\$src"
+        $srcPath = Join-Path $CanonicalSkill "assets\templates\$src"
     }
     $dstPath = Join-Path $VaultPath "Templates\$($templateMap[$src])"
     if (Test-Path $srcPath) {
@@ -474,15 +581,11 @@ Write-Host "-> Vault structure ready." -ForegroundColor Green
 Write-Host ""
 
 # Step 3: Install platform files
-$platformList = $Platforms -split ','
-$standardSkill = Join-Path $ScriptDir "skills\obsidian-knowledge-base\SKILL.md"
-
 foreach ($platform in $platformList) {
-    $platform = $platform.Trim()
     switch ($platform) {
         "qoderwork" {
             $skillDir = Join-Path $env:USERPROFILE ".qoderwork\skills\obsidian-knowledge-base"
-            Install-StandardSkill -Source $standardSkill -DestinationDirectory $skillDir
+            Install-StandardSkill -DestinationDirectory $skillDir
             Write-Host "-> Installed: QoderWork skill -> $skillDir\SKILL.md" -ForegroundColor Green
         }
         "claude-code" {
@@ -496,7 +599,7 @@ foreach ($platform in $platformList) {
         }
         "codex" {
             $codexSkillDir = Join-Path $env:USERPROFILE ".agents\skills\obsidian-knowledge-base"
-            Install-StandardSkill -Source $standardSkill -DestinationDirectory $codexSkillDir
+            Install-StandardSkill -DestinationDirectory $codexSkillDir
             Write-Host "-> Installed: Codex skill -> $codexSkillDir\SKILL.md" -ForegroundColor Green
         }
         "cursor" {
@@ -507,10 +610,35 @@ foreach ($platform in $platformList) {
             Write-Host "  (Copy to your project's .cursor\rules\ for project-level use)"
         }
         default {
-            Write-Host "-> Unknown platform: $platform" -ForegroundColor Yellow
+            throw "Unknown platform: $platform"
         }
     }
 }
+
+# Post-install verification runs the copied helper from an unrelated directory.
+$reference = Join-Path $CanonicalSkill "references\note-creation.md"
+if (-not (Test-Path $reference)) {
+    throw "Post-install verification failed: missing bundled reference."
+}
+$verifyDir = Join-Path ([System.IO.Path]::GetTempPath()) ("obsidian-kb-verify-" + [guid]::NewGuid())
+New-Item -ItemType Directory -Path $verifyDir -Force | Out-Null
+$oldPythonPath = $env:PYTHONPATH
+try {
+    $env:PYTHONPATH = ""
+    Push-Location $verifyDir
+    try {
+        & $PythonExecutable (Join-Path $CanonicalSkill "scripts\run_helper.py") vault-info $VaultPath --json | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Post-install verification failed: bundled vault-info helper is unusable."
+        }
+    } finally {
+        Pop-Location
+    }
+} finally {
+    $env:PYTHONPATH = $oldPythonPath
+    Remove-Item $verifyDir -Recurse -Force
+}
+Write-Host "-> Installed Skill runtime verified." -ForegroundColor Green
 
 Write-Host ""
 Write-Host "=== Installation complete! ===" -ForegroundColor Cyan

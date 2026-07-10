@@ -299,3 +299,13 @@ def test_codex_compatibility_adapter_points_to_standard_skill():
 
     assert "Compatibility adapter" in header
     assert "skills/obsidian-knowledge-base/SKILL.md" in header
+
+
+def test_non_skill_compatibility_adapters_name_the_installed_support_root():
+    for relative in (
+        "platforms/claude-code/header.md",
+        "platforms/cursor/header.md",
+        "platforms/codex/header.md",
+    ):
+        header = (ROOT / relative).read_text(encoding="utf-8")
+        assert "~/.obsidian-kb-skill/skill" in header

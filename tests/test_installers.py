@@ -382,6 +382,30 @@ def test_bash_uninstall_preserves_sibling_agent_skill(tmp_path):
 def test_powershell_installer_uses_standard_skill_for_codex_and_qoderwork():
     script = (ROOT / "install.ps1").read_text(encoding="utf-8")
 
-    assert "skills\\obsidian-knowledge-base\\SKILL.md" in script
+    assert "skills\\obsidian-knowledge-base" in script
     assert ".agents\\skills\\obsidian-knowledge-base" in script
     assert "platforms\\qoderwork\\SKILL.md" not in script
+
+
+def test_powershell_installer_declares_complete_runtime_lifecycle():
+    script = (ROOT / "install.ps1").read_text(encoding="utf-8")
+
+    for marker in (
+        "PurgeConfig",
+        ".obsidian-kb-skill",
+        "runtime.json",
+        "run_helper.py",
+        "OBSIDIAN_KB_PYTHON",
+        "Copy-SkillPayload",
+        "Post-install verification",
+    ):
+        assert marker in script
+
+
+def test_ci_executes_windows_installer_smoke():
+    workflow = (ROOT / ".github" / "workflows" / "check.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "windows-latest" in workflow
+    assert "tests/windows_installer_smoke.ps1" in workflow

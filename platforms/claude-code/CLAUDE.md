@@ -4,6 +4,8 @@
 
 **When to use**: Only on explicit save intent ("save to Obsidian", "沉淀", "记一下"). Never for Q&A/debug/chat.
 
+**Installed resources**: Resolve `<skill-root>` as `~/.obsidian-kb-skill/skill` for references, assets, and bundled helpers.
+
 ## Overview
 
 Agent-agnostic instructions to create, organize, and update notes in an Obsidian vault. Any tool that reads/writes local files can use it.

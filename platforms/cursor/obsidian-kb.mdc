@@ -14,6 +14,8 @@ alwaysApply: false
 
 # Obsidian Personal Knowledge Base
 
+Installed compatibility resources live at `~/.obsidian-kb-skill/skill`; use that directory as `<skill-root>` for references, assets, and bundled helpers.
+
 ## Overview
 
 Agent-agnostic instructions to create, organize, and update notes in an Obsidian vault. Any tool that reads/writes local files can use it.

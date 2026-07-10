@@ -12,3 +12,4 @@ alwaysApply: false
 
 # Obsidian Personal Knowledge Base
 
+Installed compatibility resources live at `~/.obsidian-kb-skill/skill`; use that directory as `<skill-root>` for references, assets, and bundled helpers.
