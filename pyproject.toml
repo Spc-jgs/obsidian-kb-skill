@@ -14,7 +14,7 @@ authors = [{ name = "Spc-jgs" }]
 dependencies = ["PyYAML>=6"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+dev = ["build>=1.2", "pytest>=7"]
 
 [tool.setuptools.packages.find]
 where = ["."]

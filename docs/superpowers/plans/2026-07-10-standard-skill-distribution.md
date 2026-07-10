@@ -501,7 +501,7 @@ the packaging module:
 
 ```bash
 .venv/bin/python -m pytest tests/test_wheel_install.py -q
-(cd /tmp && /tmp/bldenv/bin/python -m build --wheel /Users/shaopc/playground/obsidian-kb-skill)
+(cd /tmp && python -m build --wheel /path/to/obsidian-kb-skill)
 ```
 
 Install the produced wheel in a new venv from a neutral directory and invoke all eight console-script `--help` commands plus scaffold/create/audit smoke operations.

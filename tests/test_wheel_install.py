@@ -22,21 +22,18 @@ def _need(*bins: str) -> None:
 
 
 def _build_wheel(tmp_path: Path) -> Path:
-    """Build the wheel via `python -m build` in a venv that has `build` installed.
+    """Build the wheel with the interpreter running the test suite.
 
     The build must run against the real project tree, but the INSTALLED venv
-    under test must not be able to see the repo. We use a throwaway build venv
-    (e.g. /tmp/bldenv) so the test runner itself needs no `build` import.
+    under test must not be able to see the repo. ``build`` is therefore a
+    declared development dependency instead of an undeclared machine-local
+    virtual environment.
     """
-    import os
-
-    build_venv = os.environ.get("BUILD_VENV", "/tmp/bldenv")
-    build_python = str(Path(build_venv) / "bin" / "python")
     dist = tmp_path / "dist"
     # Run from a neutral dir: a local `build.py` in ROOT would shadow the
     # `build` module when cwd == ROOT.
     completed = subprocess.run(
-        [build_python, "-m", "build", "--wheel", "--outdir", str(dist), str(ROOT)],
+        [sys.executable, "-m", "build", "--wheel", "--outdir", str(dist), str(ROOT)],
         cwd=str(tmp_path),
         check=True,
         capture_output=True,
