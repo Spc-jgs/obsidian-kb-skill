@@ -181,6 +181,25 @@ class TestEndToEnd:
         )
         assert changed != first
 
+    def test_skill_manifest_never_follows_payload_symlinks(self, tmp_path):
+        root = tmp_path / "skill"
+        outside = tmp_path / "outside"
+        root.mkdir()
+        outside.mkdir()
+        (root / "SKILL.md").write_text("owned", encoding="utf-8")
+        secret = outside / "secret.md"
+        secret.write_text("outside", encoding="utf-8")
+        try:
+            (root / "linked-file.md").symlink_to(secret)
+            (root / "linked-dir").symlink_to(outside, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            pytest.skip("symlinks unavailable")
+
+        payload = build.skill_payload_files(root)
+
+        assert set(payload) == {"SKILL.md"}
+        assert all(path.is_relative_to(root) for path in payload.values())
+
     def test_project_version_reads_pyproject(self):
         assert build.project_version() == "1.12.0"
 
