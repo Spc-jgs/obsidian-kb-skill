@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import json
 import importlib.util
+import io
 import os
 import shutil
 import subprocess
 import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -140,6 +142,83 @@ def test_skill_runner_ignores_shadow_package_in_working_directory(
 
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)[healthy_field] is True
+
+
+def test_skill_runner_bridges_create_note_stdin_bytes(tmp_path):
+    skill = tmp_path / "installed" / "obsidian-knowledge-base"
+    shutil.copytree(STANDARD_SKILL, skill)
+    home = tmp_path / "home"
+    work = tmp_path / "neutral"
+    vault = tmp_path / "vault"
+    home.mkdir()
+    work.mkdir()
+    (vault / ".obsidian").mkdir(parents=True)
+    (vault / "Templates").mkdir()
+    markdown = (
+        "---\n"
+        "source: https://example.com/runtime\n"
+        "author: QoderWork\n"
+        "published: 2026-07-13\n"
+        "---\n"
+        "# UTF-8\n\n中文输入 🧠\n"
+    ).encode("utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(skill / "scripts" / "run_helper.py"),
+            "create-note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--title",
+            "Runtime UTF-8",
+            "--stdin",
+            "--apply",
+            "--json",
+        ],
+        input=markdown,
+        cwd=work,
+        env={
+            **os.environ,
+            "HOME": str(home),
+            "USERPROFILE": str(home),
+            "PYTHONPATH": "",
+        },
+        capture_output=True,
+    )
+
+    assert result.returncode == 0, result.stderr.decode("utf-8", errors="replace")
+    payload = json.loads(result.stdout.decode("utf-8"))
+    assert payload["audit"]["ok"] is True
+    assert "中文输入 🧠" in Path(payload["path"]).read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("forwarded", "expected_input"),
+    [
+        (["vault", "--stdin"], b"frontmatter bytes"),
+        (["vault", "--title=--stdin"], None),
+    ],
+)
+def test_skill_runner_only_explicitly_bridges_exact_stdin_token(
+    tmp_path, monkeypatch, forwarded, expected_input
+):
+    runner = load_runner()
+    stdin = io.TextIOWrapper(io.BytesIO(b"frontmatter bytes"), encoding="utf-8")
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(runner.sys, "stdin", stdin)
+    monkeypatch.setattr(runner, "python_command", lambda: [sys.executable])
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    assert runner.main(["create-note", *forwarded]) == 0
+    _, kwargs = calls[0]
+    assert kwargs.get("input") == expected_input
 
 
 def test_skill_runner_enforces_retention_from_installed_payload(tmp_path):

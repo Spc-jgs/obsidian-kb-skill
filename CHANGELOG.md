@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Unquoted YAML date/datetime metadata is normalized to ISO strings, so a valid `published: 2026-07-13` value no longer triggers `web-clip-missing-published`.
-- All helper CLIs now force UTF-8 stdin as well as stdout/stderr, preventing piped Chinese text and emoji from failing under legacy Windows code pages.
+- All helper CLIs now force UTF-8 stdin as well as stdout/stderr, and the installed launcher explicitly byte-bridges `create-note --stdin`, preventing piped Chinese text and emoji from being lost or rejected under legacy Windows code pages.
 - Installed helper launchers now use Python safe-path mode so an unrelated `obsidian_kb_skill` package in the current working directory cannot shadow the installed payload.
 
 ## [1.12.0] - 2026-07-11

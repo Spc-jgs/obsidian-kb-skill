@@ -86,11 +86,21 @@ def main(argv: list[str] | None = None) -> int:
         except RuntimeError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 3
+    # Windows PowerShell 5.1 does not reliably preserve an inherited native
+    # pipeline across this launcher and its child process.  When create-note
+    # explicitly requests stdin, bridge the original bytes ourselves so UTF-8
+    # frontmatter and content reach the helper unchanged.
+    stdin_bytes = (
+        sys.stdin.buffer.read()
+        if helper == "create-note" and "--stdin" in forwarded
+        else None
+    )
     try:
         return subprocess.run(
             [*command, "-P", "-m", HELPERS[helper], *forwarded],
             env=helper_environment(skill_root),
             check=False,
+            input=stdin_bytes,
         ).returncode
     except OSError as exc:
         print(f"error: helper runtime failed: {exc}", file=sys.stderr)
