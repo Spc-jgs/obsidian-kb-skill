@@ -87,6 +87,61 @@ def test_skill_runner_works_from_neutral_directory_without_repo_pythonpath(tmp_p
     assert Path(payload["vault"]) == vault.resolve()
 
 
+@pytest.mark.parametrize(
+    ("helper", "arguments", "healthy_field"),
+    [
+        ("doctor", ("--json",), "ok"),
+        ("vault-info", ("{vault}", "--json"), "valid"),
+    ],
+)
+def test_skill_runner_ignores_shadow_package_in_working_directory(
+    tmp_path, helper, arguments, healthy_field
+):
+    skill = tmp_path / "installed" / "obsidian-knowledge-base"
+    shutil.copytree(STANDARD_SKILL, skill)
+    home = tmp_path / "home"
+    work = tmp_path / "hostile-cwd"
+    vault = tmp_path / "vault"
+    home.mkdir()
+    support = home / ".obsidian-kb-skill"
+    support.mkdir()
+    (support / "runtime.json").write_text(
+        json.dumps({"schema_version": 1, "python": [sys.executable]}),
+        encoding="utf-8",
+    )
+    (work / "obsidian_kb_skill" / "scripts").mkdir(parents=True)
+    (work / "obsidian_kb_skill" / "__init__.py").write_text("", encoding="utf-8")
+    (work / "obsidian_kb_skill" / "scripts" / "__init__.py").write_text(
+        "", encoding="utf-8"
+    )
+    (vault / ".obsidian").mkdir(parents=True)
+    (vault / "Templates").mkdir()
+
+    resolved_arguments = [
+        str(vault) if argument == "{vault}" else argument for argument in arguments
+    ]
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(skill / "scripts" / "run_helper.py"),
+            helper,
+            *resolved_arguments,
+        ],
+        cwd=work,
+        env={
+            **os.environ,
+            "HOME": str(home),
+            "USERPROFILE": str(home),
+            "PYTHONPATH": "",
+        },
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)[healthy_field] is True
+
+
 def test_skill_runner_enforces_retention_from_installed_payload(tmp_path):
     skill = tmp_path / "installed" / "obsidian-knowledge-base"
     shutil.copytree(STANDARD_SKILL, skill)

@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
             return 3
     try:
         return subprocess.run(
-            [*command, "-m", HELPERS[helper], *forwarded],
+            [*command, "-P", "-m", HELPERS[helper], *forwarded],
             env=helper_environment(skill_root),
             check=False,
         ).returncode

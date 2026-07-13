@@ -6,6 +6,7 @@ $Release = Join-Path $Sandbox "release"
 $HomeDir = Join-Path $Sandbox "home"
 $Vault = Join-Path $Sandbox "vault"
 $Neutral = Join-Path $Sandbox "neutral"
+$Hostile = Join-Path $Sandbox "hostile-cwd"
 
 function Assert-True {
     param([bool]$Condition, [string]$Message)
@@ -36,7 +37,7 @@ function Assert-PayloadMatches {
 }
 
 try {
-    New-Item -ItemType Directory -Path $Release, $HomeDir, $Neutral -Force | Out-Null
+    New-Item -ItemType Directory -Path $Release, $HomeDir, $Neutral, $Hostile -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $Vault ".obsidian") -Force | Out-Null
     Copy-Item (Join-Path $RepoRoot "install.ps1") $Release
     Copy-Item (Join-Path $RepoRoot "skills") $Release -Recurse
@@ -127,6 +128,26 @@ try {
         $WorkBuddyInfo = $WorkBuddyInfoJson | ConvertFrom-Json
         Assert-True ($WorkBuddyInfo.valid -eq $true) "Installed WorkBuddy vault-info did not validate the Vault"
 
+        $ShadowScripts = Join-Path $Hostile "obsidian_kb_skill\scripts"
+        New-Item -ItemType Directory -Path $ShadowScripts -Force | Out-Null
+        [System.IO.File]::WriteAllText((Join-Path $Hostile "obsidian_kb_skill\__init__.py"), "")
+        [System.IO.File]::WriteAllText((Join-Path $ShadowScripts "__init__.py"), "")
+        Push-Location $Hostile
+        try {
+            $HostileDoctorJson = & $env:OBSIDIAN_KB_PYTHON `
+                (Join-Path $WorkBuddy "scripts\run_helper.py") doctor --json
+            Assert-True ($LASTEXITCODE -eq 0) "Installed WorkBuddy doctor failed from hostile cwd"
+            $HostileDoctor = $HostileDoctorJson | ConvertFrom-Json
+            Assert-True ($HostileDoctor.ok -eq $true) "Installed WorkBuddy doctor was unhealthy from hostile cwd"
+            $HostileInfoJson = & $env:OBSIDIAN_KB_PYTHON `
+                (Join-Path $WorkBuddy "scripts\run_helper.py") vault-info $Vault --json
+            Assert-True ($LASTEXITCODE -eq 0) "Installed WorkBuddy vault-info failed from hostile cwd"
+            $HostileInfo = $HostileInfoJson | ConvertFrom-Json
+            Assert-True ($HostileInfo.valid -eq $true) "Installed WorkBuddy vault-info was invalid from hostile cwd"
+        } finally {
+            Pop-Location
+        }
+
         $OldOutputEncoding = $OutputEncoding
         try {
             $OutputEncoding = New-Object System.Text.UTF8Encoding($false)
@@ -138,6 +159,9 @@ try {
             $CreateJson = $Markdown | & $env:OBSIDIAN_KB_PYTHON `
                 (Join-Path $Codex "scripts\run_helper.py") create-note $Vault `
                 --type web-clip --title "Windows UTF-8" --stdin --apply --json
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "Installed create-note output: $($CreateJson | Out-String)"
+            }
             Assert-True ($LASTEXITCODE -eq 0) "Installed create-note UTF-8 stdin failed"
             $Created = $CreateJson | ConvertFrom-Json
             $CreatedText = [System.IO.File]::ReadAllText($Created.path)
