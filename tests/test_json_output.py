@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from obsidian_kb_skill.scripts import console
+
 REPO = Path(__file__).resolve().parents[1]
 
 
@@ -162,6 +164,105 @@ def test_create_note_apply_with_audit_json(tmp_path):
     assert out["audit"]["count"] == 0
 
 
+def test_create_note_web_clip_preflight_json_error(tmp_path):
+    vault = _make_vault(tmp_path)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--title",
+            "Incomplete",
+            "--stdin",
+            "--apply",
+            "--json",
+        ],
+        input="# Incomplete\n",
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+    )
+
+    assert result.returncode == 2
+    assert json.loads(result.stdout) == {
+        "error": {
+            "code": "missing-required-metadata",
+            "note_type": "web-clip",
+            "fields": ["source", "author", "published"],
+        }
+    }
+    assert not list(vault.rglob("*Incomplete*.md"))
+
+
+def test_create_note_web_clip_invalid_dry_run_keeps_preview_and_preflight(tmp_path):
+    vault = _make_vault(tmp_path)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--title",
+            "Preview",
+            "--stdin",
+            "--json",
+        ],
+        input="# Preview\n",
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+    )
+
+    assert result.returncode == 2
+    payload = json.loads(result.stdout)
+    assert payload["dry_run"] is True
+    assert payload["applied"] is False
+    assert "# Preview" in payload["rendered"]
+    assert payload["error"] == {
+        "code": "missing-required-metadata",
+        "note_type": "web-clip",
+        "fields": ["source", "author", "published"],
+    }
+    assert not list(vault.rglob("*Preview*.md"))
+
+
+def test_create_note_invalid_utf8_stdin_returns_structured_error(tmp_path):
+    vault = _make_vault(tmp_path)
+    env = {**os.environ, "PYTHONPATH": str(REPO), "PYTHONIOENCODING": "cp1252"}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "insight-note",
+            "--title",
+            "Invalid UTF-8",
+            "--stdin",
+            "--json",
+        ],
+        input=b"# invalid \xff\n",
+        capture_output=True,
+        cwd=REPO,
+        env=env,
+    )
+
+    assert result.returncode == 2
+    assert result.stderr == b""
+    assert json.loads(result.stdout.decode("utf-8")) == {
+        "error": {
+            "code": "invalid-utf8-input",
+            "message": "stdin must contain valid UTF-8",
+        }
+    }
+
+
 def test_create_note_json_forces_utf8_when_console_default_cannot_encode_unicode(tmp_path):
     vault = _make_vault(tmp_path)
     (vault / "Templates" / "Insight Note.md").write_text(
@@ -190,6 +291,56 @@ def test_create_note_json_forces_utf8_when_console_default_cannot_encode_unicode
     assert result.returncode == 0, result.stderr.decode("utf-8", errors="replace")
     payload = json.loads(result.stdout.decode("utf-8"))
     assert "中文正文" in payload["rendered"]
+
+
+def test_configure_utf8_stdio_includes_stdin(monkeypatch):
+    class RecordingStream:
+        def __init__(self):
+            self.encodings: list[str] = []
+
+        def reconfigure(self, *, encoding: str):
+            self.encodings.append(encoding)
+
+    stdin = RecordingStream()
+    stdout = RecordingStream()
+    stderr = RecordingStream()
+    monkeypatch.setattr(console.sys, "stdin", stdin)
+    monkeypatch.setattr(console.sys, "stdout", stdout)
+    monkeypatch.setattr(console.sys, "stderr", stderr)
+
+    console.configure_utf8_stdio()
+
+    assert stdin.encodings == ["utf-8"]
+    assert stdout.encodings == ["utf-8"]
+    assert stderr.encodings == ["utf-8"]
+
+
+def test_create_note_stdin_round_trips_utf8_when_default_is_legacy_encoding(tmp_path):
+    vault = _make_vault(tmp_path)
+    markdown = "# 中文输入 🧠\n\n多智能体协作。\n"
+    env = {**os.environ, "PYTHONPATH": str(REPO), "PYTHONIOENCODING": "cp1252"}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "insight-note",
+            "--title",
+            "UTF-8 stdin",
+            "--stdin",
+            "--json",
+        ],
+        input=markdown.encode("utf-8"),
+        capture_output=True,
+        cwd=REPO,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr.decode("utf-8", errors="replace")
+    payload = json.loads(result.stdout.decode("utf-8"))
+    assert markdown in payload["rendered"]
 
 
 # ---- update_note --------------------------------------------------------------

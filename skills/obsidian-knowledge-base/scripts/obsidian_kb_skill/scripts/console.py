@@ -18,6 +18,7 @@ def _reconfigure_utf8(stream: TextIO) -> None:
 
 
 def configure_utf8_stdio() -> None:
-    """Make helper output deterministic on legacy Windows code pages."""
+    """Make helper input and output deterministic on legacy Windows code pages."""
+    _reconfigure_utf8(sys.stdin)
     _reconfigure_utf8(sys.stdout)
     _reconfigure_utf8(sys.stderr)

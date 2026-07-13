@@ -1,6 +1,7 @@
 """Tests for the note creator (scripts/create_note.py)."""
 from __future__ import annotations
 
+import datetime
 import subprocess
 import sys
 from pathlib import Path
@@ -55,6 +56,26 @@ def test_build_note_web_clip_has_required_fields():
     )
     for field in ("source:", "author:", "published:"):
         assert field in rendered
+
+
+def test_build_note_normalizes_yaml_date_scalars():
+    _, rendered = build_note(
+        note_type="web-clip",
+        title="Dated",
+        date="2026-07-13",
+        body="# Clip\n",
+        given_meta={
+            "source": "https://example.com/article",
+            "author": "张三",
+            "published": datetime.date(2026, 7, 13),
+            "nested": {"captured": datetime.datetime(2026, 7, 13, 9, 30)},
+        },
+    )
+
+    metadata, _ = split_frontmatter(rendered)
+    assert metadata["published"] == "2026-07-13"
+    assert isinstance(metadata["published"], str)
+    assert metadata["nested"]["captured"] == "2026-07-13T09:30:00"
 
 
 def test_build_note_unknown_type_raises():
@@ -159,6 +180,88 @@ def test_apply_creates_note_and_updates_index(tmp_path):
     index_text = (vault / "30-Insights" / "INDEX.md").read_text(encoding="utf-8")
     assert "[[" in index_text
     assert "Created" in index_text
+
+
+def test_web_clip_preflight_rejects_missing_metadata_without_mutation(tmp_path):
+    vault = make_vault(tmp_path)
+    learning = vault / "20-Learning"
+    learning.mkdir()
+    index = learning / "INDEX.md"
+    original_index = "# Learning\n\n## Recent\n"
+    index.write_text(original_index, encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--title",
+            "Incomplete",
+            "--stdin",
+            "--date",
+            "2026-07-13",
+            "--apply",
+        ],
+        input="# Incomplete\n",
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        env=ENV,
+    )
+
+    assert result.returncode == 2
+    assert "source" in result.stderr
+    assert "author" in result.stderr
+    assert "published" in result.stderr
+    assert not list(learning.glob("2026-07-13 Incomplete*.md"))
+    assert index.read_text(encoding="utf-8") == original_index
+
+
+def test_complete_web_clip_from_stdin_is_normalized_and_audited(tmp_path):
+    vault = make_vault(tmp_path)
+    complete_markdown = (
+        "---\n"
+        "source: https://example.com/article\n"
+        "author: 张三\n"
+        "published: 2026-07-13\n"
+        "---\n"
+        "# 中文文章\n\n"
+        "多智能体协作。\n"
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--title",
+            "中文文章",
+            "--stdin",
+            "--date",
+            "2026-07-13",
+            "--apply",
+        ],
+        input=complete_markdown,
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        env=ENV,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "AUDIT: OK" in result.stdout
+    created = vault / "20-Learning" / "2026-07-13 中文文章.md"
+    metadata, body = split_frontmatter(created.read_text(encoding="utf-8"))
+    assert metadata["published"] == "2026-07-13"
+    assert isinstance(metadata["published"], str)
+    assert metadata["author"] == "张三"
+    assert "多智能体协作" in body
 
 
 def test_apply_refuses_non_vault(tmp_path):

@@ -128,29 +128,32 @@ python <skill-root>/scripts/run_helper.py scaffold-templates <vault> --apply
 `create_note.py` merges complete Markdown supplied by `--stdin` or
 `--content-file`: optional YAML frontmatter is merged and the remainder becomes
 the body. Precedence is `type defaults < Vault template < input frontmatter < explicit CLI fields`.
-This lets an invocation supply fields such as `source` and `related` without
-adding a dedicated flag for every metadata key. Always set (and never hardcode)
-`date` to today; always set `type` to the routed slug. If the template doesn't
-define `tags`, the type's default tag is used.
+This supplies type-specific and Vault-defined metadata without adding a CLI
+flag for every field. Always set (and never hardcode) `date` to today; always
+set `type` to the routed slug. If the template doesn't define `tags`, the
+type's default tag is used.
 
-Dry-run the complete input before applying it:
+For example, dry-run a complete web clip before applying it:
 
 ```bash
 python <skill-root>/scripts/run_helper.py create-note <vault> \
-  --type insight-note --title "Capability boundary" --stdin --json <<'EOF'
+  --type web-clip --title "Multi-agent collaboration" --stdin --json <<'EOF'
 ---
-source: WorkBuddy forward test
+source: "https://example.com/article"
+author: "Article author"
+published: "2026-07-13"
 related: ["[[Existing Note]]"]
 ---
-# Capability boundary
+# Multi-agent collaboration
 
-Verified through dry-run and execution output.
+Article summary and grounded excerpts.
 EOF
 ```
 
-`--content-file` must resolve inside the Vault. Pipe external or transient
-content through `--stdin` instead. After checking the preview, repeat the same
-invocation with `--apply` (and optionally `--suggest-links`) to write it.
+`web-clip` requires non-empty `source`, `author`, and `published` metadata.
+Missing values exit with status 2 before any note or index mutation, including
+in dry-run mode. After checking a valid preview, repeat the invocation with
+`--apply` (and optionally `--suggest-links`) to write it.
 
 ### Step 6: Wikilinks (use the helper)
 
@@ -165,9 +168,10 @@ python <skill-root>/scripts/run_helper.py create-note <vault> --type <slug> --ti
     --content-file <path-to-body.md> --apply
 ```
 
-`--stdin` reads complete Markdown from standard input; omit `--apply` to preview.
-The script handles encoding, frontmatter, safe numeric suffix, and the static
-`INDEX.md` update.
+`--content-file` must resolve inside the Vault. Pipe external or transient
+content through `--stdin` instead. `--stdin` reads complete UTF-8 Markdown;
+omit `--apply` to preview. The script handles encoding, frontmatter, safe
+numeric suffix, and the static `INDEX.md` update.
 
 ### Step 8: Apply the detected index strategy
 

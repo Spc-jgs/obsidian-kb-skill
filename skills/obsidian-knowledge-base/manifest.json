@@ -20,7 +20,7 @@
     "assets/templates/web-clip.md": "d1f879f1478524385f7c6df48b375e36ad54c1a4797f815c973018ec0954ddf0",
     "references/conversation-digest.md": "e3bd2200edddc46960be4518b4ea943b33a7081f91a1398d35f9af74b6d8a5f4",
     "references/git.md": "d1e7d9976967f99b9be5818ad09c1e8a29ccda717f1a3e4272e5214b438a7252",
-    "references/note-creation.md": "998afe5c26228f8febf9b1cbd5b95eca6a16359d8a0aff28443c83c248352930",
+    "references/note-creation.md": "cc78db8c780f97b397f2cda33dfaf288b3cccb1f757026c4981fc639f9e454d0",
     "references/rules-and-errors.md": "db6fffef221545850ea425db953f710ae3a0fce73d058dcb4ea4f23dac165b49",
     "references/task-memory.md": "7addab42c12137a56d16c3068a10325ba2a3e93bdc55a77a4e7fbb379aa35021",
     "references/update-note.md": "cf6dd29283d1887ce618c70aad53e3315c3e51c299d1e2a169d1c7603819f725",
@@ -29,8 +29,8 @@
     "scripts/obsidian_kb_skill/scripts/__init__.py": "ea3771d4d955569ada4adce0855760a4ba997fc8b7ab87e3d871f68b9def9ee7",
     "scripts/obsidian_kb_skill/scripts/audit_vault.py": "603456494969be57c1a1bd7de72a8606d973cb14f69890300d3d98df2e2ecf9c",
     "scripts/obsidian_kb_skill/scripts/backup_policy.py": "fbab84603bf0ad0dd76914516406cc05701e9bb9e9ae49eca468750be05df90c",
-    "scripts/obsidian_kb_skill/scripts/console.py": "4060e6d9574b79f5febf3286d8762fa2732afe71bfcb3b9c3171bc8f81071a74",
-    "scripts/obsidian_kb_skill/scripts/create_note.py": "bf5100ba1c650a759bb858f93321c5d289a8fde861ebb5a311d1d840e15a0d1b",
+    "scripts/obsidian_kb_skill/scripts/console.py": "6d6eea164e78b50a0126a6cac68dc9ddcec08d2df2b4a9e9a7a8e62ff35ad0af",
+    "scripts/obsidian_kb_skill/scripts/create_note.py": "e94f56cd55fb899c8788f1dd32c4c284916556f5a5168f92c753a44586a0e870",
     "scripts/obsidian_kb_skill/scripts/detect_index.py": "c87b6d921aa347c7c970a3b9196b5ea149bc27188cd574ec6555c8016e3f1b46",
     "scripts/obsidian_kb_skill/scripts/doctor.py": "b63b530d34a5eb960b75ad73e37efa43b19983c698f5ba96906b94d14a31c3ac",
     "scripts/obsidian_kb_skill/scripts/process_inbox.py": "f1b319119f63603a27bb94105d4c1d8d0032ecad74fc4d6c2bc019315b69ed6e",
@@ -44,5 +44,5 @@
   },
   "product": "obsidian-kb-skill",
   "schema_version": 1,
-  "version": "1.12.0"
+  "version": "1.12.1"
 }

@@ -126,6 +126,26 @@ try {
         Assert-True ($LASTEXITCODE -eq 0) "Installed WorkBuddy vault-info failed"
         $WorkBuddyInfo = $WorkBuddyInfoJson | ConvertFrom-Json
         Assert-True ($WorkBuddyInfo.valid -eq $true) "Installed WorkBuddy vault-info did not validate the Vault"
+
+        $OldOutputEncoding = $OutputEncoding
+        try {
+            $OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+            $Chinese = ([string][char]0x4E2D) + ([string][char]0x6587) +
+                ([string][char]0x8F93) + ([string][char]0x5165)
+            $Emoji = ([string][char]0xD83E) + ([string][char]0xDDE0)
+            $Markdown = "---`nsource: https://example.com/windows`nauthor: QoderWork`n" +
+                "published: 2026-07-13`n---`n# UTF-8`n`n$Chinese $Emoji`n"
+            $CreateJson = $Markdown | & $env:OBSIDIAN_KB_PYTHON `
+                (Join-Path $Codex "scripts\run_helper.py") create-note $Vault `
+                --type web-clip --title "Windows UTF-8" --stdin --apply --json
+            Assert-True ($LASTEXITCODE -eq 0) "Installed create-note UTF-8 stdin failed"
+            $Created = $CreateJson | ConvertFrom-Json
+            $CreatedText = [System.IO.File]::ReadAllText($Created.path)
+            Assert-True ($CreatedText.Contains("$Chinese $Emoji")) "UTF-8 stdin did not round-trip"
+            Assert-True ($Created.audit.ok -eq $true) "UTF-8 web clip did not pass audit"
+        } finally {
+            $OutputEncoding = $OldOutputEncoding
+        }
     } finally {
         Pop-Location
     }

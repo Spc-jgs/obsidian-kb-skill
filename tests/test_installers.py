@@ -579,7 +579,7 @@ def test_bash_workbuddy_install_is_complete_and_manifested(tmp_path):
     installed = _workbuddy_skill(home)
     assert _payload_hashes(installed) == expected
     manifest = json.loads((installed / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == "1.12.0"
+    assert manifest["version"] == "1.12.1"
 
 
 def test_bash_workbuddy_replaces_symlink_without_touching_target(tmp_path):

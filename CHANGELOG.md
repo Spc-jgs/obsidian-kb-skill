@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-07-13
+
+### Changed
+
+- `create-note` now treats stdin and content files as complete Markdown inputs, documents input-frontmatter precedence, and rejects incomplete `web-clip` metadata before any note or index mutation.
+
+### Fixed
+
+- Unquoted YAML date/datetime metadata is normalized to ISO strings, so a valid `published: 2026-07-13` value no longer triggers `web-clip-missing-published`.
+- All helper CLIs now force UTF-8 stdin as well as stdout/stderr, preventing piped Chinese text and emoji from failing under legacy Windows code pages.
+
 ## [1.12.0] - 2026-07-11
 
 ### Added
