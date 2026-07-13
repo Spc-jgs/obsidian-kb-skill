@@ -165,6 +165,18 @@ try {
             Assert-True ($LASTEXITCODE -eq 0) "Installed create-note UTF-8 stdin failed"
             $Created = $CreateJson | ConvertFrom-Json
             $CreatedText = [System.IO.File]::ReadAllText($Created.path)
+            if (-not $CreatedText.Contains("$Chinese $Emoji")) {
+                $ExpectedHex = ([System.BitConverter]::ToString(
+                    [System.Text.Encoding]::UTF8.GetBytes("$Chinese $Emoji")
+                ))
+                $ActualHex = ([System.BitConverter]::ToString(
+                    [System.Text.Encoding]::UTF8.GetBytes($CreatedText)
+                ))
+                Write-Host "UTF-8 expected hex: $ExpectedHex"
+                Write-Host "UTF-8 actual file hex: $ActualHex"
+                Write-Host "Contains Chinese: $($CreatedText.Contains($Chinese))"
+                Write-Host "Contains emoji: $($CreatedText.Contains($Emoji))"
+            }
             Assert-True ($CreatedText.Contains("$Chinese $Emoji")) "UTF-8 stdin did not round-trip"
             Assert-True ($Created.audit.ok -eq $true) "UTF-8 web clip did not pass audit"
         } finally {
