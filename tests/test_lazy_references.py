@@ -110,6 +110,18 @@ def test_references_use_the_standard_skill_runner_not_removed_script_paths():
     assert not re.search(r"python\s+scripts/[a-z_]+\.py", text)
 
 
+def test_note_creation_documents_complete_markdown_and_web_clip_preflight():
+    text = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
+
+    for marker in (
+        "complete Markdown",
+        "type defaults < Vault template < input frontmatter < explicit CLI fields",
+        "`web-clip` requires non-empty",
+        "`--content-file` must resolve inside the Vault",
+    ):
+        assert marker in text, f"note creation reference missing: {marker!r}"
+
+
 def test_task_memory_reference_carries_full_spec():
     ref = REFERENCES_DIR / "task-memory.md"
     text = ref.read_text(encoding="utf-8")

@@ -579,7 +579,21 @@ def test_bash_workbuddy_install_is_complete_and_manifested(tmp_path):
     installed = _workbuddy_skill(home)
     assert _payload_hashes(installed) == expected
     manifest = json.loads((installed / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == "1.12.0"
+    assert manifest["version"] == "1.12.1"
+
+
+def test_windows_smoke_exercises_installed_runner_from_hostile_cwd():
+    script = (ROOT / "tests" / "windows_installer_smoke.ps1").read_text(
+        encoding="utf-8"
+    )
+
+    for marker in (
+        "hostile-cwd",
+        "obsidian_kb_skill\\scripts",
+        "Installed WorkBuddy doctor failed from hostile cwd",
+        "Installed WorkBuddy vault-info failed from hostile cwd",
+    ):
+        assert marker in script
 
 
 def test_bash_workbuddy_replaces_symlink_without_touching_target(tmp_path):

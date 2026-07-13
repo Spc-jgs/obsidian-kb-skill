@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-07-13
+
+### Changed
+
+- `create-note` now treats stdin and content files as complete Markdown inputs, documents input-frontmatter precedence, and rejects incomplete `web-clip` metadata before any note or index mutation.
+
+### Fixed
+
+- Unquoted YAML date/datetime metadata is normalized to ISO strings, so a valid `published: 2026-07-13` value no longer triggers `web-clip-missing-published`.
+- All helper CLIs now force UTF-8 stdin as well as stdout/stderr, the installed launcher explicitly byte-bridges `create-note --stdin`, and frontmatter accepts BOM/CRLF transport details, preventing piped Chinese text and emoji from being lost or rejected under legacy Windows code pages.
+- Installed helper launchers now use Python safe-path mode so an unrelated `obsidian_kb_skill` package in the current working directory cannot shadow the installed payload.
+
 ## [1.12.0] - 2026-07-11
 
 ### Added

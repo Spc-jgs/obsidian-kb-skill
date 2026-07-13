@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.12.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.12.1** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor, WorkBuddy) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -36,7 +36,7 @@ v1.12 formally installs the complete standard Skill into WorkBuddy and makes ins
 - The create-note stdin/content-file frontmatter merge and precedence are now discoverable in CLI help, the lazy reference, and regression tests, including `source` and `related`.
 - Installed-product tests remove the release source and then run doctor and core helpers from the WorkBuddy copy. A real WorkBuddy forward task and P0 audit remain release gates.
 
-See [CHANGELOG.md](CHANGELOG.md) under `[1.12.0]` for the complete diff. Detailed usage remains lazy-loaded from `core/references/note-creation.md`.
+See [CHANGELOG.md](CHANGELOG.md) under `[1.12.1]` for the complete diff. Detailed usage remains lazy-loaded from `core/references/note-creation.md`.
 
 ## Download
 

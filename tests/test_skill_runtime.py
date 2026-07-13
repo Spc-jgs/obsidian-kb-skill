@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import json
 import importlib.util
+import io
 import os
 import shutil
 import subprocess
 import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -85,6 +87,138 @@ def test_skill_runner_works_from_neutral_directory_without_repo_pythonpath(tmp_p
     payload = json.loads(result.stdout)
     assert payload["valid"] is True
     assert Path(payload["vault"]) == vault.resolve()
+
+
+@pytest.mark.parametrize(
+    ("helper", "arguments", "healthy_field"),
+    [
+        ("doctor", ("--json",), "ok"),
+        ("vault-info", ("{vault}", "--json"), "valid"),
+    ],
+)
+def test_skill_runner_ignores_shadow_package_in_working_directory(
+    tmp_path, helper, arguments, healthy_field
+):
+    skill = tmp_path / "installed" / "obsidian-knowledge-base"
+    shutil.copytree(STANDARD_SKILL, skill)
+    home = tmp_path / "home"
+    work = tmp_path / "hostile-cwd"
+    vault = tmp_path / "vault"
+    home.mkdir()
+    support = home / ".obsidian-kb-skill"
+    support.mkdir()
+    (support / "runtime.json").write_text(
+        json.dumps({"schema_version": 1, "python": [sys.executable]}),
+        encoding="utf-8",
+    )
+    (work / "obsidian_kb_skill" / "scripts").mkdir(parents=True)
+    (work / "obsidian_kb_skill" / "__init__.py").write_text("", encoding="utf-8")
+    (work / "obsidian_kb_skill" / "scripts" / "__init__.py").write_text(
+        "", encoding="utf-8"
+    )
+    (vault / ".obsidian").mkdir(parents=True)
+    (vault / "Templates").mkdir()
+
+    resolved_arguments = [
+        str(vault) if argument == "{vault}" else argument for argument in arguments
+    ]
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(skill / "scripts" / "run_helper.py"),
+            helper,
+            *resolved_arguments,
+        ],
+        cwd=work,
+        env={
+            **os.environ,
+            "HOME": str(home),
+            "USERPROFILE": str(home),
+            "PYTHONPATH": "",
+        },
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)[healthy_field] is True
+
+
+def test_skill_runner_bridges_create_note_stdin_bytes(tmp_path):
+    skill = tmp_path / "installed" / "obsidian-knowledge-base"
+    shutil.copytree(STANDARD_SKILL, skill)
+    home = tmp_path / "home"
+    work = tmp_path / "neutral"
+    vault = tmp_path / "vault"
+    home.mkdir()
+    work.mkdir()
+    (vault / ".obsidian").mkdir(parents=True)
+    (vault / "Templates").mkdir()
+    markdown = (
+        "\ufeff---\r\n"
+        "source: https://example.com/runtime\r\n"
+        "author: QoderWork\r\n"
+        "published: 2026-07-13\r\n"
+        "---\r\n"
+        "# UTF-8\r\n\r\n中文输入 🧠\r\n"
+    ).encode("utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(skill / "scripts" / "run_helper.py"),
+            "create-note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--title",
+            "Runtime UTF-8",
+            "--stdin",
+            "--apply",
+            "--json",
+        ],
+        input=markdown,
+        cwd=work,
+        env={
+            **os.environ,
+            "HOME": str(home),
+            "USERPROFILE": str(home),
+            "PYTHONPATH": "",
+        },
+        capture_output=True,
+    )
+
+    assert result.returncode == 0, result.stderr.decode("utf-8", errors="replace")
+    payload = json.loads(result.stdout.decode("utf-8"))
+    assert payload["audit"]["ok"] is True
+    assert "中文输入 🧠" in Path(payload["path"]).read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("forwarded", "expected_input"),
+    [
+        (["vault", "--stdin"], b"frontmatter bytes"),
+        (["vault", "--title=--stdin"], None),
+    ],
+)
+def test_skill_runner_only_explicitly_bridges_exact_stdin_token(
+    tmp_path, monkeypatch, forwarded, expected_input
+):
+    runner = load_runner()
+    stdin = io.TextIOWrapper(io.BytesIO(b"frontmatter bytes"), encoding="utf-8")
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(runner.sys, "stdin", stdin)
+    monkeypatch.setattr(runner, "python_command", lambda: [sys.executable])
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    assert runner.main(["create-note", *forwarded]) == 0
+    _, kwargs = calls[0]
+    assert kwargs.get("input") == expected_input
 
 
 def test_skill_runner_enforces_retention_from_installed_payload(tmp_path):

@@ -104,6 +104,10 @@ def sanitize_filename(name: str) -> str:
 
 def split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     """Return (metadata, body) splitting a leading YAML frontmatter block if present."""
+    # Native Windows pipelines may prefix UTF-8 input with a BOM and preserve
+    # CRLF line endings.  Normalize those transport details before looking for
+    # Markdown's line-oriented frontmatter delimiters.
+    text = text.removeprefix("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
     if text.startswith("---\n"):
         end = text.find("\n---\n", 4)
         if end != -1:
@@ -116,6 +120,57 @@ def split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
             if isinstance(meta, dict):
                 return meta, body
     return {}, text
+
+
+def normalize_yaml_scalars(value: Any) -> Any:
+    """Return metadata using portable YAML scalar types.
+
+    PyYAML resolves unquoted ISO dates to ``datetime.date`` objects. Obsidian
+    properties and this skill's schema expect ISO strings, so normalize those
+    values recursively before rendering the final frontmatter.
+    """
+    if isinstance(value, datetime.datetime):
+        return value.isoformat()
+    if isinstance(value, datetime.date):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {key: normalize_yaml_scalars(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [normalize_yaml_scalars(item) for item in value]
+    return value
+
+
+def missing_required_metadata(note_type: str, metadata: dict[str, Any]) -> list[str]:
+    """Return non-empty string fields required before a note may be written."""
+    if note_type != "web-clip":
+        return []
+    return [
+        field
+        for field in ("source", "author", "published")
+        if not isinstance(metadata.get(field), str) or not metadata[field].strip()
+    ]
+
+
+def report_invalid_utf8_input(source: str, *, json_mode: bool) -> int:
+    """Report invalid Unicode input without leaking a Python traceback."""
+    message = f"{source} must contain valid UTF-8"
+    if json_mode:
+        print(json.dumps({
+            "error": {"code": "invalid-utf8-input", "message": message}
+        }, ensure_ascii=False))
+    else:
+        print(f"error: {message}", file=sys.stderr)
+    return 2
+
+
+def print_preview(vault: Path, folder: str, dest: Path, rendered: str) -> None:
+    """Print the human-readable dry-run preview."""
+    print(f"vault : {vault}")
+    print(f"folder: {folder}")
+    print(f"path  : {dest}")
+    print("---- frontmatter + body (preview) ----")
+    print(rendered)
+    print("--------------------------------------")
 
 
 def _load_user_template(vault: Path | None, note_type: str) -> tuple[dict[str, Any], str] | None:
@@ -221,6 +276,7 @@ def build_note(
         meta["tags"] = [DEFAULT_TAG_BY_TYPE.get(note_type, "note")]
     if "related" not in meta:
         meta["related"] = []
+    meta = normalize_yaml_scalars(meta)
 
     dump = yaml.safe_dump(
         meta, sort_keys=False, allow_unicode=True, default_flow_style=False
@@ -257,13 +313,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--folder", help="Override the routed target folder")
     parser.add_argument(
         "--content-file", type=Path,
-        help="Path to a .md file with the note body (its frontmatter is merged, "
+        help="Path to complete Markdown inside the Vault (frontmatter is merged, "
              "explicit values win)",
     )
     parser.add_argument(
         "--stdin",
         action="store_true",
-        help="Read complete Markdown from standard input; optional frontmatter is merged",
+        help="Read complete UTF-8 Markdown from standard input; optional frontmatter is merged",
     )
     parser.add_argument("--tags", help="Comma-separated tags overriding the type default")
     parser.add_argument("--date", help="Date (YYYY-MM-DD); defaults to today")
@@ -317,12 +373,16 @@ def main(argv: list[str] | None = None) -> int:
 
     body_text = ""
     given_meta: dict[str, Any] = {}
-    if args.content_file:
-        raw = args.content_file.read_text(encoding="utf-8")
-        given_meta, body_text = split_frontmatter(raw)
-    elif args.stdin:
-        raw = sys.stdin.read()
-        given_meta, body_text = split_frontmatter(raw)
+    try:
+        if args.content_file:
+            raw = args.content_file.read_text(encoding="utf-8")
+            given_meta, body_text = split_frontmatter(raw)
+        elif args.stdin:
+            raw = sys.stdin.read()
+            given_meta, body_text = split_frontmatter(raw)
+    except UnicodeError:
+        source = "stdin" if args.stdin else "--content-file"
+        return report_invalid_utf8_input(source, json_mode=args.json)
 
     try:
         folder, rendered = build_note(
@@ -356,16 +416,38 @@ def main(argv: list[str] | None = None) -> int:
         "suggested_links": None,
     }
 
+    try:
+        rendered_bytes = rendered.encode("utf-8")
+    except UnicodeError:
+        source = "stdin" if args.stdin else "--content-file"
+        return report_invalid_utf8_input(source, json_mode=args.json)
+
+    rendered_meta, _ = split_frontmatter(rendered)
+    missing_fields = missing_required_metadata(args.type, rendered_meta)
+    if missing_fields:
+        error = {
+            "code": "missing-required-metadata",
+            "note_type": args.type,
+            "fields": missing_fields,
+        }
+        if args.json:
+            payload = {**result, "error": error} if not args.apply else {"error": error}
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            if not args.apply:
+                print_preview(vault, folder, dest, rendered)
+            print(
+                "error: web-clip requires non-empty metadata: "
+                + ", ".join(missing_fields),
+                file=sys.stderr,
+            )
+        return 2
+
     if not args.apply:
         if args.json:
             print(json.dumps(result, ensure_ascii=False, indent=2))
         else:
-            print(f"vault : {vault}")
-            print(f"folder: {folder}")
-            print(f"path  : {dest}")
-            print("---- frontmatter + body (preview) ----")
-            print(rendered)
-            print("--------------------------------------")
+            print_preview(vault, folder, dest, rendered)
             print("(dry run) pass --apply to write the file.")
         return 0
 
@@ -373,7 +455,7 @@ def main(argv: list[str] | None = None) -> int:
         print("warning: empty body; creating a frontmatter-only note.", file=sys.stderr)
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(rendered.encode("utf-8"))
+    dest.write_bytes(rendered_bytes)
     result["applied"] = True
 
     # Update a static INDEX when applicable (Folder Index / Dataview owned
