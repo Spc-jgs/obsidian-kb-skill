@@ -250,6 +250,7 @@ def test_complete_web_clip_from_stdin_is_normalized_and_audited(tmp_path):
         input=complete_markdown,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         cwd=ROOT,
         env=ENV,
     )
