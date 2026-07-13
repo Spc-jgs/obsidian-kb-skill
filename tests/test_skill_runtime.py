@@ -155,12 +155,12 @@ def test_skill_runner_bridges_create_note_stdin_bytes(tmp_path):
     (vault / ".obsidian").mkdir(parents=True)
     (vault / "Templates").mkdir()
     markdown = (
-        "---\n"
-        "source: https://example.com/runtime\n"
-        "author: QoderWork\n"
-        "published: 2026-07-13\n"
-        "---\n"
-        "# UTF-8\n\n中文输入 🧠\n"
+        "\ufeff---\r\n"
+        "source: https://example.com/runtime\r\n"
+        "author: QoderWork\r\n"
+        "published: 2026-07-13\r\n"
+        "---\r\n"
+        "# UTF-8\r\n\r\n中文输入 🧠\r\n"
     ).encode("utf-8")
 
     result = subprocess.run(

@@ -30,7 +30,7 @@
     "scripts/obsidian_kb_skill/scripts/audit_vault.py": "603456494969be57c1a1bd7de72a8606d973cb14f69890300d3d98df2e2ecf9c",
     "scripts/obsidian_kb_skill/scripts/backup_policy.py": "fbab84603bf0ad0dd76914516406cc05701e9bb9e9ae49eca468750be05df90c",
     "scripts/obsidian_kb_skill/scripts/console.py": "6d6eea164e78b50a0126a6cac68dc9ddcec08d2df2b4a9e9a7a8e62ff35ad0af",
-    "scripts/obsidian_kb_skill/scripts/create_note.py": "e94f56cd55fb899c8788f1dd32c4c284916556f5a5168f92c753a44586a0e870",
+    "scripts/obsidian_kb_skill/scripts/create_note.py": "07227909b033ce380df67bd0d6003f6ac98b1ba30b10c91ad48787666358d525",
     "scripts/obsidian_kb_skill/scripts/detect_index.py": "c87b6d921aa347c7c970a3b9196b5ea149bc27188cd574ec6555c8016e3f1b46",
     "scripts/obsidian_kb_skill/scripts/doctor.py": "b63b530d34a5eb960b75ad73e37efa43b19983c698f5ba96906b94d14a31c3ac",
     "scripts/obsidian_kb_skill/scripts/process_inbox.py": "f1b319119f63603a27bb94105d4c1d8d0032ecad74fc4d6c2bc019315b69ed6e",

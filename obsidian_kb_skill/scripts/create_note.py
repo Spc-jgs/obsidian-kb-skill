@@ -104,6 +104,10 @@ def sanitize_filename(name: str) -> str:
 
 def split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     """Return (metadata, body) splitting a leading YAML frontmatter block if present."""
+    # Native Windows pipelines may prefix UTF-8 input with a BOM and preserve
+    # CRLF line endings.  Normalize those transport details before looking for
+    # Markdown's line-oriented frontmatter delimiters.
+    text = text.removeprefix("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
     if text.startswith("---\n"):
         end = text.find("\n---\n", 4)
         if end != -1:

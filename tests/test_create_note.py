@@ -264,6 +264,22 @@ def test_complete_web_clip_from_stdin_is_normalized_and_audited(tmp_path):
     assert "多智能体协作" in body
 
 
+def test_split_frontmatter_accepts_utf8_bom_and_windows_newlines():
+    metadata, body = split_frontmatter(
+        "\ufeff---\r\n"
+        "source: https://example.com/windows\r\n"
+        "author: QoderWork\r\n"
+        "published: 2026-07-13\r\n"
+        "---\r\n"
+        "# 中文输入 🧠\r\n"
+    )
+
+    assert metadata["source"] == "https://example.com/windows"
+    assert metadata["author"] == "QoderWork"
+    assert metadata["published"].isoformat() == "2026-07-13"
+    assert body == "# 中文输入 🧠\n"
+
+
 def test_apply_refuses_non_vault(tmp_path):
     not_vault = tmp_path / "notvault"
     not_vault.mkdir()
