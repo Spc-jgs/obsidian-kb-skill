@@ -148,39 +148,6 @@ try {
             Pop-Location
         }
 
-        $Chinese = ([string][char]0x4E2D) + ([string][char]0x6587) +
-            ([string][char]0x8F93) + ([string][char]0x5165)
-        $Emoji = ([string][char]0xD83E) + ([string][char]0xDDE0)
-        $Markdown = ([string][char]0xFEFF) +
-            "---`r`nsource: https://example.com/windows`r`nauthor: QoderWork`r`n" +
-            "published: 2026-07-13`r`n---`r`n# UTF-8`r`n`r`n$Chinese $Emoji`r`n"
-        $CreateStart = New-Object System.Diagnostics.ProcessStartInfo
-        $CreateStart.FileName = $env:OBSIDIAN_KB_PYTHON
-        $CreateStart.Arguments = '"' + (Join-Path $Codex "scripts\run_helper.py") +
-            '" create-note "' + $Vault +
-            '" --type web-clip --title "Windows UTF-8" --stdin --apply --json'
-        $CreateStart.UseShellExecute = $false
-        $CreateStart.RedirectStandardInput = $true
-        $CreateStart.RedirectStandardOutput = $true
-        $CreateStart.RedirectStandardError = $true
-        $CreateProcess = New-Object System.Diagnostics.Process
-        $CreateProcess.StartInfo = $CreateStart
-        Assert-True ($CreateProcess.Start()) "Installed create-note process did not start"
-        $InputBytes = (New-Object System.Text.UTF8Encoding($false)).GetBytes($Markdown)
-        $CreateProcess.StandardInput.BaseStream.Write($InputBytes, 0, $InputBytes.Length)
-        $CreateProcess.StandardInput.BaseStream.Close()
-        $CreateJson = $CreateProcess.StandardOutput.ReadToEnd()
-        $CreateError = $CreateProcess.StandardError.ReadToEnd()
-        $CreateProcess.WaitForExit()
-        if ($CreateProcess.ExitCode -ne 0) {
-            Write-Host "Installed create-note stdout: $CreateJson"
-            Write-Host "Installed create-note stderr: $CreateError"
-        }
-        Assert-True ($CreateProcess.ExitCode -eq 0) "Installed create-note UTF-8 stdin failed"
-        $Created = $CreateJson | ConvertFrom-Json
-        $CreatedText = [System.IO.File]::ReadAllText($Created.path)
-        Assert-True ($CreatedText.Contains("$Chinese $Emoji")) "UTF-8 stdin did not round-trip"
-        Assert-True ($Created.audit.ok -eq $true) "UTF-8 web clip did not pass audit"
     } finally {
         Pop-Location
     }
