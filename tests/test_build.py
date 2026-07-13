@@ -2,13 +2,22 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
+import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def test_repository_enforces_lf_payload_checkouts():
+    attributes = (ROOT / ".gitattributes").read_text(encoding="utf-8")
+
+    assert "* text=auto eol=lf" in attributes.splitlines()
 
 
 def _load_build_module():
@@ -143,6 +152,63 @@ class TestBuildAdapter:
 # ---------- end-to-end against the real repo ----------
 
 class TestEndToEnd:
+    def test_skill_manifest_covers_every_installable_payload_file(self):
+        root = ROOT / "skills" / "obsidian-knowledge-base"
+        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        expected = {
+            relative: hashlib.sha256(path.read_bytes()).hexdigest()
+            for relative, path in build.skill_payload_files(root).items()
+        }
+
+        assert manifest == {
+            "schema_version": 1,
+            "product": "obsidian-kb-skill",
+            "version": build.project_version(),
+            "files": dict(sorted(expected.items())),
+        }
+        assert "agents/openai.yaml" in manifest["files"]
+        assert "header.md" not in manifest["files"]
+        assert "manifest.json" not in manifest["files"]
+
+    def test_skill_manifest_is_deterministic_and_detects_hash_drift(self, tmp_path):
+        root = tmp_path / "skill"
+        shutil.copytree(ROOT / "skills" / "obsidian-knowledge-base", root)
+        first = build.render_skill_manifest(
+            build.build_skill_manifest(root, build.project_version())
+        )
+        second = build.render_skill_manifest(
+            build.build_skill_manifest(root, build.project_version())
+        )
+        assert first == second
+
+        (root / "SKILL.md").write_text("changed", encoding="utf-8")
+        changed = build.render_skill_manifest(
+            build.build_skill_manifest(root, build.project_version())
+        )
+        assert changed != first
+
+    def test_skill_manifest_never_follows_payload_symlinks(self, tmp_path):
+        root = tmp_path / "skill"
+        outside = tmp_path / "outside"
+        root.mkdir()
+        outside.mkdir()
+        (root / "SKILL.md").write_text("owned", encoding="utf-8")
+        secret = outside / "secret.md"
+        secret.write_text("outside", encoding="utf-8")
+        try:
+            (root / "linked-file.md").symlink_to(secret)
+            (root / "linked-dir").symlink_to(outside, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            pytest.skip("symlinks unavailable")
+
+        payload = build.skill_payload_files(root)
+
+        assert set(payload) == {"SKILL.md"}
+        assert all(path.is_relative_to(root) for path in payload.values())
+
+    def test_project_version_reads_pyproject(self):
+        assert build.project_version() == "1.12.0"
+
     def test_standard_skill_has_required_resource_directories(self):
         root = ROOT / "skills" / "obsidian-knowledge-base"
 
@@ -300,18 +366,22 @@ def test_readmes_warn_that_one_instruction_file_is_not_a_complete_install():
     assert "Copying one instruction file is neither a complete standard Skill" in readme_en
 
 
-def test_v1_11_1_release_contract_is_consistent():
+def test_v1_12_0_release_contract_is_consistent():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     core = (ROOT / "core" / "OBSIDIAN_KB.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     readme_en = (ROOT / "README_EN.md").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert 'version = "1.11.1"' in pyproject
-    assert "**Version**: 1.11.1" in core
-    assert "**v1.11.1**" in readme
-    assert "**v1.11.1**" in readme_en
-    assert "## [1.11.1] - 2026-07-10" in changelog
+    assert 'version = "1.12.0"' in pyproject
+    assert "**Version**: 1.12.0" in core
+    assert "**v1.12.0**" in readme
+    assert "**v1.12.0**" in readme_en
+    assert "## [1.12.0] - 2026-07-11" in changelog
+    assert "~/.workbuddy/skills/obsidian-knowledge-base" in readme
+    assert "run_helper.py doctor" in readme
+    assert "WorkBuddy" in readme_en
+    assert "only the product-owned WorkBuddy Skill directory" in readme_en
 
 
 def test_backup_retention_is_documented_as_script_owned_global_policy():

@@ -14,7 +14,7 @@ param(
     [Parameter(Mandatory=$false)]
     [string]$VaultPath,
 
-    [string]$Platforms = "qoderwork,claude-code,codex,cursor",
+    [string]$Platforms = "qoderwork,claude-code,codex,cursor,workbuddy",
 
     [ValidateSet("zh-CN", "en")]
     [string]$Locale = "zh-CN",
@@ -54,6 +54,24 @@ function Read-Text {
     return [System.IO.File]::ReadAllText($Path)
 }
 
+function Remove-OwnedPath {
+    param([string]$Path)
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    if ($null -eq $item) { return }
+    $isLink = ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0
+    if ($isLink) {
+        if ($item.PSIsContainer) {
+            [System.IO.Directory]::Delete($item.FullName)
+        } else {
+            [System.IO.File]::Delete($item.FullName)
+        }
+    } elseif ($item.PSIsContainer) {
+        Remove-Item -LiteralPath $Path -Recurse -Force
+    } else {
+        Remove-Item -LiteralPath $Path -Force
+    }
+}
+
 function Copy-SkillPayload {
     param(
         [string]$SourceDirectory,
@@ -62,9 +80,7 @@ function Copy-SkillPayload {
     if (-not (Test-Path (Join-Path $SourceDirectory "SKILL.md"))) {
         throw "Missing standard Skill payload: $SourceDirectory\SKILL.md"
     }
-    if (Test-Path $DestinationDirectory) {
-        Remove-Item $DestinationDirectory -Recurse -Force
-    }
+    Remove-OwnedPath -Path $DestinationDirectory
     New-Item -ItemType Directory -Path $DestinationDirectory -Force | Out-Null
     Get-ChildItem -LiteralPath $SourceDirectory -Force | ForEach-Object {
         Copy-Item -LiteralPath $_.FullName -Destination $DestinationDirectory -Recurse -Force
@@ -226,7 +242,7 @@ if ($Help) {
     Write-Host ""
     Write-Host "Parameters:"
     Write-Host "  -VaultPath PATH    Path to your Obsidian vault"
-    Write-Host "  -Platforms LIST    Comma-separated: qoderwork,claude-code,codex,cursor (default: all)"
+    Write-Host "  -Platforms LIST    Comma-separated: qoderwork,claude-code,codex,cursor,workbuddy (default: all)"
     Write-Host "  -Locale LOCALE     Template language: zh-CN or en (default: zh-CN)"
     Write-Host "  -Force             Overwrite existing templates and refresh installed skill content"
     Write-Host "  -Uninstall         Remove installed skills and legacy marker blocks"
@@ -242,7 +258,7 @@ if ($Help) {
 }
 
 $platformList = @($Platforms -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-$validPlatforms = @("qoderwork", "claude-code", "codex", "cursor")
+$validPlatforms = @("qoderwork", "claude-code", "codex", "cursor", "workbuddy")
 if ($platformList.Count -eq 0) { throw "No platforms selected." }
 foreach ($platform in $platformList) {
     if ($validPlatforms -notcontains $platform) {
@@ -267,6 +283,14 @@ if ($Uninstall) {
     if (Test-Path $codexSkillDir) {
         Remove-Item $codexSkillDir -Recurse -Force
         Write-Host "-> Removed: Codex skill ($codexSkillDir)" -ForegroundColor Green
+    }
+
+    # Remove only this WorkBuddy Skill; preserve siblings and link targets.
+    $workBuddySkillDir = Join-Path $env:USERPROFILE ".workbuddy\skills\obsidian-knowledge-base"
+    $workBuddyItem = Get-Item -LiteralPath $workBuddySkillDir -Force -ErrorAction SilentlyContinue
+    if ($null -ne $workBuddyItem) {
+        Remove-OwnedPath -Path $workBuddySkillDir
+        Write-Host "-> Removed: WorkBuddy skill ($workBuddySkillDir)" -ForegroundColor Green
     }
 
     if (Test-Path $SupportRoot) {
@@ -662,6 +686,11 @@ foreach ($platform in $platformList) {
             Install-StandardSkill -DestinationDirectory $codexSkillDir
             Write-Host "-> Installed: Codex skill -> $codexSkillDir\SKILL.md" -ForegroundColor Green
         }
+        "workbuddy" {
+            $workBuddySkillDir = Join-Path $env:USERPROFILE ".workbuddy\skills\obsidian-knowledge-base"
+            Install-StandardSkill -DestinationDirectory $workBuddySkillDir
+            Write-Host "-> Installed: WorkBuddy skill -> $workBuddySkillDir\SKILL.md" -ForegroundColor Green
+        }
         "cursor" {
             $cursorDir = Join-Path $env:USERPROFILE ".cursor\rules"
             New-Item -ItemType Directory -Path $cursorDir -Force | Out-Null
@@ -687,6 +716,10 @@ try {
     $env:PYTHONPATH = ""
     Push-Location $verifyDir
     try {
+        & $PythonExecutable (Join-Path $CanonicalSkill "scripts\run_helper.py") doctor --json | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Post-install verification failed: bundled doctor reported an unhealthy install."
+        }
         & $PythonExecutable (Join-Path $CanonicalSkill "scripts\run_helper.py") vault-info $VaultPath --json | Out-Null
         if ($LASTEXITCODE -ne 0) {
             throw "Post-install verification failed: bundled vault-info helper is unusable."
@@ -705,6 +738,7 @@ Write-Host "=== Installation complete! ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Your vault is at: $VaultPath"
 Write-Host "Open this folder in Obsidian to start using your knowledge base."
+Write-Host "Diagnose: $CanonicalSkill\scripts\run_helper.py doctor --json"
 Write-Host ""
 Write-Host "To save notes, just tell your AI assistant:"
 Write-Host '  "Save this to my knowledge base"'

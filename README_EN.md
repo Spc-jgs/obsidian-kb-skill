@@ -1,8 +1,8 @@
 # Obsidian Knowledge Base Skill
 
-**v1.11.1** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.12.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
-A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
+A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor, WorkBuddy) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
 [中文版](README.md)
 
@@ -26,19 +26,17 @@ This skill eliminates that friction by teaching your AI agent a complete knowled
 
 Your knowledge accumulates automatically, in a structured format that scales from 10 notes to 10,000.
 
-## What's New in v1.11
+## What's New in v1.12
 
-v1.11 turns the repository from an entry file that can be copied into a complete standard Skill distribution:
+v1.12 formally installs the complete standard Skill into WorkBuddy and makes installed state independently diagnosable:
 
-- The standard folder contains `SKILL.md`, `agents/`, `references/`, `scripts/`, and `assets/`; an installed copy keeps working after the source checkout is deleted.
-- `scripts/run_helper.py` is the single Skill-local launcher for all eight machine-readable helpers.
-- Bash and PowerShell install the same payload and select Python 3.11+. Missing PyYAML is installed only under `~/.obsidian-kb-skill/vendor/`, never into global site-packages.
-- Post-install verification runs `vault-info` from a neutral working directory instead of treating a successful copy as proof of usability.
-- `update-note` creates a byte-for-byte backup before modifying an existing note; after a successful write, the helper enforces per-note retention (one by default) without asking the agent to enumerate or delete files.
-- Malformed shared-file markers fail closed instead of risking user content in `CLAUDE.md` or `AGENTS.md`.
-- `build.py --check` verifies complete platform references, wheel resources, Skill assets, and bundled helper code.
+- Bash and PowerShell install the identical complete payload at `~/.workbuddy/skills/obsidian-knowledge-base/`. Upgrade replaces only an old symlink entry, and uninstall preserves its target clone and sibling Skills.
+- The standard Skill carries a deterministic `manifest.json`; read-only `doctor --json` verifies payload, runtime, dependencies, and required resources without repairing or deleting anything.
+- `run_helper.py <helper> --help` now reaches all nine child CLIs directly. Doctor still runs when `runtime.json` is malformed.
+- The create-note stdin/content-file frontmatter merge and precedence are now discoverable in CLI help, the lazy reference, and regression tests, including `source` and `related`.
+- Installed-product tests remove the release source and then run doctor and core helpers from the WorkBuddy copy. A real WorkBuddy forward task and P0 audit remain release gates.
 
-See [CHANGELOG.md](CHANGELOG.md) under `[1.11.1]` for the complete diff. Detailed usage remains lazy-loaded from `core/references/note-creation.md`.
+See [CHANGELOG.md](CHANGELOG.md) under `[1.12.0]` for the complete diff. Detailed usage remains lazy-loaded from `core/references/note-creation.md`.
 
 ## Download
 
@@ -163,9 +161,10 @@ AI Agent internally executes:
 | **QoderWork / Qoder CLI** | `SKILL.md` | `~/.qoderwork/skills/obsidian-knowledge-base/` |
 | **Claude Code** | `CLAUDE.md` | `~/.claude/CLAUDE.md` |
 | **OpenAI Codex** | standard `SKILL.md` | `~/.agents/skills/obsidian-knowledge-base/` |
+| **WorkBuddy** | standard `SKILL.md` | `~/.workbuddy/skills/obsidian-knowledge-base/` |
 | **Cursor** | `obsidian-kb.mdc` | `~/.cursor/rules/obsidian-kb.mdc` |
 
-The standard Skill and four compatibility artifacts contain identical core instructions. `~/.agents/skills` is Codex's user-level discovery path; it is not a universal discovery path for every agent.
+The standard Skill and compatibility artifacts contain identical core instructions. `~/.agents/skills` is Codex's user-level discovery path; it is not a universal discovery path for every agent.
 
 ## Quick Start
 
@@ -213,9 +212,16 @@ That's it. The installer will:
 - Install the complete standard Skill payload at each selected platform location
 - Configure a private helper runtime and run `vault-info` from a neutral directory as post-install verification
 
-By default, all platform entries are installed. Codex uses the standard
-`~/.agents/skills/obsidian-knowledge-base/SKILL.md`; QoderWork receives a copy
-of the same standard Skill. Claude Code and Cursor keep their compatibility files.
+By default, all platform entries are installed. Codex, QoderWork, and WorkBuddy
+receive complete copies of the same standard Skill. WorkBuddy discovers it at
+`~/.workbuddy/skills/obsidian-knowledge-base`. Claude Code and Cursor keep their
+compatibility files.
+
+Run the read-only diagnostic from any working directory:
+
+```bash
+python ~/.workbuddy/skills/obsidian-knowledge-base/scripts/run_helper.py doctor --json
+```
 
 ### 4. Open in Obsidian
 
@@ -326,6 +332,9 @@ echo "/new/vault/path" > ~/.obsidian-kb-config
 # Only QoderWork and Claude Code
 ./install.sh --platforms qoderwork,claude-code
 
+# Only WorkBuddy
+./install.sh --platforms workbuddy
+
 # Only Cursor
 .\install.ps1 -Platforms "cursor"
 ```
@@ -343,7 +352,7 @@ On Windows PowerShell, use `-Locale zh-CN` or `-Locale en`. Existing templates a
 
 ### Upgrading the Skill and Templates
 
-Re-running the installer idempotently updates the Codex/QoderWork Skill. Existing templates remain untouched by default; use `--force` to update templates and replace the marker-wrapped Claude Code block:
+Re-running the installer idempotently updates the Codex/QoderWork/WorkBuddy Skill. Existing templates remain untouched by default; use `--force` to update templates and replace the marker-wrapped Claude Code block:
 
 ```bash
 # macOS / Linux
@@ -365,7 +374,7 @@ Re-running the installer idempotently updates the Codex/QoderWork Skill. Existin
 .\install.ps1 -Uninstall
 ```
 
-Uninstall removes the Codex/QoderWork Skills, Cursor rule, private runtime, and marker blocks from `CLAUDE.md` and legacy `AGENTS.md`. Sibling skills, the Git checkout, the Vault, notes, `~/.obsidian-kb-config`, and `~/.obsidian-kb-settings.json` are preserved by upgrade and default uninstall; explicit config purge removes it together with the Vault-path config. Use `./install.sh --uninstall --purge-config` or `.\install.ps1 -Uninstall -PurgeConfig` for that explicit purge.
+Uninstall removes the Codex/QoderWork Skills, only the product-owned WorkBuddy Skill directory, the Cursor rule, private runtime, and marker blocks from `CLAUDE.md` and legacy `AGENTS.md`. Sibling Skills, the old symlink target Git checkout, the Vault, notes, `~/.obsidian-kb-config`, and `~/.obsidian-kb-settings.json` are preserved by upgrade and default uninstall; explicit config purge removes it together with the Vault-path config. Use `./install.sh --uninstall --purge-config` or `.\install.ps1 -Uninstall -PurgeConfig` for that explicit purge.
 
 ## Sharing
 

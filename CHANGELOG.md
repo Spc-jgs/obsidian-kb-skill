@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-07-11
+
+### Added
+
+- **Formal WorkBuddy distribution**: Bash and PowerShell install the complete standard Skill at `~/.workbuddy/skills/obsidian-knowledge-base`, include WorkBuddy in the default platform set, refresh the owned directory exactly on upgrade, and remove only that Skill on uninstall.
+- **Deterministic installed payload manifest**: `build.py` generates a sorted SHA-256 `manifest.json` covering every installable regular file, including optional OpenAI metadata, while excluding only the build header, manifest itself, and housekeeping files.
+- **Read-only installation doctor**: `run_helper.py doctor [--json]` checks manifest schema and hashes, unexpected files, Python 3.11+ runtime selection, PyYAML/helper imports, and required resources without writing, repairing, downloading, or deleting.
+
+### Changed
+
+- The Skill launcher forwards arguments after the helper token verbatim, so all nine helpers receive direct `--help`; one historical `--` separator remains compatible.
+- Doctor runs with the launcher's interpreter even when the selected runtime record is invalid, while normal helpers continue to require the installer-selected runtime.
+- `create-note` documents and tests the metadata precedence `type defaults < Vault template < stdin/content-file frontmatter < explicit CLI fields`, with a dry-run `source`/`related` example and an explicit Vault-only content-file boundary.
+- Installed-product tests delete a disposable release tree and then run WorkBuddy doctor and core helpers from a neutral directory. Windows smoke coverage mirrors payload hashes, upgrade, symlink migration when available, sibling preservation, and uninstall.
+
+### Fixed
+
+- Replacing a WorkBuddy directory symlink removes only its entry and leaves the old clone target byte-for-byte untouched. PowerShell handles reparse points with non-recursive .NET deletion.
+- Installed helper environments no longer inherit an external `PYTHONPATH`, preventing a partial installation from silently borrowing modules from a source checkout.
+- Malformed manifests, escaping manifest paths, symlink payload files, invalid Python version output, and missing dependencies now produce stable unhealthy diagnostics instead of crashes or false health.
+
 ## [1.11.1] - 2026-07-10
 
 ### Added

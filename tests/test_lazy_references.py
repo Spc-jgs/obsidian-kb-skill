@@ -117,6 +117,22 @@ def test_task_memory_reference_carries_full_spec():
         assert need in text, f"task-memory reference missing: {need!r}"
 
 
+def test_note_creation_reference_exposes_frontmatter_input_contract():
+    text = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+
+    for marker in (
+        "type defaults < Vault template < input frontmatter < explicit CLI fields",
+        "source:",
+        "related:",
+        "--stdin",
+        "--content-file",
+        "must resolve inside the Vault",
+        "external or transient content through `--stdin`",
+    ):
+        assert marker in normalized, f"note creation reference missing: {marker!r}"
+
+
 def test_generated_artifacts_match_pointers_and_not_heavy_spec():
     for path in GENERATED:
         if not path.exists():

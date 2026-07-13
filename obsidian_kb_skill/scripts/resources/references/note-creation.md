@@ -125,7 +125,32 @@ python <skill-root>/scripts/run_helper.py scaffold-templates <vault> --apply
 
 ### Step 4–5: Fill frontmatter & body (delegated)
 
-`create_note.py` merges the user template's frontmatter, the type's safety-net defaults, and explicit CLI overrides. Always set (and never hardcode) `date` to today; always set `type` to the routed slug. If the template doesn't define `tags`, the type's default tag is used.
+`create_note.py` merges complete Markdown supplied by `--stdin` or
+`--content-file`: optional YAML frontmatter is merged and the remainder becomes
+the body. Precedence is `type defaults < Vault template < input frontmatter < explicit CLI fields`.
+This lets an invocation supply fields such as `source` and `related` without
+adding a dedicated flag for every metadata key. Always set (and never hardcode)
+`date` to today; always set `type` to the routed slug. If the template doesn't
+define `tags`, the type's default tag is used.
+
+Dry-run the complete input before applying it:
+
+```bash
+python <skill-root>/scripts/run_helper.py create-note <vault> \
+  --type insight-note --title "Capability boundary" --stdin --json <<'EOF'
+---
+source: WorkBuddy forward test
+related: ["[[Existing Note]]"]
+---
+# Capability boundary
+
+Verified through dry-run and execution output.
+EOF
+```
+
+`--content-file` must resolve inside the Vault. Pipe external or transient
+content through `--stdin` instead. After checking the preview, repeat the same
+invocation with `--apply` (and optionally `--suggest-links`) to write it.
 
 ### Step 6: Wikilinks (use the helper)
 
@@ -140,7 +165,9 @@ python <skill-root>/scripts/run_helper.py create-note <vault> --type <slug> --ti
     --content-file <path-to-body.md> --apply
 ```
 
-`--stdin` reads the body from standard input; omit `--apply` to preview. The script handles encoding, frontmatter, safe numeric suffix, and the static `INDEX.md` update.
+`--stdin` reads complete Markdown from standard input; omit `--apply` to preview.
+The script handles encoding, frontmatter, safe numeric suffix, and the static
+`INDEX.md` update.
 
 ### Step 8: Apply the detected index strategy
 

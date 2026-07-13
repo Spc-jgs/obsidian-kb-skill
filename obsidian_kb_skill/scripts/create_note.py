@@ -179,10 +179,11 @@ def build_note(
          template can introduce extra fields and they'll be preserved on write).
       3. If no user template exists, a minimal `# title\\n\\n` body is used.
 
-    Frontmatter resolution order: type defaults < given_meta < user template
-    frontmatter < explicit CLI overrides. This means a user adding fields to
-    their template (e.g. a `mood:` field on Daily Note) will see them appear on
-    every new note, without code changes.
+    Frontmatter resolution order: type defaults < user template frontmatter <
+    given_meta (stdin/content-file) < explicit CLI overrides. This means a user
+    adding fields to their template (e.g. a `mood:` field on Daily Note) will
+    see them appear on every new note, while input frontmatter can fill those
+    fields for one invocation.
     """
     target = folder or TYPE_TO_FOLDER.get(note_type)
     if not target:
@@ -260,7 +261,9 @@ def main(argv: list[str] | None = None) -> int:
              "explicit values win)",
     )
     parser.add_argument(
-        "--stdin", action="store_true", help="Read the note body from standard input"
+        "--stdin",
+        action="store_true",
+        help="Read complete Markdown from standard input; optional frontmatter is merged",
     )
     parser.add_argument("--tags", help="Comma-separated tags overriding the type default")
     parser.add_argument("--date", help="Date (YYYY-MM-DD); defaults to today")
