@@ -153,7 +153,10 @@ EOF
 `web-clip` requires non-empty `source`, `author`, and `published` metadata.
 Missing values exit with status 2 before any note or index mutation, including
 in dry-run mode. After checking a valid preview, repeat the invocation with
-`--apply` (and optionally `--suggest-links`) to write it.
+`--apply --compact-json` (and optionally `--suggest-links`) to write it while
+returning only structured path, audit, and link-suggestion data. Keep `--json`
+on dry-run when the full `rendered` preview is needed. Plain `--apply` is also
+concise when machine-readable output is unnecessary.
 
 ### Step 6: Wikilinks (use the helper)
 
@@ -165,13 +168,15 @@ Prefer your agent's **native file-write tool** when available. If not (some CLI-
 
 ```bash
 python <skill-root>/scripts/run_helper.py create-note <vault> --type <slug> --title "<Short Title>" \
-    --content-file <path-to-body.md> --apply
+    --content-file <path-to-body.md> --apply --compact-json
 ```
 
 `--content-file` must resolve inside the Vault. Pipe external or transient
 content through `--stdin` instead. `--stdin` reads complete UTF-8 Markdown;
 omit `--apply` to preview. The script handles encoding, frontmatter, safe
-numeric suffix, and the static `INDEX.md` update.
+numeric suffix, and the static `INDEX.md` update. Legacy `--apply --json`
+remains available when the caller needs the final rendered Markdown in the
+response.
 
 ### Step 8: Apply the detected index strategy
 

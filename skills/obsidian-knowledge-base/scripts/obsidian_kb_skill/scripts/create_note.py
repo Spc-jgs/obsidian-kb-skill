@@ -340,7 +340,22 @@ def main(argv: list[str] | None = None) -> int:
         "--json", action="store_true",
         help="Emit a single JSON object instead of human-readable text",
     )
+    parser.add_argument(
+        "--compact-json",
+        action="store_true",
+        help="With --apply, emit JSON without the rendered Markdown body",
+    )
     args = parser.parse_args(argv)
+    json_mode = args.json or args.compact_json
+
+    if args.compact_json and not args.apply:
+        print(json.dumps({
+            "error": {
+                "code": "compact-json-requires-apply",
+                "message": "--compact-json requires --apply",
+            }
+        }, ensure_ascii=False, indent=2))
+        return 2
 
     try:
         vault = validate_vault_root(args.vault)
@@ -357,7 +372,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             resolve_target_within_vault(vault, args.folder, label="--folder")
         except VaultPathError as exc:
-            return report_cli_violation(exc, param="--folder", json_mode=args.json)
+            return report_cli_violation(exc, param="--folder", json_mode=json_mode)
     if args.content_file:
         try:
             resolve_existing_within_vault(
@@ -365,7 +380,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         except VaultPathError as exc:
             return report_cli_violation(
-                exc, param="--content-file", json_mode=args.json
+                exc, param="--content-file", json_mode=json_mode
             )
 
     date = args.date or datetime.date.today().isoformat()
@@ -382,7 +397,7 @@ def main(argv: list[str] | None = None) -> int:
             given_meta, body_text = split_frontmatter(raw)
     except UnicodeError:
         source = "stdin" if args.stdin else "--content-file"
-        return report_invalid_utf8_input(source, json_mode=args.json)
+        return report_invalid_utf8_input(source, json_mode=json_mode)
 
     try:
         folder, rendered = build_note(
@@ -396,7 +411,7 @@ def main(argv: list[str] | None = None) -> int:
             vault=vault,
         )
     except ValueError as exc:
-        if args.json:
+        if json_mode:
             print(json.dumps({"error": str(exc)}, ensure_ascii=False))
         else:
             print(f"error: {exc}", file=sys.stderr)
@@ -420,7 +435,7 @@ def main(argv: list[str] | None = None) -> int:
         rendered_bytes = rendered.encode("utf-8")
     except UnicodeError:
         source = "stdin" if args.stdin else "--content-file"
-        return report_invalid_utf8_input(source, json_mode=args.json)
+        return report_invalid_utf8_input(source, json_mode=json_mode)
 
     rendered_meta, _ = split_frontmatter(rendered)
     missing_fields = missing_required_metadata(args.type, rendered_meta)
@@ -430,7 +445,7 @@ def main(argv: list[str] | None = None) -> int:
             "note_type": args.type,
             "fields": missing_fields,
         }
-        if args.json:
+        if json_mode:
             payload = {**result, "error": error} if not args.apply else {"error": error}
             print(json.dumps(payload, ensure_ascii=False, indent=2))
         else:
@@ -444,14 +459,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if not args.apply:
-        if args.json:
+        if json_mode:
             print(json.dumps(result, ensure_ascii=False, indent=2))
         else:
             print_preview(vault, folder, dest, rendered)
             print("(dry run) pass --apply to write the file.")
         return 0
 
-    if not body_text.strip() and not args.json:
+    if not body_text.strip() and not json_mode:
         print("warning: empty body; creating a frontmatter-only note.", file=sys.stderr)
 
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -473,7 +488,7 @@ def main(argv: list[str] | None = None) -> int:
                 for f in findings
             ],
         }
-        if not args.json:
+        if not json_mode:
             rel = dest.relative_to(vault)
             if findings:
                 print(f"AUDIT: {len(findings)} issue(s) found in {rel}:")
@@ -488,7 +503,7 @@ def main(argv: list[str] | None = None) -> int:
             {"path": p.relative_to(vault).as_posix(), "score": s, "reasons": r}
             for p, s, r in recs
         ]
-        if not args.json:
+        if not json_mode:
             if recs:
                 print("SUGGESTED LINKS:")
                 for path, score, reasons in recs:
@@ -498,8 +513,13 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print("SUGGESTED LINKS: none")
 
-    if args.json:
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+    if json_mode:
+        payload = (
+            {key: value for key, value in result.items() if key != "rendered"}
+            if args.compact_json
+            else result
+        )
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(f"created: {dest}")
     return 0

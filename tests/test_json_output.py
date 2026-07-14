@@ -149,6 +149,70 @@ def test_create_note_apply_json(tmp_path):
     assert out["audit"] is None
 
 
+def test_create_note_apply_compact_json_omits_rendered(tmp_path):
+    vault = _make_vault(tmp_path)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "insight-note",
+            "--title",
+            "Compact",
+            "--stdin",
+            "--apply",
+            "--compact-json",
+        ],
+        input="# Compact\n\nBody.\n",
+        capture_output=True,
+        text=True,
+        cwd=str(REPO),
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is True
+    assert payload["dry_run"] is False
+    assert payload["audit"] == {"ok": True, "count": 0, "findings": []}
+    assert "rendered" not in payload
+    assert Path(payload["path"]).read_text(encoding="utf-8").endswith(
+        "# Compact\n\nBody.\n"
+    )
+
+
+def test_create_note_compact_json_requires_apply(tmp_path):
+    vault = _make_vault(tmp_path)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "insight-note",
+            "--title",
+            "No Apply",
+            "--stdin",
+            "--compact-json",
+        ],
+        input="# No Apply\n",
+        capture_output=True,
+        text=True,
+        cwd=str(REPO),
+    )
+
+    assert result.returncode == 2
+    assert json.loads(result.stdout) == {
+        "error": {
+            "code": "compact-json-requires-apply",
+            "message": "--compact-json requires --apply",
+        }
+    }
+    assert not list(vault.rglob("*No Apply*.md"))
+
+
 def test_create_note_apply_with_audit_json(tmp_path):
     vault = _make_vault(tmp_path)
     r = subprocess.run(
