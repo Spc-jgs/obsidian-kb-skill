@@ -264,6 +264,7 @@ def _create_note_process(vault: Path, body: str, *extra: str) -> subprocess.Comp
         input=body,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         cwd=REPO,
     )
 
