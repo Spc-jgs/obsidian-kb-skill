@@ -34,6 +34,7 @@ from obsidian_kb_skill.scripts.vault_paths import (
     report_cli_violation,
     resolve_existing_within_vault,
     resolve_target_within_vault,
+    structured_error,
     validate_vault_root,
 )
 
@@ -84,9 +85,13 @@ TYPE_TO_TEMPLATE: dict[str, str] = {
 }
 
 
-def validate_vault(vault: Path) -> None:
+def validate_vault(vault: Path, *, json_mode: bool = False) -> None:
     if not vault.is_dir() or not (vault / ".obsidian").is_dir():
-        print(f"error: not an Obsidian vault: {vault}", file=sys.stderr)
+        exc = InvalidVaultRootError(f"not an Obsidian vault: {vault}")
+        if json_mode:
+            print(json.dumps(structured_error(exc, param="vault"), ensure_ascii=False))
+        else:
+            print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(2)
     if not (vault / "Templates").is_dir():
         print(
@@ -360,9 +365,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         vault = validate_vault_root(args.vault)
     except InvalidVaultRootError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        if json_mode:
+            print(json.dumps(structured_error(exc, param="vault"), ensure_ascii=False))
+        else:
+            print(f"error: {exc}", file=sys.stderr)
         return 2
-    validate_vault(vault)
+    validate_vault(vault, json_mode=json_mode)
 
     # Enforce the Vault path boundary on every user-supplied path before any
     # read or write. Routing through vault_paths (never Path() + startswith)
@@ -373,9 +381,10 @@ def main(argv: list[str] | None = None) -> int:
             resolve_target_within_vault(vault, args.folder, label="--folder")
         except VaultPathError as exc:
             return report_cli_violation(exc, param="--folder", json_mode=json_mode)
+    content_path: Path | None = None
     if args.content_file:
         try:
-            resolve_existing_within_vault(
+            content_path = resolve_existing_within_vault(
                 vault, args.content_file, label="--content-file"
             )
         except VaultPathError as exc:
@@ -389,8 +398,8 @@ def main(argv: list[str] | None = None) -> int:
     body_text = ""
     given_meta: dict[str, Any] = {}
     try:
-        if args.content_file:
-            raw = args.content_file.read_text(encoding="utf-8")
+        if content_path is not None:
+            raw = content_path.read_text(encoding="utf-8")
             given_meta, body_text = split_frontmatter(raw)
         elif args.stdin:
             raw = sys.stdin.read()
@@ -437,7 +446,7 @@ def main(argv: list[str] | None = None) -> int:
         source = "stdin" if args.stdin else "--content-file"
         return report_invalid_utf8_input(source, json_mode=json_mode)
 
-    rendered_meta, _ = split_frontmatter(rendered)
+    rendered_meta, rendered_body = split_frontmatter(rendered)
     missing_fields = missing_required_metadata(args.type, rendered_meta)
     if missing_fields:
         error = {
@@ -466,7 +475,7 @@ def main(argv: list[str] | None = None) -> int:
             print("(dry run) pass --apply to write the file.")
         return 0
 
-    if not body_text.strip() and not json_mode:
+    if not rendered_body.strip() and not json_mode:
         print("warning: empty body; creating a frontmatter-only note.", file=sys.stderr)
 
     dest.parent.mkdir(parents=True, exist_ok=True)

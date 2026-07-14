@@ -308,6 +308,68 @@ def test_apply_never_overwrites(tmp_path):
     assert (vault / "30-Insights" / "2026-07-09 Dup.md").read_text(encoding="utf-8") == "orig"
 
 
+def test_relative_content_file_reads_validated_vault_path_from_hostile_cwd(tmp_path):
+    vault = make_vault(tmp_path)
+    (vault / "input.md").write_text("# INSIDE SAFE\n\nVault content.\n", encoding="utf-8")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "input.md").write_text("# OUTSIDE LEAK\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "insight-note",
+            "--title",
+            "Boundary",
+            "--content-file",
+            "input.md",
+            "--date",
+            "2026-07-14",
+            "--apply",
+            "--compact-json",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=outside,
+        env=ENV,
+    )
+
+    assert result.returncode == 0, result.stderr
+    created = vault / "30-Insights" / "2026-07-14 Boundary.md"
+    text = created.read_text(encoding="utf-8")
+    assert "INSIDE SAFE" in text
+    assert "OUTSIDE LEAK" not in text
+
+
+def test_template_body_does_not_emit_frontmatter_only_warning(tmp_path):
+    vault = make_vault(tmp_path)
+    (vault / "Templates" / "Insight Note.md").write_text(
+        "---\ntype: insight-note\ntags: [insight]\n---\n"
+        "# Template\n\nActual template body.\n",
+        encoding="utf-8",
+    )
+
+    result = _run(
+        str(vault),
+        "--type",
+        "insight-note",
+        "--title",
+        "Templated",
+        "--date",
+        "2026-07-14",
+        "--apply",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "frontmatter-only" not in result.stderr
+    created = vault / "30-Insights" / "2026-07-14 Templated.md"
+    assert "Actual template body." in created.read_text(encoding="utf-8")
+
+
 def test_apply_runs_automatic_audit_ok(tmp_path):
     vault = make_vault(tmp_path)
     r = subprocess.run(

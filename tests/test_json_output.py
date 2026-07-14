@@ -213,6 +213,35 @@ def test_create_note_compact_json_requires_apply(tmp_path):
     assert not list(vault.rglob("*No Apply*.md"))
 
 
+def test_create_note_invalid_vault_compact_json_is_structured(tmp_path):
+    not_vault = tmp_path / "not-vault"
+    not_vault.mkdir()
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(not_vault),
+            "--type",
+            "insight-note",
+            "--title",
+            "Invalid Vault",
+            "--apply",
+            "--compact-json",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+    )
+
+    assert result.returncode == 2
+    assert result.stderr == ""
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "INVALID_VAULT_ROOT"
+    assert payload["error"]["details"] == {"param": "vault"}
+
+
 def test_create_note_apply_with_audit_json(tmp_path):
     vault = _make_vault(tmp_path)
     r = subprocess.run(
