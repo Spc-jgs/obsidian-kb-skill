@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.12.1** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.13.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor、WorkBuddy）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -26,6 +26,16 @@
 
 你的知识以结构化的方式自动积累，从 10 条笔记到 10000 条都能轻松管理。
 
+## v1.13 新增的能力
+
+v1.13 减少长笔记在正式写入阶段的重复回显，同时保持机器可读的审计结果：
+
+- `create-note --apply --compact-json` 返回落盘路径、audit 和链接建议，但不重复返回完整 `rendered` 正文。
+- dry-run 继续使用完整 `--json` 预览；原有 `--apply --json` 契约保持不变，已有调用方无需迁移。
+- canonical reference、所有平台适配产物和标准 Skill manifest 已同步更新。
+
+完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.13.0]` 段。详细用法在 `core/references/note-creation.md` 里按需加载。
+
 ## v1.12 新增的能力
 
 v1.12 把完整标准 Skill 正式接入 WorkBuddy，并让安装状态可以独立诊断：
@@ -36,7 +46,7 @@ v1.12 把完整标准 Skill 正式接入 WorkBuddy，并让安装状态可以独
 - `create-note` 的 stdin/content-file frontmatter 合并与优先级已进入 CLI help、reference 和回归测试，`source`、`related` 不再需要靠猜参数发现。
 - 安装产品测试会在删除 release 源目录后，从 WorkBuddy 副本运行 doctor 与核心 helper；发布前还要完成真实 WorkBuddy 前向任务和 P0 审计。
 
-完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.12.1]` 段。详细用法在 `core/references/note-creation.md` 里按需加载。
+v1.12 的完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.12.1]` 段。
 
 ## 下载
 

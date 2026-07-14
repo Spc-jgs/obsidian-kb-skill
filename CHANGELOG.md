@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-07-14
+
+### Added
+
+- `create-note --apply --compact-json` returns structured path, audit, and link-suggestion data without echoing the complete rendered Markdown body.
+
+### Changed
+
+- The note-creation workflow now recommends full `--json` for dry-run preview and compact JSON for the real apply step, while preserving the legacy apply JSON contract for existing consumers.
+
 ## [1.12.1] - 2026-07-13
 
 ### Changed

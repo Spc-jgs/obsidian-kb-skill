@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.12.1** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.13.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor, WorkBuddy) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -26,6 +26,16 @@ This skill eliminates that friction by teaching your AI agent a complete knowled
 
 Your knowledge accumulates automatically, in a structured format that scales from 10 notes to 10,000.
 
+## What's New in v1.13
+
+v1.13 reduces repeated long-note output during the real write while preserving machine-readable audit results:
+
+- `create-note --apply --compact-json` returns the created path, audit, and link suggestions without repeating the complete `rendered` Markdown body.
+- Dry-run keeps the full `--json` preview, and the existing `--apply --json` contract remains unchanged for current consumers.
+- Canonical guidance, every platform adapter, and the standard Skill manifest are synchronized with the new mode.
+
+See [CHANGELOG.md](CHANGELOG.md) under `[1.13.0]` for the complete diff. Detailed usage remains lazy-loaded from `core/references/note-creation.md`.
+
 ## What's New in v1.12
 
 v1.12 formally installs the complete standard Skill into WorkBuddy and makes installed state independently diagnosable:
@@ -36,7 +46,7 @@ v1.12 formally installs the complete standard Skill into WorkBuddy and makes ins
 - The create-note stdin/content-file frontmatter merge and precedence are now discoverable in CLI help, the lazy reference, and regression tests, including `source` and `related`.
 - Installed-product tests remove the release source and then run doctor and core helpers from the WorkBuddy copy. A real WorkBuddy forward task and P0 audit remain release gates.
 
-See [CHANGELOG.md](CHANGELOG.md) under `[1.12.1]` for the complete diff. Detailed usage remains lazy-loaded from `core/references/note-creation.md`.
+See [CHANGELOG.md](CHANGELOG.md) under `[1.12.1]` for the complete v1.12 diff.
 
 ## Download
 
