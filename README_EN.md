@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.13.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.14.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor, WorkBuddy) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -25,6 +25,17 @@ This skill eliminates that friction by teaching your AI agent a complete knowled
 - Cross-links related notes with `[[wikilinks]]`
 
 Your knowledge accumulates automatically, in a structured format that scales from 10 notes to 10,000.
+
+## What's New in v1.14
+
+v1.14 reduces preview output without removing quality checks and strengthens the write boundary:
+
+- `create-note --preflight-json` returns final frontmatter, destination, body SHA-256/size, and complete note-level validation without echoing the body or mutating the Vault.
+- Preflight and post-write audit share the same rules. The real write still uses `--apply --compact-json`, preserving the explicit two-phase control point.
+- Relative `--content-file` reads use the validated in-Vault path; concurrent same-title creates use exclusive writes with suffix retries, and JSON errors plus template-body warnings are corrected.
+- Full `--json` dry-run, `--apply --json`, and the v1.13 compact apply contract remain compatible.
+
+See [CHANGELOG.md](CHANGELOG.md) under `[1.14.0]` for the complete diff. Detailed usage remains lazy-loaded from `core/references/note-creation.md`.
 
 ## What's New in v1.13
 
@@ -559,13 +570,16 @@ The `create-note` helper is a **constraint-based note creator**: when the enviro
 ```bash
 obsidian-create-note /path/to/vault \
     --type insight-note --title "Short Title" \
+    --content-file body.md --preflight-json
+obsidian-create-note /path/to/vault \
+    --type insight-note --title "Short Title" \
     --content-file body.md --apply --compact-json
 ```
 
 - `--type`: note type (matches the routing table); `--title` becomes the filename.
 - `--content-file`: path to the body `.md` (any frontmatter inside is merged, explicit values win); or use `--stdin` to read the body from standard input.
 - `--tags`: override the type default tags; `--date`: override the date (defaults to today); `--folder`: override the routed target folder.
-- `--json`: full dry-run or legacy apply JSON including `rendered`; `--apply`: concise human-readable audit and created path; `--apply --compact-json`: structured path, audit, and link suggestions without `rendered`.
+- `--preflight-json`: final frontmatter, path, body hash/size, and pre-write validation without echoing the body or writing a file; `--json`: full dry-run or legacy apply JSON including `rendered`; `--apply --compact-json`: the real write result with structured path, audit, and link suggestions but no `rendered`.
 - After writing, it updates a static `INDEX.md` according to the detected index strategy (Folder Index / Dataview managed listings are left untouched).
 - This pairs with the Step 7 "tool choice" rule in `core/OBSIDIAN_KB.md`: agents prefer their native write tool, otherwise use this script rather than inventing one.
 

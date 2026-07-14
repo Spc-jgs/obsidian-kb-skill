@@ -13,19 +13,21 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import yaml
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
+from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
 from obsidian_kb_skill.scripts.process_inbox import (
     TYPE_TO_FOLDER,
     _maybe_update_static_index,
 )
-from obsidian_kb_skill.scripts.audit_vault import audit_note
+from obsidian_kb_skill.scripts.audit_vault import Finding, audit_note, audit_note_text
 from obsidian_kb_skill.scripts.suggest_links import suggest_links
 from obsidian_kb_skill.scripts.vault_paths import (
     EXIT_PATH_VIOLATION,
@@ -34,6 +36,7 @@ from obsidian_kb_skill.scripts.vault_paths import (
     report_cli_violation,
     resolve_existing_within_vault,
     resolve_target_within_vault,
+    structured_error,
     validate_vault_root,
 )
 
@@ -69,24 +72,13 @@ EXTRA_FIELDS: dict[str, dict[str, Any]] = {
     },
 }
 
-# Note type -> the conventional template filename inside {VAULT}/Templates/.
-# Users can rename these, but the conventional names are what the shipped
-# starter templates use, so the bootstrap script scaffolds them in this layout.
-TYPE_TO_TEMPLATE: dict[str, str] = {
-    "daily-note": "Daily Note.md",
-    "meeting-note": "Meeting Note.md",
-    "learning-note": "Learning Note.md",
-    "web-clip": "Web Clip.md",
-    "insight-note": "Insight Note.md",
-    "conversation-digest": "Digest Note.md",
-    "project-note": "Project Note.md",
-    "person-note": "Person Note.md",
-}
-
-
-def validate_vault(vault: Path) -> None:
+def validate_vault(vault: Path, *, json_mode: bool = False) -> None:
     if not vault.is_dir() or not (vault / ".obsidian").is_dir():
-        print(f"error: not an Obsidian vault: {vault}", file=sys.stderr)
+        exc = InvalidVaultRootError(f"not an Obsidian vault: {vault}")
+        if json_mode:
+            print(json.dumps(structured_error(exc, param="vault"), ensure_ascii=False))
+        else:
+            print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(2)
     if not (vault / "Templates").is_dir():
         print(
@@ -161,6 +153,18 @@ def report_invalid_utf8_input(source: str, *, json_mode: bool) -> int:
     else:
         print(f"error: {message}", file=sys.stderr)
     return 2
+
+
+def finding_payload(findings: list[Finding]) -> dict[str, Any]:
+    """Return the stable machine-readable shape for note-level findings."""
+    return {
+        "ok": not findings,
+        "count": len(findings),
+        "findings": [
+            {"code": item.code, "path": item.path, "message": item.message}
+            for item in findings
+        ],
+    }
 
 
 def print_preview(vault: Path, folder: str, dest: Path, rendered: str) -> None:
@@ -288,18 +292,40 @@ def build_note(
     return target, rendered
 
 
-def resolve_dest(vault: Path, folder: str, filename: str) -> Path:
-    """Return a non-existing destination path, appending -2/-3 on conflict (never overwrite)."""
+def destination_candidates(vault: Path, folder: str, filename: str) -> Iterator[Path]:
+    """Yield the base destination followed by numeric-suffix alternatives."""
     dest_folder = vault / folder
-    dest = dest_folder / filename
-    if dest.exists():
-        stem = dest.stem
-        suffix = dest.suffix
-        i = 2
-        while (dest_folder / f"{stem}-{i}{suffix}").exists():
-            i += 1
-        dest = dest_folder / f"{stem}-{i}{suffix}"
-    return dest
+    base = dest_folder / filename
+    yield base
+    index = 2
+    while True:
+        yield dest_folder / f"{base.stem}-{index}{base.suffix}"
+        index += 1
+
+
+def resolve_dest(vault: Path, folder: str, filename: str) -> Path:
+    """Predict the first available destination for a dry-run preview."""
+    return next(candidate for candidate in destination_candidates(vault, folder, filename)
+                if not candidate.exists())
+
+
+def write_new_note(
+    vault: Path,
+    folder: str,
+    filename: str,
+    rendered_bytes: bytes,
+) -> Path:
+    """Create one note exclusively, retrying suffixes when another writer wins."""
+    dest_folder = vault / folder
+    dest_folder.mkdir(parents=True, exist_ok=True)
+    for candidate in destination_candidates(vault, folder, filename):
+        try:
+            with candidate.open("xb") as handle:
+                handle.write(rendered_bytes)
+            return candidate
+        except FileExistsError:
+            continue
+    raise AssertionError("unreachable destination candidate loop")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -345,8 +371,26 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="With --apply, emit JSON without the rendered Markdown body",
     )
+    parser.add_argument(
+        "--preflight-json",
+        action="store_true",
+        help="Dry-run with final metadata, content identity, and validation "
+             "without echoing the Markdown body",
+    )
     args = parser.parse_args(argv)
-    json_mode = args.json or args.compact_json
+    json_mode = args.json or args.compact_json or args.preflight_json
+
+    if args.preflight_json and (args.apply or args.json or args.compact_json):
+        print(json.dumps({
+            "error": {
+                "code": "invalid-output-mode",
+                "message": (
+                    "--preflight-json cannot be combined with --apply, --json, "
+                    "or --compact-json"
+                ),
+            }
+        }, ensure_ascii=False, indent=2))
+        return 2
 
     if args.compact_json and not args.apply:
         print(json.dumps({
@@ -360,9 +404,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         vault = validate_vault_root(args.vault)
     except InvalidVaultRootError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        if json_mode:
+            print(json.dumps(structured_error(exc, param="vault"), ensure_ascii=False))
+        else:
+            print(f"error: {exc}", file=sys.stderr)
         return 2
-    validate_vault(vault)
+    validate_vault(vault, json_mode=json_mode)
 
     # Enforce the Vault path boundary on every user-supplied path before any
     # read or write. Routing through vault_paths (never Path() + startswith)
@@ -373,9 +420,10 @@ def main(argv: list[str] | None = None) -> int:
             resolve_target_within_vault(vault, args.folder, label="--folder")
         except VaultPathError as exc:
             return report_cli_violation(exc, param="--folder", json_mode=json_mode)
+    content_path: Path | None = None
     if args.content_file:
         try:
-            resolve_existing_within_vault(
+            content_path = resolve_existing_within_vault(
                 vault, args.content_file, label="--content-file"
             )
         except VaultPathError as exc:
@@ -389,8 +437,8 @@ def main(argv: list[str] | None = None) -> int:
     body_text = ""
     given_meta: dict[str, Any] = {}
     try:
-        if args.content_file:
-            raw = args.content_file.read_text(encoding="utf-8")
+        if content_path is not None:
+            raw = content_path.read_text(encoding="utf-8")
             given_meta, body_text = split_frontmatter(raw)
         elif args.stdin:
             raw = sys.stdin.read()
@@ -437,9 +485,9 @@ def main(argv: list[str] | None = None) -> int:
         source = "stdin" if args.stdin else "--content-file"
         return report_invalid_utf8_input(source, json_mode=json_mode)
 
-    rendered_meta, _ = split_frontmatter(rendered)
+    rendered_meta, rendered_body = split_frontmatter(rendered)
     missing_fields = missing_required_metadata(args.type, rendered_meta)
-    if missing_fields:
+    if missing_fields and not args.preflight_json:
         error = {
             "code": "missing-required-metadata",
             "note_type": args.type,
@@ -458,6 +506,26 @@ def main(argv: list[str] | None = None) -> int:
             )
         return 2
 
+    if args.preflight_json:
+        findings = audit_note_text(vault, dest, rendered)
+        payload = {
+            "vault": str(vault),
+            "folder": folder,
+            "path": str(dest),
+            "applied": False,
+            "dry_run": True,
+            "frontmatter": rendered_meta,
+            "content": {
+                "sha256": hashlib.sha256(rendered_bytes).hexdigest(),
+                "utf8_bytes": len(rendered_bytes),
+                "line_count": len(rendered.splitlines()),
+            },
+            "validation": finding_payload(findings),
+            "suggested_links": None,
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0 if not findings else 2
+
     if not args.apply:
         if json_mode:
             print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -466,11 +534,11 @@ def main(argv: list[str] | None = None) -> int:
             print("(dry run) pass --apply to write the file.")
         return 0
 
-    if not body_text.strip() and not json_mode:
+    if not rendered_body.strip() and not json_mode:
         print("warning: empty body; creating a frontmatter-only note.", file=sys.stderr)
 
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(rendered_bytes)
+    dest = write_new_note(vault, folder, filename, rendered_bytes)
+    result["path"] = str(dest)
     result["applied"] = True
 
     # Update a static INDEX when applicable (Folder Index / Dataview owned
@@ -480,14 +548,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.no_audit:
         findings = audit_note(vault, dest)
-        result["audit"] = {
-            "ok": not findings,
-            "count": len(findings),
-            "findings": [
-                {"code": f.code, "path": f.path, "message": f.message}
-                for f in findings
-            ],
-        }
+        result["audit"] = finding_payload(findings)
         if not json_mode:
             rel = dest.relative_to(vault)
             if findings:

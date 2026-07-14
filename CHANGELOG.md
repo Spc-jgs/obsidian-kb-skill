@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-07-14
+
+### Added
+
+- `create-note --preflight-json` returns final merged frontmatter, destination, rendered-content SHA-256/size, and shared note-level validation without echoing the Markdown body or mutating the Vault.
+
+### Changed
+
+- The recommended create workflow now uses structured preflight followed by `--apply --compact-json`; complete `--json` preview and legacy apply contracts remain available and unchanged.
+- Pre-write and post-write checks share one in-memory note audit implementation, including Vault-template heading-order validation.
+
+### Fixed
+
+- Relative `--content-file` input is read from the canonical in-Vault path that passed validation rather than from an unrelated current working directory.
+- Note creation uses exclusive file creation with suffix retries, so concurrent same-title writers cannot overwrite one another.
+- Invalid Vault failures are structured in create-note JSON modes, and template-backed notes no longer emit a false frontmatter-only warning.
+
 ## [1.13.0] - 2026-07-14
 
 ### Added
