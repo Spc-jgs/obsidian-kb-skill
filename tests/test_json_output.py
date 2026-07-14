@@ -6,11 +6,14 @@ passed, stdout is a single JSON document with predictable fields.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 from obsidian_kb_skill.scripts import console
 
@@ -240,6 +243,129 @@ def test_create_note_invalid_vault_compact_json_is_structured(tmp_path):
     assert payload["ok"] is False
     assert payload["error"]["code"] == "INVALID_VAULT_ROOT"
     assert payload["error"]["details"] == {"param": "vault"}
+
+
+def _create_note_process(vault: Path, body: str, *extra: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "insight-note",
+            "--title",
+            "Structured Preview",
+            "--date",
+            "2026-07-14",
+            "--stdin",
+            *extra,
+        ],
+        input=body,
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+    )
+
+
+def test_create_note_preflight_json_returns_identity_without_body_or_mutation(tmp_path):
+    vault = _make_vault(tmp_path)
+    index = vault / "30-Insights" / "INDEX.md"
+    original_index = "# Insights\n\n## Recent\n"
+    index.write_text(original_index, encoding="utf-8")
+    body = "# Structured Preview\n\n机密正文不应被重复回显。\n"
+
+    full_result = _create_note_process(vault, body, "--json")
+    preflight_result = _create_note_process(vault, body, "--preflight-json")
+
+    assert full_result.returncode == 0, full_result.stderr
+    assert preflight_result.returncode == 0, preflight_result.stderr
+    full = json.loads(full_result.stdout)
+    payload = json.loads(preflight_result.stdout)
+    rendered_bytes = full["rendered"].encode("utf-8")
+    assert payload == {
+        "vault": str(vault.resolve()),
+        "folder": "30-Insights",
+        "path": full["path"],
+        "applied": False,
+        "dry_run": True,
+        "frontmatter": {
+            "source": "",
+            "related": [],
+            "type": "insight-note",
+            "date": "2026-07-14",
+            "tags": ["insight"],
+        },
+        "content": {
+            "sha256": hashlib.sha256(rendered_bytes).hexdigest(),
+            "utf8_bytes": len(rendered_bytes),
+            "line_count": len(full["rendered"].splitlines()),
+        },
+        "validation": {"ok": True, "count": 0, "findings": []},
+        "suggested_links": None,
+    }
+    assert "rendered" not in payload
+    assert body.strip() not in preflight_result.stdout
+    assert not list((vault / "30-Insights").glob("*Structured Preview*.md"))
+    assert index.read_text(encoding="utf-8") == original_index
+
+
+def test_create_note_preflight_json_reports_findings_without_mutation(tmp_path):
+    vault = _make_vault(tmp_path)
+    result = _create_note_process(
+        vault,
+        "# Structured Preview\n\nSee [[No Such Note]].\n",
+        "--preflight-json",
+    )
+
+    assert result.returncode == 2
+    assert result.stderr == ""
+    payload = json.loads(result.stdout)
+    assert payload["validation"]["ok"] is False
+    assert payload["validation"]["count"] == 1
+    assert payload["validation"]["findings"][0]["code"] == "broken-wikilink"
+    assert not list((vault / "30-Insights").glob("*Structured Preview*.md"))
+
+
+@pytest.mark.parametrize(
+    "conflicting",
+    [("--apply",), ("--json",), ("--compact-json",)],
+)
+def test_create_note_preflight_json_rejects_conflicting_modes(tmp_path, conflicting):
+    vault = _make_vault(tmp_path)
+    result = _create_note_process(
+        vault,
+        "# Structured Preview\n\nBody.\n",
+        "--preflight-json",
+        *conflicting,
+    )
+
+    assert result.returncode == 2
+    assert result.stderr == ""
+    assert json.loads(result.stdout) == {
+        "error": {
+            "code": "invalid-output-mode",
+            "message": (
+                "--preflight-json cannot be combined with --apply, --json, "
+                "or --compact-json"
+            ),
+        }
+    }
+
+
+def test_create_note_preflight_response_size_is_body_independent(tmp_path):
+    vault = _make_vault(tmp_path)
+    short_body = "# Structured Preview\n\nBody.\n"
+    long_body = "# Structured Preview\n\n" + ("长正文内容。\n" * 10_000)
+
+    short = _create_note_process(vault, short_body, "--preflight-json")
+    long = _create_note_process(vault, long_body, "--preflight-json")
+    full = _create_note_process(vault, long_body, "--json")
+
+    assert short.returncode == long.returncode == full.returncode == 0
+    assert len(long.stdout.encode("utf-8")) - len(short.stdout.encode("utf-8")) <= 512
+    assert len(long.stdout.encode("utf-8")) < len(full.stdout.encode("utf-8")) * 0.2
+    assert long_body.strip() not in long.stdout
 
 
 def test_create_note_apply_with_audit_json(tmp_path):

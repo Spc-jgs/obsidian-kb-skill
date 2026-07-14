@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -26,7 +27,7 @@ from obsidian_kb_skill.scripts.process_inbox import (
     TYPE_TO_FOLDER,
     _maybe_update_static_index,
 )
-from obsidian_kb_skill.scripts.audit_vault import audit_note
+from obsidian_kb_skill.scripts.audit_vault import Finding, audit_note, audit_note_text
 from obsidian_kb_skill.scripts.suggest_links import suggest_links
 from obsidian_kb_skill.scripts.vault_paths import (
     EXIT_PATH_VIOLATION,
@@ -152,6 +153,18 @@ def report_invalid_utf8_input(source: str, *, json_mode: bool) -> int:
     else:
         print(f"error: {message}", file=sys.stderr)
     return 2
+
+
+def finding_payload(findings: list[Finding]) -> dict[str, Any]:
+    """Return the stable machine-readable shape for note-level findings."""
+    return {
+        "ok": not findings,
+        "count": len(findings),
+        "findings": [
+            {"code": item.code, "path": item.path, "message": item.message}
+            for item in findings
+        ],
+    }
 
 
 def print_preview(vault: Path, folder: str, dest: Path, rendered: str) -> None:
@@ -358,8 +371,26 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="With --apply, emit JSON without the rendered Markdown body",
     )
+    parser.add_argument(
+        "--preflight-json",
+        action="store_true",
+        help="Dry-run with final metadata, content identity, and validation "
+             "without echoing the Markdown body",
+    )
     args = parser.parse_args(argv)
-    json_mode = args.json or args.compact_json
+    json_mode = args.json or args.compact_json or args.preflight_json
+
+    if args.preflight_json and (args.apply or args.json or args.compact_json):
+        print(json.dumps({
+            "error": {
+                "code": "invalid-output-mode",
+                "message": (
+                    "--preflight-json cannot be combined with --apply, --json, "
+                    "or --compact-json"
+                ),
+            }
+        }, ensure_ascii=False, indent=2))
+        return 2
 
     if args.compact_json and not args.apply:
         print(json.dumps({
@@ -456,7 +487,7 @@ def main(argv: list[str] | None = None) -> int:
 
     rendered_meta, rendered_body = split_frontmatter(rendered)
     missing_fields = missing_required_metadata(args.type, rendered_meta)
-    if missing_fields:
+    if missing_fields and not args.preflight_json:
         error = {
             "code": "missing-required-metadata",
             "note_type": args.type,
@@ -474,6 +505,26 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
         return 2
+
+    if args.preflight_json:
+        findings = audit_note_text(vault, dest, rendered)
+        payload = {
+            "vault": str(vault),
+            "folder": folder,
+            "path": str(dest),
+            "applied": False,
+            "dry_run": True,
+            "frontmatter": rendered_meta,
+            "content": {
+                "sha256": hashlib.sha256(rendered_bytes).hexdigest(),
+                "utf8_bytes": len(rendered_bytes),
+                "line_count": len(rendered.splitlines()),
+            },
+            "validation": finding_payload(findings),
+            "suggested_links": None,
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0 if not findings else 2
 
     if not args.apply:
         if json_mode:
@@ -497,14 +548,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.no_audit:
         findings = audit_note(vault, dest)
-        result["audit"] = {
-            "ok": not findings,
-            "count": len(findings),
-            "findings": [
-                {"code": f.code, "path": f.path, "message": f.message}
-                for f in findings
-            ],
-        }
+        result["audit"] = finding_payload(findings)
         if not json_mode:
             rel = dest.relative_to(vault)
             if findings:
