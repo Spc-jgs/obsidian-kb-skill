@@ -137,7 +137,7 @@ For example, dry-run a complete web clip before applying it:
 
 ```bash
 python <skill-root>/scripts/run_helper.py create-note <vault> \
-  --type web-clip --title "Multi-agent collaboration" --stdin --json <<'EOF'
+  --type web-clip --title "Multi-agent collaboration" --stdin --preflight-json <<'EOF'
 ---
 source: "https://example.com/article"
 author: "Article author"
@@ -154,9 +154,12 @@ EOF
 Missing values exit with status 2 before any note or index mutation, including
 in dry-run mode. After checking a valid preview, repeat the invocation with
 `--apply --compact-json` (and optionally `--suggest-links`) to write it while
-returning only structured path, audit, and link-suggestion data. Keep `--json`
-on dry-run when the full `rendered` preview is needed. Plain `--apply` is also
-concise when machine-readable output is unnecessary.
+returning only structured path, audit, and link-suggestion data.
+`--preflight-json` returns the final merged frontmatter, destination, rendered
+content SHA-256/size, and the same note-level validation used after write,
+without echoing the body. Keep `--json` only when the full `rendered` preview is
+explicitly needed. Plain `--apply` is also concise when machine-readable output
+is unnecessary.
 
 ### Step 6: Wikilinks (use the helper)
 
@@ -168,15 +171,18 @@ Prefer your agent's **native file-write tool** when available. If not (some CLI-
 
 ```bash
 python <skill-root>/scripts/run_helper.py create-note <vault> --type <slug> --title "<Short Title>" \
+    --content-file <path-to-body.md> --preflight-json
+python <skill-root>/scripts/run_helper.py create-note <vault> --type <slug> --title "<Short Title>" \
     --content-file <path-to-body.md> --apply --compact-json
 ```
 
 `--content-file` must resolve inside the Vault. Pipe external or transient
 content through `--stdin` instead. `--stdin` reads complete UTF-8 Markdown;
-omit `--apply` to preview. The script handles encoding, frontmatter, safe
-numeric suffix, and the static `INDEX.md` update. Legacy `--apply --json`
-remains available when the caller needs the final rendered Markdown in the
-response.
+use `--preflight-json` to validate without repeating the body in the response,
+then resubmit the same Markdown with `--apply --compact-json`. The script handles
+encoding, frontmatter, exclusive numeric-suffix creation, and the static
+`INDEX.md` update. Legacy `--json` and `--apply --json` remain available when
+the caller explicitly needs the final rendered Markdown in the response.
 
 ### Step 8: Apply the detected index strategy
 

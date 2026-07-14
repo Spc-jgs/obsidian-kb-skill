@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.13.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.14.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor、WorkBuddy）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -25,6 +25,17 @@
 - 用 `[[wikilinks]]` 关联相关笔记
 
 你的知识以结构化的方式自动积累，从 10 条笔记到 10000 条都能轻松管理。
+
+## v1.14 新增的能力
+
+v1.14 在不减少质量检查的前提下压缩预览响应，并补强写入边界：
+
+- `create-note --preflight-json` 返回最终 frontmatter、目标路径、正文 SHA-256/大小和完整单笔记校验，但不重复回显正文，也不修改 Vault。
+- 预检与写后 audit 共用同一套规则；正式写入仍使用 `--apply --compact-json`，保留明确的两阶段控制点。
+- 相对 `--content-file` 读取经过验证的 Vault 路径；并发同名创建使用排他写入与后缀重试，JSON 错误和模板正文警告也已修正。
+- 原有完整 `--json` dry-run、`--apply --json` 和 v1.13 compact apply 契约保持兼容。
+
+完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.14.0]` 段。详细用法在 `core/references/note-creation.md` 里按需加载。
 
 ## v1.13 新增的能力
 
@@ -550,13 +561,16 @@ obsidian-suggest-links /你的知识库路径 --note 30-Insights/某笔记.md --
 ```bash
 obsidian-create-note /你的知识库路径 \
     --type insight-note --title "短标题" \
+    --content-file 正文.md --preflight-json
+obsidian-create-note /你的知识库路径 \
+    --type insight-note --title "短标题" \
     --content-file 正文.md --apply --compact-json
 ```
 
 - `--type`：笔记类型（与路由表一致）；`--title` 即文件名。
 - `--content-file`：正文 `.md` 路径（若里面已含 frontmatter，会被合并，显式值优先）；也可用 `--stdin` 从标准输入读取正文。
 - `--tags`：覆盖类型默认标签；`--date`：覆盖日期（默认今天）；`--folder`：覆盖路由到的目标文件夹。
-- `--json`：dry-run 或兼容写入模式的完整 JSON，包含 `rendered` 正文；`--apply`：精简的人类可读 audit 和落盘路径；`--apply --compact-json`：省略 `rendered`、但保留路径、audit 和链接建议的结构化结果。
+- `--preflight-json`：返回最终 frontmatter、路径、正文哈希/大小和写前校验，不回显正文、不写文件；`--json`：完整 dry-run 或兼容写入 JSON，包含 `rendered` 正文；`--apply --compact-json`：省略 `rendered`、但保留路径、audit 和链接建议的正式写入结果。
 - 写入后会按当前索引策略更新静态 `INDEX.md`（Folder Index / Dataview 管理的列表不会被改动）。
 - 这与 `core/OBSIDIAN_KB.md` 的 Step 7「工具选择」约定配套：智能体优先用原生写工具，否则用本脚本，而不是临时造脚本。
 

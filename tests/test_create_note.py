@@ -13,6 +13,7 @@ from obsidian_kb_skill.scripts.create_note import (
     resolve_dest,
     sanitize_filename,
     split_frontmatter,
+    write_new_note,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -146,6 +147,75 @@ def test_resolve_dest_appends_suffix(tmp_path):
     (vault / "30-Insights" / "2026-07-09 T.md").write_text("x", encoding="utf-8")
     dest = resolve_dest(vault, "30-Insights", "2026-07-09 T.md")
     assert dest.name == "2026-07-09 T-2.md"
+
+
+def test_write_new_note_retries_when_another_writer_wins_race(tmp_path, monkeypatch):
+    vault = make_vault(tmp_path)
+    original_open = Path.open
+    raced = False
+
+    def racing_open(path: Path, mode: str = "r", *args, **kwargs):
+        nonlocal raced
+        if mode == "xb" and not raced:
+            raced = True
+            with original_open(path, "wb") as handle:
+                handle.write(b"other writer")
+            raise FileExistsError(path)
+        return original_open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", racing_open)
+    created = write_new_note(
+        vault,
+        "30-Insights",
+        "2026-07-14 Race.md",
+        b"our bytes",
+    )
+
+    first = vault / "30-Insights" / "2026-07-14 Race.md"
+    assert first.read_bytes() == b"other writer"
+    assert created.name == "2026-07-14 Race-2.md"
+    assert created.read_bytes() == b"our bytes"
+
+
+def test_concurrent_same_title_creates_two_complete_notes(tmp_path):
+    vault = make_vault(tmp_path)
+    command = [
+        sys.executable,
+        "-m",
+        "obsidian_kb_skill.scripts.create_note",
+        str(vault),
+        "--type",
+        "insight-note",
+        "--title",
+        "Concurrent",
+        "--date",
+        "2026-07-14",
+        "--stdin",
+        "--apply",
+        "--compact-json",
+    ]
+    processes = [
+        subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=ROOT,
+            env=ENV,
+        )
+        for _ in range(2)
+    ]
+    results = [process.communicate("# Concurrent\n\nComplete body.\n") for process in processes]
+
+    for process, (stdout, stderr) in zip(processes, results):
+        assert process.returncode == 0, f"stdout={stdout!r} stderr={stderr!r}"
+    created = sorted((vault / "30-Insights").glob("2026-07-14 Concurrent*.md"))
+    assert [path.name for path in created] == [
+        "2026-07-14 Concurrent-2.md",
+        "2026-07-14 Concurrent.md",
+    ]
+    assert all("Complete body." in path.read_text(encoding="utf-8") for path in created)
 
 
 def test_dry_run_writes_nothing(tmp_path):
@@ -306,6 +376,68 @@ def test_apply_never_overwrites(tmp_path):
     assert r.returncode == 0
     assert (vault / "30-Insights" / "2026-07-09 Dup-2.md").is_file()
     assert (vault / "30-Insights" / "2026-07-09 Dup.md").read_text(encoding="utf-8") == "orig"
+
+
+def test_relative_content_file_reads_validated_vault_path_from_hostile_cwd(tmp_path):
+    vault = make_vault(tmp_path)
+    (vault / "input.md").write_text("# INSIDE SAFE\n\nVault content.\n", encoding="utf-8")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "input.md").write_text("# OUTSIDE LEAK\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "insight-note",
+            "--title",
+            "Boundary",
+            "--content-file",
+            "input.md",
+            "--date",
+            "2026-07-14",
+            "--apply",
+            "--compact-json",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=outside,
+        env=ENV,
+    )
+
+    assert result.returncode == 0, result.stderr
+    created = vault / "30-Insights" / "2026-07-14 Boundary.md"
+    text = created.read_text(encoding="utf-8")
+    assert "INSIDE SAFE" in text
+    assert "OUTSIDE LEAK" not in text
+
+
+def test_template_body_does_not_emit_frontmatter_only_warning(tmp_path):
+    vault = make_vault(tmp_path)
+    (vault / "Templates" / "Insight Note.md").write_text(
+        "---\ntype: insight-note\ntags: [insight]\n---\n"
+        "# Template\n\nActual template body.\n",
+        encoding="utf-8",
+    )
+
+    result = _run(
+        str(vault),
+        "--type",
+        "insight-note",
+        "--title",
+        "Templated",
+        "--date",
+        "2026-07-14",
+        "--apply",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "frontmatter-only" not in result.stderr
+    created = vault / "30-Insights" / "2026-07-14 Templated.md"
+    assert "Actual template body." in created.read_text(encoding="utf-8")
 
 
 def test_apply_runs_automatic_audit_ok(tmp_path):

@@ -4,7 +4,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from obsidian_kb_skill.scripts.audit_vault import audit_vault
+import pytest
+
+from obsidian_kb_skill.scripts.audit_vault import (
+    audit_note,
+    audit_note_text,
+    audit_vault,
+)
 
 
 def codes(vault: Path) -> set[str]:
@@ -53,6 +59,57 @@ def write_note(path: Path) -> None:
         '---\ndate: "2026-07-08"\ntype: learning-note\n'
         "tags: [learning]\n---\n# Note\n",
         encoding="utf-8",
+    )
+
+
+@pytest.mark.parametrize(
+    "rendered",
+    [
+        '---\ndate: "2026-07-14"\ntype: insight-note\n'
+        "tags: [insight]\n---\n# Valid\n\nActual content.\n",
+        "# Missing metadata\n",
+        '---\ndate: "2026-07-14"\ntype: insight-note\n'
+        "tags: [Bad_Tag]\nrelated: [not-a-link]\n---\n"
+        "# Invalid\n\n{{date}} [[No Such Note]]\n```\n",
+        '---\ndate: "2026-07-14"\ntype: web-clip\n'
+        "tags: [web-clip]\nsource: ''\nauthor: ''\npublished: ''\n---\n"
+        "# Empty\n\n## Summary\n",
+    ],
+)
+def test_audit_note_text_matches_written_note(tmp_path, rendered):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Templates").mkdir()
+    candidate = tmp_path / "Candidate.md"
+
+    prewrite = audit_note_text(tmp_path, candidate, rendered)
+    candidate.write_text(rendered, encoding="utf-8")
+    postwrite = audit_note(tmp_path, candidate)
+
+    assert prewrite == postwrite
+
+
+def test_audit_note_text_checks_required_template_heading_order(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    templates = tmp_path / "Templates"
+    templates.mkdir()
+    (templates / "Learning Note.md").write_text(
+        '---\ntype: learning-note\ntags: [learning]\n---\n'
+        "# Template\n\n## First\n\n## Second\n",
+        encoding="utf-8",
+    )
+    rendered = (
+        '---\ndate: "2026-07-14"\ntype: learning-note\n'
+        "tags: [learning]\n---\n"
+        "# Candidate\n\n## Second\nContent.\n\n## First\nMore.\n"
+    )
+
+    findings = audit_note_text(tmp_path, tmp_path / "Candidate.md", rendered)
+
+    assert [finding.code for finding in findings].count("missing-template-heading") == 1
+    assert "Second" in next(
+        finding.message
+        for finding in findings
+        if finding.code == "missing-template-heading"
     )
 
 
