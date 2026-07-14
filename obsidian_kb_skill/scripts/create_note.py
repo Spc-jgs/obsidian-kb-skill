@@ -16,7 +16,7 @@ import datetime
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import yaml
 
@@ -293,18 +293,40 @@ def build_note(
     return target, rendered
 
 
-def resolve_dest(vault: Path, folder: str, filename: str) -> Path:
-    """Return a non-existing destination path, appending -2/-3 on conflict (never overwrite)."""
+def destination_candidates(vault: Path, folder: str, filename: str) -> Iterator[Path]:
+    """Yield the base destination followed by numeric-suffix alternatives."""
     dest_folder = vault / folder
-    dest = dest_folder / filename
-    if dest.exists():
-        stem = dest.stem
-        suffix = dest.suffix
-        i = 2
-        while (dest_folder / f"{stem}-{i}{suffix}").exists():
-            i += 1
-        dest = dest_folder / f"{stem}-{i}{suffix}"
-    return dest
+    base = dest_folder / filename
+    yield base
+    index = 2
+    while True:
+        yield dest_folder / f"{base.stem}-{index}{base.suffix}"
+        index += 1
+
+
+def resolve_dest(vault: Path, folder: str, filename: str) -> Path:
+    """Predict the first available destination for a dry-run preview."""
+    return next(candidate for candidate in destination_candidates(vault, folder, filename)
+                if not candidate.exists())
+
+
+def write_new_note(
+    vault: Path,
+    folder: str,
+    filename: str,
+    rendered_bytes: bytes,
+) -> Path:
+    """Create one note exclusively, retrying suffixes when another writer wins."""
+    dest_folder = vault / folder
+    dest_folder.mkdir(parents=True, exist_ok=True)
+    for candidate in destination_candidates(vault, folder, filename):
+        try:
+            with candidate.open("xb") as handle:
+                handle.write(rendered_bytes)
+            return candidate
+        except FileExistsError:
+            continue
+    raise AssertionError("unreachable destination candidate loop")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -478,8 +500,8 @@ def main(argv: list[str] | None = None) -> int:
     if not rendered_body.strip() and not json_mode:
         print("warning: empty body; creating a frontmatter-only note.", file=sys.stderr)
 
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(rendered_bytes)
+    dest = write_new_note(vault, folder, filename, rendered_bytes)
+    result["path"] = str(dest)
     result["applied"] = True
 
     # Update a static INDEX when applicable (Folder Index / Dataview owned
