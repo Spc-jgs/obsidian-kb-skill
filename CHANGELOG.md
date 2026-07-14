@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Ordinary note creation now loads only `note-creation.md`, uses the single `vault-info` discovery result, delegates template and index handling to `create-note`, trusts a clean compact apply audit, and forbids secondary memory/log writes without separate explicit intent.
+- `note-creation.md` was reduced from 209 to 150 lines while preserving Vault governance, structured preflight, exclusive apply, automatic audit, template merging, and bounded link suggestions.
+
 ## [1.14.0] - 2026-07-14
 
 ### Added

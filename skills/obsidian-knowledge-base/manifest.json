@@ -1,6 +1,6 @@
 {
   "files": {
-    "SKILL.md": "25ff3fd26d3b2add3fc602b6edd729a4b75f9557fd873892c7c54b3f50e34736",
+    "SKILL.md": "1158631b9209dcbe1cc6179a06e83baf75f413aa9c1537b34f319b4b852d797c",
     "agents/openai.yaml": "9bebeaa3b5ab50ddb081218c4e11096c662bb5120431b08e8f9c1b8411450b14",
     "assets/templates/daily-note.md": "0a13e43e068e10531234941609190ec02f01f7a35e8c77a58a036d29ca02757c",
     "assets/templates/digest-note.md": "9cb3f3c309719883ccef3447f4f82fbdf5512b34728de9e4359c8b11407cc4bd",
@@ -20,7 +20,7 @@
     "assets/templates/web-clip.md": "d1f879f1478524385f7c6df48b375e36ad54c1a4797f815c973018ec0954ddf0",
     "references/conversation-digest.md": "e3bd2200edddc46960be4518b4ea943b33a7081f91a1398d35f9af74b6d8a5f4",
     "references/git.md": "d1e7d9976967f99b9be5818ad09c1e8a29ccda717f1a3e4272e5214b438a7252",
-    "references/note-creation.md": "415a634de697bd379cd31da1a3bc5cde4870a68601d87305403dda6053c25264",
+    "references/note-creation.md": "73ece054e97daac962007b411a46707c7b048ee8b6b0f3993a651776a16b1e79",
     "references/rules-and-errors.md": "db6fffef221545850ea425db953f710ae3a0fce73d058dcb4ea4f23dac165b49",
     "references/task-memory.md": "7addab42c12137a56d16c3068a10325ba2a3e93bdc55a77a4e7fbb379aa35021",
     "references/update-note.md": "cf6dd29283d1887ce618c70aad53e3315c3e51c299d1e2a169d1c7603819f725",

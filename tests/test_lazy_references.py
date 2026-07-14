@@ -74,6 +74,18 @@ def test_core_has_pointers_to_references():
         assert m in text, f"core body missing pointer marker: {m!r}"
 
 
+def test_core_selects_only_the_reference_for_the_requested_operation():
+    text = CORE.read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+
+    for marker in (
+        "New note: read only `note-creation.md`",
+        "Task Memory: read `task-memory.md` only after explicit opt-in",
+        "YAML, rules, and Git references are troubleshooting or post-processing",
+    ):
+        assert marker in normalized, f"core body missing minimal-load contract: {marker!r}"
+
+
 def test_core_limits_update_helper_to_task_memory_notes():
     text = CORE.read_text(encoding="utf-8")
 
@@ -120,6 +132,20 @@ def test_note_creation_documents_complete_markdown_and_web_clip_preflight():
         "`--content-file` must resolve inside the Vault",
     ):
         assert marker in text, f"note creation reference missing: {marker!r}"
+
+
+def test_note_creation_documents_the_minimal_ordinary_create_path():
+    text = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+
+    for marker in (
+        "one discovery call",
+        "Do not call `detect-index` during ordinary creation",
+        "Do not read the template file yourself",
+        "A clean compact apply audit completes verification",
+        "Do not read or write `.workbuddy/memory`",
+    ):
+        assert marker in normalized, f"note creation reference missing: {marker!r}"
 
 
 def test_task_memory_reference_carries_full_spec():

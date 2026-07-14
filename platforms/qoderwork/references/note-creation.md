@@ -1,209 +1,150 @@
 # Note Creation Workflow (reference)
 
-Loaded only when the user asks to save a **new** note. The always-loaded skill body points here. Read this *before* writing.
+Load only for an explicitly requested **new** note. This file is the complete
+ordinary-create workflow: do not also load `yaml-standards.md`,
+`rules-and-errors.md`, `git.md`, or `task-memory.md` unless the current task
+specifically needs troubleshooting, Git post-processing, or opted-in handoff.
+
+## Minimal Ordinary Path
+
+1. Find the Vault and run one discovery call: `vault-info --json`.
+2. Read Vault-local governance at the root and target path; choose type, folder,
+   naming, metadata, README, and Git actions from those rules.
+3. Supply complete Markdown to `create-note --preflight-json` and inspect the
+   structured validation.
+4. Repeat the same input with `--apply --compact-json`; keep automatic audit on.
+5. Optionally use bounded link suggestions, then report the saved path.
+
+The helper handles template loading, index strategy, exclusive creation, and
+per-note audit. Ordinary creation needs no template read, second index probe,
+or post-audit file read.
 
 ## Bundled Helper Runner
 
-Set `<skill-root>` to the directory containing the active `SKILL.md`. Standard
-Skill installations keep helpers under that directory. Claude Code and Cursor
-compatibility adapters use `~/.obsidian-kb-skill/skill` as their Skill root.
-Invoke every helper through:
+Set `<skill-root>` to the directory containing the active `SKILL.md` and invoke
+helpers through:
 
 ```bash
 python <skill-root>/scripts/run_helper.py <helper-name> ...
 ```
 
-## When NOT to Use This Skill
+## Step 1: Vault Discovery and Governance
 
-Skip this skill (do not save to vault) when:
-
-- The user is asking a question, debugging code, or having casual conversation
-- The content is a one-off command/snippet with no lasting value
-- The user has not explicitly asked to save, record, or remember
-- The information is already in another canonical location (e.g. project README, git history)
-
-Only invoke when there is **explicit save intent** (e.g. "save to Obsidian", "记一下", "沉淀到知识库", "add to my notes") **or** when summarizing a long conversation the user wants archived.
-
-
-## Vault Discovery & Validation
-
-The vault location is configured in a platform-specific way. Check in order:
-
-1. Environment variable `OBSIDIAN_KB_VAULT` (if set)
-2. Config file `~/.obsidian-kb-config` (single line containing the vault path)
-3. If neither exists, ask the user for their vault path and create the config file
-
-A valid Obsidian vault has `.obsidian/` and `Templates/` directories. To seed cold-start context (vault path, validity, template list, every folder's index strategy) in a single read-only call:
+Resolve the Vault in order: `OBSIDIAN_KB_VAULT` → `~/.obsidian-kb-config` → ask.
+A valid Vault contains `.obsidian/` and `Templates/`. Seed its validity,
+templates, folders, and every folder's index strategy with one discovery call:
 
 ```bash
 python <skill-root>/scripts/run_helper.py vault-info <vault> --json
 ```
 
-If validation fails, **stop and report** — do not silently create files in a non-vault directory. Offer to (a) re-prompt for the path, or (b) initialize a new vault structure if the user confirms.
+Stop if invalid. Apply instructions in this order: user request → Vault-local
+governance files (`AGENTS.md`, `CLAUDE.md`, etc.) at the root and target path →
+generic skill defaults. Do not scan the whole Vault. Large learning folders may
+use topic subfolders; follow Vault governance and pass `--folder` when its route
+is more specific than the type default.
 
+## Index Strategy Detection (diagnostic only)
 
-## Instruction Precedence
-
-Apply in this order: (1) the user's current request, (2) Vault-local governance files (`AGENTS.md`, `CLAUDE.md`, etc.) at the vault root and on the target path, (3) this skill's generic skill defaults. Use the vault-local file's routing, naming, metadata, README, validation, and version-control rules when they are more specific than this skill. Do not expand this check into a full-vault scan.
-
-
-## Folder Structure
-
-```
-{VAULT}/
-├── 00-Inbox/                  # Quick capture, unsorted notes
-├── 10-Work/                   # Meeting notes
-├── 15-Daily/                  # Daily notes, journals
-├── 20-Learning/               # Articles, study notes, web clips
-├── 30-Insights/               # Analysis, AI-generated insights
-├── 40-Projects/               # Active project context
-├── 50-People/                 # Contacts, team notes
-├── 90-Archive/                # Completed/inactive items
-├── Templates/                 # Note templates (user-edited; the single source of truth)
-├── Attachments/               # Images, files
-├── .obsidian-kb-backups/      # Auto-backups from the Update workflow (created lazily)
-└── INDEX.md                   # Main navigation hub
-```
-
-Folder navigation is owned by exactly one index strategy: Folder Index, Dataview, or a static Markdown list. Do not maintain two competing indexes for the same folder. Large folders (e.g. `20-Learning/`) may contain topic-based subfolders; route to the appropriate subfolder if one exists, else use the top-level folder.
-
-
-## Index Strategy Detection
-
-Run the bundled detector — do **not** read Obsidian's plugin config by hand:
+`vault-info` already reports every folder's strategy, and `create-note` applies
+the chosen target's strategy internally. Do not call `detect-index` during
+ordinary creation. Use it only to diagnose an explicit index problem:
 
 ```bash
 python <skill-root>/scripts/run_helper.py detect-index <vault> --folder <folder> --json
 ```
 
-JSON output: `mode` (`folder-index` | `dataview` | `static`), `index_file`, `can_append`, `graph_compatible`, `notes`. Apply:
+Folder Index mode and Dataview own their listings.
+Never append links to plugin-managed indexes. A static `INDEX.md` is updated by `create-note` when
+applicable. Folder Index 1.0.30 graph hierarchy requires folder-named indexes;
+warn on an incompatible existing configuration, but never rename it silently.
 
-- **folder-index** / **dataview**: plugin-owned — never append. Honor `graph_compatible`.
-- **static**: when `can_append` is true, append a wikilink to `INDEX.md` under a "Recent" section.
+## Step 2: Choose Create, Type, and Folder
 
-**Folder Index graph compatibility (Folder Index 1.0.30):** the plugin connects a parent folder to a child folder in Graph View by looking for `<folder-name>.md`. To get a complete folder hierarchy in the graph, use native folder-named indexes (`indexFileUserSpecified: false`) and keep a separate configured root index. A uniform custom name such as `INDEX.md` can render folder contents but cannot produce nested parent-to-child graph edges in this plugin version — so when the detector reports `graph_compatible: false`, warn the user and recommend migration; never rename indexes silently.
+Create unless the user identifies an existing note or explicitly asks to
+append/update; then follow `update-note.md`. Infer the type from context:
+`daily-note`, `meeting-note`, `learning-note`, `web-clip`, `insight-note`,
+`conversation-digest`, `project-note`, `person-note`, or opted-in `task-memory`.
+Uncertain quick capture routes to `00-Inbox/`.
 
+The bundled type default supplies a top-level folder. Vault governance wins for
+more specific routes such as `20-Learning/Java`; express that decision with
+`--folder`. The helper is not expected to parse arbitrary governance prose.
 
-## Note Types and Routing
+## Step 3: Delegate Template Loading
 
-`create-note --type <slug>` is the canonical write path. The slug → folder mapping is owned by the bundled `process-inbox` helper (`TYPE_TO_FOLDER`); infer the slug from conversation context or ask the user.
+The Vault's `Templates/<Name>.md` is the source of truth. `create-note` reads it,
+substitutes `{{date}}`, merges its frontmatter, uses its body as the scaffold,
+and later audits required template headings in order. Do not read the template
+file yourself during ordinary creation. Inspect it only for template debugging
+or an explicit template-editing request.
 
-Slugs: `daily-note`, `meeting-note`, `learning-note`, `web-clip`, `insight-note`, `conversation-digest`, `project-note`, `person-note`, `task-memory`. Unsure or quick-capture → `00-Inbox/`.
+If templates are genuinely missing, ask before bootstrapping them with
+`scaffold-templates <vault> --apply`; it does not overwrite without `--force`.
 
-> **Subfolders**: large folders may contain topic-based subfolders; route to the appropriate subfolder if one exists, otherwise the top-level folder.
+## Steps 4–5: Supply Complete Markdown and Preflight
 
+Pass complete Markdown through `--stdin` or `--content-file`, including optional
+frontmatter such as:
 
-## Decide First: Create vs Update
-
-Before doing anything, decide whether the request is a **Create** (a new note) or an **Update** (append/edit an existing note). The Task Memory workflow is `core/references/task-memory.md`.
-
-**Update is preferred when:**
-- The user names an existing note ("add to my Q3 OKR note", "update Alice's contact")
-- The content is an obvious continuation of an existing project (`project-note`), person (`person-note`), or today's daily note
-- The user explicitly says "append", "update", "续上", "追加"
-
-**Create is the default** for everything else. If ambiguous, **ask the user once** before writing.
-
-
-## Note Creation Workflow
-
-The bundled `create_note.py` does steps 1, 2, 3, 4, 5, 7, 8, 9 for you — call it instead of rolling your own. Steps 6 and 10 are agent-side.
-
-### Step 1–2: Resolve & validate vault, determine note type
-
-Run `vault_info.py` to get the vault path + validity + types list. Infer the type slug from the conversation or ask the user.
-
-### Step 3: Read the template (vault template is the truth)
-
-`{VAULT}/Templates/<Name>.md` is the single source of truth at write time. `create_note.py` reads it, fills `{{date}}` placeholders, merges the template's frontmatter into the new note, and uses the template's body as the scaffold. If the user adds a field (e.g. `mood:`) or a new section heading to their template, every new note picks it up automatically — no code change needed.
-
-Conventional template filenames: `Daily Note`, `Meeting Note`, `Learning Note`, `Project Note`, `Web Clip`, `Insight Note`, `Person Note`, `Digest Note`. If the vault has no `Templates/` yet, bootstrap the shipped starters once (`scaffold_templates.py` will NOT clobber later edits unless `--force` is passed):
-
-```bash
-python <skill-root>/scripts/run_helper.py scaffold-templates <vault> --apply
+```yaml
+source: "https://example.com/article"
+related: ["[[Existing Note]]"]
 ```
 
-### Step 4–5: Fill frontmatter & body (delegated)
+Merge precedence is `type defaults < Vault template < input frontmatter < explicit CLI fields`.
+Always use today's date and the routed type. `web-clip` requires non-empty
+`source`, `author`, and `published`; missing fields fail before any mutation.
 
-`create_note.py` merges complete Markdown supplied by `--stdin` or
-`--content-file`: optional YAML frontmatter is merged and the remainder becomes
-the body. Precedence is `type defaults < Vault template < input frontmatter < explicit CLI fields`.
-This supplies type-specific and Vault-defined metadata without adding a CLI
-flag for every field. Always set (and never hardcode) `date` to today; always
-set `type` to the routed slug. If the template doesn't define `tags`, the
-type's default tag is used.
-
-For example, dry-run a complete web clip before applying it:
+Pipe external or transient content through `--stdin`:
 
 ```bash
 python <skill-root>/scripts/run_helper.py create-note <vault> \
-  --type web-clip --title "Multi-agent collaboration" --stdin --preflight-json <<'EOF'
----
-source: "https://example.com/article"
-author: "Article author"
-published: "2026-07-13"
-related: ["[[Existing Note]]"]
----
-# Multi-agent collaboration
-
-Article summary and grounded excerpts.
-EOF
+  --type <slug> --title "<title>" --stdin --preflight-json
 ```
 
-`web-clip` requires non-empty `source`, `author`, and `published` metadata.
-Missing values exit with status 2 before any note or index mutation, including
-in dry-run mode. After checking a valid preview, repeat the invocation with
-`--apply --compact-json` (and optionally `--suggest-links`) to write it while
-returning only structured path, audit, and link-suggestion data.
-`--preflight-json` returns the final merged frontmatter, destination, rendered
-content SHA-256/size, and the same note-level validation used after write,
-without echoing the body. Keep `--json` only when the full `rendered` preview is
-explicitly needed. Plain `--apply` is also concise when machine-readable output
-is unnecessary.
+`--preflight-json` returns final frontmatter, destination, SHA-256, byte/line
+counts, and the same note-level validation used after write without echoing the
+body. Fix findings before applying. Use full `--json` only when the rendered
+body is explicitly needed.
 
-### Step 6: Wikilinks (use the helper)
+## Step 6: Wikilinks
 
-Use `[[wikilinks]]` for related existing notes. Do **not** scan the entire vault — the bounded strategy lives in the bundled helper. The helper must list the target folder's filenames to populate link candidates, then scores them by shared tags / matching type / title-token overlap, and caps the result. After writing, pass `--suggest-links` to `create-note` (or call `python <skill-root>/scripts/run_helper.py suggest-links <vault> --note <path>` directly) to get scored, in-scope candidates and their reasons. Just pick from its output (≤ 5 high-confidence links, or skip).
+Use `[[wikilinks]]` only for high-confidence semantic relationships. With
+`--suggest-links`, the bounded helper will list the target folder's filenames
+plus limited sibling candidates, score shared tags/type/title tokens, and cap
+the output. Add at most five useful links or skip them; never force weak links.
 
-### Step 7: Write the file (delegated)
+## Steps 7–8: Apply Once
 
-Prefer your agent's **native file-write tool** when available. If not (some CLI-only agents), call the bundled helper — never invent a one-off script:
+Repeat the exact validated content:
 
 ```bash
-python <skill-root>/scripts/run_helper.py create-note <vault> --type <slug> --title "<Short Title>" \
-    --content-file <path-to-body.md> --preflight-json
-python <skill-root>/scripts/run_helper.py create-note <vault> --type <slug> --title "<Short Title>" \
-    --content-file <path-to-body.md> --apply --compact-json
+python <skill-root>/scripts/run_helper.py create-note <vault> \
+  --type <slug> --title "<title>" --stdin --apply --compact-json
 ```
 
-`--content-file` must resolve inside the Vault. Pipe external or transient
-content through `--stdin` instead. `--stdin` reads complete UTF-8 Markdown;
-use `--preflight-json` to validate without repeating the body in the response,
-then resubmit the same Markdown with `--apply --compact-json`. The script handles
-encoding, frontmatter, exclusive numeric-suffix creation, and the static
-`INDEX.md` update. Legacy `--json` and `--apply --json` remain available when
-the caller explicitly needs the final rendered Markdown in the response.
-
-### Step 8: Apply the detected index strategy
-
-`create_note.py` updates a static `INDEX.md` automatically when applicable; Folder Index and Dataview listings are never touched. Never append links to plugin-managed indexes. If this workflow created a new folder in Folder Index mode and its index is missing, write the minimal seed:
-
-````markdown
----
-type: folder-index
-tags: [moc]
----
-```folder-index-content
-```
-````
+`--content-file` must resolve inside the Vault; external content belongs on
+`--stdin`. The helper merges the template, writes exclusively with a numeric
+suffix on collision, updates only a static index when applicable, and returns
+the applied path plus audit. Do not manually update Folder Index or Dataview.
 
 ### Step 9: Validate Result
 
-`create_note.py` and `update_note.py` run the per-note audit automatically after `--apply` (pass `--no-audit` to skip). Read the `AUDIT:` line and fix any reported issues before continuing. The audit covers: frontmatter validity, required template headings (must appear in the same order as the selected vault template; user-defined additional sections are allowed), broken wikilinks, unresolved placeholders, required web-clip fields, etc.
+Keep automatic audit enabled. It checks frontmatter, required template
+headings, broken wikilinks, unresolved placeholders, and required web-clip
+metadata. A clean compact apply audit completes verification; do not re-read
+the note merely to prove it exists. Investigate only if the audit reports a
+finding or the user explicitly requests an additional content review.
+
+## Write Boundary
+
+An ordinary create request writes at most the requested note and, only for a
+static strategy, its index entry. Do not read or write `.workbuddy/memory`,
+Task Memory, a daily log, or a secondary recap unless the user separately asks
+for it or higher-priority runtime instructions explicitly require it.
 
 ### Step 10: Confirm to User
 
-Report back:
-- Where saved (folder + filename, as an absolute path or `file://` link)
-- Brief summary of captured content
-- Suggested follow-up actions (e.g. linking to other notes, processing Inbox items)
+Report the saved path, a brief capture summary, audit status, and only useful
+follow-up actions. Do not narrate redundant internal reads or checks.
