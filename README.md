@@ -540,12 +540,13 @@ obsidian-suggest-links /你的知识库路径 --note 30-Insights/某笔记.md --
 ```bash
 obsidian-create-note /你的知识库路径 \
     --type insight-note --title "短标题" \
-    --content-file 正文.md --apply
+    --content-file 正文.md --apply --compact-json
 ```
 
 - `--type`：笔记类型（与路由表一致）；`--title` 即文件名。
 - `--content-file`：正文 `.md` 路径（若里面已含 frontmatter，会被合并，显式值优先）；也可用 `--stdin` 从标准输入读取正文。
 - `--tags`：覆盖类型默认标签；`--date`：覆盖日期（默认今天）；`--folder`：覆盖路由到的目标文件夹。
+- `--json`：dry-run 或兼容写入模式的完整 JSON，包含 `rendered` 正文；`--apply`：精简的人类可读 audit 和落盘路径；`--apply --compact-json`：省略 `rendered`、但保留路径、audit 和链接建议的结构化结果。
 - 写入后会按当前索引策略更新静态 `INDEX.md`（Folder Index / Dataview 管理的列表不会被改动）。
 - 这与 `core/OBSIDIAN_KB.md` 的 Step 7「工具选择」约定配套：智能体优先用原生写工具，否则用本脚本，而不是临时造脚本。
 

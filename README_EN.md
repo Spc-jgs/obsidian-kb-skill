@@ -549,12 +549,13 @@ The `create-note` helper is a **constraint-based note creator**: when the enviro
 ```bash
 obsidian-create-note /path/to/vault \
     --type insight-note --title "Short Title" \
-    --content-file body.md --apply
+    --content-file body.md --apply --compact-json
 ```
 
 - `--type`: note type (matches the routing table); `--title` becomes the filename.
 - `--content-file`: path to the body `.md` (any frontmatter inside is merged, explicit values win); or use `--stdin` to read the body from standard input.
 - `--tags`: override the type default tags; `--date`: override the date (defaults to today); `--folder`: override the routed target folder.
+- `--json`: full dry-run or legacy apply JSON including `rendered`; `--apply`: concise human-readable audit and created path; `--apply --compact-json`: structured path, audit, and link suggestions without `rendered`.
 - After writing, it updates a static `INDEX.md` according to the detected index strategy (Folder Index / Dataview managed listings are left untouched).
 - This pairs with the Step 7 "tool choice" rule in `core/OBSIDIAN_KB.md`: agents prefer their native write tool, otherwise use this script rather than inventing one.
 
