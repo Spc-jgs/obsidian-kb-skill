@@ -16,11 +16,13 @@ from typing import Any, Iterable
 import yaml
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
+from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
     VaultPathError,
     report_cli_violation,
     resolve_existing_within_vault,
+    resolve_target_within_vault,
     validate_vault_root,
 )
 
@@ -97,6 +99,7 @@ FOLDER_INDEX_CONTENT_RE = re.compile(
 )
 
 PLACEHOLDER_RE = re.compile(r"\{\{[^}]+\}\}")
+REQUIRED_HEADING_RE = re.compile(r"^#{2,6}\s+(.+?)\s*$", re.MULTILINE)
 
 
 def _is_ignored(relative: Path) -> bool:
@@ -278,6 +281,39 @@ def _audit_template_placeholders(
             relative,
             "note contains an unresolved template placeholder such as {{date}}",
         )
+
+
+def _audit_required_template_headings(
+    findings: list[Finding],
+    vault: Path,
+    relative: Path,
+    text: str,
+    metadata: dict[str, Any] | None,
+) -> None:
+    if not metadata or (relative.parts and relative.parts[0] == "Templates"):
+        return
+    template_name = TYPE_TO_TEMPLATE.get(str(metadata.get("type", "")))
+    if not template_name:
+        return
+    template_path = vault / "Templates" / template_name
+    if not template_path.is_file():
+        return
+    template_text = template_path.read_text(encoding="utf-8")
+    required = [heading.strip() for heading in REQUIRED_HEADING_RE.findall(template_text)]
+    actual = [heading.strip() for heading in REQUIRED_HEADING_RE.findall(text)]
+    actual_index = 0
+    for heading in required:
+        while actual_index < len(actual) and actual[actual_index] != heading:
+            actual_index += 1
+        if actual_index == len(actual):
+            _add(
+                findings,
+                "missing-template-heading",
+                relative,
+                f"required template heading is missing or out of order: {heading}",
+            )
+            return
+        actual_index += 1
 
 
 def _audit_related(
@@ -727,25 +763,65 @@ def audit_vault(vault: Path) -> list[Finding]:
     return sorted(findings, key=lambda item: (item.path, item.code, item.message))
 
 
-def audit_note(vault: Path, note: Path) -> list[Finding]:
-    """Audit a single note within its vault; returns *per-note* findings only.
+def _audit_note_content(
+    vault: Path,
+    note: Path,
+    text: str,
+) -> list[Finding]:
+    """Run the note-level rule set against supplied Markdown content."""
+    relative = note.relative_to(vault)
+    findings: list[Finding] = []
+    metadata, yaml_error = _frontmatter(text)
+    if yaml_error:
+        _add(findings, "invalid-frontmatter", relative, yaml_error)
+    _audit_metadata(findings, relative, text, metadata)
+    _audit_related(findings, relative, metadata)
+    _audit_web_clip(findings, relative, metadata)
+    _audit_empty_template(findings, relative, text, metadata)
+    _audit_folder_index_content(findings, relative, text, metadata)
+    _audit_template_placeholders(findings, relative, text)
+    _audit_required_template_headings(findings, vault, relative, text, metadata)
+    if len(FENCE_RE.findall(text)) % 2:
+        _add(
+            findings,
+            "unclosed-fence",
+            relative,
+            "odd number of fenced code block markers",
+        )
 
-    Reuses the full audit_vault pass (single source of truth for every rule) and
-    filters to the requested note's relative path, dropping vault-wide consistency
-    findings (orphans, duplicate titles, missing folder indexes, graph chains,
-    near-duplicate tags) that are not defects of the note itself. This matches the
-    scope of a post-write self-check (Step 9): frontmatter validity, broken
-    wikilinks, unresolved placeholders, required web-clip fields, etc.
-    """
+    linkable = _all_linkable_files(vault)
+    if note not in linkable:
+        linkable.append(note)
+    by_name: dict[str, list[Path]] = defaultdict(list)
+    by_stem: dict[str, list[Path]] = defaultdict(list)
+    for path in sorted(linkable):
+        by_name[path.name].append(path)
+        by_stem[path.stem].append(path)
+    if relative.name not in EXEMPT_NAMES:
+        _audit_links(
+            findings,
+            vault,
+            note,
+            relative,
+            _without_code_examples(text),
+            by_name,
+            by_stem,
+        )
+    return sorted(findings, key=lambda item: (item.path, item.code, item.message))
+
+
+def audit_note_text(vault: Path, note: Path, text: str) -> list[Finding]:
+    """Audit candidate note content without creating the destination file."""
+    vault = validate_vault_root(vault)
+    note = resolve_target_within_vault(vault, note, label="--note")
+    return _audit_note_content(vault, note, text)
+
+
+def audit_note(vault: Path, note: Path) -> list[Finding]:
+    """Audit an existing note using the same rules as candidate preflight."""
     vault = validate_vault_root(vault)
     note = resolve_existing_within_vault(vault, note, label="--note")
-    all_findings = audit_vault(vault)
-    rel = note.relative_to(vault).as_posix()
-    return [
-        f
-        for f in all_findings
-        if f.path == rel and f.code not in VAULT_WIDE_CODES
-    ]
+    return _audit_note_content(vault, note, note.read_text(encoding="utf-8"))
 
 
 def _audit_titles(

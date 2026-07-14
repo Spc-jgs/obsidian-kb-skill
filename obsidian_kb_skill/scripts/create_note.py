@@ -21,6 +21,7 @@ from typing import Any, Iterator
 import yaml
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
+from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
 from obsidian_kb_skill.scripts.process_inbox import (
     TYPE_TO_FOLDER,
     _maybe_update_static_index,
@@ -69,21 +70,6 @@ EXTRA_FIELDS: dict[str, dict[str, Any]] = {
         "decisions": [], "constraints": [], "artifacts": [], "open": [],
     },
 }
-
-# Note type -> the conventional template filename inside {VAULT}/Templates/.
-# Users can rename these, but the conventional names are what the shipped
-# starter templates use, so the bootstrap script scaffolds them in this layout.
-TYPE_TO_TEMPLATE: dict[str, str] = {
-    "daily-note": "Daily Note.md",
-    "meeting-note": "Meeting Note.md",
-    "learning-note": "Learning Note.md",
-    "web-clip": "Web Clip.md",
-    "insight-note": "Insight Note.md",
-    "conversation-digest": "Digest Note.md",
-    "project-note": "Project Note.md",
-    "person-note": "Person Note.md",
-}
-
 
 def validate_vault(vault: Path, *, json_mode: bool = False) -> None:
     if not vault.is_dir() or not (vault / ".obsidian").is_dir():
