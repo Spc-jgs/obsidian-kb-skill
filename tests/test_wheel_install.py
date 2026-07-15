@@ -11,6 +11,7 @@ import json
 import os
 import subprocess
 import sys
+import tarfile
 import zipfile
 from pathlib import Path
 
@@ -58,6 +59,20 @@ def _build_wheel(tmp_path: Path) -> Path:
     return wheels[0]
 
 
+def _build_sdist(tmp_path: Path) -> Path:
+    dist = tmp_path / "dist"
+    subprocess.run(
+        [sys.executable, "-m", "build", "--sdist", "--outdir", str(dist), str(ROOT)],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    archives = sorted(dist.glob("*.tar.gz"))
+    assert archives, "sdist was not produced"
+    return archives[0]
+
+
 def _required_wheel_files() -> list[str]:
     return [
         "scripts/resources/templates/daily-note.md",
@@ -76,6 +91,22 @@ def test_wheel_contains_bundled_resources(tmp_path):
         names = set(zf.namelist())
     for rel in _required_wheel_files():
         assert any(n.endswith(rel) for n in names), f"wheel missing {rel}"
+
+
+def test_wheel_excludes_housekeeping_files(tmp_path):
+    wheel = _build_wheel(tmp_path)
+    with zipfile.ZipFile(wheel) as zf:
+        names = zf.namelist()
+
+    assert not any(Path(name).name == ".DS_Store" for name in names)
+
+
+def test_sdist_excludes_housekeeping_files(tmp_path):
+    sdist = _build_sdist(tmp_path)
+    with tarfile.open(sdist) as archive:
+        names = archive.getnames()
+
+    assert not any(Path(name).name == ".DS_Store" for name in names)
 
 
 def test_wheel_exposes_console_scripts(tmp_path):

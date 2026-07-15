@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.14.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.14.1** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor、WorkBuddy）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -35,7 +35,7 @@ v1.14 在不减少质量检查的前提下压缩预览响应，并补强写入�
 - 相对 `--content-file` 读取经过验证的 Vault 路径；并发同名创建使用排他写入与后缀重试，JSON 错误和模板正文警告也已修正。
 - 原有完整 `--json` dry-run、`--apply --json` 和 v1.13 compact apply 契约保持兼容。
 
-完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.14.0]` 段。详细用法在 `core/references/note-creation.md` 里按需加载。
+完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.14.1]` 段。详细用法在 `core/references/note-creation.md` 里按需加载。
 
 ## v1.13 新增的能力
 
