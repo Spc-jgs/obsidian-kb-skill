@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.14.1** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.15.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor, WorkBuddy) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -25,6 +25,17 @@ This skill eliminates that friction by teaching your AI agent a complete knowled
 - Cross-links related notes with `[[wikilinks]]`
 
 Your knowledge accumulates automatically, in a structured format that scales from 10 notes to 10,000.
+
+## What's New in v1.15
+
+v1.15 improves local link-suggestion precision without semantic models or external dependencies:
+
+- Chinese titles use overlapping bigrams so specific title relationships can become candidates.
+- Frequent tags, structural tags, and the broad `java` tag no longer dominate ranking; matching note type is supporting evidence only.
+- Weak candidates below a confidence threshold are omitted, and sibling folders enter the bounded scope only when their names are relevant.
+- Suggestions remain read-only and human-confirmed, while each candidate body is read once instead of twice.
+
+See [CHANGELOG.md](CHANGELOG.md) under `[1.15.0]` for the complete diff.
 
 ## What's New in v1.14
 

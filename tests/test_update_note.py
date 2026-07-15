@@ -432,8 +432,8 @@ def test_suggest_links_after_update(vault):
     note = _note(vault)
     update_note.main([str(vault), "--note", "Tasks/foo/TASK.md", "--apply"])
     (vault / "Tasks" / "foo" / "Related.md").write_text(
-        '---\ntype: project-note\ndate: 2026-07-01\ntags: [task]\n---\n'
-        "# Related\n\nContext.\n",
+        '---\ntype: task-memory\ndate: 2026-07-01\ntags: [task]\n---\n'
+        "# TASK Related\n\nContext.\n",
         encoding="utf-8",
     )
     import contextlib

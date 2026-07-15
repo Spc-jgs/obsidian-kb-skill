@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """Suggest wikilink targets for a single note, read-only.
 
-Scans a bounded scope (the note's folder plus up to two sibling folders), scores
-each candidate by shared tags, matching type, and title-token overlap, and prints
-the top candidates with reasons. It never writes to the vault — a human decides
-whether to insert a link.
+Scans a bounded scope (the note's folder plus up to two relevant sibling
+folders), scores each candidate by specific shared tags, matching type, and
+Unicode-aware title-token overlap, and prints only confident candidates with
+reasons. It never writes to the vault — a human decides whether to insert a
+link.
 
 Reuses vault-parsing helpers from audit_vault.py.
 """
 from __future__ import annotations
 
 import argparse
+from collections import Counter
+from dataclasses import dataclass
 import json
 import re
 import sys
@@ -35,27 +38,72 @@ from obsidian_kb_skill.scripts.vault_paths import (
 )
 
 
-def scope_folders(vault: Path, note: Path) -> list[Path]:
+MIN_SCORE = 3
+GENERIC_TAGS = {
+    "daily",
+    "digest",
+    "insight",
+    "java",
+    "learning",
+    "meeting",
+    "person",
+    "project",
+    "task",
+    "web-clip",
+}
+
+
+@dataclass(frozen=True)
+class Candidate:
+    path: Path
+    metadata: dict[str, Any] | None
+    title: str
+
+
+def _title_tokens(title: str) -> set[str]:
+    """Return useful Latin runs and overlapping CJK bigrams."""
+    if not title:
+        return set()
+    tokens = {
+        token
+        for token in re.findall(r"[a-z0-9]+", title.lower())
+        if len(token) >= 2 and not token.isdigit()
+    }
+    for run in re.findall(r"[\u3400-\u4dbf\u4e00-\u9fff]+", title):
+        if len(run) >= 2:
+            tokens.update(run[index : index + 2] for index in range(len(run) - 1))
+    return tokens
+
+
+def _scope_terms(title: str, metadata: dict[str, Any] | None) -> set[str]:
+    terms = _title_tokens(title)
+    for tag in _tags(metadata):
+        terms.update(_title_tokens(tag))
+    return terms
+
+
+def scope_folders(vault: Path, note: Path, terms: set[str]) -> list[Path]:
     folder = note.parent
-    if folder == vault:
-        subs = [
-            d
-            for d in vault.iterdir()
-            if d.is_dir() and not _is_ignored(d.relative_to(vault))
-        ]
-        return sorted(subs)[:3]
-    parent = folder.parent
-    siblings = sorted(
-        d
-        for d in parent.iterdir()
-        if d.is_dir() and d != folder and not _is_ignored(d.relative_to(vault))
-    )
-    return [folder] + siblings[:2]
+    parent = vault if folder == vault else folder.parent
+    related: list[Path] = []
+    for candidate in parent.iterdir():
+        if not candidate.is_dir() or candidate == folder:
+            continue
+        if _is_ignored(candidate.relative_to(vault)):
+            continue
+        if _title_tokens(candidate.name) & terms:
+            related.append(candidate)
+    return [folder] + sorted(related)[:2]
 
 
-def candidate_notes(vault: Path, note: Path) -> list[tuple[Path, dict[str, Any] | None]]:
-    scope = set(scope_folders(vault, note))
-    candidates: list[tuple[Path, dict[str, Any] | None]] = []
+def candidate_notes(
+    vault: Path,
+    note: Path,
+    metadata: dict[str, Any] | None,
+    title: str,
+) -> list[Candidate]:
+    scope = set(scope_folders(vault, note, _scope_terms(title, metadata)))
+    candidates: list[Candidate] = []
     for path in _markdown_files(vault):
         if path == note:
             continue
@@ -66,10 +114,11 @@ def candidate_notes(vault: Path, note: Path) -> list[tuple[Path, dict[str, Any] 
             continue
         if relative.name in EXEMPT_NAMES:
             continue
-        metadata, _ = _frontmatter(path.read_text(encoding="utf-8"))
-        if metadata and metadata.get("type") in INDEX_TYPES:
+        text = path.read_text(encoding="utf-8")
+        candidate_metadata, _ = _frontmatter(text)
+        if candidate_metadata and candidate_metadata.get("type") in INDEX_TYPES:
             continue
-        candidates.append((path, metadata))
+        candidates.append(Candidate(path, candidate_metadata, _note_title(path, text)))
     return candidates
 
 
@@ -79,12 +128,6 @@ def _tags(metadata: dict[str, Any] | None) -> set[str]:
         return set()
     values = raw if isinstance(raw, list) else [raw]
     return {str(tag).lower() for tag in values if str(tag).strip()}
-
-
-def _title_tokens(title: str) -> set[str]:
-    if not title:
-        return set()
-    return {tok for tok in re.split(r"[^a-z0-9]+", title.lower()) if len(tok) >= 4}
 
 
 def _related_targets(metadata: dict[str, Any] | None) -> set[str]:
@@ -105,12 +148,13 @@ def score_pair(
     cand_meta: dict[str, Any] | None,
     target_title: str,
     cand_title: str,
+    generic_tags: set[str] | None = None,
 ) -> tuple[int, list[str]]:
     score = 0
     reasons: list[str] = []
-    shared = _tags(target_meta) & _tags(cand_meta)
+    shared = (_tags(target_meta) & _tags(cand_meta)) - (generic_tags or set())
     if shared:
-        score += 2 * len(shared)
+        score += 3 * len(shared)
         reasons.append("shared tags: " + ", ".join(sorted(shared)))
     t_type = (target_meta or {}).get("type")
     c_type = (cand_meta or {}).get("type")
@@ -119,7 +163,7 @@ def score_pair(
         reasons.append(f"same type: {t_type}")
     overlap = _title_tokens(target_title) & _title_tokens(cand_title)
     if overlap:
-        score += len(overlap)
+        score += min(6, 2 * len(overlap))
         reasons.append("title overlap: " + ", ".join(sorted(overlap)))
     return score, reasons
 
@@ -131,15 +175,28 @@ def suggest_links(vault: Path, note_path: Path, top_n: int = 10) -> list[tuple[P
     metadata, _ = _frontmatter(text)
     title = _note_title(note, text)
     related = _related_targets(metadata)
+    candidates = candidate_notes(vault, note, metadata, title)
+    tag_counts = Counter(tag for candidate in candidates for tag in _tags(candidate.metadata))
+    generic_tags = set(GENERIC_TAGS)
+    generic_tags.update(
+        tag
+        for tag, count in tag_counts.items()
+        if count >= 2 and count * 2 >= len(candidates)
+    )
 
     results: list[tuple[Path, int, list[str]]] = []
-    for path, cand_meta in candidate_notes(vault, note):
-        cand_title = _note_title(path, path.read_text(encoding="utf-8"))
-        if path.stem.lower() in related or cand_title.lower() in related:
+    for candidate in candidates:
+        if candidate.path.stem.lower() in related or candidate.title.lower() in related:
             continue
-        score, reasons = score_pair(metadata, cand_meta, title, cand_title)
-        if score > 0:
-            results.append((path, score, reasons))
+        score, reasons = score_pair(
+            metadata,
+            candidate.metadata,
+            title,
+            candidate.title,
+            generic_tags,
+        )
+        if score >= MIN_SCORE:
+            results.append((candidate.path, score, reasons))
     results.sort(key=lambda item: (-item[1], item[0].as_posix()))
     return results[:top_n]
 
