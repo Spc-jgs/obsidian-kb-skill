@@ -106,6 +106,22 @@ def test_vault_info_json(tmp_path):
     assert "folder_index_global" in out
 
 
+def test_vault_info_compact_json(tmp_path):
+    vault = _make_vault(tmp_path)
+    out = _run(
+        [
+            "-m",
+            "obsidian_kb_skill.scripts.vault_info",
+            str(vault),
+            "--compact",
+        ]
+    )
+
+    index = out["standard_folders"]["30-Insights"]["index"]
+    assert "notes" not in index
+    assert {"mode", "index_file", "can_append"} <= set(index)
+
+
 # ---- process_inbox ------------------------------------------------------------
 
 def test_process_inbox_plan_json(tmp_path):

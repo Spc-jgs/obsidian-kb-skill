@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-07-15
+
+### Added
+
+- `vault-info --compact` provides compact vault discovery by omitting per-folder note filename arrays while preserving the default JSON contract and all index-ownership fields.
+
+### Changed
+
+- Ordinary capture uses compact vault discovery and completes governance-required Git preflight before fetching or deeply reading source content, avoiding source-analysis cost when Git must stop the write.
+
+### Fixed
+
+- Template validation now returns complete template heading diagnostics in one finding, including expected headings, actual headings, and the first mismatch, so all ordering problems can be repaired in one preflight cycle.
+
 ## [1.16.0] - 2026-07-15
 
 ### Added

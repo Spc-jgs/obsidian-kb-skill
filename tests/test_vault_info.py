@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from obsidian_kb_skill.scripts.vault_info import collect
+from obsidian_kb_skill.scripts import vault_info
+
+collect = vault_info.collect
 
 
 def _make_vault(root: Path) -> Path:
@@ -65,3 +67,18 @@ def test_folder_index_global_present(tmp_path: Path):
     g = info["folder_index_global"]
     assert set(g) == {"enabled", "graph_overwrite", "user_specified", "root_index_file"}
     assert g["root_index_file"] == "INDEX.md"
+
+
+def test_compact_omits_note_lists_without_mutating_full_result(tmp_path: Path):
+    vault = _make_vault(tmp_path)
+    full = collect(vault)
+
+    out = vault_info.compact(full)
+
+    full_index = full["standard_folders"]["20-Learning"]["index"]
+    compact_index = out["standard_folders"]["20-Learning"]["index"]
+    assert "notes" in full_index
+    assert "notes" not in compact_index
+    assert compact_index["mode"] == "static"
+    assert compact_index["index_file"] == "INDEX.md"
+    assert compact_index["can_append"] is True

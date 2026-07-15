@@ -7,13 +7,15 @@ specifically needs troubleshooting, Git post-processing, or opted-in handoff.
 
 ## Minimal Ordinary Path
 
-1. Find the Vault and run one discovery call: `vault-info --json`.
+1. Find the Vault and run one discovery call: `vault-info --json --compact`.
 2. Read Vault-local governance at the root and target path; choose type, folder,
    naming, metadata, README, and Git actions from those rules.
-3. Supply complete Markdown to `create-note --preflight-json` and inspect the
+3. If governance requires Git, load `git.md` and complete its pre-write check
+   before fetching or deeply reading source content.
+4. Supply complete Markdown to `create-note --preflight-json` and inspect the
    structured validation.
-4. Repeat the same input with `--apply --compact-json`; keep automatic audit on.
-5. Optionally use bounded link suggestions, then report the saved path.
+5. Repeat the same input with `--apply --compact-json`; keep automatic audit on.
+6. Optionally use bounded link suggestions, then report the saved path.
 
 The helper handles template loading, index strategy, exclusive creation, and
 per-note audit. Ordinary creation needs no template read, second index probe,
@@ -35,14 +37,17 @@ A valid Vault contains `.obsidian/` and `Templates/`. Seed its validity,
 templates, folders, and every folder's index strategy with one discovery call:
 
 ```bash
-python <skill-root>/scripts/run_helper.py vault-info <vault> --json
+python <skill-root>/scripts/run_helper.py vault-info <vault> --json --compact
 ```
 
 Stop if invalid. Apply instructions in this order: user request → Vault-local
 governance files (`AGENTS.md`, `CLAUDE.md`, etc.) at the root and target path →
 generic skill defaults. Do not scan the whole Vault. Large learning folders may
 use topic subfolders; follow Vault governance and pass `--folder` when its route
-is more specific than the type default.
+is more specific than the type default. If governance requires Git, load
+`git.md` and finish its pre-write synchronization now, before fetching or deeply
+reading source content. A Git safety stop should happen before source-analysis
+tokens are spent.
 
 ## Index Strategy Detection (diagnostic only)
 
@@ -128,8 +133,9 @@ python <skill-root>/scripts/run_helper.py create-note <vault> \
 
 `--preflight-json` returns final frontmatter, destination, SHA-256, byte/line
 counts, and the same note-level validation used after write without echoing the
-body. Fix findings before applying. Use full `--json` only when the rendered
-body is explicitly needed.
+body. A template-order finding includes the expected headings, actual headings,
+and first mismatch; repair the complete sequence in one edit before rerunning
+preflight. Use full `--json` only when the rendered body is explicitly needed.
 
 ## Step 6: Wikilinks
 

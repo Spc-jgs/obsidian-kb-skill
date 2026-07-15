@@ -140,12 +140,26 @@ def test_note_creation_documents_the_minimal_ordinary_create_path():
 
     for marker in (
         "one discovery call",
+        "vault-info --json --compact",
         "Do not call `detect-index` during ordinary creation",
         "Do not read the template file yourself",
         "A clean compact apply audit completes verification",
         "Do not read or write `.workbuddy/memory`",
     ):
         assert marker in normalized, f"note creation reference missing: {marker!r}"
+
+
+def test_note_creation_front_loads_git_and_reports_complete_heading_diagnostics():
+    text = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+
+    for marker in (
+        "before fetching or deeply reading source content",
+        "expected headings",
+        "actual headings",
+        "first mismatch",
+    ):
+        assert marker in normalized, f"optimized workflow marker missing: {marker!r}"
 
 
 def test_note_creation_documents_the_missing_category_exception():
