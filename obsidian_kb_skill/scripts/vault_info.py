@@ -32,6 +32,7 @@ Output schema (JSON):
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import sys
 from pathlib import Path
@@ -115,6 +116,16 @@ def collect(vault: Path) -> dict[str, Any]:
     }
 
 
+def compact(info: dict[str, Any]) -> dict[str, Any]:
+    """Return discovery output without per-folder note filename arrays."""
+    result = copy.deepcopy(info)
+    for entry in result["standard_folders"].values():
+        index = entry.get("index")
+        if index is not None:
+            index.pop("notes", None)
+    return result
+
+
 def main(argv: list[str] | None = None) -> int:
     configure_utf8_stdio()
     p = argparse.ArgumentParser(
@@ -124,6 +135,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--json", action="store_true", help="Emit JSON (this tool does so by default)"
     )
+    p.add_argument(
+        "--compact",
+        action="store_true",
+        help="Omit per-folder note filename arrays from discovery output",
+    )
     args = p.parse_args(argv)
     try:
         vault = validate_vault_root(args.vault)
@@ -131,6 +147,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     info = collect(vault)
+    if args.compact:
+        info = compact(info)
     print(json.dumps(info, ensure_ascii=False, indent=2))
     return 0 if info["valid"] else 2
 
