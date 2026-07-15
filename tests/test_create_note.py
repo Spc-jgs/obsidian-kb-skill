@@ -90,6 +90,23 @@ def test_split_frontmatter_merges():
     assert body.strip() == "# Body"
 
 
+def test_split_frontmatter_rejects_invalid_yaml_with_full_input_location():
+    malformed = (
+        '---\nsource: "https://example.com"\n'
+        'author: "用户（说明："登录后可见"）"\n'
+        "published: 2026-07-14\n---\n# Body\n"
+    )
+
+    with pytest.raises(ValueError) as caught:
+        split_frontmatter(malformed)
+
+    error = caught.value
+    assert error.code == "invalid-frontmatter"
+    assert error.line == 3
+    assert error.column == 17
+    assert error.message == "expected <block end>, but found '<scalar>'"
+
+
 def test_input_frontmatter_overrides_template_and_cli_fields_win(tmp_path):
     vault = make_vault(tmp_path)
     (vault / "Templates" / "Insight Note.md").write_text(
@@ -229,6 +246,40 @@ def test_dry_run_writes_nothing(tmp_path):
     assert r.returncode == 0
     assert "dry run" in r.stdout
     assert not list((vault / "30-Insights").glob("*.md"))
+
+
+def test_invalid_stdin_frontmatter_reports_location_and_writes_nothing(tmp_path):
+    vault = make_vault(tmp_path)
+    malformed = (
+        '---\nsource: "https://example.com"\n'
+        'author: "用户（说明："登录后可见"）"\n'
+        "published: 2026-07-14\n---\n# Body\n"
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--title",
+            "Malformed",
+            "--stdin",
+            "--apply",
+        ],
+        input=malformed,
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        env=ENV,
+    )
+
+    assert result.returncode == 2
+    assert "invalid YAML frontmatter in stdin at line 3, column 17" in result.stderr
+    assert "expected <block end>, but found '<scalar>'" in result.stderr
+    assert not list(vault.rglob("*Malformed*.md"))
 
 
 def test_apply_creates_note_and_updates_index(tmp_path):

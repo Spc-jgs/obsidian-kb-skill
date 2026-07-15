@@ -33,10 +33,12 @@ from obsidian_kb_skill.scripts.backup_policy import (
 )
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.create_note import (
+    InvalidFrontmatterError,
+    audit_note,
     build_note,
+    report_invalid_frontmatter,
     split_frontmatter,
     validate_vault,
-    audit_note,
 )
 from obsidian_kb_skill.scripts.suggest_links import suggest_links
 from obsidian_kb_skill.scripts.vault_paths import (
@@ -247,7 +249,12 @@ def main(argv: list[str] | None = None) -> int:
     # --- Load or initialize -------------------------------------------------
     if note_path.exists():
         raw = note_path.read_text(encoding="utf-8")
-        meta, body = split_frontmatter(raw)
+        try:
+            meta, body = split_frontmatter(
+                raw, source=note_path.relative_to(vault).as_posix()
+            )
+        except InvalidFrontmatterError as exc:
+            return report_invalid_frontmatter(exc, json_mode=args.json)
         action = "update"
     else:
         # Upsert: build a fresh task-memory note from the template.

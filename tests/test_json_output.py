@@ -139,6 +139,55 @@ def test_create_note_dry_run_json(tmp_path):
     assert out["audit"] is None  # dry run, no audit
 
 
+@pytest.mark.parametrize(
+    "mode_args",
+    [
+        ["--json"],
+        ["--preflight-json"],
+        ["--apply", "--compact-json"],
+    ],
+)
+def test_create_note_invalid_frontmatter_is_structured_in_json_modes(
+    tmp_path, mode_args
+):
+    vault = _make_vault(tmp_path)
+    malformed = (
+        '---\nsource: "https://example.com"\n'
+        'author: "用户（说明："登录后可见"）"\n'
+        "published: 2026-07-14\n---\n# Body\n"
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--title",
+            "Malformed",
+            "--stdin",
+            *mode_args,
+        ],
+        input=malformed,
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+    )
+
+    assert result.returncode == 2
+    assert json.loads(result.stdout) == {
+        "error": {
+            "code": "invalid-frontmatter",
+            "source": "stdin",
+            "line": 3,
+            "column": 17,
+            "message": "expected <block end>, but found '<scalar>'",
+        }
+    }
+    assert not list(vault.rglob("*Malformed*.md"))
+
+
 def test_create_note_apply_json(tmp_path):
     vault = _make_vault(tmp_path)
     out = _run([
