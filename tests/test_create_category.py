@@ -16,6 +16,7 @@ from obsidian_kb_skill.scripts.create_category import (
     plan_category,
     render_category_index,
 )
+from obsidian_kb_skill.scripts.process_inbox import _maybe_update_static_index
 
 
 def make_vault(
@@ -24,6 +25,7 @@ def make_vault(
     folder_index: bool = False,
     custom_index: bool = False,
     dataview: bool = False,
+    exclude_category: bool = False,
 ) -> Path:
     vault = tmp_path / "vault"
     obsidian = vault / ".obsidian"
@@ -46,6 +48,9 @@ def make_vault(
                     "indexFileUserSpecified": custom_index,
                     "indexFilename": "HOME",
                     "rootIndexFile": "INDEX.md",
+                    "excludeFolders": (
+                        ["20-Learning/Rust"] if exclude_category else []
+                    ),
                 }
             ),
             encoding="utf-8",
@@ -130,6 +135,28 @@ def test_falls_back_to_static_index(tmp_path: Path):
     assert "dataview" not in text
 
 
+def test_folder_index_excluded_category_uses_and_updates_static_index(
+    tmp_path: Path,
+):
+    vault = make_vault(tmp_path, folder_index=True, exclude_category=True)
+    plan = plan_category(vault, "20-Learning/Rust")
+
+    result = apply_category(plan)
+    note = vault / plan.folder / "2026-07-15 Rust所有权.md"
+    note.write_text("# Rust所有权\n", encoding="utf-8")
+    _maybe_update_static_index(
+        vault,
+        {"path": note, "target": plan.folder.as_posix(), "title": "Rust所有权"},
+        "2026-07-15",
+    )
+
+    assert plan.index_mode == "static"
+    assert result.findings == ()
+    assert "[[20-Learning/Rust/2026-07-15 Rust所有权|Rust所有权]]" in (
+        vault / plan.index_path
+    ).read_text(encoding="utf-8")
+
+
 def test_existing_category_is_a_noop_plan(tmp_path: Path):
     vault = make_vault(tmp_path)
     category = vault / "20-Learning" / "Rust"
@@ -183,7 +210,10 @@ def test_reports_root_and_parent_governance_reminders(tmp_path: Path):
         ("20-Learning/Missing/Rust", "missing-category-parent"),
         ("Templates/Rust", "reserved-category-path"),
         (".obsidian/Rust", "reserved-category-path"),
+        ("20-Learning/Templates", "reserved-category-path"),
         ("20-Learning/.hidden", "invalid-category-name"),
+        ("20-Learning/CON", "invalid-category-name"),
+        (f"20-Learning/{'x' * 256}", "invalid-category-name"),
         ("20-Learning/Rust\nBad", "invalid-category-name"),
     ],
 )
@@ -210,6 +240,16 @@ def test_rejects_symlink_parent_escape(tmp_path: Path):
 
     assert error.value.code == "invalid-category-path"
     assert not (outside / "Rust").exists()
+
+
+def test_rejects_existing_but_ungoverned_nested_parent(tmp_path: Path):
+    vault = make_vault(tmp_path)
+    (vault / "20-Learning" / "Programming").mkdir()
+
+    with pytest.raises(CategoryValidationError) as error:
+        plan_category(vault, "20-Learning/Programming/Rust")
+
+    assert error.value.code == "ungoverned-category-parent"
 
 
 @pytest.mark.parametrize("kind", ["file", "symlink"])
@@ -333,3 +373,53 @@ def test_index_write_failure_removes_only_new_empty_directory(
 
     assert not (vault / "20-Learning/Rust").exists()
     assert (vault / "20-Learning").is_dir()
+
+
+def test_partial_index_write_failure_removes_helper_owned_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    vault = make_vault(tmp_path)
+    plan = plan_category(vault, "20-Learning/Rust")
+
+    def partial_write(path: Path, content: bytes) -> None:
+        path.write_bytes(content[:10])
+        raise OSError("disk full after partial write")
+
+    monkeypatch.setattr(create_category, "_write_index_exclusively", partial_write)
+
+    with pytest.raises(OSError, match="disk full after partial write"):
+        apply_category(plan)
+
+    assert not (vault / "20-Learning/Rust").exists()
+
+
+def test_apply_failure_json_reports_created_and_cleaned_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    vault = make_vault(tmp_path)
+
+    def fail_write(path: Path, content: bytes) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(create_category, "_write_index_exclusively", fail_write)
+
+    result = main(
+        [
+            str(vault),
+            "--folder",
+            "20-Learning/Rust",
+            "--apply",
+            "--confirmed",
+            "--json",
+        ]
+    )
+
+    assert result == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"]["code"] == "category-apply-failed"
+    assert payload["error"]["details"] == {
+        "created": ["20-Learning/Rust"],
+        "cleaned": ["20-Learning/Rust"],
+    }
