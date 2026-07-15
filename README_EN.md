@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.14.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.14.1** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor, WorkBuddy) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -35,7 +35,7 @@ v1.14 reduces preview output without removing quality checks and strengthens the
 - Relative `--content-file` reads use the validated in-Vault path; concurrent same-title creates use exclusive writes with suffix retries, and JSON errors plus template-body warnings are corrected.
 - Full `--json` dry-run, `--apply --json`, and the v1.13 compact apply contract remain compatible.
 
-See [CHANGELOG.md](CHANGELOG.md) under `[1.14.0]` for the complete diff. Detailed usage remains lazy-loaded from `core/references/note-creation.md`.
+See [CHANGELOG.md](CHANGELOG.md) under `[1.14.1]` for the complete diff. Detailed usage remains lazy-loaded from `core/references/note-creation.md`.
 
 ## What's New in v1.13
 
