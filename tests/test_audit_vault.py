@@ -106,11 +106,12 @@ def test_audit_note_text_checks_required_template_heading_order(tmp_path):
     findings = audit_note_text(tmp_path, tmp_path / "Candidate.md", rendered)
 
     assert [finding.code for finding in findings].count("missing-template-heading") == 1
-    assert "Second" in next(
-        finding.message
-        for finding in findings
-        if finding.code == "missing-template-heading"
+    finding = next(
+        finding for finding in findings if finding.code == "missing-template-heading"
     )
+    assert "expected headings: First -> Second" in finding.message
+    assert "actual headings: Second -> First" in finding.message
+    assert "first mismatch: Second" in finding.message
 
 
 def test_reports_missing_required_frontmatter(tmp_path):

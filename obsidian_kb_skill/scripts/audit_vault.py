@@ -302,18 +302,26 @@ def _audit_required_template_headings(
     required = [heading.strip() for heading in REQUIRED_HEADING_RE.findall(template_text)]
     actual = [heading.strip() for heading in REQUIRED_HEADING_RE.findall(text)]
     actual_index = 0
+    first_mismatch: str | None = None
     for heading in required:
         while actual_index < len(actual) and actual[actual_index] != heading:
             actual_index += 1
         if actual_index == len(actual):
-            _add(
-                findings,
-                "missing-template-heading",
-                relative,
-                f"required template heading is missing or out of order: {heading}",
-            )
-            return
+            first_mismatch = heading
+            break
         actual_index += 1
+    if first_mismatch is None:
+        return
+    expected = " -> ".join(required) or "(none)"
+    observed = " -> ".join(actual) or "(none)"
+    _add(
+        findings,
+        "missing-template-heading",
+        relative,
+        "required template headings are missing or out of order; "
+        f"expected headings: {expected}; actual headings: {observed}; "
+        f"first mismatch: {first_mismatch}",
+    )
 
 
 def _audit_related(
