@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.16.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.17.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor, WorkBuddy) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -25,6 +25,16 @@ This skill eliminates that friction by teaching your AI agent a complete knowled
 - Cross-links related notes with `[[wikilinks]]`
 
 Your knowledge accumulates automatically, in a structured format that scales from 10 notes to 10,000.
+
+## What's New in v1.17
+
+v1.17 reduces ordinary capture overhead without removing governance or quality gates:
+
+- `vault-info --compact` omits folder note-name arrays that ordinary creation does not need while retaining index mode, ownership, and Vault validity data.
+- Missing or misplaced template headings produce the expected sequence, actual sequence, and first mismatch in one finding, avoiding incremental repair loops.
+- Governance-required Git safety checks finish before source fetching or deep reading; structured preflight, apply, and automatic audit remain unchanged.
+
+See [CHANGELOG.md](CHANGELOG.md) under `[1.17.0]` for the complete diff.
 
 ## What's New in v1.16
 
