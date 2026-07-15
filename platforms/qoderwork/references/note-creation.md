@@ -111,9 +111,10 @@ body is explicitly needed.
 ## Step 6: Wikilinks
 
 Use `[[wikilinks]]` only for high-confidence semantic relationships. With
-`--suggest-links`, the bounded helper will list the target folder's filenames
-plus limited sibling candidates, score shared tags/type/title tokens, and cap
-the output. Add at most five useful links or skip them; never force weak links.
+`--suggest-links`, the bounded helper will list the target folder's filenames,
+inspect only name-relevant sibling folders, score specific tags/type/Unicode
+title tokens, and suppress candidates below its confidence threshold. Add at
+most five useful links or skip them; never force weak links.
 
 ## Steps 7–8: Apply Once
 

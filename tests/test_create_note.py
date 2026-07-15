@@ -488,8 +488,8 @@ def test_suggest_links_after_create(tmp_path):
     )
     r = subprocess.run(
         [sys.executable, "-m", "obsidian_kb_skill.scripts.create_note", str(vault), "--type", "insight-note",
-         "--title", "New", "--stdin", "--date", "2026-07-09", "--apply", "--suggest-links"],
-        input="# New\n\nFresh content.\n", capture_output=True, text=True, cwd=ROOT,
+         "--title", "New Topic", "--stdin", "--date", "2026-07-09", "--apply", "--suggest-links"],
+        input="# New Topic\n\nFresh content.\n", capture_output=True, text=True, cwd=ROOT,
         env=ENV,
     )
     assert r.returncode == 0, r.stderr

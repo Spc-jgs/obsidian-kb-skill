@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-07-15
+
+### Changed
+
+- `suggest-links` now recognizes CJK title overlap, weights specific tags above corpus-common and structural tags, treats matching note type as supporting evidence, and suppresses candidates below a confidence threshold.
+- Sibling folders enter the bounded candidate scope only when their names overlap the target title or tags; root notes retain root-note candidates.
+- Candidate content is read once per suggestion run while preserving the read-only CLI and JSON contracts.
+
 ## [1.14.1] - 2026-07-15
 
 ### Changed
