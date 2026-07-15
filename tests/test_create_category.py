@@ -2,10 +2,17 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
+import pytest
+
+import obsidian_kb_skill.scripts.create_category as create_category
 from obsidian_kb_skill.scripts.create_category import (
+    CategoryValidationError,
     PlannedChange,
+    apply_category,
+    main,
     plan_category,
     render_category_index,
 )
@@ -134,3 +141,195 @@ def test_existing_category_is_a_noop_plan(tmp_path: Path):
     assert plan.exists is True
     assert plan.planned_changes == ()
     assert plan.index_path == Path("20-Learning/Rust/INDEX.md")
+
+
+def test_existing_category_preflight_reports_already_exists(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    vault = make_vault(tmp_path)
+    (vault / "20-Learning" / "Rust").mkdir()
+
+    assert main(
+        [str(vault), "--folder", "20-Learning/Rust", "--preflight-json"]
+    ) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "already-exists"
+    assert payload["planned_changes"] == []
+
+
+def test_reports_root_and_parent_governance_reminders(tmp_path: Path):
+    vault = make_vault(tmp_path)
+    (vault / "AGENTS.md").write_text("root rules\n", encoding="utf-8")
+    (vault / "README.md").write_text("readme\n", encoding="utf-8")
+    (vault / "20-Learning" / "AGENTS.md").write_text(
+        "learning rules\n", encoding="utf-8"
+    )
+
+    plan = plan_category(vault, "20-Learning/Rust")
+
+    assert plan.governance_reminders == (
+        "AGENTS.md",
+        "README.md",
+        "20-Learning/AGENTS.md",
+    )
+
+
+@pytest.mark.parametrize(
+    ("folder", "code"),
+    [
+        ("/tmp/Rust", "invalid-category-path"),
+        ("../Rust", "invalid-category-path"),
+        ("20-Learning/Missing/Rust", "missing-category-parent"),
+        ("Templates/Rust", "reserved-category-path"),
+        (".obsidian/Rust", "reserved-category-path"),
+        ("20-Learning/.hidden", "invalid-category-name"),
+        ("20-Learning/Rust\nBad", "invalid-category-name"),
+    ],
+)
+def test_rejects_invalid_category_paths(
+    tmp_path: Path, folder: str, code: str
+):
+    vault = make_vault(tmp_path)
+
+    with pytest.raises(CategoryValidationError) as error:
+        plan_category(vault, folder)
+
+    assert error.value.code == code
+    assert not (vault / "20-Learning/Rust").exists()
+
+
+def test_rejects_symlink_parent_escape(tmp_path: Path):
+    vault = make_vault(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    os.symlink(outside, vault / "20-Learning" / "External")
+
+    with pytest.raises(CategoryValidationError) as error:
+        plan_category(vault, "20-Learning/External/Rust")
+
+    assert error.value.code == "invalid-category-path"
+    assert not (outside / "Rust").exists()
+
+
+@pytest.mark.parametrize("kind", ["file", "symlink"])
+def test_rejects_destination_collision(tmp_path: Path, kind: str):
+    vault = make_vault(tmp_path)
+    destination = vault / "20-Learning" / "Rust"
+    if kind == "file":
+        destination.write_text("occupied", encoding="utf-8")
+    else:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        os.symlink(outside, destination)
+
+    with pytest.raises(CategoryValidationError) as error:
+        plan_category(vault, "20-Learning/Rust")
+
+    assert error.value.code == "category-collision"
+
+
+def test_preflight_json_is_read_only(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+    vault = make_vault(tmp_path, folder_index=True)
+
+    result = main(
+        [str(vault), "--folder", "20-Learning/Rust", "--preflight-json"]
+    )
+
+    assert result == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["planned_changes"][0]["kind"] == "directory"
+    assert payload["index"] == {
+        "mode": "folder-index",
+        "path": "20-Learning/Rust/Rust.md",
+    }
+    assert payload["applied"] is False
+    assert not (vault / "20-Learning/Rust").exists()
+
+
+def test_apply_requires_confirmation(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    vault = make_vault(tmp_path, folder_index=True)
+
+    result = main(
+        [str(vault), "--folder", "20-Learning/Rust", "--apply", "--json"]
+    )
+
+    assert result == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"]["code"] == "confirmation-required"
+    assert not (vault / "20-Learning/Rust").exists()
+
+
+def test_confirmed_apply_creates_and_audits(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    vault = make_vault(tmp_path, folder_index=True)
+
+    result = main(
+        [
+            str(vault),
+            "--folder",
+            "20-Learning/Rust",
+            "--apply",
+            "--confirmed",
+            "--compact-json",
+        ]
+    )
+
+    assert result == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["applied"] is True
+    assert payload["created"] == [
+        "20-Learning/Rust",
+        "20-Learning/Rust/Rust.md",
+    ]
+    assert payload["audit"] == []
+    assert (vault / "20-Learning/Rust/Rust.md").is_file()
+
+
+def test_existing_category_apply_is_noop_and_preserves_index(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    vault = make_vault(tmp_path)
+    category = vault / "20-Learning" / "Rust"
+    category.mkdir()
+    index = category / "INDEX.md"
+    index.write_bytes(b"original\n")
+
+    result = main(
+        [
+            str(vault),
+            "--folder",
+            "20-Learning/Rust",
+            "--apply",
+            "--confirmed",
+            "--compact-json",
+        ]
+    )
+
+    assert result == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["applied"] is False
+    assert payload["status"] == "already-exists"
+    assert payload["created"] == []
+    assert index.read_bytes() == b"original\n"
+
+
+def test_index_write_failure_removes_only_new_empty_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    vault = make_vault(tmp_path)
+    plan = plan_category(vault, "20-Learning/Rust")
+
+    def fail_write(path: Path, content: bytes) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(create_category, "_write_index_exclusively", fail_write)
+
+    with pytest.raises(OSError, match="disk full"):
+        apply_category(plan)
+
+    assert not (vault / "20-Learning/Rust").exists()
+    assert (vault / "20-Learning").is_dir()
