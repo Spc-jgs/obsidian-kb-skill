@@ -57,6 +57,11 @@ RESERVED_TOP_LEVEL = frozenset(
     }
 )
 INVALID_NAME_CHARS = frozenset('/\\:*?"<>|')
+WINDOWS_RESERVED_NAMES = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{number}" for number in range(1, 10)}
+    | {f"LPT{number}" for number in range(1, 10)}
+)
 
 
 class CategoryValidationError(ValueError):
@@ -65,6 +70,21 @@ class CategoryValidationError(ValueError):
     def __init__(self, code: str, message: str) -> None:
         self.code = code
         self.message = message
+        super().__init__(message)
+
+
+class CategoryApplyError(OSError):
+    """An apply failure with exact helper-created and cleanup paths."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        created: tuple[Path, ...],
+        cleaned: tuple[Path, ...],
+    ) -> None:
+        self.created = created
+        self.cleaned = cleaned
         super().__init__(message)
 
 
@@ -112,12 +132,15 @@ def _reminders(vault: Path, parent: Path) -> tuple[str, ...]:
 
 
 def _validate_category_name(name: str) -> None:
+    windows_stem = name.split(".", 1)[0].upper()
     if (
         not name
         or name != name.strip()
         or name in {".", ".."}
         or name.startswith(".")
         or name.endswith(".")
+        or windows_stem in WINDOWS_RESERVED_NAMES
+        or len(name.encode("utf-8")) > 255
         or any(ord(character) < 32 or character in INVALID_NAME_CHARS for character in name)
     ):
         raise CategoryValidationError(
@@ -145,7 +168,7 @@ def _validated_relative_folder(root: Path, folder: str) -> Path:
             "category must be a child of an existing governed parent",
         )
     if (
-        relative.parts[0] in RESERVED_TOP_LEVEL
+        any(part in RESERVED_TOP_LEVEL for part in relative.parts)
         or relative.parts[:2] == ("docs", "superpowers")
     ):
         raise CategoryValidationError(
@@ -180,9 +203,9 @@ def _validated_relative_folder(root: Path, folder: str) -> Path:
         )
 
     parent_info = detect(root, parent.as_posix())
-    if parent.parts[0] not in STANDARD_NOTE_FOLDERS and not parent_info.get(
-        "index_file"
-    ):
+    index_name = parent_info.get("index_file")
+    has_index = bool(index_name) and (root / parent / str(index_name)).is_file()
+    if parent.as_posix() not in STANDARD_NOTE_FOLDERS and not has_index:
         raise CategoryValidationError(
             "ungoverned-category-parent",
             "category parent must be a standard note folder or have an index",
@@ -309,12 +332,24 @@ def apply_category(plan: CategoryPlan) -> ApplyResult:
     directory.mkdir()
     try:
         _write_index_exclusively(index, rendered)
-    except Exception:
+    except Exception as exc:
+        created = [plan.folder]
+        cleaned: list[Path] = []
+        if index.exists() and index.is_file() and not index.is_symlink():
+            created.append(plan.index_path)
+            try:
+                index.unlink()
+                cleaned.append(plan.index_path)
+            except OSError:
+                pass
         try:
             directory.rmdir()
+            cleaned.append(plan.folder)
         except OSError:
             pass
-        raise
+        raise CategoryApplyError(
+            str(exc), created=tuple(created), cleaned=tuple(cleaned)
+        ) from exc
     findings = tuple(audit_category(plan))
     return ApplyResult(
         True,
@@ -357,13 +392,30 @@ def result_payload(plan: CategoryPlan, result: ApplyResult | None = None) -> dic
     }
 
 
-def _error_payload(code: str, message: str) -> dict[str, Any]:
-    return {"error": {"code": code, "message": message}}
+def _error_payload(
+    code: str, message: str, *, details: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    error: dict[str, Any] = {"code": code, "message": message}
+    if details is not None:
+        error["details"] = details
+    return {"error": error}
 
 
-def _report_error(code: str, message: str, *, json_mode: bool) -> int:
+def _report_error(
+    code: str,
+    message: str,
+    *,
+    json_mode: bool,
+    details: dict[str, Any] | None = None,
+) -> int:
     if json_mode:
-        print(json.dumps(_error_payload(code, message), ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                _error_payload(code, message, details=details),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
     else:
         print(f"error: {code}: {message}", file=sys.stderr)
     return 2
@@ -418,6 +470,16 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         result = apply_category(plan)
+    except CategoryApplyError as exc:
+        return _report_error(
+            "category-apply-failed",
+            str(exc),
+            json_mode=json_mode,
+            details={
+                "created": [path.as_posix() for path in exc.created],
+                "cleaned": [path.as_posix() for path in exc.cleaned],
+            },
+        )
     except OSError as exc:
         return _report_error("category-apply-failed", str(exc), json_mode=json_mode)
     payload = result_payload(plan, result)

@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.15.1** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.16.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor、WorkBuddy）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -25,6 +25,17 @@
 - 用 `[[wikilinks]]` 关联相关笔记
 
 你的知识以结构化的方式自动积累，从 10 条笔记到 10000 条都能轻松管理。
+
+## v1.16 新增的能力
+
+v1.16 为新增知识领域提供受控的分类初始化能力，同时保持已有分类的普通沉淀路径不变：
+
+- 模型发现明确的新主题时，先建议完整分类路径并提醒用户可以自行命名；未经确认不会创建目录。
+- 是否把新路由写入 Vault 的 `AGENTS.md` 是独立选择；拒绝时仍可创建一次性分类，后续再次遇到该主题会重新询问。
+- `create-category` 使用结构化预检和 `--confirmed` 写入门，按 Vault 当前模式创建 Folder Index、Dataview 或静态索引并执行结构审计。
+- README 等 Vault 本地结构治理仍然生效；已有受管分类不会增加提示、helper 调用或语义模型成本。
+
+完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.16.0]` 段。
 
 ## v1.15 新增的能力
 
@@ -65,7 +76,7 @@ v1.12 把完整标准 Skill 正式接入 WorkBuddy，并让安装状态可以独
 
 - Bash 与 PowerShell 会把同一份完整 payload 安装到 `~/.workbuddy/skills/obsidian-knowledge-base/`；升级替换旧 symlink 入口但不修改其 clone 目标，卸载保留同级其他 Skill。
 - 标准 Skill 带确定性的 `manifest.json`；只读 `doctor --json` 会核对 payload、runtime、依赖和关键 resources，不执行修复或删除。
-- `run_helper.py <helper> --help` 现在直接转发到 9 个 helper；坏掉的 `runtime.json` 也不会阻止 doctor 给出诊断。
+- `run_helper.py <helper> --help` 现在直接转发到所有 helper；坏掉的 `runtime.json` 也不会阻止 doctor 给出诊断。
 - `create-note` 的 stdin/content-file frontmatter 合并与优先级已进入 CLI help、reference 和回归测试，`source`、`related` 不再需要靠猜参数发现。
 - 安装产品测试会在删除 release 源目录后，从 WorkBuddy 副本运行 doctor 与核心 helper；发布前还要完成真实 WorkBuddy 前向任务和 P0 审计。
 
@@ -516,12 +527,13 @@ python -m pytest
 
 CI 使用同一 lockfile，分别在 Python 3.11 和 3.14 上运行构建检查与测试。
 
-安装 `.[dev]` 或 wheel 后，8 个 helper 以控制台命令形式提供。通过安装脚本部署的标准 Skill 则使用 `<skill-root>/scripts/run_helper.py`；两种入口调用同一套 Python 实现：
+安装 `.[dev]` 或 wheel 后，9 个业务 helper 以控制台命令形式提供，另有安装诊断 `doctor`。通过安装脚本部署的标准 Skill 则使用 `<skill-root>/scripts/run_helper.py`；两种入口调用同一套 Python 实现：
 
 ```bash
 obsidian-audit-vault        /你的知识库路径 --strict
 obsidian-process-inbox      /你的知识库路径 --apply
 obsidian-suggest-links      /你的知识库路径 --note 30-Insights/某笔记.md
+obsidian-create-category   /你的知识库路径 --folder 20-Learning/Rust --preflight-json
 obsidian-create-note        /你的知识库路径 --type insight-note --title "短标题" --content-file 正文.md --apply
 obsidian-update-note        /你的知识库路径 --note Tasks/某任务/TASK.md --step "..." --by Codex --log "完成 X，交接给 WorkBuddy" --apply
 obsidian-vault-info         /你的知识库路径 --json

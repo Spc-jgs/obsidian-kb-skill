@@ -30,13 +30,13 @@
     "scripts/obsidian_kb_skill/scripts/audit_vault.py": "54b407136b07e789225f513742504fdbd772c50df9a5a6fd684c1289c6b008ff",
     "scripts/obsidian_kb_skill/scripts/backup_policy.py": "fbab84603bf0ad0dd76914516406cc05701e9bb9e9ae49eca468750be05df90c",
     "scripts/obsidian_kb_skill/scripts/console.py": "6d6eea164e78b50a0126a6cac68dc9ddcec08d2df2b4a9e9a7a8e62ff35ad0af",
-    "scripts/obsidian_kb_skill/scripts/create_category.py": "a71a95ae53d9ab131e9811ee19789f9a256ca048909d6b3d84a139a9d5a813d8",
+    "scripts/obsidian_kb_skill/scripts/create_category.py": "b1a98132c580912504692b9e394e925eec381604a487c0424fe4c37c4431a07f",
     "scripts/obsidian_kb_skill/scripts/create_note.py": "775c8b5646cef73b83ccdf87db64cacd63aa9af16b8e26021dd45ee078acd0c9",
-    "scripts/obsidian_kb_skill/scripts/detect_index.py": "c87b6d921aa347c7c970a3b9196b5ea149bc27188cd574ec6555c8016e3f1b46",
+    "scripts/obsidian_kb_skill/scripts/detect_index.py": "3b6e90caaf93acf92028339e25cadae53bd4bde63b69bb66c1797ef3e6002315",
     "scripts/obsidian_kb_skill/scripts/doctor.py": "71f7598b04bfebef30ea7edabd8f461929168423ce122388316744f04b2538a3",
     "scripts/obsidian_kb_skill/scripts/index_templates.py": "27171d2cd9acb06ef1749006c87a9899676849811e7612752db43abbbc52d28c",
     "scripts/obsidian_kb_skill/scripts/note_types.py": "4eb6da3befdf666681afdbbb5e795b69dde3b15141f2fa4e97261f128bb9c245",
-    "scripts/obsidian_kb_skill/scripts/process_inbox.py": "f1b319119f63603a27bb94105d4c1d8d0032ecad74fc4d6c2bc019315b69ed6e",
+    "scripts/obsidian_kb_skill/scripts/process_inbox.py": "1f06528df67fcb90511b4b0654f56d14fbac009f183026d120ae677e1dbdf6c3",
     "scripts/obsidian_kb_skill/scripts/resource_locator.py": "31ac692b36ca0a7dd14747e651b9e29db1705c39706cd16f804951be8816baeb",
     "scripts/obsidian_kb_skill/scripts/scaffold_templates.py": "393525914865d4fc6be7469b266484962656464bf9e9d8f9f5ed1485a610d2a8",
     "scripts/obsidian_kb_skill/scripts/suggest_links.py": "99d5d0dbadae741b457d061549f91e5ab525c754cd01dd7dd6dd2cd54299a670",
@@ -47,5 +47,5 @@
   },
   "product": "obsidian-kb-skill",
   "schema_version": 1,
-  "version": "1.15.1"
+  "version": "1.16.0"
 }
