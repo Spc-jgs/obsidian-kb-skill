@@ -28,6 +28,7 @@ from typing import Any
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.audit_vault import (
     _folder_index_config,
+    _is_folder_index_excluded,
     expected_folder_index,
 )
 from obsidian_kb_skill.scripts.vault_paths import (
@@ -64,7 +65,7 @@ def detect(vault: Path, folder: str) -> dict[str, Any]:
     index_path = _index_file_in(v) if v.is_dir() else None
 
     # 1) Folder Index mode (plugin-owned; never append).
-    if config.enabled:
+    if config.enabled and not _is_folder_index_excluded(Path(folder), config):
         idx = expected_folder_index(v, vault, config)
         result["mode"] = "folder-index"
         result["index_file"] = idx.name

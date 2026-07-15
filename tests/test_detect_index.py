@@ -59,6 +59,20 @@ def test_folder_index_mode_never_appendable(tmp_path):
     assert any("graphOverwrite" in w for w in out["warnings"])
 
 
+def test_folder_index_excluded_folder_uses_static_mode(tmp_path):
+    vault = _make_vault(tmp_path, folder_index=True)
+    settings = vault / ".obsidian/plugins/obsidian-folder-index/data.json"
+    payload = json.loads(settings.read_text(encoding="utf-8"))
+    payload["excludeFolders"] = ["30-Insights"]
+    settings.write_text(json.dumps(payload), encoding="utf-8")
+
+    out = detect_index.detect(vault, "30-Insights")
+
+    assert out["mode"] == "static"
+    assert out["index_file"] == "INDEX.md"
+    assert out["can_append"] is True
+
+
 def test_dataview_mode_detected(tmp_path):
     vault = _make_vault(tmp_path, dataview=True)
     out = detect_index.detect(vault, "30-Insights")

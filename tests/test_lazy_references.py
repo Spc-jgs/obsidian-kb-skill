@@ -148,6 +148,35 @@ def test_note_creation_documents_the_minimal_ordinary_create_path():
         assert marker in normalized, f"note creation reference missing: {marker!r}"
 
 
+def test_note_creation_documents_the_missing_category_exception():
+    text = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+
+    for marker in (
+        "Missing category exception",
+        "category path",
+        "rename it",
+        "whether to update the applicable `AGENTS.md`",
+        "--apply --confirmed --compact-json",
+        "one-off category",
+        "Existing governed categories skip this entire exception",
+        "README",
+    ):
+        assert marker in normalized, f"missing category contract: {marker!r}"
+
+
+def test_missing_category_exception_does_not_expand_the_ordinary_path():
+    text = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
+    ordinary = text.split("## Minimal Ordinary Path", 1)[1].split(
+        "## Bundled Helper Runner", 1
+    )[0]
+
+    assert "vault-info --json" in ordinary
+    assert "create-note --preflight-json" in ordinary
+    assert "--apply --compact-json" in ordinary
+    assert "create-category" not in ordinary
+
+
 def test_task_memory_reference_carries_full_spec():
     ref = REFERENCES_DIR / "task-memory.md"
     text = ref.read_text(encoding="utf-8")

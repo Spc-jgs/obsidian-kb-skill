@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-07-15
+
+### Added
+
+- `create-category` preflights and initializes one user-confirmed category below an existing governed parent, including native/custom Folder Index, Dataview, or static index setup.
+- Category apply requires the explicit `--confirmed` gate, creates the directory and index exclusively, cleans up only a newly created empty directory on write failure, and audits the resulting category structure.
+
+### Changed
+
+- Missing-category capture now asks the user to confirm or rename the proposed path and records optional `AGENTS.md` route persistence as a separate choice; declining persistence produces a one-off category without waiving Vault-required README maintenance.
+- Existing governed categories keep the ordinary `vault-info` → `create-note` path with no extra prompt, helper call, or classification-model cost.
+
+### Fixed
+
+- Folders excluded from the globally enabled Folder Index plugin now retain static index detection and updates, so the first note in an excluded new category is indexed correctly.
+
 ## [1.15.1] - 2026-07-15
 
 ### Fixed

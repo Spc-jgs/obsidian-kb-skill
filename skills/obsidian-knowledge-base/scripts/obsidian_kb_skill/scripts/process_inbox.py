@@ -24,6 +24,7 @@ from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.audit_vault import (
     _frontmatter,
     _folder_index_config,
+    _is_folder_index_excluded,
     _note_title,
 )
 from obsidian_kb_skill.scripts.vault_paths import (
@@ -151,7 +152,9 @@ def _fill_frontmatter(
 
 def _maybe_update_static_index(vault: Path, plan: dict[str, Any], date: str) -> None:
     config = _folder_index_config(vault)
-    if config.enabled:
+    if config.enabled and not _is_folder_index_excluded(
+        Path(plan["target"]), config
+    ):
         return
     index = vault / plan["target"] / INDEX_BASENAME
     if not index.is_file():

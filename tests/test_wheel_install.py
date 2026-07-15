@@ -118,6 +118,7 @@ def test_wheel_exposes_console_scripts(tmp_path):
         assert ep is not None, "wheel has no entry_points.txt"
         text = zf.read(ep).decode("utf-8")
     for script in (
+        "obsidian-create-category",
         "obsidian-create-note",
         "obsidian-update-note",
         "obsidian-audit-vault",

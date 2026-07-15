@@ -71,6 +71,29 @@ The bundled type default supplies a top-level folder. Vault governance wins for
 more specific routes such as `20-Learning/Java`; express that decision with
 `--folder`. The helper is not expected to parse arbitrary governance prose.
 
+### Missing category exception
+
+If a clear, stable topic has no governed category, propose one full Vault-relative
+category path and tell the user they may rename it. In the same confirmation,
+record a separate answer for whether to update the applicable `AGENTS.md` with
+the new route. Do not mutate before the final path is confirmed. Existing
+governed categories skip this entire exception.
+
+For a confirmed new path, inspect the read-only plan, then apply the same path:
+
+```bash
+python <skill-root>/scripts/run_helper.py create-category <vault> \
+  --folder "<parent>/<category>" --preflight-json
+python <skill-root>/scripts/run_helper.py create-category <vault> \
+  --folder "<parent>/<category>" --apply --confirmed --compact-json
+```
+
+The helper creates only the category and its governed index. If route persistence
+was approved, minimally edit `AGENTS.md`; otherwise call it a one-off category
+and ask again next time. In either case, perform other Vault-required structural
+maintenance such as README updates, then continue the ordinary `create-note`
+path. Never infer and create nested missing parents or silently repair an index.
+
 ## Step 3: Delegate Template Loading
 
 The Vault's `Templates/<Name>.md` is the source of truth. `create-note` reads it,

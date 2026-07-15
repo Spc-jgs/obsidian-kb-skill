@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.15.1** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.16.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor, WorkBuddy) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -25,6 +25,17 @@ This skill eliminates that friction by teaching your AI agent a complete knowled
 - Cross-links related notes with `[[wikilinks]]`
 
 Your knowledge accumulates automatically, in a structured format that scales from 10 notes to 10,000.
+
+## What's New in v1.16
+
+v1.16 adds governed category initialization for new knowledge domains without changing the ordinary path for existing categories:
+
+- When a clear new topic has no category, the agent proposes a full path and tells the user it can be renamed; nothing is created before confirmation.
+- Persisting the new route in the Vault's `AGENTS.md` is a separate choice. Declining creates a one-off category and causes a future capture to ask again.
+- `create-category` provides structured preflight, an explicit `--confirmed` apply gate, Folder Index/Dataview/static initialization, and focused structure audit.
+- Vault-local structural rules such as README maintenance still apply, while existing governed categories add no prompt, helper call, or semantic-model cost.
+
+See [CHANGELOG.md](CHANGELOG.md) under `[1.16.0]` for the complete diff.
 
 ## What's New in v1.15
 
@@ -65,7 +76,7 @@ v1.12 formally installs the complete standard Skill into WorkBuddy and makes ins
 
 - Bash and PowerShell install the identical complete payload at `~/.workbuddy/skills/obsidian-knowledge-base/`. Upgrade replaces only an old symlink entry, and uninstall preserves its target clone and sibling Skills.
 - The standard Skill carries a deterministic `manifest.json`; read-only `doctor --json` verifies payload, runtime, dependencies, and required resources without repairing or deleting anything.
-- `run_helper.py <helper> --help` now reaches all nine child CLIs directly. Doctor still runs when `runtime.json` is malformed.
+- `run_helper.py <helper> --help` now reaches every child CLI directly. Doctor still runs when `runtime.json` is malformed.
 - The create-note stdin/content-file frontmatter merge and precedence are now discoverable in CLI help, the lazy reference, and regression tests, including `source` and `related`.
 - Installed-product tests remove the release source and then run doctor and core helpers from the WorkBuddy copy. A real WorkBuddy forward task and P0 audit remain release gates.
 
@@ -521,14 +532,16 @@ python -m pytest
 CI consumes the same lockfile and runs build checks and tests on Python 3.11 and
 3.14.
 
-After installing `.[dev]` or a wheel, all eight helpers are available as console
-commands. Installer-deployed standard Skills use `<skill-root>/scripts/run_helper.py`;
-both entry styles invoke the same Python implementation:
+After installing `.[dev]` or a wheel, nine operational helpers are available as
+console commands, plus the installation `doctor`. Installer-deployed standard
+Skills use `<skill-root>/scripts/run_helper.py`; both entry styles invoke the
+same Python implementation:
 
 ```bash
 obsidian-audit-vault        /path/to/vault --strict
 obsidian-process-inbox      /path/to/vault --apply
 obsidian-suggest-links      /path/to/vault --note 30-Insights/some-note.md
+obsidian-create-category   /path/to/vault --folder 20-Learning/Rust --preflight-json
 obsidian-create-note        /path/to/vault --type insight-note --title "Short Title" --content-file body.md --apply
 obsidian-update-note        /path/to/vault --note Tasks/some-task/TASK.md --step "..." --by Codex --log "finished X, handing to WorkBuddy" --apply
 obsidian-vault-info         /path/to/vault --json
