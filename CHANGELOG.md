@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.15.1] - 2026-07-15
+
+### Fixed
+
+- Malformed input frontmatter now exits before mutation with a stable `invalid-frontmatter` error, the input source, and full-Markdown line and column coordinates instead of silently falling back to empty metadata.
+- `suggest-links` no longer awards title-overlap points for generic Chinese and English article terms such as `详解`, `指南`, `guide`, and `tutorial`.
+
 ## [1.15.0] - 2026-07-15
 
 ### Changed

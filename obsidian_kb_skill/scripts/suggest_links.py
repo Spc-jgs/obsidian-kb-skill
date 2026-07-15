@@ -51,6 +51,25 @@ GENERIC_TAGS = {
     "task",
     "web-clip",
 }
+GENERIC_TITLE_TOKENS = {
+    "详解",
+    "指南",
+    "实践",
+    "教程",
+    "攻略",
+    "入门",
+    "解析",
+    "介绍",
+    "总结",
+    "分享",
+    "guide",
+    "tutorial",
+    "overview",
+    "introduction",
+    "intro",
+    "practice",
+    "explained",
+}
 
 
 @dataclass(frozen=True)
@@ -72,7 +91,7 @@ def _title_tokens(title: str) -> set[str]:
     for run in re.findall(r"[\u3400-\u4dbf\u4e00-\u9fff]+", title):
         if len(run) >= 2:
             tokens.update(run[index : index + 2] for index in range(len(run) - 1))
-    return tokens
+    return tokens - GENERIC_TITLE_TOKENS
 
 
 def _scope_terms(title: str, metadata: dict[str, Any] | None) -> set[str]:

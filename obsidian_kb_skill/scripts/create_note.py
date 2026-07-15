@@ -72,6 +72,49 @@ EXTRA_FIELDS: dict[str, dict[str, Any]] = {
     },
 }
 
+
+class InvalidFrontmatterError(ValueError):
+    """Malformed YAML in a closed Markdown frontmatter block."""
+
+    code = "invalid-frontmatter"
+
+    def __init__(self, error: yaml.YAMLError, *, source: str = "input") -> None:
+        mark = getattr(error, "problem_mark", None)
+        self.source = source
+        self.line = mark.line + 2 if mark is not None else None
+        self.column = mark.column + 1 if mark is not None else None
+        self.message = getattr(error, "problem", None) or str(error).splitlines()[0]
+        super().__init__(self.message)
+
+    def payload(self) -> dict[str, Any]:
+        return {
+            "error": {
+                "code": self.code,
+                "source": self.source,
+                "line": self.line,
+                "column": self.column,
+                "message": self.message,
+            }
+        }
+
+
+def report_invalid_frontmatter(
+    error: InvalidFrontmatterError, *, json_mode: bool
+) -> int:
+    if json_mode:
+        print(json.dumps(error.payload(), ensure_ascii=False, indent=2))
+    else:
+        location = ""
+        if error.line is not None and error.column is not None:
+            location = f" at line {error.line}, column {error.column}"
+        print(
+            f"error: invalid YAML frontmatter in {error.source}{location}: "
+            f"{error.message}",
+            file=sys.stderr,
+        )
+    return 2
+
+
 def validate_vault(vault: Path, *, json_mode: bool = False) -> None:
     if not vault.is_dir() or not (vault / ".obsidian").is_dir():
         exc = InvalidVaultRootError(f"not an Obsidian vault: {vault}")
@@ -94,7 +137,9 @@ def sanitize_filename(name: str) -> str:
     return cleaned or "untitled"
 
 
-def split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
+def split_frontmatter(
+    text: str, *, source: str = "input"
+) -> tuple[dict[str, Any], str]:
     """Return (metadata, body) splitting a leading YAML frontmatter block if present."""
     # Native Windows pipelines may prefix UTF-8 input with a BOM and preserve
     # CRLF line endings.  Normalize those transport details before looking for
@@ -107,8 +152,8 @@ def split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
             body = text[end + 5:]
             try:
                 meta = yaml.safe_load(raw_fm) or {}
-            except yaml.YAMLError:
-                meta = {}
+            except yaml.YAMLError as exc:
+                raise InvalidFrontmatterError(exc, source=source) from exc
             if isinstance(meta, dict):
                 return meta, body
     return {}, text
@@ -196,7 +241,10 @@ def _load_user_template(vault: Path | None, note_type: str) -> tuple[dict[str, A
     path = vault / "Templates" / fname
     if not path.is_file():
         return None
-    return split_frontmatter(path.read_text(encoding="utf-8"))
+    return split_frontmatter(
+        path.read_text(encoding="utf-8"),
+        source=f"template {path.as_posix()}",
+    )
 
 
 def _substitute_date(text: str, date: str) -> str:
@@ -439,10 +487,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if content_path is not None:
             raw = content_path.read_text(encoding="utf-8")
-            given_meta, body_text = split_frontmatter(raw)
+            given_meta, body_text = split_frontmatter(
+                raw, source=content_path.relative_to(vault).as_posix()
+            )
         elif args.stdin:
             raw = sys.stdin.read()
-            given_meta, body_text = split_frontmatter(raw)
+            given_meta, body_text = split_frontmatter(raw, source="stdin")
+    except InvalidFrontmatterError as exc:
+        return report_invalid_frontmatter(exc, json_mode=json_mode)
     except UnicodeError:
         source = "stdin" if args.stdin else "--content-file"
         return report_invalid_utf8_input(source, json_mode=json_mode)
@@ -458,6 +510,8 @@ def main(argv: list[str] | None = None) -> int:
             folder=args.folder,
             vault=vault,
         )
+    except InvalidFrontmatterError as exc:
+        return report_invalid_frontmatter(exc, json_mode=json_mode)
     except ValueError as exc:
         if json_mode:
             print(json.dumps({"error": str(exc)}, ensure_ascii=False))

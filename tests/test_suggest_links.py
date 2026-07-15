@@ -140,6 +140,23 @@ def test_suppresses_same_type_and_structural_tags_alone(tmp_path):
     assert suggest_links(vault, target) == []
 
 
+def test_suppresses_generic_chinese_title_overlap_with_same_type(tmp_path):
+    vault = make_vault(tmp_path)
+    target = vault / "30-Insights" / "Target.md"
+    target.write_text(
+        "---\ntype: web-clip\ntags: [web-clip, vibe-coding]\n---\n"
+        "# 万字详解 Vibe Coding 面试攻略\n",
+        encoding="utf-8",
+    )
+    (vault / "30-Insights" / "Hermes.md").write_text(
+        "---\ntype: web-clip\ntags: [web-clip, ai-agent]\n---\n"
+        "# Hermes Agent 从部署到项目实战操作详解\n",
+        encoding="utf-8",
+    )
+
+    assert suggest_links(vault, target) == []
+
+
 def test_common_tags_are_adaptively_ignored(tmp_path):
     vault = make_vault(tmp_path)
     target = vault / "30-Insights" / "Target.md"

@@ -46,6 +46,36 @@ def test_dry_run_does_not_write(vault):
     assert not note.exists()  # nothing written without --apply
 
 
+def test_invalid_existing_frontmatter_is_not_overwritten(vault, capsys):
+    note = _note(vault)
+    note.parent.mkdir(parents=True)
+    malformed = (
+        '---\ntype: task-memory\nauthor: "用户（说明："登录后可见"）"\n'
+        "---\n## Open\n- original\n"
+    )
+    note.write_text(malformed, encoding="utf-8")
+
+    rc = update_note.main(
+        [
+            str(vault),
+            "--note",
+            "Tasks/foo/TASK.md",
+            "--add-open",
+            "must not be written",
+            "--apply",
+            "--json",
+        ]
+    )
+
+    assert rc == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"]["code"] == "invalid-frontmatter"
+    assert payload["error"]["source"] == "Tasks/foo/TASK.md"
+    assert payload["error"]["line"] == 3
+    assert note.read_text(encoding="utf-8") == malformed
+    assert not (vault / ".obsidian-kb-backups").exists()
+
+
 def test_existing_note_is_backed_up_before_apply_and_reported_in_json(
     vault, monkeypatch, capsys
 ):
