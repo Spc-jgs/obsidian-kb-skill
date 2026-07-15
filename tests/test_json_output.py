@@ -169,14 +169,13 @@ def test_create_note_invalid_frontmatter_is_structured_in_json_modes(
             "--stdin",
             *mode_args,
         ],
-        input=malformed,
+        input=malformed.encode("utf-8"),
         capture_output=True,
-        text=True,
         cwd=REPO,
     )
 
     assert result.returncode == 2
-    assert json.loads(result.stdout) == {
+    assert json.loads(result.stdout.decode("utf-8")) == {
         "error": {
             "code": "invalid-frontmatter",
             "source": "stdin",

@@ -269,16 +269,16 @@ def test_invalid_stdin_frontmatter_reports_location_and_writes_nothing(tmp_path)
             "--stdin",
             "--apply",
         ],
-        input=malformed,
+        input=malformed.encode("utf-8"),
         capture_output=True,
-        text=True,
         cwd=ROOT,
         env=ENV,
     )
 
     assert result.returncode == 2
-    assert "invalid YAML frontmatter in stdin at line 3, column 17" in result.stderr
-    assert "expected <block end>, but found '<scalar>'" in result.stderr
+    stderr = result.stderr.decode("utf-8")
+    assert "invalid YAML frontmatter in stdin at line 3, column 17" in stderr
+    assert "expected <block end>, but found '<scalar>'" in stderr
     assert not list(vault.rglob("*Malformed*.md"))
 
 
