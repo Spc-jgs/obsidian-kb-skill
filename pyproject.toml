@@ -31,6 +31,7 @@ namespaces = true
 obsidian-audit-vault = "obsidian_kb_skill.scripts.audit_vault:main"
 obsidian-process-inbox = "obsidian_kb_skill.scripts.process_inbox:main"
 obsidian-suggest-links = "obsidian_kb_skill.scripts.suggest_links:main"
+obsidian-create-category = "obsidian_kb_skill.scripts.create_category:main"
 obsidian-create-note = "obsidian_kb_skill.scripts.create_note:main"
 obsidian-update-note = "obsidian_kb_skill.scripts.update_note:main"
 obsidian-vault-info = "obsidian_kb_skill.scripts.vault_info:main"

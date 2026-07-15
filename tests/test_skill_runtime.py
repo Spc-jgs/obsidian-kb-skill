@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 STANDARD_SKILL = ROOT / "skills" / "obsidian-knowledge-base"
 HELPERS = (
     "audit-vault",
+    "create-category",
     "create-note",
     "detect-index",
     "doctor",
@@ -29,6 +30,51 @@ HELPERS = (
     "update-note",
     "vault-info",
 )
+
+
+def test_installed_runner_preflights_category_from_hostile_cwd(tmp_path):
+    skill = tmp_path / "installed" / "obsidian-knowledge-base"
+    shutil.copytree(STANDARD_SKILL, skill)
+    home = tmp_path / "home"
+    work = tmp_path / "hostile-cwd"
+    vault = tmp_path / "vault"
+    home.mkdir()
+    work.mkdir()
+    (work / "obsidian_kb_skill").mkdir()
+    (work / "obsidian_kb_skill" / "__init__.py").write_text(
+        "raise RuntimeError('shadow package imported')\n", encoding="utf-8"
+    )
+    (vault / ".obsidian").mkdir(parents=True)
+    (vault / "Templates").mkdir()
+    (vault / "20-Learning").mkdir()
+    (vault / "20-Learning" / "INDEX.md").write_text(
+        "---\ntype: moc\ntags: [moc]\n---\n# Learning\n", encoding="utf-8"
+    )
+
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env["PYTHONPATH"] = str(work)
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(skill / "scripts" / "run_helper.py"),
+            "create-category",
+            str(vault),
+            "--folder",
+            "20-Learning/Rust",
+            "--preflight-json",
+        ],
+        cwd=work,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["folder"] == "20-Learning/Rust"
+    assert payload["index"]["mode"] == "static"
+    assert not (vault / "20-Learning/Rust").exists()
 
 
 def load_runner(path: Path = STANDARD_SKILL / "scripts" / "run_helper.py"):

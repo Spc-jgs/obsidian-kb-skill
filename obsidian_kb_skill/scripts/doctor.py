@@ -25,6 +25,7 @@ HELPER_MODULES = (
     "audit_vault",
     "process_inbox",
     "suggest_links",
+    "create_category",
     "create_note",
     "update_note",
     "vault_info",

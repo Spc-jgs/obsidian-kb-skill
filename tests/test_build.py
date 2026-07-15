@@ -223,6 +223,13 @@ class TestEndToEnd:
             / "scripts"
             / "create_note.py"
         ).is_file()
+        assert (
+            root
+            / "scripts"
+            / "obsidian_kb_skill"
+            / "scripts"
+            / "create_category.py"
+        ).is_file()
         assert (root / "assets" / "templates" / "digest-note.md").is_file()
 
     def test_generated_tree_drift_reports_missing_changed_and_extra(self, tmp_path):
