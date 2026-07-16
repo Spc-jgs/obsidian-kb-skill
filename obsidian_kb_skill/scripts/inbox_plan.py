@@ -107,8 +107,31 @@ def _snapshot_entry(
             identity=identity,
         )
 
+    flags = os.O_RDONLY
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_BINARY", 0)
+    fd: int | None = None
     try:
-        raw = Path(entry.path).read_bytes()
+        fd = os.open(entry.path, flags)
+        opened_status = os.fstat(fd)
+        opened_identity = _source_identity(opened_status)
+        if (
+            not stat.S_ISREG(opened_status.st_mode)
+            or opened_identity.device != identity.device
+            or opened_identity.inode != identity.inode
+        ):
+            return _blocked_snapshot(
+                source,
+                "unreadable-source",
+                "source changed before it could be read",
+                identity=identity,
+            )
+
+        stream = os.fdopen(fd, "rb", closefd=True)
+        fd = None
+        with stream:
+            raw = stream.read()
     except OSError:
         return _blocked_snapshot(
             source,
@@ -116,6 +139,12 @@ def _snapshot_entry(
             "source bytes could not be read",
             identity=identity,
         )
+    finally:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
 
     digest = sha256_bytes(raw)
     try:

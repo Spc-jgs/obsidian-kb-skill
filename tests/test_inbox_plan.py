@@ -142,6 +142,58 @@ def test_snapshot_rejects_symlink_without_reading_target(
     assert target.read_bytes() == before
 
 
+def test_snapshot_rejects_source_swapped_to_symlink_after_stat(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    vault = make_vault(tmp_path)
+    source = vault / "00-Inbox" / "swapped.md"
+    source.write_bytes(b"safe source\n")
+    outside = tmp_path / "outside-secret.md"
+    secret = b"outside secret\n"
+    outside.write_bytes(secret)
+    original_read_bytes = Path.read_bytes
+    original_open = os.open
+    swapped = False
+
+    def swap_source() -> None:
+        nonlocal swapped
+        if not swapped:
+            source.unlink()
+            make_symlink(outside, source)
+            swapped = True
+
+    def swapping_read_bytes(path: Path) -> bytes:
+        if path == source:
+            swap_source()
+        return original_read_bytes(path)
+
+    def swapping_open(
+        path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if Path(path) == source:
+            swap_source()
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(Path, "read_bytes", swapping_read_bytes)
+    monkeypatch.setattr(os, "open", swapping_open)
+
+    item = snapshot_inbox_sources(vault)[0]
+
+    assert swapped is True
+    assert item.issue is not None
+    assert item.issue.code == "unreadable-source"
+    assert item.raw is None
+    assert item.sha256 is None
+    assert item.text is None
+    assert item.frontmatter is None
+    assert source.is_symlink()
+    assert outside.read_bytes() == secret
+
+
 def test_snapshot_rejects_fifo_without_opening_it(tmp_path: Path) -> None:
     if not hasattr(os, "mkfifo"):
         pytest.skip("FIFO creation unavailable")
