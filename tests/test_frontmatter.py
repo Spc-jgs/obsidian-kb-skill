@@ -36,6 +36,32 @@ def test_parse_reports_unclosed_and_non_mapping_blocks():
     assert scalar.body.startswith("---\n")
 
 
+def test_parse_rejects_explicit_null_frontmatter():
+    for value in ("null", "~"):
+        source = f"---\n{value}\n---\n# Body\n"
+        result = parse_frontmatter(source)
+        assert result.metadata is None
+        assert result.body == source
+        assert result.issue.code == "frontmatter-not-mapping"
+
+
+def test_parse_accepts_comment_only_frontmatter_as_an_empty_mapping():
+    result = parse_frontmatter("---\n# comment\n\n---\n# Body\n")
+    assert result.metadata == {}
+    assert result.issue is None
+    assert result.body == "# Body\n"
+
+
+def test_non_mapping_location_uses_the_yaml_node_start():
+    source = "---\n# comment\n\nscalar\n---\n# Body\n"
+    result = parse_frontmatter(source)
+    assert result.metadata is None
+    assert result.body == source
+    assert result.issue.code == "frontmatter-not-mapping"
+    assert result.issue.line == 4
+    assert result.issue.column == 1
+
+
 def test_missing_frontmatter_is_not_an_error():
     result = parse_frontmatter("# Body\n")
     assert result.present is False

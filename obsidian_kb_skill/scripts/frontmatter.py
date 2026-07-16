@@ -73,7 +73,8 @@ def parse_frontmatter(text: str, *, source: str = "input") -> FrontmatterResult:
     content_end, body_start = fence
     raw = normalized[4:content_end]
     try:
-        parsed = yaml.safe_load(raw)
+        node = yaml.compose(raw, Loader=yaml.SafeLoader)
+        parsed = {} if node is None else yaml.safe_load(raw)
     except yaml.YAMLError as exc:
         mark = getattr(exc, "problem_mark", None)
         issue = FrontmatterIssue(
@@ -85,15 +86,14 @@ def parse_frontmatter(text: str, *, source: str = "input") -> FrontmatterResult:
         )
         return FrontmatterResult(True, None, normalized, normalized, issue)
 
-    if parsed is None:
-        parsed = {}
     if not isinstance(parsed, dict):
+        mark = node.start_mark
         issue = FrontmatterIssue(
             "frontmatter-not-mapping",
             source,
             "frontmatter must be a YAML mapping",
-            line=2,
-            column=1,
+            line=mark.line + 2,
+            column=mark.column + 1,
         )
         return FrontmatterResult(True, None, normalized, normalized, issue)
 
