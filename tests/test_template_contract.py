@@ -115,8 +115,9 @@ def test_template_shape_returns_only_selected_ordered_level_two_headings(tmp_pat
     vault = vault_with_shipped_templates(tmp_path)
     target = vault / "Templates" / "Web Clip.md"
     target.write_text(
-        "---\ntype: web-clip\ntags: [web-clip]\n---\n"
+        "---\n## Internal note\ntype: web-clip\ntags: [web-clip]\n---\n"
         "# {{title}}\n\n## First\n\nDo not leak this instruction.\n"
+        "\n```markdown\n## Example\n```\n"
         "\n### Nested\n\n## Second\n",
         encoding="utf-8",
     )

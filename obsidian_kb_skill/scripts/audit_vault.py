@@ -17,6 +17,7 @@ import yaml
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
+from obsidian_kb_skill.scripts.template_contract import markdown_section_headings
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
     VaultPathError,
@@ -99,7 +100,6 @@ FOLDER_INDEX_CONTENT_RE = re.compile(
 )
 
 PLACEHOLDER_RE = re.compile(r"\{\{[^}]+\}\}")
-REQUIRED_HEADING_RE = re.compile(r"^#{2,6}\s+(.+?)\s*$", re.MULTILINE)
 
 
 def _is_ignored(relative: Path) -> bool:
@@ -299,8 +299,8 @@ def _audit_required_template_headings(
     if not template_path.is_file():
         return
     template_text = template_path.read_text(encoding="utf-8")
-    required = [heading.strip() for heading in REQUIRED_HEADING_RE.findall(template_text)]
-    actual = [heading.strip() for heading in REQUIRED_HEADING_RE.findall(text)]
+    required = markdown_section_headings(template_text)
+    actual = markdown_section_headings(text)
     actual_index = 0
     first_mismatch: str | None = None
     for heading in required:

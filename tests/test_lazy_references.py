@@ -216,6 +216,7 @@ def test_note_creation_selected_type_discovery_is_one_call_and_optional():
 
     assert "--json --compact --type <slug>" in normalized
     assert "omit `--type`" in normalized
+    assert "omit `--type` for opted-in `task-memory`" in normalized
     assert "Do not run a second discovery call" in normalized
 
 

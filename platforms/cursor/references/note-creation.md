@@ -8,7 +8,8 @@ specifically needs troubleshooting, Git post-processing, or opted-in handoff.
 ## Minimal Ordinary Path
 
 1. Infer the type when confidence is high, then run one discovery call:
-   `vault-info --json --compact --type <slug>`. If unclear, omit `--type`.
+   `vault-info --json --compact --type <slug>`. Use `--type` only for
+   template-backed types; omit `--type` for opted-in `task-memory` or uncertainty.
 2. Read Vault-local governance at the root and target path; choose type, folder,
    naming, metadata, README, and Git actions from those rules.
 3. If governance requires Git, load `git.md` and complete its pre-write check
@@ -47,9 +48,8 @@ governance files (`AGENTS.md`, `CLAUDE.md`, etc.) at the root and target path â†
 generic skill defaults. Do not scan the whole Vault. Follow governed subfolders
 with `--folder` when their route is more specific than the type default. If governance requires Git, load
 `git.md` and finish its pre-write synchronization now, before fetching or deeply
-reading source content. A Git safety stop should happen before source-analysis
-tokens are spent. When type is not yet clear, omit `--type`; preflight heading
-diagnostics remain the fallback. Do not run a second discovery call.
+reading source content. Preflight heading diagnostics remain the fallback. Do
+not run a second discovery call.
 
 ## Index Strategy Detection (diagnostic only)
 

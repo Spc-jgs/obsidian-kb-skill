@@ -114,6 +114,26 @@ def test_audit_note_text_checks_required_template_heading_order(tmp_path):
     assert "first mismatch: Second" in finding.message
 
 
+def test_required_template_headings_ignore_frontmatter_and_fenced_examples(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    templates = tmp_path / "Templates"
+    templates.mkdir()
+    (templates / "Learning Note.md").write_text(
+        "---\n## Internal note\ntype: learning-note\ntags: [learning]\n---\n"
+        "# Template\n\n## First\n\n```markdown\n## Example\n```\n\n## Second\n",
+        encoding="utf-8",
+    )
+    rendered = (
+        '---\ndate: "2026-07-14"\ntype: learning-note\n'
+        "tags: [learning]\n---\n"
+        "# Candidate\n\n## First\nContent.\n\n## Second\nMore.\n"
+    )
+
+    findings = audit_note_text(tmp_path, tmp_path / "Candidate.md", rendered)
+
+    assert "missing-template-heading" not in [finding.code for finding in findings]
+
+
 def test_reports_missing_required_frontmatter(tmp_path):
     (tmp_path / ".obsidian").mkdir()
     (tmp_path / "Note.md").write_text("# Note\n", encoding="utf-8")
