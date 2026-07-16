@@ -7,11 +7,14 @@ import pytest
 from obsidian_kb_skill.scripts.folder_index_policy import (
     FolderIndexConfig,
     StaticIndexEntry,
+    StaticIndexPlan,
     append_static_index_entry,
     expected_folder_index,
     is_folder_index_excluded,
+    plan_static_index_entry,
     read_folder_index_config,
 )
+from obsidian_kb_skill.scripts.inbox_plan import sha256_bytes
 from obsidian_kb_skill.scripts.vault_paths import VaultPathError
 
 
@@ -222,6 +225,293 @@ def test_static_append_writes_exact_relative_link_and_date(tmp_path: Path):
     assert index.read_text(encoding="utf-8") == (
         "# Insights\n- [[30-Insights/idea|Idea]] (2026-07-16)\n"
     )
+
+
+def test_static_index_plan_is_read_only_and_byte_exact(tmp_path: Path):
+    vault = make_vault(tmp_path)
+    index = vault / "30-Insights" / "INDEX.md"
+    before = b"# Insights\r\n"
+    index.write_bytes(before)
+
+    plan = plan_static_index_entry(
+        vault,
+        StaticIndexEntry(Path("30-Insights/Idea.md"), "Idea", "2042-03-04"),
+    )
+
+    line = "- [[30-Insights/Idea|Idea]] (2042-03-04)\r\n"
+    after = before + line.encode()
+    assert plan == StaticIndexPlan(
+        action="append",
+        index=Path("30-Insights/INDEX.md"),
+        before=before,
+        after=after,
+        before_sha256=sha256_bytes(before),
+        after_sha256=sha256_bytes(after),
+        line=line,
+    )
+    assert index.read_bytes() == before
+
+
+def test_static_index_plan_preserves_bom_crlf_and_missing_trailing_newline(
+    tmp_path: Path,
+):
+    vault = make_vault(tmp_path)
+    index = vault / "30-Insights" / "INDEX.md"
+    before = b"\xef\xbb\xbf# Insights\r\nlast line"
+    index.write_bytes(before)
+
+    plan = plan_static_index_entry(
+        vault,
+        StaticIndexEntry(Path("30-Insights/Idea.md"), "Idea", "2042-03-04"),
+    )
+
+    expected_line = "- [[30-Insights/Idea|Idea]] (2042-03-04)\r\n"
+    assert plan.before == before
+    assert plan.after == before + b"\r\n" + expected_line.encode()
+    assert plan.line == expected_line
+    assert index.read_bytes() == before
+
+
+def test_static_index_plan_reports_missing_without_writing(tmp_path: Path):
+    vault = make_vault(tmp_path)
+
+    plan = plan_static_index_entry(
+        vault,
+        StaticIndexEntry(Path("30-Insights/Idea.md"), "Idea", "2042-03-04"),
+    )
+
+    assert plan.action == "missing"
+    assert plan.index is None
+    assert plan.before is None
+    assert plan.after is None
+    assert plan.before_sha256 is None
+    assert plan.after_sha256 is None
+    assert plan.line is None
+    assert not (vault / "30-Insights" / "INDEX.md").exists()
+
+
+def test_static_index_plan_reports_folder_index_and_dataview_as_unmanaged(
+    tmp_path: Path,
+):
+    vault = make_vault(tmp_path)
+    index = vault / "30-Insights" / "INDEX.md"
+    folder_index_bytes = b"```folder-index-content\n```\n"
+    index.write_bytes(folder_index_bytes)
+
+    folder_index_plan = plan_static_index_entry(
+        vault,
+        StaticIndexEntry(Path("30-Insights/Idea.md"), "Idea", "2042-03-04"),
+    )
+
+    assert folder_index_plan.action == "unmanaged"
+    assert folder_index_plan.index == Path("30-Insights/INDEX.md")
+    assert folder_index_plan.before == folder_index_bytes
+    assert folder_index_plan.after == folder_index_bytes
+    assert folder_index_plan.before_sha256 == sha256_bytes(folder_index_bytes)
+    assert folder_index_plan.after_sha256 == sha256_bytes(folder_index_bytes)
+    assert folder_index_plan.line is None
+
+    dataview_bytes = b"```dataview\nLIST\n```\n"
+    index.write_bytes(dataview_bytes)
+    dataview_plan = plan_static_index_entry(
+        vault,
+        StaticIndexEntry(Path("30-Insights/Idea.md"), "Idea", "2042-03-04"),
+    )
+    assert dataview_plan.action == "unmanaged"
+    assert dataview_plan.before == dataview_bytes
+    assert dataview_plan.after == dataview_bytes
+    assert index.read_bytes() == dataview_bytes
+
+
+def test_static_index_plan_reports_enabled_folder_index_as_unmanaged(
+    tmp_path: Path,
+):
+    vault = make_vault(tmp_path)
+    index = vault / "30-Insights" / "INDEX.md"
+    before = b"# Legacy static index\n"
+    index.write_bytes(before)
+    enable_folder_index(vault, {})
+
+    plan = plan_static_index_entry(
+        vault,
+        StaticIndexEntry(Path("30-Insights/Idea.md"), "Idea", "2042-03-04"),
+    )
+
+    assert plan.action == "unmanaged"
+    assert plan.index == Path("30-Insights/INDEX.md")
+    assert plan.before == before
+    assert plan.after == before
+    assert index.read_bytes() == before
+
+
+def test_static_index_plan_does_not_duplicate_an_existing_exact_entry(
+    tmp_path: Path,
+):
+    vault = make_vault(tmp_path)
+    index = vault / "30-Insights" / "INDEX.md"
+    before = (
+        b"# Insights\n"
+        b"- [[30-Insights/Idea|Idea]] (2042-03-04)\n"
+    )
+    index.write_bytes(before)
+
+    plan = plan_static_index_entry(
+        vault,
+        StaticIndexEntry(Path("30-Insights/Idea.md"), "Idea", "2042-03-04"),
+    )
+    result = append_static_index_entry(
+        vault,
+        StaticIndexEntry(Path("30-Insights/Idea.md"), "Idea", "2042-03-04"),
+    )
+
+    assert plan.action == "unchanged"
+    assert plan.before == before
+    assert plan.after == before
+    assert plan.before_sha256 == sha256_bytes(before)
+    assert plan.after_sha256 == sha256_bytes(before)
+    assert plan.line == "- [[30-Insights/Idea|Idea]] (2042-03-04)\n"
+    assert result.status == "unchanged"
+    assert result.index == index
+    assert index.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    ("config_path", "payload"),
+    [
+        (Path(".obsidian/community-plugins.json"), b"{malformed"),
+        (
+            Path(".obsidian/plugins/obsidian-folder-index/data.json"),
+            b"{malformed",
+        ),
+    ],
+)
+def test_static_index_plan_fails_closed_on_invalid_enabled_plugin_json(
+    tmp_path: Path, config_path: Path, payload: bytes
+):
+    vault = make_vault(tmp_path)
+    enable_folder_index(vault, {})
+    (vault / config_path).write_bytes(payload)
+
+    with pytest.raises(ValueError):
+        plan_static_index_entry(
+            vault,
+            StaticIndexEntry(Path("30-Insights/Idea.md"), "Idea", "2042-03-04"),
+        )
+
+
+def test_static_append_keeps_legacy_defaults_for_invalid_plugin_json(
+    tmp_path: Path,
+):
+    vault = make_vault(tmp_path)
+    index = vault / "30-Insights" / "INDEX.md"
+    before = b"# Insights\n"
+    index.write_bytes(before)
+    (vault / ".obsidian" / "community-plugins.json").write_bytes(b"{malformed")
+
+    result = append_static_index_entry(
+        vault,
+        StaticIndexEntry(Path("30-Insights/Idea.md"), "Idea", "2042-03-04"),
+    )
+
+    assert result.status == "appended"
+    assert index.read_bytes() == (
+        before + b"- [[30-Insights/Idea|Idea]] (2042-03-04)\n"
+    )
+
+
+def test_static_append_keeps_enabled_defaults_for_invalid_plugin_data(
+    tmp_path: Path,
+):
+    vault = make_vault(tmp_path)
+    index = vault / "30-Insights" / "INDEX.md"
+    before = b"# Plugin owned\n"
+    index.write_bytes(before)
+    enable_folder_index(vault, {})
+    (vault / ".obsidian" / "plugins" / "obsidian-folder-index" / "data.json").write_bytes(
+        b"{malformed"
+    )
+
+    result = append_static_index_entry(
+        vault,
+        StaticIndexEntry(Path("30-Insights/Idea.md"), "Idea", "2042-03-04"),
+    )
+
+    assert result.status == "unmanaged"
+    assert result.index == index
+    assert index.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"rootIndexFile": "../../outside.md"},
+        {
+            "indexFileUserSpecified": True,
+            "indexFilename": "../../outside",
+        },
+    ],
+)
+def test_static_index_plan_fails_closed_on_malicious_plugin_filenames(
+    tmp_path: Path, settings: dict
+):
+    vault = make_vault(tmp_path)
+    enable_folder_index(vault, settings)
+
+    with pytest.raises(ValueError):
+        plan_static_index_entry(
+            vault,
+            StaticIndexEntry(Path("30-Insights/Idea.md"), "Idea", "2042-03-04"),
+        )
+    assert not (tmp_path / "outside.md").exists()
+
+
+@pytest.mark.parametrize(
+    ("title", "with_index"),
+    [
+        ("First\nSecond", True),
+        ("First\rSecond", True),
+        ("First\nSecond", False),
+    ],
+)
+def test_static_index_plan_rejects_multiline_title_without_writing(
+    tmp_path: Path, title: str, with_index: bool
+):
+    vault = make_vault(tmp_path)
+    index = vault / "30-Insights" / "INDEX.md"
+    before = b"# Insights\n"
+    if with_index:
+        index.write_bytes(before)
+
+    with pytest.raises(ValueError, match="title"):
+        plan_static_index_entry(
+            vault,
+            StaticIndexEntry(Path("30-Insights/Idea.md"), title, "2042-03-04"),
+        )
+    if with_index:
+        assert index.read_bytes() == before
+    else:
+        assert not index.exists()
+
+
+def test_static_index_plan_keeps_physical_index_and_logical_symlink_link(
+    tmp_path: Path,
+):
+    vault = make_vault(tmp_path)
+    index = vault / "30-Insights" / "INDEX.md"
+    before = b"# Insights\n"
+    index.write_bytes(before)
+    make_directory_symlink(vault / "Alias", Path("30-Insights"))
+
+    plan = plan_static_index_entry(
+        vault,
+        StaticIndexEntry(Path("Alias/Idea.md"), "Idea", "2042-03-04"),
+    )
+
+    assert plan.action == "append"
+    assert plan.index == Path("30-Insights/INDEX.md")
+    assert plan.line == "- [[Alias/Idea|Idea]] (2042-03-04)\n"
+    assert plan.after == before + plan.line.encode()
+    assert index.read_bytes() == before
 
 
 def test_static_append_rejects_note_outside_vault(tmp_path: Path):

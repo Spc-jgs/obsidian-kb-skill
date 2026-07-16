@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import fnmatch
+import hashlib
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from obsidian_kb_skill.scripts.vault_paths import (
     resolve_target_within_vault,
@@ -33,6 +35,10 @@ class FolderIndexConfigError(ValueError):
         super().__init__(self.message)
 
 
+class _StrictFolderIndexConfigError(ValueError):
+    """Configuration uncertainty that legacy readers intentionally default."""
+
+
 @dataclass(frozen=True)
 class FolderIndexConfig:
     enabled: bool = False
@@ -49,6 +55,20 @@ class StaticIndexEntry:
     note: Path
     title: str
     date: str
+
+
+StaticIndexAction = Literal["append", "unchanged", "missing", "unmanaged"]
+
+
+@dataclass(frozen=True)
+class StaticIndexPlan:
+    action: StaticIndexAction
+    index: Path | None
+    before: bytes | None
+    after: bytes | None
+    before_sha256: str | None
+    after_sha256: str | None
+    line: str | None
 
 
 @dataclass(frozen=True)
@@ -108,6 +128,92 @@ def read_folder_index_config(vault: Path) -> FolderIndexConfig:
     )
 
 
+def _read_strict_json(path: Path, default: Any, *, label: str) -> Any:
+    try:
+        payload = path.read_bytes()
+    except FileNotFoundError:
+        return default
+    except OSError as exc:
+        raise _StrictFolderIndexConfigError(
+            f"{label} could not be read safely"
+        ) from exc
+    try:
+        return json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise _StrictFolderIndexConfigError(
+            f"{label} is not valid UTF-8 JSON"
+        ) from exc
+
+
+def _strict_folder_index_config(vault: Path) -> FolderIndexConfig:
+    """Read ownership configuration without converting uncertainty to defaults."""
+    community_path = resolve_target_within_vault(
+        vault,
+        Path(".obsidian/community-plugins.json"),
+        label="enabled plugin configuration",
+    )
+    enabled = _read_strict_json(
+        community_path, [], label="enabled plugin configuration"
+    )
+    if not isinstance(enabled, list) or not all(
+        isinstance(item, str) for item in enabled
+    ):
+        raise _StrictFolderIndexConfigError(
+            "enabled plugin configuration must be a JSON list of names"
+        )
+    if "obsidian-folder-index" not in enabled:
+        return FolderIndexConfig()
+
+    settings_path = resolve_target_within_vault(
+        vault,
+        Path(".obsidian/plugins/obsidian-folder-index/data.json"),
+        label="Folder Index configuration",
+    )
+    settings = _read_strict_json(
+        settings_path, {}, label="Folder Index configuration"
+    )
+    if not isinstance(settings, dict):
+        raise _StrictFolderIndexConfigError(
+            "Folder Index configuration must be a JSON object"
+        )
+    for field in ("rootIndexFile", "indexFilename"):
+        if field in settings and not isinstance(settings[field], str):
+            raise _StrictFolderIndexConfigError(
+                f"Folder Index configuration {field} must be text"
+            )
+    for field in ("graphOverwrite", "indexFileUserSpecified"):
+        if field in settings and not isinstance(settings[field], bool):
+            raise _StrictFolderIndexConfigError(
+                f"Folder Index configuration {field} must be boolean"
+            )
+    for field in ("excludeFolders", "excludePatterns"):
+        if field in settings and not (
+            isinstance(settings[field], list)
+            and all(isinstance(item, str) for item in settings[field])
+        ):
+            raise _StrictFolderIndexConfigError(
+                f"Folder Index configuration {field} must be text list"
+            )
+
+    config = FolderIndexConfig(
+        enabled=True,
+        graph_overwrite=settings.get("graphOverwrite", False),
+        root_index_file=settings.get("rootIndexFile", "INDEX.md"),
+        user_specified=settings.get("indexFileUserSpecified", False),
+        index_filename=settings.get("indexFilename", "INDEX"),
+        exclude_folders=tuple(
+            item.strip("/") for item in settings.get("excludeFolders", []) if item
+        ),
+        exclude_patterns=tuple(
+            item for item in settings.get("excludePatterns", []) if item
+        ),
+    )
+    _validate_index_basename(config.root_index_file, field="root_index_file")
+    if config.user_specified:
+        _validate_index_basename(config.index_filename, field="index_filename")
+    return config
+
+
 def is_folder_index_excluded(relative: Path, config: FolderIndexConfig) -> bool:
     if _is_ignored(relative):
         return True
@@ -162,10 +268,11 @@ def expected_folder_index(
     )
 
 
-def append_static_index_entry(
-    vault: Path, entry: StaticIndexEntry
-) -> StaticIndexResult:
-    root = validate_vault_root(vault)
+def _sha256_bytes(payload: bytes) -> str:
+    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+def _logical_note_path(vault: Path, root: Path, entry: StaticIndexEntry) -> Path:
     physical_note = resolve_target_within_vault(root, entry.note, label="note")
     logical_note = entry.note.expanduser()
     if logical_note.is_absolute():
@@ -177,6 +284,41 @@ def append_static_index_entry(
                 logical_note = logical_note.relative_to(root)
             except ValueError:
                 logical_note = physical_note.relative_to(root)
+    return logical_note
+
+
+def _static_index_newline(before: bytes) -> bytes:
+    newline_at = before.find(b"\n")
+    if newline_at > 0 and before[newline_at - 1:newline_at] == b"\r":
+        return b"\r\n"
+    return b"\n"
+
+
+def _unmanaged_plan(index: Path, before: bytes) -> StaticIndexPlan:
+    digest = _sha256_bytes(before)
+    return StaticIndexPlan(
+        action="unmanaged",
+        index=index,
+        before=before,
+        after=before,
+        before_sha256=digest,
+        after_sha256=digest,
+        line=None,
+    )
+
+
+def _plan_static_index_entry_with_config(
+    vault: Path,
+    root: Path,
+    entry: StaticIndexEntry,
+    config: FolderIndexConfig,
+) -> StaticIndexPlan:
+    logical_note = _logical_note_path(vault, root, entry)
+    if "\r" in entry.title or "\n" in entry.title:
+        raise ValueError("static index title must not contain a line break")
+    link = logical_note.with_suffix("").as_posix()
+    if "\r" in link or "\n" in link or "\r" in entry.date or "\n" in entry.date:
+        raise ValueError("static index entry must fit on one line")
     target = resolve_target_within_vault(
         root, logical_note.parent, label="target folder"
     )
@@ -185,19 +327,77 @@ def append_static_index_entry(
         root, target_relative / "INDEX.md", label="static index"
     )
 
-    config = read_folder_index_config(root)
-    if config.enabled and not is_folder_index_excluded(logical_note.parent, config):
-        return StaticIndexResult("unmanaged", index if index.is_file() else None)
+    if config.enabled and not is_folder_index_excluded(
+        logical_note.parent, config
+    ):
+        if index.is_file():
+            before = index.read_bytes()
+            return _unmanaged_plan(index.relative_to(root), before)
+        return StaticIndexPlan("unmanaged", None, None, None, None, None, None)
     if not index.is_file():
-        return StaticIndexResult("missing", None)
-    index_text = index.read_text(encoding="utf-8")
-    if "folder-index-content" in index_text or "dataview" in index_text:
-        return StaticIndexResult("unmanaged", index)
+        if os.path.lexists(index):
+            raise ValueError("static index is not a regular file")
+        return StaticIndexPlan("missing", None, None, None, None, None, None)
 
-    line = (
-        f"- [[{logical_note.with_suffix('').as_posix()}|{entry.title}]] "
-        f"({entry.date})\n"
+    before = index.read_bytes()
+    relative_index = index.relative_to(root)
+    if b"folder-index-content" in before or b"dataview" in before:
+        return _unmanaged_plan(relative_index, before)
+
+    newline = _static_index_newline(before)
+    line_bytes = (
+        f"- [[{link}|{entry.title}]] ({entry.date})".encode("utf-8") + newline
     )
-    with index.open("a", encoding="utf-8") as handle:
-        handle.write(line)
+    line = line_bytes.decode("utf-8")
+    bare_line = line_bytes.removesuffix(newline)
+    if bare_line in before.splitlines():
+        digest = _sha256_bytes(before)
+        return StaticIndexPlan(
+            action="unchanged",
+            index=relative_index,
+            before=before,
+            after=before,
+            before_sha256=digest,
+            after_sha256=digest,
+            line=line,
+        )
+
+    separator = b"" if not before or before.endswith((b"\n", b"\r")) else newline
+    after = before + separator + line_bytes
+    return StaticIndexPlan(
+        action="append",
+        index=relative_index,
+        before=before,
+        after=after,
+        before_sha256=_sha256_bytes(before),
+        after_sha256=_sha256_bytes(after),
+        line=line,
+    )
+
+
+def plan_static_index_entry(
+    vault: Path, entry: StaticIndexEntry
+) -> StaticIndexPlan:
+    """Freeze one strict, read-only, byte-exact static index proposal."""
+    root = validate_vault_root(vault)
+    config = _strict_folder_index_config(root)
+    return _plan_static_index_entry_with_config(vault, root, entry, config)
+
+
+def append_static_index_entry(
+    vault: Path, entry: StaticIndexEntry
+) -> StaticIndexResult:
+    root = validate_vault_root(vault)
+    try:
+        config = _strict_folder_index_config(root)
+    except (_StrictFolderIndexConfigError, FolderIndexConfigError):
+        config = read_folder_index_config(root)
+    plan = _plan_static_index_entry_with_config(vault, root, entry, config)
+    index = root / plan.index if plan.index is not None else None
+    if plan.action != "append":
+        return StaticIndexResult(plan.action, index)
+
+    assert index is not None and plan.before is not None and plan.after is not None
+    with index.open("ab") as handle:
+        handle.write(plan.after[len(plan.before):])
     return StaticIndexResult("appended", index)

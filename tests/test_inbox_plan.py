@@ -16,6 +16,7 @@ from obsidian_kb_skill.scripts.inbox_plan import (
     snapshot_inbox_sources,
 )
 from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
+from obsidian_kb_skill.scripts.folder_index_policy import StaticIndexPlan
 
 
 def make_vault(tmp_path: Path) -> Path:
@@ -441,9 +442,120 @@ def test_plan_builds_frozen_ready_proposal_without_writing(tmp_path: Path) -> No
         item.proposal.rendered_bytes
     )
     assert item.proposal.rendered_bytes.endswith(b"# Planned Insight\nidea body  \n")
-    assert item.proposal.index is None
+    assert item.proposal.index == StaticIndexPlan(
+        action="missing",
+        index=None,
+        before=None,
+        after=None,
+        before_sha256=None,
+        after_sha256=None,
+        line=None,
+    )
     assert note.read_bytes() == original
     assert not (vault / item.proposal.destination).exists()
+
+
+def test_plan_attaches_read_only_exact_static_index_proposal(tmp_path: Path) -> None:
+    original = b"# Planned Insight\nidea body\n"
+    vault, note, _snapshot = snapshot_one(tmp_path, original)
+    target = vault / "30-Insights"
+    target.mkdir()
+    index = target / "INDEX.md"
+    index_before = b"\xef\xbb\xbf# Insights\r\n"
+    index.write_bytes(index_before)
+
+    item = plan_inbox(vault, effective_date="2042-03-04").items[0]
+
+    assert item.status == "ready"
+    assert item.proposal is not None
+    line = "- [[30-Insights/Note|Planned Insight]] (2042-03-04)\r\n"
+    index_after = index_before + line.encode()
+    assert item.proposal.index == StaticIndexPlan(
+        action="append",
+        index=Path("30-Insights/INDEX.md"),
+        before=index_before,
+        after=index_after,
+        before_sha256=sha256_bytes(index_before),
+        after_sha256=sha256_bytes(index_after),
+        line=line,
+    )
+    assert note.read_bytes() == original
+    assert index.read_bytes() == index_before
+
+
+@pytest.mark.parametrize(
+    "config_payload",
+    [
+        b"{malformed",
+        b'{"obsidian-folder-index": true}',
+    ],
+)
+def test_plan_blocks_when_enabled_plugin_configuration_is_invalid(
+    tmp_path: Path, config_payload: bytes
+) -> None:
+    vault = make_vault(tmp_path)
+    (vault / "30-Insights").mkdir()
+    (vault / ".obsidian" / "community-plugins.json").write_bytes(config_payload)
+    note = vault / "00-Inbox" / "Note.md"
+    original = b"# Insight\nidea\n"
+    note.write_bytes(original)
+
+    item = plan_inbox(vault, effective_date="2042-03-04").items[0]
+
+    assert item.status == "blocked"
+    assert item.proposal is None
+    assert item.issue is not None
+    assert item.issue.code == "unsafe-index-plan"
+    assert note.read_bytes() == original
+
+
+def test_plan_blocks_multiline_fallback_title_without_index_write(
+    tmp_path: Path,
+) -> None:
+    vault = make_vault(tmp_path)
+    target = vault / "30-Insights"
+    target.mkdir()
+    index = target / "INDEX.md"
+    index_before = b"# Insights\n"
+    index.write_bytes(index_before)
+    source = vault / "00-Inbox" / "Bad\nTitle.md"
+    original = b"idea body\n"
+    source.write_bytes(original)
+
+    item = plan_inbox(vault, effective_date="2042-03-04").items[0]
+
+    assert item.title == "Bad\nTitle"
+    assert item.status == "blocked"
+    assert item.proposal is None
+    assert item.issue is not None
+    assert item.issue.code == "unsafe-index-plan"
+    assert source.read_bytes() == original
+    assert index.read_bytes() == index_before
+
+
+def test_plan_separates_internal_symlink_destination_from_logical_index_link(
+    tmp_path: Path,
+) -> None:
+    vault = make_vault(tmp_path)
+    physical_target = vault / "Physical-Insights"
+    physical_target.mkdir()
+    make_symlink(physical_target, vault / "30-Insights")
+    index = physical_target / "INDEX.md"
+    before = b"# Insights\n"
+    index.write_bytes(before)
+    source = vault / "00-Inbox" / "Note.md"
+    source.write_bytes(b"# Insight\nidea\n")
+
+    item = plan_inbox(vault, effective_date="2042-03-04").items[0]
+
+    assert item.status == "ready"
+    assert item.proposal is not None
+    assert item.proposal.destination == Path("Physical-Insights/Note.md")
+    assert item.proposal.index.index == Path("Physical-Insights/INDEX.md")
+    assert item.proposal.index.line == (
+        "- [[30-Insights/Note|Insight]] (2042-03-04)\n"
+    )
+    assert index.read_bytes() == before
 
 
 def test_plan_preserves_existing_scalar_tags_and_type(tmp_path: Path) -> None:

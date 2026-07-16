@@ -8,12 +8,17 @@ import re
 import stat
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Mapping
+from typing import Any, Literal, Mapping
 
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from obsidian_kb_skill.scripts.frontmatter import FrontmatterResult, parse_frontmatter
+from obsidian_kb_skill.scripts.folder_index_policy import (
+    StaticIndexEntry,
+    StaticIndexPlan,
+    plan_static_index_entry,
+)
 from obsidian_kb_skill.scripts.note_catalog import (
     DEFAULT_TAG_BY_TYPE,
     FOLDER_TO_DEFAULT_TYPE,
@@ -24,10 +29,6 @@ from obsidian_kb_skill.scripts.vault_paths import (
     resolve_target_within_vault,
     validate_vault_root,
 )
-
-if TYPE_CHECKING:
-    from obsidian_kb_skill.scripts.folder_index_policy import StaticIndexPlan
-
 
 InboxStatus = Literal["ready", "skipped", "blocked"]
 
@@ -734,15 +735,33 @@ def _plan_snapshot(root: Path, snapshot: InboxSourceSnapshot, date: str) -> Inbo
             issue=InboxIssue("invalid-rendered-frontmatter", str(exc)),
         )
 
+    destination_relative = resolved_destination.relative_to(root)
+    try:
+        index_plan = plan_static_index_entry(
+            root,
+            StaticIndexEntry(
+                note=destination,
+                title=title,
+                date=date,
+            ),
+        )
+    except (OSError, ValueError, VaultPathError) as exc:
+        return _issue_item(
+            snapshot,
+            title=title,
+            status="blocked",
+            issue=InboxIssue("unsafe-index-plan", str(exc)),
+        )
+
     proposal = InboxProposal(
-        destination=resolved_destination.relative_to(root),
+        destination=destination_relative,
         target=target,
         note_type=note_type,
         tags=tags,
         metadata_updates=frozen_updates,
         rendered_bytes=rendered,
         rendered_sha256=sha256_bytes(rendered),
-        index=None,
+        index=index_plan,
     )
     return InboxPlanItem(
         source=snapshot.source,
