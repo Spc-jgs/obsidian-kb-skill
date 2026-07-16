@@ -16,6 +16,7 @@ from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
 from obsidian_kb_skill.scripts.folder_index_policy import (
     FolderIndexConfig,
+    FolderIndexConfigError,
     expected_folder_index,
     is_folder_index_excluded,
     read_folder_index_config,
@@ -811,7 +812,17 @@ def main(argv: list[str] | None = None) -> int:
     if not (vault / ".obsidian").is_dir():
         print(f"error: not an Obsidian vault: {vault}", file=sys.stderr)
         return 2
-    findings = audit_vault(vault)
+    try:
+        findings = audit_vault(vault)
+    except FolderIndexConfigError as exc:
+        if args.json:
+            print(json.dumps({"error": {
+                "code": exc.code,
+                "message": exc.message,
+            }}, ensure_ascii=False, indent=2))
+        else:
+            print(f"error: {exc.code}: {exc.message}", file=sys.stderr)
+        return 2
     if args.json:
         out = [
             {"code": f.code, "path": f.path, "message": f.message} for f in findings

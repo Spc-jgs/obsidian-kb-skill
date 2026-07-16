@@ -27,6 +27,7 @@ from typing import Any
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.folder_index_policy import (
+    FolderIndexConfigError,
     expected_folder_index,
     is_folder_index_excluded,
     read_folder_index_config,
@@ -125,7 +126,17 @@ def main(argv: list[str] | None = None) -> int:
         resolve_target_within_vault(vault, args.folder, label="--folder")
     except VaultPathError as exc:
         return report_cli_violation(exc, param="--folder", json_mode=args.json)
-    out = detect(vault, args.folder)
+    try:
+        out = detect(vault, args.folder)
+    except FolderIndexConfigError as exc:
+        if args.json:
+            print(json.dumps({"error": {
+                "code": exc.code,
+                "message": exc.message,
+            }}, ensure_ascii=False, indent=2))
+        else:
+            print(f"error: {exc.code}: {exc.message}", file=sys.stderr)
+        return 2
     print(json.dumps(out, ensure_ascii=False, indent=2))
     return 0
 

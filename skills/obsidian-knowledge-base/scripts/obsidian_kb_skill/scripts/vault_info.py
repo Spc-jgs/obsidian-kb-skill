@@ -40,7 +40,10 @@ from typing import Any
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.detect_index import detect
-from obsidian_kb_skill.scripts.folder_index_policy import read_folder_index_config
+from obsidian_kb_skill.scripts.folder_index_policy import (
+    FolderIndexConfigError,
+    read_folder_index_config,
+)
 from obsidian_kb_skill.scripts.note_catalog import MANAGED_NOTE_FOLDERS
 from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
 from obsidian_kb_skill.scripts.template_contract import (
@@ -161,7 +164,14 @@ def main(argv: list[str] | None = None) -> int:
             }
         }, ensure_ascii=False))
         return 2
-    info = collect(vault, note_type=args.note_type)
+    try:
+        info = collect(vault, note_type=args.note_type)
+    except FolderIndexConfigError as exc:
+        print(json.dumps({"error": {
+            "code": exc.code,
+            "message": exc.message,
+        }}, ensure_ascii=False, indent=2))
+        return 2
     if args.compact:
         info = compact(info)
     print(json.dumps(info, ensure_ascii=False, indent=2))
