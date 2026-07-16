@@ -5,6 +5,9 @@ import datetime
 import json
 from pathlib import Path
 
+import pytest
+
+import obsidian_kb_skill.scripts.process_inbox as process_inbox
 from obsidian_kb_skill.scripts.process_inbox import process_vault
 
 
@@ -62,7 +65,15 @@ def test_apply_moves_and_fills_frontmatter(tmp_path):
     assert "date:" in text
 
 
-def test_apply_updates_static_index(tmp_path):
+def test_apply_updates_static_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    class FixedDate(datetime.date):
+        @classmethod
+        def today(cls) -> datetime.date:
+            return cls(2042, 3, 4)
+
+    monkeypatch.setattr(process_inbox.datetime, "date", FixedDate)
     vault = make_vault(tmp_path)
     (vault / "30-Insights" / "INDEX.md").write_text(
         "# Insights\n\n## Recent\n", encoding="utf-8"
@@ -74,10 +85,9 @@ def test_apply_updates_static_index(tmp_path):
     process_vault(vault, apply=True)
 
     index_text = (vault / "30-Insights" / "INDEX.md").read_text(encoding="utf-8")
-    today = datetime.date.today().isoformat()
     assert index_text == (
         "# Insights\n\n## Recent\n"
-        f"- [[30-Insights/Note|Some Insight]] ({today})\n"
+        "- [[30-Insights/Note|Some Insight]] (2042-03-04)\n"
     )
 
 
