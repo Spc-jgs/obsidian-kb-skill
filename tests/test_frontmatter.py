@@ -28,6 +28,14 @@ def test_parse_reports_malformed_yaml_without_discarding_original_text():
     assert result.issue.line == 2
 
 
+def test_parse_preserves_yaml_context_separately_from_problem_message():
+    source = '---\na: one\nb: "broken: "value""\n---\n# Body\n'
+    result = parse_frontmatter(source)
+
+    assert result.issue.message == "expected <block end>, but found '<scalar>'"
+    assert result.issue.context == "while parsing a block mapping"
+
+
 def test_parse_reports_unclosed_and_non_mapping_blocks():
     unclosed = parse_frontmatter("---\ntype: insight-note\n# Body\n")
     scalar = parse_frontmatter("---\nscalar\n---\n# Body\n")

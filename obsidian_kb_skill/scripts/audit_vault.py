@@ -176,6 +176,10 @@ def _frontmatter(text: str) -> tuple[dict[str, Any] | None, str | None]:
     if not result.present:
         return None, None
     if result.issue is not None:
+        if result.issue.code == "invalid-frontmatter":
+            return None, result.issue.context or result.issue.message
+        if result.issue.code == "unclosed-frontmatter":
+            return None, "frontmatter opening fence has no closing fence"
         return None, result.issue.message
     return result.metadata, None
 

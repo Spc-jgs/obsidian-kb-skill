@@ -7,10 +7,34 @@ from pathlib import Path
 import pytest
 
 from obsidian_kb_skill.scripts.audit_vault import (
+    _frontmatter,
     audit_note,
     audit_note_text,
     audit_vault,
 )
+
+
+@pytest.mark.parametrize(
+    ("source", "expected_error"),
+    [
+        (
+            '---\na: one\nb: "broken: "value""\n---\n# Body\n',
+            "while parsing a block mapping",
+        ),
+        (
+            "---\ntype: insight-note\n# Body\n",
+            "frontmatter opening fence has no closing fence",
+        ),
+        (
+            "---\n- one\n- two\n---\n# Body\n",
+            "frontmatter must be a YAML mapping",
+        ),
+    ],
+)
+def test_frontmatter_adapter_preserves_legacy_error_messages(
+    source: str, expected_error: str
+):
+    assert _frontmatter(source) == (None, expected_error)
 
 
 def codes(vault: Path) -> set[str]:

@@ -15,6 +15,7 @@ class FrontmatterIssue:
     message: str
     line: int | None = None
     column: int | None = None
+    context: str | None = None
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,7 @@ def parse_frontmatter(text: str, *, source: str = "input") -> FrontmatterResult:
             getattr(exc, "problem", None) or str(exc).splitlines()[0],
             line=mark.line + 2 if mark is not None else None,
             column=mark.column + 1 if mark is not None else None,
+            context=getattr(exc, "context", None),
         )
         return FrontmatterResult(True, None, normalized, normalized, issue)
 
