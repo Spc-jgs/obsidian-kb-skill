@@ -13,9 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-import yaml
-
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
+from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
 from obsidian_kb_skill.scripts.note_catalog import VALID_NOTE_TYPES
 from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
 from obsidian_kb_skill.scripts.template_contract import markdown_section_headings
@@ -173,20 +172,12 @@ def _all_linkable_files(vault: Path) -> list[Path]:
 
 
 def _frontmatter(text: str) -> tuple[dict[str, Any] | None, str | None]:
-    if not text.startswith("---\n"):
+    result = parse_frontmatter(text, source="note")
+    if not result.present:
         return None, None
-    end = text.find("\n---\n", 4)
-    if end == -1:
-        return None, "frontmatter opening fence has no closing fence"
-    try:
-        parsed = yaml.safe_load(text[4:end])
-    except yaml.YAMLError as exc:
-        return None, str(exc).splitlines()[0]
-    if parsed is None:
-        return {}, None
-    if not isinstance(parsed, dict):
-        return None, "frontmatter must be a YAML mapping"
-    return parsed, None
+    if result.issue is not None:
+        return None, result.issue.message
+    return result.metadata, None
 
 
 def _add(
