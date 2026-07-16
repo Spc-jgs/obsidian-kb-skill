@@ -695,3 +695,50 @@ def test_render_revalidates_raw_candidate_when_no_updates_are_missing(
                 "tags": ("insight",),
             },
         )
+
+
+def test_render_rejects_duplicate_key_in_no_op_candidate(tmp_path: Path) -> None:
+    original = (
+        b"---\n"
+        b"date: 2040-01-02\n"
+        b"type: web-clip\n"
+        b"type: insight-note\n"
+        b"tags: [insight]\n"
+        b"---\n# Insight\n"
+    )
+    _vault, _note, snapshot = snapshot_one(tmp_path, original)
+    assert snapshot.issue is None
+
+    with pytest.raises(ValueError, match="duplicate frontmatter key"):
+        render_frontmatter_updates(
+            snapshot,
+            {
+                "date": "2040-01-02",
+                "type": "insight-note",
+                "tags": ("insight",),
+            },
+        )
+
+
+def test_render_rejects_duplicate_key_after_inserting_missing_date(
+    tmp_path: Path,
+) -> None:
+    original = (
+        b"---\n"
+        b"type: web-clip\n"
+        b"type: insight-note\n"
+        b"tags: [insight]\n"
+        b"---\n# Insight\n"
+    )
+    _vault, _note, snapshot = snapshot_one(tmp_path, original)
+    assert snapshot.issue is None
+
+    with pytest.raises(ValueError, match="duplicate frontmatter key"):
+        render_frontmatter_updates(
+            snapshot,
+            {
+                "date": "2042-03-04",
+                "type": "insight-note",
+                "tags": ("insight",),
+            },
+        )

@@ -425,6 +425,13 @@ def _validate_rendered_candidate(
     rendered: bytes,
     expected_values: Mapping[str, object],
 ) -> None:
+    frontmatter_issue = _duplicate_frontmatter_issue(rendered)
+    if frontmatter_issue is not None:
+        if frontmatter_issue.code == "duplicate-frontmatter-key":
+            raise ValueError(
+                f"duplicate frontmatter key: {frontmatter_issue.message}"
+            )
+        raise ValueError(frontmatter_issue.message)
     try:
         rendered_text = rendered.decode("utf-8")
     except UnicodeDecodeError as exc:
