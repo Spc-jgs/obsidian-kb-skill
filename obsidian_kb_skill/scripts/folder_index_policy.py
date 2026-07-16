@@ -228,6 +228,10 @@ def is_folder_index_excluded(relative: Path, config: FolderIndexConfig) -> bool:
 
 
 def _validate_index_basename(value: str, *, field: str) -> str:
+    try:
+        encoded = value.encode("utf-8")
+    except UnicodeEncodeError:
+        raise FolderIndexConfigError(field) from None
     windows_stem = value.split(".", 1)[0].upper()
     if (
         not value
@@ -236,7 +240,7 @@ def _validate_index_basename(value: str, *, field: str) -> str:
         or value.startswith(".")
         or value.endswith(".")
         or windows_stem in WINDOWS_RESERVED_FILENAMES
-        or len(value.encode("utf-8")) > 255
+        or len(encoded) > 255
         or any(
             ord(character) < 32 or character in INVALID_FILENAME_CHARS
             for character in value

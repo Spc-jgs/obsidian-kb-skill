@@ -6,6 +6,7 @@ import pytest
 
 from obsidian_kb_skill.scripts.folder_index_policy import (
     FolderIndexConfig,
+    FolderIndexConfigError,
     StaticIndexEntry,
     StaticIndexPlan,
     append_static_index_entry,
@@ -463,6 +464,68 @@ def test_static_index_plan_fails_closed_on_malicious_plugin_filenames(
             StaticIndexEntry(Path("30-Insights/Idea.md"), "Idea", "2042-03-04"),
         )
     assert not (tmp_path / "outside.md").exists()
+
+
+@pytest.mark.parametrize(
+    ("settings", "field"),
+    [
+        ({"rootIndexFile": "\ud800"}, "root_index_file"),
+        (
+            {
+                "indexFileUserSpecified": True,
+                "indexFilename": "\ud800",
+            },
+            "index_filename",
+        ),
+    ],
+)
+def test_static_index_plan_normalizes_unpaired_surrogate_config_error(
+    tmp_path: Path, settings: dict, field: str
+) -> None:
+    vault = make_vault(tmp_path)
+    index = vault / "30-Insights" / "INDEX.md"
+    before = b"# Plugin owned\n"
+    index.write_bytes(before)
+    enable_folder_index(vault, settings)
+
+    with pytest.raises(FolderIndexConfigError) as error:
+        plan_static_index_entry(
+            vault,
+            StaticIndexEntry(Path("30-Insights/Idea.md"), "Idea", "2042-03-04"),
+        )
+
+    assert error.value.code == "invalid-folder-index-config"
+    assert error.value.field == field
+    assert index.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"rootIndexFile": "\ud800"},
+        {
+            "indexFileUserSpecified": True,
+            "indexFilename": "\ud800",
+        },
+    ],
+)
+def test_static_append_uses_legacy_fallback_for_unpaired_surrogate_config(
+    tmp_path: Path, settings: dict
+) -> None:
+    vault = make_vault(tmp_path)
+    index = vault / "30-Insights" / "INDEX.md"
+    before = b"# Plugin owned\n"
+    index.write_bytes(before)
+    enable_folder_index(vault, settings)
+
+    result = append_static_index_entry(
+        vault,
+        StaticIndexEntry(Path("30-Insights/Idea.md"), "Idea", "2042-03-04"),
+    )
+
+    assert result.status == "unmanaged"
+    assert result.index == index
+    assert index.read_bytes() == before
 
 
 @pytest.mark.parametrize(

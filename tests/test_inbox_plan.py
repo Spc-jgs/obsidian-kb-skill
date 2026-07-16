@@ -3,12 +3,14 @@ from __future__ import annotations
 import os
 from dataclasses import replace
 from pathlib import Path
+from typing import get_type_hints
 
 import pytest
 
 import obsidian_kb_skill.scripts.inbox_plan as inbox_plan
 from obsidian_kb_skill.scripts.inbox_plan import (
     InboxPlanItem,
+    InboxProposal,
     legacy_plan_dict,
     plan_inbox,
     render_frontmatter_updates,
@@ -25,6 +27,10 @@ def make_vault(tmp_path: Path) -> Path:
     (vault / ".obsidian").mkdir()
     (vault / "00-Inbox").mkdir()
     return vault
+
+
+def test_inbox_proposal_requires_a_static_index_plan() -> None:
+    assert get_type_hints(InboxProposal)["index"] is StaticIndexPlan
 
 
 def make_symlink(target: Path, link: Path) -> None:

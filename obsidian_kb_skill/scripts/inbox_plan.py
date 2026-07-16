@@ -130,7 +130,7 @@ class InboxProposal:
     metadata_updates: tuple[tuple[str, object], ...]
     rendered_bytes: bytes
     rendered_sha256: str
-    index: StaticIndexPlan | None
+    index: StaticIndexPlan
 
 
 @dataclass(frozen=True)
