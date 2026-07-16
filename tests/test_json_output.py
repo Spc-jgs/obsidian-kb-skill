@@ -124,6 +124,44 @@ def test_vault_info_compact_json(tmp_path):
     assert isinstance(out["custom_templates"], list)
 
 
+def test_vault_info_compact_selected_type_returns_one_template_shape(tmp_path):
+    vault = _make_vault(tmp_path)
+    (vault / "Templates" / "Web Clip.md").write_text(
+        "---\ntype: web-clip\n---\n# Clip\n\n## Source\n\nPrivate instruction.\n",
+        encoding="utf-8",
+    )
+
+    out = _run([
+        "-m", "obsidian_kb_skill.scripts.vault_info", str(vault),
+        "--compact", "--type", "web-clip",
+    ])
+
+    assert out["template_shape"] == {
+        "type": "web-clip",
+        "path": "Templates/Web Clip.md",
+        "headings": ["Source"],
+    }
+    assert "Private instruction." not in json.dumps(out)
+
+
+def test_vault_info_rejects_unsupported_selected_type_as_json(tmp_path):
+    vault = _make_vault(tmp_path)
+
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "obsidian_kb_skill.scripts.vault_info",
+            str(vault), "--compact", "--type", "renamed-template",
+        ],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert json.loads(result.stdout)["error"]["code"] == "unsupported-template-type"
+    assert not list(vault.rglob("*renamed-template*"))
+
+
 # ---- process_inbox ------------------------------------------------------------
 
 def test_process_inbox_plan_json(tmp_path):

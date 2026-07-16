@@ -82,6 +82,40 @@ def test_custom_templates_reports_only_type_slugs(tmp_path: Path):
     assert all(isinstance(item, str) for item in info["custom_templates"])
 
 
+def test_collect_omits_template_shape_without_selected_type(tmp_path: Path):
+    vault = _make_vault(tmp_path)
+
+    info = collect(vault)
+
+    assert "template_shape" not in info
+
+
+def test_collect_returns_only_selected_template_shape(tmp_path: Path):
+    vault = _make_vault(tmp_path)
+    (vault / "Templates" / "Web Clip.md").write_text(
+        "---\ntype: web-clip\n---\n# Clip\n\n## Source\n\nInstruction.\n## Summary\n",
+        encoding="utf-8",
+    )
+
+    info = collect(vault, note_type="web-clip")
+
+    assert info["template_shape"] == {
+        "type": "web-clip",
+        "path": "Templates/Web Clip.md",
+        "headings": ["Source", "Summary"],
+    }
+    assert "Instruction." not in str(info["template_shape"])
+
+
+def test_collect_returns_null_shape_for_missing_selected_template(tmp_path: Path):
+    vault = _make_vault(tmp_path)
+    (vault / "Templates" / "Web Clip.md").unlink()
+
+    info = collect(vault, note_type="web-clip")
+
+    assert info["template_shape"] is None
+
+
 def test_compact_omits_note_lists_without_mutating_full_result(tmp_path: Path):
     vault = _make_vault(tmp_path)
     full = collect(vault)
