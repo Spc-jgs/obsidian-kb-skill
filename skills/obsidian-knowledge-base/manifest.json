@@ -43,7 +43,7 @@
     "scripts/obsidian_kb_skill/scripts/note_types.py": "ae5f477de22ee7032b3c5e133b9823afd159a4692eba3f721100a0266b08f4fa",
     "scripts/obsidian_kb_skill/scripts/process_inbox.py": "dd2a4bb95f04ebc61031c8560e2ababa3337464030eba864f847efaeaa7d2566",
     "scripts/obsidian_kb_skill/scripts/resource_locator.py": "31ac692b36ca0a7dd14747e651b9e29db1705c39706cd16f804951be8816baeb",
-    "scripts/obsidian_kb_skill/scripts/scaffold_templates.py": "393525914865d4fc6be7469b266484962656464bf9e9d8f9f5ed1485a610d2a8",
+    "scripts/obsidian_kb_skill/scripts/scaffold_templates.py": "436ffdf56e9f8ff1b1ecdddb4224e4031a61884b66cc17a136f21d1edc6e19ff",
     "scripts/obsidian_kb_skill/scripts/suggest_links.py": "61338e62585c451525999d3d14f1c148a41b2f90edeee7c756bde31cc9f20457",
     "scripts/obsidian_kb_skill/scripts/template_contract.py": "4c711aac1fb7bff78b78b72019b26c78cd9d2072928d697548dae74a46cc0306",
     "scripts/obsidian_kb_skill/scripts/update_note.py": "866c116fd7030e12c8480b68df52fc49ae9937701479c0a61f31cec3ea070182",

@@ -1,11 +1,17 @@
 import ast
+import json
 from pathlib import Path
+
+import pytest
+
+import obsidian_kb_skill.scripts.scaffold_templates as scaffold_templates
 
 from obsidian_kb_skill.scripts.note_catalog import (
     DEFAULT_TAG_BY_TYPE,
     FOLDER_TO_DEFAULT_TYPE,
     MANAGED_NOTE_FOLDERS,
     NOTE_TYPES,
+    NoteTypeSpec,
     STANDARD_NOTE_FOLDERS,
     TYPE_TO_FOLDER,
     TYPE_TO_TEMPLATE,
@@ -117,6 +123,60 @@ def test_catalog_literals_have_one_owner():
     assert len(note_folder_values) == 1
     expected = ast.parse("list(MANAGED_NOTE_FOLDERS)", mode="eval").body
     assert ast.dump(note_folder_values[0]) == ast.dump(expected)
+
+
+def test_scaffold_template_metadata_is_owned_by_catalog(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    source = (
+        ROOT / "obsidian_kb_skill/scripts/scaffold_templates.py"
+    ).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    assignments = _assignment_values(source)
+    assert "TEMPLATE_MAP" not in assignments
+    assert any(
+        isinstance(node, ast.For)
+        and isinstance(node.iter, ast.Call)
+        and isinstance(node.iter.func, ast.Attribute)
+        and isinstance(node.iter.func.value, ast.Name)
+        and node.iter.func.value.id == "NOTE_TYPES"
+        and node.iter.func.attr == "items"
+        for node in ast.walk(tree)
+    )
+
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "catalog-asset.md").write_text("catalog body\n", encoding="utf-8")
+    monkeypatch.setattr(
+        scaffold_templates,
+        "NOTE_TYPES",
+        {
+            "catalog-type": NoteTypeSpec(
+                "catalog-type",
+                "Catalog Name.md",
+                "catalog-asset.md",
+                "30-Insights",
+                "catalog",
+            ),
+            "no-template": NoteTypeSpec(
+                "no-template", None, None, "Tasks", "task", False
+            ),
+        },
+    )
+    monkeypatch.setattr(scaffold_templates, "template_dir", lambda **_: assets)
+
+    assert scaffold_templates.main([str(vault), "--apply", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["written"] == ["Catalog Name.md"]
+    assert payload["missing"] == []
+    assert (vault / "Templates/Catalog Name.md").read_text(encoding="utf-8") == (
+        "catalog body\n"
+    )
 
 
 def test_assignment_detection_includes_annotated_assignments():
