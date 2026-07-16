@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 
 from obsidian_kb_skill.scripts.note_catalog import (
@@ -14,6 +15,24 @@ from obsidian_kb_skill.scripts.note_catalog import (
 
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def _assignment_values(source: str) -> dict[str, list[ast.expr | None]]:
+    """Return values assigned to simple names by Assign and AnnAssign nodes."""
+    assignments: dict[str, list[ast.expr | None]] = {}
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+            value = node.value
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+            value = node.value
+        else:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name):
+                assignments.setdefault(target.id, []).append(value)
+    return assignments
 
 
 EXPECTED_DURABLE = {
@@ -75,12 +94,34 @@ def test_audit_and_folder_sets_are_derived_from_explicit_contracts():
 
 def test_catalog_literals_have_one_owner():
     forbidden = {
-        "audit_vault.py": "REQUIRED_TYPES =",
-        "create_note.py": "DEFAULT_TAG_BY_TYPE =",
-        "process_inbox.py": "TYPE_TO_FOLDER =",
-        "create_category.py": "STANDARD_NOTE_FOLDERS =",
-        "vault_info.py": "NOTE_FOLDERS =",
+        "audit_vault.py": {"REQUIRED_TYPES", "VALID_NOTE_TYPES"},
+        "create_note.py": {
+            "DEFAULT_TAG_BY_TYPE", "TYPE_TO_FOLDER", "TYPE_TO_TEMPLATE",
+        },
+        "process_inbox.py": {
+            "DEFAULT_TAG_BY_TYPE", "FOLDER_TO_DEFAULT_TYPE", "TYPE_TO_FOLDER",
+        },
+        "create_category.py": {"STANDARD_NOTE_FOLDERS"},
     }
     scripts = ROOT / "obsidian_kb_skill" / "scripts"
-    for filename, marker in forbidden.items():
-        assert marker not in (scripts / filename).read_text(encoding="utf-8")
+    for filename, names in forbidden.items():
+        assignments = _assignment_values(
+            (scripts / filename).read_text(encoding="utf-8")
+        )
+        assert names.isdisjoint(assignments)
+
+    vault_info_assignments = _assignment_values(
+        (scripts / "vault_info.py").read_text(encoding="utf-8")
+    )
+    note_folder_values = vault_info_assignments.get("NOTE_FOLDERS", [])
+    assert len(note_folder_values) == 1
+    expected = ast.parse("list(MANAGED_NOTE_FOLDERS)", mode="eval").body
+    assert ast.dump(note_folder_values[0]) == ast.dump(expected)
+
+
+def test_assignment_detection_includes_annotated_assignments():
+    source = """
+PLAIN = {"local": "literal"}
+ANNOTATED: dict[str, str] = {"local": "literal"}
+"""
+    assert set(_assignment_values(source)) == {"PLAIN", "ANNOTATED"}
