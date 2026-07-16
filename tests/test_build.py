@@ -373,6 +373,28 @@ def test_readmes_warn_that_one_instruction_file_is_not_a_complete_install():
     assert "Copying one instruction file is neither a complete standard Skill" in readme_en
 
 
+def test_readmes_use_agent_first_installation_and_changelog_owns_history():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme_en = (ROOT / "README_EN.md").read_text(encoding="utf-8")
+
+    assert "## 让 Agent 安装（推荐）" in readme
+    assert "## Install with Your Agent (Recommended)" in readme_en
+    assert readme.index("## 让 Agent 安装（推荐）") < readme.index(
+        "## 手动安装与下载"
+    )
+    assert readme_en.index("## Install with Your Agent (Recommended)") < (
+        readme_en.index("## Manual Installation and Downloads")
+    )
+    assert "doctor --json" in readme
+    assert "doctor --json" in readme_en
+    assert "CHANGELOG.md" in readme
+    assert "CHANGELOG.md" in readme_en
+    assert "## v1.19 新增的能力" not in readme
+    assert "## v1.12 新增的能力" not in readme
+    assert "## What's New in v1.19" not in readme_en
+    assert "## What's New in v1.12" not in readme_en
+
+
 def test_v1_19_1_release_contract_is_consistent():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     core = (ROOT / "core" / "OBSIDIAN_KB.md").read_text(encoding="utf-8")
