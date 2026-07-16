@@ -33,9 +33,35 @@ def enable_folder_index(vault: Path, settings: dict) -> None:
     )
 
 
+def make_directory_symlink(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"directory symlink creation unavailable: {exc}")
+
+
 def test_disabled_plugin_uses_default_config(tmp_path: Path):
     config = read_folder_index_config(make_vault(tmp_path))
     assert config == FolderIndexConfig()
+
+
+def test_malformed_community_plugins_uses_default_config(tmp_path: Path):
+    vault = make_vault(tmp_path)
+    (vault / ".obsidian" / "community-plugins.json").write_text(
+        "{malformed", encoding="utf-8"
+    )
+
+    assert read_folder_index_config(vault) == FolderIndexConfig()
+
+
+def test_enabled_plugin_with_malformed_data_uses_enabled_defaults(tmp_path: Path):
+    vault = make_vault(tmp_path)
+    enable_folder_index(vault, {})
+    (vault / ".obsidian" / "plugins" / "obsidian-folder-index" / "data.json").write_text(
+        "{malformed", encoding="utf-8"
+    )
+
+    assert read_folder_index_config(vault) == FolderIndexConfig(enabled=True)
 
 
 def test_enabled_plugin_reads_native_and_custom_settings(tmp_path: Path):
@@ -96,6 +122,7 @@ def test_static_append_skips_managed_indexes(tmp_path: Path, managed_body: str):
         note=Path("30-Insights/idea.md"), title="Idea", date="2026-07-16"
     ))
     assert result.status == "unmanaged"
+    assert result.index == index
     assert index.read_text(encoding="utf-8") == original
 
 
@@ -105,6 +132,19 @@ def test_static_append_reports_missing_index(tmp_path: Path):
         note=Path("30-Insights/idea.md"), title="Idea", date="2026-07-16"
     ))
     assert result.status == "missing"
+    assert result.index is None
+
+
+def test_plugin_owned_target_without_static_index_reports_no_index(tmp_path: Path):
+    vault = make_vault(tmp_path)
+    enable_folder_index(vault, {})
+
+    result = append_static_index_entry(vault, StaticIndexEntry(
+        note=Path("30-Insights/idea.md"), title="Idea", date="2026-07-16"
+    ))
+
+    assert result.status == "unmanaged"
+    assert result.index is None
 
 
 def test_static_append_writes_exact_relative_link_and_date(tmp_path: Path):
@@ -127,6 +167,57 @@ def test_static_append_rejects_note_outside_vault(tmp_path: Path):
         append_static_index_entry(vault, StaticIndexEntry(
             note=Path("../outside.md"), title="Outside", date="2026-07-16"
         ))
+
+
+def test_static_append_preserves_internal_alias_in_link(tmp_path: Path):
+    vault = make_vault(tmp_path)
+    index = vault / "30-Insights" / "INDEX.md"
+    index.write_text("# Insights\n", encoding="utf-8")
+    make_directory_symlink(vault / "Alias", Path("30-Insights"))
+
+    result = append_static_index_entry(vault, StaticIndexEntry(
+        note=Path("Alias/idea.md"), title="Idea", date="2026-07-16"
+    ))
+
+    assert result.status == "appended"
+    assert result.index == index
+    assert index.read_text(encoding="utf-8") == (
+        "# Insights\n- [[Alias/idea|Idea]] (2026-07-16)\n"
+    )
+
+
+def test_static_append_uses_internal_alias_for_exclusions(tmp_path: Path):
+    vault = make_vault(tmp_path)
+    index = vault / "30-Insights" / "INDEX.md"
+    index.write_text("# Insights\n", encoding="utf-8")
+    make_directory_symlink(vault / "Alias", Path("30-Insights"))
+    enable_folder_index(vault, {"excludeFolders": ["Alias"]})
+
+    result = append_static_index_entry(vault, StaticIndexEntry(
+        note=Path("Alias/idea.md"), title="Idea", date="2026-07-16"
+    ))
+
+    assert result.status == "appended"
+    assert result.index == index
+    assert index.read_text(encoding="utf-8") == (
+        "# Insights\n- [[Alias/idea|Idea]] (2026-07-16)\n"
+    )
+
+
+def test_static_append_rejects_external_symlink_without_write(tmp_path: Path):
+    vault = make_vault(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    index = outside / "INDEX.md"
+    index.write_text("# Outside\n", encoding="utf-8")
+    make_directory_symlink(vault / "Alias", outside)
+
+    with pytest.raises(VaultPathError):
+        append_static_index_entry(vault, StaticIndexEntry(
+            note=Path("Alias/idea.md"), title="Idea", date="2026-07-16"
+        ))
+
+    assert index.read_text(encoding="utf-8") == "# Outside\n"
 
 
 def test_production_modules_do_not_import_audit_or_inbox_private_policy():

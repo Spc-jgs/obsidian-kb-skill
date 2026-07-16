@@ -116,16 +116,27 @@ def append_static_index_entry(
     vault: Path, entry: StaticIndexEntry
 ) -> StaticIndexResult:
     root = validate_vault_root(vault)
-    note = resolve_target_within_vault(root, entry.note, label="note")
-    relative = note.relative_to(root)
-    target = resolve_target_within_vault(root, relative.parent, label="target folder")
+    physical_note = resolve_target_within_vault(root, entry.note, label="note")
+    logical_note = entry.note.expanduser()
+    if logical_note.is_absolute():
+        lexical_root = Path(vault).expanduser().absolute()
+        try:
+            logical_note = logical_note.relative_to(lexical_root)
+        except ValueError:
+            try:
+                logical_note = logical_note.relative_to(root)
+            except ValueError:
+                logical_note = physical_note.relative_to(root)
+    target = resolve_target_within_vault(
+        root, logical_note.parent, label="target folder"
+    )
     target_relative = target.relative_to(root)
     index = resolve_target_within_vault(
         root, target_relative / "INDEX.md", label="static index"
     )
 
     config = read_folder_index_config(root)
-    if config.enabled and not is_folder_index_excluded(target_relative, config):
+    if config.enabled and not is_folder_index_excluded(logical_note.parent, config):
         return StaticIndexResult("unmanaged", index if index.is_file() else None)
     if not index.is_file():
         return StaticIndexResult("missing", None)
@@ -133,7 +144,10 @@ def append_static_index_entry(
     if "folder-index-content" in index_text or "dataview" in index_text:
         return StaticIndexResult("unmanaged", index)
 
-    line = f"- [[{relative.with_suffix('').as_posix()}|{entry.title}]] ({entry.date})\n"
+    line = (
+        f"- [[{logical_note.with_suffix('').as_posix()}|{entry.title}]] "
+        f"({entry.date})\n"
+    )
     with index.open("a", encoding="utf-8") as handle:
         handle.write(line)
     return StaticIndexResult("appended", index)

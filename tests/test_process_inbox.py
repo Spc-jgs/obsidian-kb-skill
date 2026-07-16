@@ -1,6 +1,7 @@
 """Tests for the Inbox Processor (scripts/process_inbox.py)."""
 from __future__ import annotations
 
+import datetime
 import json
 from pathlib import Path
 
@@ -73,8 +74,11 @@ def test_apply_updates_static_index(tmp_path):
     process_vault(vault, apply=True)
 
     index_text = (vault / "30-Insights" / "INDEX.md").read_text(encoding="utf-8")
-    assert "[[" in index_text
-    assert "Some Insight" in index_text
+    today = datetime.date.today().isoformat()
+    assert index_text == (
+        "# Insights\n\n## Recent\n"
+        f"- [[30-Insights/Note|Some Insight]] ({today})\n"
+    )
 
 
 def test_skips_when_target_unknown(tmp_path):

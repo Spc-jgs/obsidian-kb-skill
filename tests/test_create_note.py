@@ -325,8 +325,10 @@ def test_apply_creates_note_and_updates_index(tmp_path):
     text = created.read_text(encoding="utf-8")
     assert "type: insight-note" in text
     index_text = (vault / "30-Insights" / "INDEX.md").read_text(encoding="utf-8")
-    assert "[[" in index_text
-    assert "Created" in index_text
+    assert index_text == (
+        "# Insights\n\n## Recent\n"
+        "- [[30-Insights/2026-07-09 Created|Created]] (2026-07-09)\n"
+    )
 
 
 def test_web_clip_preflight_rejects_missing_metadata_without_mutation(tmp_path):
