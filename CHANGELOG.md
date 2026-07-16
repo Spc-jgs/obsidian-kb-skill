@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-07-16
+
+### Added
+
+- Compact Vault discovery reports only the note types whose conventional templates differ from the shipped Chinese or English starters.
+- `template-contract` returns one selected custom template's frontmatter, body, supported placeholders, and normalized SHA-256 without loading unrelated templates into model context.
+- `create-note --expect-template-sha256` rejects stale custom-template interpretations before note or index mutation.
+
+### Changed
+
+- Natural-language instructions beneath custom-template headings now govern note generation; headings, lists, tables, labels, and examples are preserved as quality scaffolds while instruction prose is executed rather than copied.
+- Unchanged templates retain the ordinary capture path with no template-contract call or template-body tokens.
+
+### Fixed
+
+- Template customization detection treats BOM, CRLF/CR, and final-newline differences as transport-only changes and remains portable across Windows and POSIX runners.
+
 ## [1.17.0] - 2026-07-15
 
 ### Added

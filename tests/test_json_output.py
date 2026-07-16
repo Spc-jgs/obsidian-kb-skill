@@ -104,6 +104,7 @@ def test_vault_info_json(tmp_path):
     assert "templates" in out
     assert "standard_folders" in out
     assert "folder_index_global" in out
+    assert "custom_templates" in out
 
 
 def test_vault_info_compact_json(tmp_path):
@@ -120,6 +121,7 @@ def test_vault_info_compact_json(tmp_path):
     index = out["standard_folders"]["30-Insights"]["index"]
     assert "notes" not in index
     assert {"mode", "index_file", "can_append"} <= set(index)
+    assert isinstance(out["custom_templates"], list)
 
 
 # ---- process_inbox ------------------------------------------------------------

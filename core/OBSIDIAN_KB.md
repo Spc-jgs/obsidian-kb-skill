@@ -1,6 +1,6 @@
 # Obsidian Personal Knowledge Base — Universal Instructions
 
-> **Version**: 1.17.0 · **Single source of truth**: `core/OBSIDIAN_KB.md`. Full workflows live in `core/references/*.md`, loaded only when about to save. This file is tiny on purpose: loading the skill costs almost no tokens, and the first rule is "do not auto-save".
+> **Version**: 1.18.0 · **Single source of truth**: `core/OBSIDIAN_KB.md`. Full workflows live in `core/references/*.md`, loaded only when about to save. This file is tiny on purpose: loading the skill costs almost no tokens, and the first rule is "do not auto-save".
 > Do not edit generated files directly — edit this file, then `python build.py`.
 
 ## Overview

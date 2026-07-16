@@ -69,6 +69,19 @@ def test_folder_index_global_present(tmp_path: Path):
     assert g["root_index_file"] == "INDEX.md"
 
 
+def test_custom_templates_reports_only_type_slugs(tmp_path: Path):
+    vault = _make_vault(tmp_path)
+
+    info = collect(vault)
+
+    assert info["custom_templates"] == [
+        "daily-note",
+        "meeting-note",
+        "web-clip",
+    ]
+    assert all(isinstance(item, str) for item in info["custom_templates"])
+
+
 def test_compact_omits_note_lists_without_mutating_full_result(tmp_path: Path):
     vault = _make_vault(tmp_path)
     full = collect(vault)

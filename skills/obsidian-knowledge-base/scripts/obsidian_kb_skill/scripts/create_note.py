@@ -15,6 +15,7 @@ import argparse
 import datetime
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Iterator
@@ -29,6 +30,10 @@ from obsidian_kb_skill.scripts.process_inbox import (
 )
 from obsidian_kb_skill.scripts.audit_vault import Finding, audit_note, audit_note_text
 from obsidian_kb_skill.scripts.suggest_links import suggest_links
+from obsidian_kb_skill.scripts.template_contract import (
+    template_path,
+    template_sha256,
+)
 from obsidian_kb_skill.scripts.vault_paths import (
     EXIT_PATH_VIOLATION,
     InvalidVaultRootError,
@@ -51,6 +56,15 @@ DEFAULT_TAG_BY_TYPE = {
     "person-note": "people",
     "task-memory": "task",
 }
+
+
+def sha256_argument(value: str) -> str:
+    """Accept only the canonical digest format emitted by template-contract."""
+    if re.fullmatch(r"[0-9a-f]{64}", value) is None:
+        raise argparse.ArgumentTypeError(
+            "must be exactly 64 lowercase hexadecimal characters"
+        )
+    return value
 
 # Extra frontmatter fields written only when the user's template does NOT already
 # define them. These are minimal placeholders so the file still parses as the
@@ -425,6 +439,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Dry-run with final metadata, content identity, and validation "
              "without echoing the Markdown body",
     )
+    parser.add_argument(
+        "--expect-template-sha256",
+        type=sha256_argument,
+        help="Reject the operation if the conventional Vault template changed",
+    )
     args = parser.parse_args(argv)
     json_mode = args.json or args.compact_json or args.preflight_json
 
@@ -458,6 +477,35 @@ def main(argv: list[str] | None = None) -> int:
             print(f"error: {exc}", file=sys.stderr)
         return 2
     validate_vault(vault, json_mode=json_mode)
+
+    if args.expect_template_sha256:
+        current_template = template_path(vault, args.type)
+        actual_sha256 = None
+        if current_template is not None:
+            try:
+                actual_sha256 = template_sha256(
+                    current_template.read_text(encoding="utf-8")
+                )
+            except UnicodeError:
+                actual_sha256 = None
+        if actual_sha256 != args.expect_template_sha256:
+            error = {
+                "error": {
+                    "code": "template-changed",
+                    "message": (
+                        "the Vault template changed after its contract was read; "
+                        "read the contract again before creating the note"
+                    ),
+                    "note_type": args.type,
+                    "expected_sha256": args.expect_template_sha256,
+                    "actual_sha256": actual_sha256,
+                }
+            }
+            if json_mode:
+                print(json.dumps(error, ensure_ascii=False, indent=2))
+            else:
+                print(f"error: {error['error']['message']}", file=sys.stderr)
+            return 2
 
     # Enforce the Vault path boundary on every user-supplied path before any
     # read or write. Routing through vault_paths (never Path() + startswith)

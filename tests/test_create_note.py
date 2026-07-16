@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -15,6 +16,7 @@ from obsidian_kb_skill.scripts.create_note import (
     split_frontmatter,
     write_new_note,
 )
+from obsidian_kb_skill.scripts.template_contract import template_sha256
 
 ROOT = Path(__file__).resolve().parent.parent
 ENV = {**__import__("os").environ, "PYTHONPATH": str(ROOT)}
@@ -37,6 +39,23 @@ def make_vault(tmp_path: Path) -> Path:
     (vault / "Templates").mkdir()
     (vault / "30-Insights").mkdir()
     return vault
+
+
+def write_insight_template(
+    vault: Path,
+    body: str = "## Custom section\n\nTemplate guidance.\n",
+) -> Path:
+    template = vault / "Templates" / "Insight Note.md"
+    template.write_text(
+        "---\n"
+        "type: insight-note\n"
+        "tags: [insight]\n"
+        "---\n"
+        "# {{title}}\n\n"
+        f"{body}",
+        encoding="utf-8",
+    )
+    return template
 
 
 def test_build_note_defaults_insight():
@@ -546,3 +565,78 @@ def test_suggest_links_after_create(tmp_path):
     assert r.returncode == 0, r.stderr
     assert "SUGGESTED LINKS" in r.stdout
     assert "Existing Topic" in r.stdout
+
+
+def test_preflight_rejects_stale_template_sha256_without_mutation(tmp_path):
+    vault = make_vault(tmp_path)
+    template = write_insight_template(vault)
+    old_hash = template_sha256(template.read_text(encoding="utf-8"))
+    template.write_text(
+        template.read_text(encoding="utf-8") + "\nChanged after inspection.\n",
+        encoding="utf-8",
+    )
+
+    result = _run(
+        str(vault), "--type", "insight-note", "--title", "Stale",
+        "--date", "2026-07-16", "--expect-template-sha256", old_hash,
+        "--preflight-json",
+    )
+
+    assert result.returncode == 2
+    payload = json.loads(result.stdout)
+    assert payload["error"]["code"] == "template-changed"
+    assert payload["error"]["expected_sha256"] == old_hash
+    assert payload["error"]["actual_sha256"] == template_sha256(
+        template.read_text(encoding="utf-8")
+    )
+    assert not (vault / "30-Insights" / "2026-07-16 Stale.md").exists()
+
+
+def test_apply_rejects_stale_template_sha256_without_mutation(tmp_path):
+    vault = make_vault(tmp_path)
+    template = write_insight_template(vault)
+    old_hash = template_sha256(template.read_text(encoding="utf-8"))
+    template.write_text(
+        template.read_text(encoding="utf-8") + "\nChanged after inspection.\n",
+        encoding="utf-8",
+    )
+    index = vault / "30-Insights" / "INDEX.md"
+    index.write_text("# Insights\n", encoding="utf-8")
+
+    result = _run(
+        str(vault), "--type", "insight-note", "--title", "Stale",
+        "--date", "2026-07-16", "--expect-template-sha256", old_hash,
+        "--apply", "--compact-json",
+    )
+
+    assert result.returncode == 2
+    assert json.loads(result.stdout)["error"]["code"] == "template-changed"
+    assert index.read_text(encoding="utf-8") == "# Insights\n"
+    assert not (vault / "30-Insights" / "2026-07-16 Stale.md").exists()
+
+
+def test_preflight_accepts_current_template_sha256(tmp_path):
+    vault = make_vault(tmp_path)
+    template = write_insight_template(vault)
+    current_hash = template_sha256(template.read_text(encoding="utf-8"))
+
+    result = _run(
+        str(vault), "--type", "insight-note", "--title", "Current",
+        "--date", "2026-07-16", "--expect-template-sha256", current_hash,
+        "--preflight-json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["validation"]["ok"] is True
+
+
+def test_rejects_invalid_expected_template_sha256(tmp_path):
+    vault = make_vault(tmp_path)
+
+    result = _run(
+        str(vault), "--type", "insight-note", "--title", "Invalid hash",
+        "--expect-template-sha256", "ABC123", "--preflight-json",
+    )
+
+    assert result.returncode == 2
+    assert "64 lowercase hexadecimal" in result.stderr

@@ -149,6 +149,28 @@ def test_note_creation_documents_the_minimal_ordinary_create_path():
         assert marker in normalized, f"note creation reference missing: {marker!r}"
 
 
+def test_note_creation_loads_only_custom_template_contracts():
+    text = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+    ordinary = text.split("## Minimal Ordinary Path", 1)[1].split(
+        "## Bundled Helper Runner", 1
+    )[0]
+
+    for marker in (
+        "`custom_templates`",
+        "template-contract",
+        "--expect-template-sha256",
+        "prose instructions",
+        "lists, tables, and labels",
+        "unknown placeholders",
+        "ask before apply",
+        "internal coverage pass",
+        "Renamed template discovery is a deferred optimization",
+    ):
+        assert marker in normalized, f"custom template contract missing: {marker!r}"
+    assert "template-contract" not in ordinary
+
+
 def test_note_creation_front_loads_git_and_reports_complete_heading_diagnostics():
     text = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
     normalized = " ".join(text.split())
