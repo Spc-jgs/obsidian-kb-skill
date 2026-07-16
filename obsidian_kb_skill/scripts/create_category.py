@@ -12,12 +12,12 @@ from typing import Any
 from obsidian_kb_skill.scripts.audit_vault import (
     FOLDER_INDEX_CONTENT_RE,
     Finding,
-    _frontmatter,
     _folder_index_config,
     _is_folder_index_excluded,
     expected_folder_index,
 )
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
+from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
 from obsidian_kb_skill.scripts.detect_index import detect
 from obsidian_kb_skill.scripts.index_templates import (
     render_dataview_index,
@@ -272,7 +272,9 @@ def audit_category(plan: CategoryPlan) -> list[Finding]:
             Finding("unreadable-category-index", plan.index_path.as_posix(), str(exc))
         )
         return findings
-    metadata, error = _frontmatter(text)
+    parsed = parse_frontmatter(text, source=plan.index_path.as_posix())
+    metadata = parsed.metadata
+    error = parsed.issue
     expected_type = "folder-index" if plan.index_mode == "folder-index" else "moc"
     if error or not metadata or metadata.get("type") != expected_type:
         findings.append(

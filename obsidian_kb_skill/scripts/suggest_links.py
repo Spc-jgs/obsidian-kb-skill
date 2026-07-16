@@ -7,7 +7,7 @@ Unicode-aware title-token overlap, and prints only confident candidates with
 reasons. It never writes to the vault — a human decides whether to insert a
 link.
 
-Reuses vault-parsing helpers from audit_vault.py.
+Reuses shared parsing and vault helpers.
 """
 from __future__ import annotations
 
@@ -24,11 +24,11 @@ from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.audit_vault import (
     EXEMPT_NAMES,
     INDEX_TYPES,
-    _frontmatter,
     _is_ignored,
     _markdown_files,
     _note_title,
 )
+from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
     VaultPathError,
@@ -134,7 +134,9 @@ def candidate_notes(
         if relative.name in EXEMPT_NAMES:
             continue
         text = path.read_text(encoding="utf-8")
-        candidate_metadata, _ = _frontmatter(text)
+        candidate_metadata = parse_frontmatter(
+            text, source=path.as_posix()
+        ).metadata
         if candidate_metadata and candidate_metadata.get("type") in INDEX_TYPES:
             continue
         candidates.append(Candidate(path, candidate_metadata, _note_title(path, text)))
@@ -191,7 +193,7 @@ def suggest_links(vault: Path, note_path: Path, top_n: int = 10) -> list[tuple[P
     vault = vault.resolve()
     note = note_path.resolve()
     text = note.read_text(encoding="utf-8")
-    metadata, _ = _frontmatter(text)
+    metadata = parse_frontmatter(text, source=note.as_posix()).metadata
     title = _note_title(note, text)
     related = _related_targets(metadata)
     candidates = candidate_notes(vault, note, metadata, title)

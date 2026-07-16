@@ -23,6 +23,11 @@ from typing import Any, Iterator
 import yaml
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
+from obsidian_kb_skill.scripts.frontmatter import (
+    FrontmatterIssue,
+    parse_frontmatter,
+    portable_yaml_scalars,
+)
 from obsidian_kb_skill.scripts.note_catalog import (
     DEFAULT_TAG_BY_TYPE,
     TYPE_TO_FOLDER,
@@ -82,12 +87,11 @@ class InvalidFrontmatterError(ValueError):
 
     code = "invalid-frontmatter"
 
-    def __init__(self, error: yaml.YAMLError, *, source: str = "input") -> None:
-        mark = getattr(error, "problem_mark", None)
-        self.source = source
-        self.line = mark.line + 2 if mark is not None else None
-        self.column = mark.column + 1 if mark is not None else None
-        self.message = getattr(error, "problem", None) or str(error).splitlines()[0]
+    def __init__(self, issue: FrontmatterIssue) -> None:
+        self.source = issue.source
+        self.line = issue.line
+        self.column = issue.column
+        self.message = issue.message
         super().__init__(self.message)
 
     def payload(self) -> dict[str, Any]:
@@ -145,40 +149,12 @@ def split_frontmatter(
     text: str, *, source: str = "input"
 ) -> tuple[dict[str, Any], str]:
     """Return (metadata, body) splitting a leading YAML frontmatter block if present."""
-    # Native Windows pipelines may prefix UTF-8 input with a BOM and preserve
-    # CRLF line endings.  Normalize those transport details before looking for
-    # Markdown's line-oriented frontmatter delimiters.
-    text = text.removeprefix("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
-    if text.startswith("---\n"):
-        end = text.find("\n---\n", 4)
-        if end != -1:
-            raw_fm = text[4:end]
-            body = text[end + 5:]
-            try:
-                meta = yaml.safe_load(raw_fm) or {}
-            except yaml.YAMLError as exc:
-                raise InvalidFrontmatterError(exc, source=source) from exc
-            if isinstance(meta, dict):
-                return meta, body
-    return {}, text
-
-
-def normalize_yaml_scalars(value: Any) -> Any:
-    """Return metadata using portable YAML scalar types.
-
-    PyYAML resolves unquoted ISO dates to ``datetime.date`` objects. Obsidian
-    properties and this skill's schema expect ISO strings, so normalize those
-    values recursively before rendering the final frontmatter.
-    """
-    if isinstance(value, datetime.datetime):
-        return value.isoformat()
-    if isinstance(value, datetime.date):
-        return value.isoformat()
-    if isinstance(value, dict):
-        return {key: normalize_yaml_scalars(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [normalize_yaml_scalars(item) for item in value]
-    return value
+    result = parse_frontmatter(text, source=source)
+    if result.issue is not None and result.issue.code == "invalid-frontmatter":
+        raise InvalidFrontmatterError(result.issue)
+    if result.issue is not None or not result.present:
+        return {}, result.normalized_text
+    return result.metadata or {}, result.body
 
 
 def missing_required_metadata(note_type: str, metadata: dict[str, Any]) -> list[str]:
@@ -332,7 +308,7 @@ def build_note(
         meta["tags"] = [DEFAULT_TAG_BY_TYPE.get(note_type, "note")]
     if "related" not in meta:
         meta["related"] = []
-    meta = normalize_yaml_scalars(meta)
+    meta = portable_yaml_scalars(meta)
 
     dump = yaml.safe_dump(
         meta, sort_keys=False, allow_unicode=True, default_flow_style=False

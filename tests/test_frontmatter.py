@@ -1,4 +1,5 @@
 import datetime
+from pathlib import Path
 
 from obsidian_kb_skill.scripts.frontmatter import (
     parse_frontmatter,
@@ -79,3 +80,12 @@ def test_portable_scalars_convert_nested_dates_and_tuples():
         "when": "2026-07-13",
         "items": ["2026-07-13T01:02:00"],
     }
+
+
+def test_frontmatter_yaml_parsing_has_one_owner():
+    scripts = Path(__file__).resolve().parent.parent / "obsidian_kb_skill" / "scripts"
+    for filename in (
+        "audit_vault.py", "create_note.py", "template_contract.py",
+    ):
+        text = (scripts / filename).read_text(encoding="utf-8")
+        assert "yaml.safe_load(" not in text, filename

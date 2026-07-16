@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import datetime
 import hashlib
 import json
 import re
@@ -11,8 +10,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import yaml
-
+from obsidian_kb_skill.scripts.frontmatter import (
+    parse_frontmatter,
+    portable_yaml_scalars,
+)
 from obsidian_kb_skill.scripts.note_types import (
     TYPE_TO_TEMPLATE,
     TYPE_TO_TEMPLATE_ASSET,
@@ -60,43 +61,19 @@ def template_sha256(text: str) -> str:
     return hashlib.sha256(normalize_template_text(text).encode("utf-8")).hexdigest()
 
 
-def _portable_scalars(value: Any) -> Any:
-    if isinstance(value, datetime.datetime):
-        return value.isoformat()
-    if isinstance(value, datetime.date):
-        return value.isoformat()
-    if isinstance(value, dict):
-        return {key: _portable_scalars(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_portable_scalars(item) for item in value]
-    return value
-
-
 def _split_frontmatter(text: str, *, source: str) -> tuple[dict[str, Any], str]:
     normalized = normalize_template_text(text)
-    if not normalized.startswith("---\n"):
-        return {}, normalized
-    end = normalized.find("\n---\n", 4)
-    if end == -1:
+    result = parse_frontmatter(normalized, source=source)
+    if result.issue is not None:
         raise TemplateFrontmatterError(
-            "frontmatter block is not closed", source=source, line=1, column=1
+            result.issue.message,
+            source=result.issue.source,
+            line=result.issue.line,
+            column=result.issue.column,
         )
-    raw = normalized[4:end]
-    try:
-        parsed = yaml.safe_load(raw) or {}
-    except yaml.YAMLError as exc:
-        mark = getattr(exc, "problem_mark", None)
-        raise TemplateFrontmatterError(
-            getattr(exc, "problem", None) or str(exc).splitlines()[0],
-            source=source,
-            line=mark.line + 2 if mark is not None else None,
-            column=mark.column + 1 if mark is not None else None,
-        ) from exc
-    if not isinstance(parsed, dict):
-        raise TemplateFrontmatterError(
-            "frontmatter must be a YAML mapping", source=source, line=2, column=1
-        )
-    return _portable_scalars(parsed), normalized[end + 5 :]
+    if not result.present:
+        return {}, result.normalized_text
+    return portable_yaml_scalars(result.metadata or {}), result.body
 
 
 def _starter_hashes(note_type: str) -> set[str]:

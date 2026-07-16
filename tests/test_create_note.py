@@ -126,6 +126,13 @@ def test_split_frontmatter_rejects_invalid_yaml_with_full_input_location():
     assert error.message == "expected <block end>, but found '<scalar>'"
 
 
+def test_split_frontmatter_preserves_current_non_mapping_compatibility():
+    source = "---\n- one\n- two\n---\n# Body\n"
+    metadata, body = split_frontmatter(source)
+    assert metadata == {}
+    assert body == source
+
+
 def test_input_frontmatter_overrides_template_and_cli_fields_win(tmp_path):
     vault = make_vault(tmp_path)
     (vault / "Templates" / "Insight Note.md").write_text(

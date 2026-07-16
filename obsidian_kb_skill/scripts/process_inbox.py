@@ -7,7 +7,7 @@ filled, and a link is appended to the destination folder's static INDEX.md (only
 when the Folder Index plugin is not enabled). Folder Index and Dataview listings
 are never touched.
 
-Reuses vault-parsing helpers from audit_vault.py instead of reimplementing them.
+Reuses shared parsing and vault helpers instead of reimplementing them.
 """
 from __future__ import annotations
 
@@ -22,11 +22,11 @@ import yaml
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.audit_vault import (
-    _frontmatter,
     _folder_index_config,
     _is_folder_index_excluded,
     _note_title,
 )
+from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
 from obsidian_kb_skill.scripts.note_catalog import (
     DEFAULT_TAG_BY_TYPE,
     FOLDER_TO_DEFAULT_TYPE,
@@ -88,7 +88,7 @@ def destination_index_name(vault: Path, target: str) -> str | None:
 
 def plan_note(path: Path, vault: Path) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8")
-    metadata, _ = _frontmatter(text)
+    metadata = parse_frontmatter(text, source=path.as_posix()).metadata
     target = infer_target(text, metadata)
     result: dict[str, Any] = {
         "path": path,
@@ -161,7 +161,7 @@ def apply_plan(plan: dict[str, Any], vault: Path, silent: bool = False) -> None:
         return
     dest_folder.mkdir(parents=True, exist_ok=True)
     text = source.read_text(encoding="utf-8")
-    metadata, _ = _frontmatter(text)
+    metadata = parse_frontmatter(text, source=source.as_posix()).metadata
     today = datetime.date.today().isoformat()
     updates: dict[str, Any] = {}
     if not (metadata and metadata.get("date")):
