@@ -36,6 +36,7 @@
     "scripts/obsidian_kb_skill/scripts/create_note.py": "cf5068ea74556c689911e65b2b710627665763c4b82987e49df8627852f14253",
     "scripts/obsidian_kb_skill/scripts/detect_index.py": "3b6e90caaf93acf92028339e25cadae53bd4bde63b69bb66c1797ef3e6002315",
     "scripts/obsidian_kb_skill/scripts/doctor.py": "7d6c7d49dfaeeb1fa2eaae30143b4474c483a3de564b8739f60823607da05e05",
+    "scripts/obsidian_kb_skill/scripts/frontmatter.py": "1eac17705f0f70e9e072e06b3bfa048f388b949e56c02e3108861549b6fbc40b",
     "scripts/obsidian_kb_skill/scripts/index_templates.py": "27171d2cd9acb06ef1749006c87a9899676849811e7612752db43abbbc52d28c",
     "scripts/obsidian_kb_skill/scripts/note_catalog.py": "5d12cc25f71a5158e15f7fa138461cbaf0f2df201f77d69251c07d146b2fffbe",
     "scripts/obsidian_kb_skill/scripts/note_types.py": "ae5f477de22ee7032b3c5e133b9823afd159a4692eba3f721100a0266b08f4fa",
