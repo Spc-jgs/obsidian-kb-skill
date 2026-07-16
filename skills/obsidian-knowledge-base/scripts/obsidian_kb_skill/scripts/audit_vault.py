@@ -16,6 +16,7 @@ from typing import Any, Iterable
 import yaml
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
+from obsidian_kb_skill.scripts.note_catalog import VALID_NOTE_TYPES
 from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
 from obsidian_kb_skill.scripts.template_contract import markdown_section_headings
 from obsidian_kb_skill.scripts.vault_paths import (
@@ -64,22 +65,6 @@ VAULT_WIDE_CODES = frozenset(
         "similar-title",
     }
 )
-REQUIRED_TYPES = {
-    "daily-note",
-    "daily-report",
-    "weekly-report",
-    "meeting-note",
-    "learning-note",
-    "web-clip",
-    "insight-note",
-    "conversation-digest",
-    "project-note",
-    "person-note",
-    "archive-note",
-    "task-memory",
-    "folder-index",
-    "moc",
-}
 # Folders whose contents are never real notes and must be skipped. Hidden
 # (dotfile) directories are skipped automatically by _is_ignored, so this set
 # only needs explicit entries for non-hidden tool/metadata folders.
@@ -222,7 +207,7 @@ def _audit_metadata(
     note_type = metadata.get("type")
     if not note_type:
         _add(findings, "missing-type", relative, "required property 'type' is missing")
-    elif note_type not in REQUIRED_TYPES:
+    elif note_type not in VALID_NOTE_TYPES:
         _add(findings, "invalid-type", relative, f"unsupported note type: {note_type}")
 
     if note_type not in INDEX_TYPES and not metadata.get("date"):

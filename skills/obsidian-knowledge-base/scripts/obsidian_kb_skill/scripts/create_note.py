@@ -23,9 +23,12 @@ from typing import Any, Iterator
 import yaml
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
-from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
-from obsidian_kb_skill.scripts.process_inbox import (
+from obsidian_kb_skill.scripts.note_catalog import (
+    DEFAULT_TAG_BY_TYPE,
     TYPE_TO_FOLDER,
+    TYPE_TO_TEMPLATE,
+)
+from obsidian_kb_skill.scripts.process_inbox import (
     _maybe_update_static_index,
 )
 from obsidian_kb_skill.scripts.audit_vault import Finding, audit_note, audit_note_text
@@ -44,19 +47,6 @@ from obsidian_kb_skill.scripts.vault_paths import (
     structured_error,
     validate_vault_root,
 )
-
-DEFAULT_TAG_BY_TYPE = {
-    "daily-note": "daily",
-    "meeting-note": "meeting",
-    "learning-note": "learning",
-    "web-clip": "web-clip",
-    "insight-note": "insight",
-    "conversation-digest": "insight",
-    "project-note": "project",
-    "person-note": "people",
-    "task-memory": "task",
-}
-
 
 def sha256_argument(value: str) -> str:
     """Accept only the canonical digest format emitted by template-contract."""
