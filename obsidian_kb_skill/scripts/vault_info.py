@@ -7,9 +7,9 @@ Templates/, probing each folder's existence, and re-deriving the index
 strategy per folder). A single call returns a compact JSON summary so the
 agent spends tokens reading a summary, not raw directory listings.
 
-Reuses `detect_index.detect` for index-strategy detection and
-`audit_vault._folder_index_config` for the global Folder Index config, so
-there is exactly one source of truth for those rules (no prose duplication).
+Reuses `detect_index.detect` for index-strategy detection and the shared Folder
+Index policy for the global config, so there is exactly one source of truth for
+those rules (no prose duplication).
 
 Output schema (JSON):
   {
@@ -40,7 +40,7 @@ from typing import Any
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.detect_index import detect
-from obsidian_kb_skill.scripts.audit_vault import _folder_index_config
+from obsidian_kb_skill.scripts.folder_index_policy import read_folder_index_config
 from obsidian_kb_skill.scripts.note_catalog import MANAGED_NOTE_FOLDERS
 from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
 from obsidian_kb_skill.scripts.template_contract import (
@@ -82,7 +82,7 @@ def collect(vault: Path, note_type: str | None = None) -> dict[str, Any]:
     if exists and not has_templates:
         warnings.append("Templates/ directory missing")
 
-    config = _folder_index_config(vault)
+    config = read_folder_index_config(vault)
     standard_folders: dict[str, Any] = {}
     for name in STANDARD_FOLDERS:
         folder = vault / name

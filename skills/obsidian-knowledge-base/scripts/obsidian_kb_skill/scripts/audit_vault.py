@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import fnmatch
 import json
 import re
 import difflib
@@ -15,6 +14,12 @@ from typing import Any, Iterable
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
+from obsidian_kb_skill.scripts.folder_index_policy import (
+    FolderIndexConfig,
+    expected_folder_index,
+    is_folder_index_excluded,
+    read_folder_index_config,
+)
 from obsidian_kb_skill.scripts.note_catalog import VALID_NOTE_TYPES
 from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
 from obsidian_kb_skill.scripts.template_contract import markdown_section_headings
@@ -33,17 +38,6 @@ class Finding:
     code: str
     path: str
     message: str
-
-
-@dataclass(frozen=True)
-class FolderIndexConfig:
-    enabled: bool = False
-    graph_overwrite: bool = False
-    root_index_file: str = "INDEX.md"
-    user_specified: bool = False
-    index_filename: str = "INDEX"
-    exclude_folders: tuple[str, ...] = ()
-    exclude_patterns: tuple[str, ...] = ()
 
 
 EXEMPT_NAMES = {"README.md", "AGENTS.md", "CLAUDE.md"}
@@ -98,61 +92,6 @@ def _is_ignored(relative: Path) -> bool:
     if any(part.startswith(".") for part in relative.parts):
         return True
     return relative.parts[:2] == ("docs", "superpowers")
-
-
-def _read_json(path: Path, default: Any) -> Any:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return default
-
-
-def _folder_index_config(vault: Path) -> FolderIndexConfig:
-    obsidian = vault / ".obsidian"
-    enabled = _read_json(obsidian / "community-plugins.json", [])
-    if not isinstance(enabled, list) or "obsidian-folder-index" not in enabled:
-        return FolderIndexConfig()
-    settings = _read_json(
-        obsidian / "plugins" / "obsidian-folder-index" / "data.json", {}
-    )
-    if not isinstance(settings, dict):
-        settings = {}
-    return FolderIndexConfig(
-        enabled=True,
-        graph_overwrite=bool(settings.get("graphOverwrite", False)),
-        root_index_file=str(settings.get("rootIndexFile", "INDEX.md")),
-        user_specified=bool(settings.get("indexFileUserSpecified", False)),
-        index_filename=str(settings.get("indexFilename", "INDEX")),
-        exclude_folders=tuple(
-            str(item).strip("/")
-            for item in settings.get("excludeFolders", [])
-            if str(item)
-        ),
-        exclude_patterns=tuple(
-            str(item) for item in settings.get("excludePatterns", []) if str(item)
-        ),
-    )
-
-
-def _is_folder_index_excluded(relative: Path, config: FolderIndexConfig) -> bool:
-    if _is_ignored(relative):
-        return True
-    value = relative.as_posix()
-    for excluded in config.exclude_folders:
-        if value == excluded or value.startswith(f"{excluded}/"):
-            return True
-    return any(
-        fnmatch.fnmatch(value, pattern) or fnmatch.fnmatch(relative.name, pattern)
-        for pattern in config.exclude_patterns
-    )
-
-
-def expected_folder_index(folder: Path, vault: Path, config: FolderIndexConfig) -> Path:
-    if folder == vault:
-        return vault / config.root_index_file
-    if config.user_specified:
-        return folder / f"{config.index_filename}.md"
-    return folder / f"{folder.name}.md"
 
 
 def _markdown_files(vault: Path) -> list[Path]:
@@ -568,7 +507,7 @@ def _audit_folder_index_graph(
         path
         for path in sorted(vault.rglob("*"))
         if path.is_dir()
-        and not _is_folder_index_excluded(path.relative_to(vault), config)
+        and not is_folder_index_excluded(path.relative_to(vault), config)
     ]
     root_index = expected_folder_index(vault, vault, config)
     if not root_index.is_file():
@@ -649,7 +588,7 @@ def audit_vault(vault: Path) -> list[Finding]:
     """Return deterministic findings sorted by path, code, and message."""
     vault = vault.resolve()
     findings: list[Finding] = []
-    folder_index_config = _folder_index_config(vault)
+    folder_index_config = read_folder_index_config(vault)
     linkable = _all_linkable_files(vault)
     by_name: dict[str, list[Path]] = defaultdict(list)
     by_stem: dict[str, list[Path]] = defaultdict(list)

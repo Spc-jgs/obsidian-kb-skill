@@ -12,12 +12,14 @@ from typing import Any
 from obsidian_kb_skill.scripts.audit_vault import (
     FOLDER_INDEX_CONTENT_RE,
     Finding,
-    _folder_index_config,
-    _is_folder_index_excluded,
-    expected_folder_index,
 )
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
+from obsidian_kb_skill.scripts.folder_index_policy import (
+    expected_folder_index,
+    is_folder_index_excluded,
+    read_folder_index_config,
+)
 from obsidian_kb_skill.scripts.detect_index import detect
 from obsidian_kb_skill.scripts.index_templates import (
     render_dataview_index,
@@ -211,11 +213,11 @@ def plan_category(vault: Path, folder: str) -> CategoryPlan:
     relative = _validated_relative_folder(root, folder)
     parent = relative.parent
     target = root / relative
-    config = _folder_index_config(root)
+    config = read_folder_index_config(root)
     parent_info = detect(root, parent.as_posix())
     warnings = tuple(parent_info.get("warnings", ()))
 
-    if config.enabled and not _is_folder_index_excluded(relative, config):
+    if config.enabled and not is_folder_index_excluded(relative, config):
         mode = "folder-index"
         index = expected_folder_index(target, root, config).relative_to(root)
     else:

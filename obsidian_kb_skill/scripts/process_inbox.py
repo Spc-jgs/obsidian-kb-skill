@@ -21,10 +21,10 @@ from typing import Any
 import yaml
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
-from obsidian_kb_skill.scripts.audit_vault import (
-    _folder_index_config,
-    _is_folder_index_excluded,
-    _note_title,
+from obsidian_kb_skill.scripts.audit_vault import _note_title
+from obsidian_kb_skill.scripts.folder_index_policy import (
+    StaticIndexEntry,
+    append_static_index_entry,
 )
 from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
 from obsidian_kb_skill.scripts.note_catalog import (
@@ -129,25 +129,6 @@ def _fill_frontmatter(
     return f"---\n{dump}\n---\n{body}"
 
 
-def _maybe_update_static_index(vault: Path, plan: dict[str, Any], date: str) -> None:
-    config = _folder_index_config(vault)
-    if config.enabled and not _is_folder_index_excluded(
-        Path(plan["target"]), config
-    ):
-        return
-    index = vault / plan["target"] / INDEX_BASENAME
-    if not index.is_file():
-        return
-    index_text = index.read_text(encoding="utf-8")
-    if "folder-index-content" in index_text or "dataview" in index_text:
-        return
-    stem = plan["path"].stem
-    title = plan.get("title") or stem
-    line = f"- [[{plan['target']}/{stem}|{title}]] ({date})\n"
-    with index.open("a", encoding="utf-8") as handle:
-        handle.write(line)
-
-
 def apply_plan(plan: dict[str, Any], vault: Path, silent: bool = False) -> None:
     if plan.get("skip"):
         if not silent:
@@ -172,7 +153,14 @@ def apply_plan(plan: dict[str, Any], vault: Path, silent: bool = False) -> None:
         updates["tags"] = plan["tags"]
     dest.write_bytes(_fill_frontmatter(text, metadata, updates).encode("utf-8"))
     source.unlink()
-    _maybe_update_static_index(vault, plan, today)
+    append_static_index_entry(
+        vault,
+        StaticIndexEntry(
+            note=dest.relative_to(vault),
+            title=plan.get("title") or dest.stem,
+            date=today,
+        ),
+    )
     if not silent:
         print(f"  moved: {source.as_posix()} -> {dest.as_posix()}")
 

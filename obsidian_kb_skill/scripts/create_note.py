@@ -33,8 +33,9 @@ from obsidian_kb_skill.scripts.note_catalog import (
     TYPE_TO_FOLDER,
     TYPE_TO_TEMPLATE,
 )
-from obsidian_kb_skill.scripts.process_inbox import (
-    _maybe_update_static_index,
+from obsidian_kb_skill.scripts.folder_index_policy import (
+    StaticIndexEntry,
+    append_static_index_entry,
 )
 from obsidian_kb_skill.scripts.audit_vault import Finding, audit_note, audit_note_text
 from obsidian_kb_skill.scripts.suggest_links import suggest_links
@@ -611,8 +612,14 @@ def main(argv: list[str] | None = None) -> int:
 
     # Update a static INDEX when applicable (Folder Index / Dataview owned
     # listings are left untouched, mirroring process_inbox).
-    plan = {"path": dest, "target": folder, "title": args.title}
-    _maybe_update_static_index(vault, plan, date)
+    append_static_index_entry(
+        vault,
+        StaticIndexEntry(
+            note=dest.relative_to(vault),
+            title=args.title,
+            date=date,
+        ),
+    )
 
     if not args.no_audit:
         findings = audit_note(vault, dest)

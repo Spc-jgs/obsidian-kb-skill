@@ -16,7 +16,10 @@ from obsidian_kb_skill.scripts.create_category import (
     plan_category,
     render_category_index,
 )
-from obsidian_kb_skill.scripts.process_inbox import _maybe_update_static_index
+from obsidian_kb_skill.scripts.folder_index_policy import (
+    StaticIndexEntry,
+    append_static_index_entry,
+)
 
 
 def make_vault(
@@ -144,10 +147,13 @@ def test_folder_index_excluded_category_uses_and_updates_static_index(
     result = apply_category(plan)
     note = vault / plan.folder / "2026-07-15 Rust所有权.md"
     note.write_text("# Rust所有权\n", encoding="utf-8")
-    _maybe_update_static_index(
+    append_static_index_entry(
         vault,
-        {"path": note, "target": plan.folder.as_posix(), "title": "Rust所有权"},
-        "2026-07-15",
+        StaticIndexEntry(
+            note=note.relative_to(vault),
+            title="Rust所有权",
+            date="2026-07-15",
+        ),
     )
 
     assert plan.index_mode == "static"
