@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Mapping
 
 import yaml
+from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from obsidian_kb_skill.scripts.frontmatter import FrontmatterResult, parse_frontmatter
 from obsidian_kb_skill.scripts.note_catalog import (
@@ -47,6 +48,49 @@ _DEFAULT_TAG_BY_FOLDER = {
 }
 
 _FRONTMATTER_KEYS = ("date", "type", "tags")
+
+
+class _DuplicateFrontmatterKeyError(yaml.YAMLError):
+    def __init__(self, key: object, mark: Any) -> None:
+        super().__init__(f"duplicate frontmatter key: {key!r}")
+        self.key = key
+        self.mark = mark
+
+
+def _node_identity(node: Node) -> tuple[object, ...]:
+    """Return a stable fallback identity for a YAML key node."""
+    if isinstance(node, ScalarNode):
+        return ("scalar", node.tag, node.value)
+    if isinstance(node, SequenceNode):
+        return ("sequence", node.tag, tuple(_node_identity(item) for item in node.value))
+    if isinstance(node, MappingNode):
+        return (
+            "mapping",
+            node.tag,
+            tuple(
+                (_node_identity(key), _node_identity(value))
+                for key, value in node.value
+            ),
+        )
+    return (node.id, node.tag)
+
+
+class _DuplicateKeyLoader(yaml.SafeLoader):
+    def construct_mapping(self, node: Node, deep: bool = False) -> dict[Any, Any]:
+        if isinstance(node, MappingNode):
+            seen: set[object] = set()
+            for key_node, _value_node in node.value:
+                try:
+                    key: object = self.construct_object(key_node, deep=True)
+                    hash(key)
+                    identity: object = ("constructed", key)
+                except (TypeError, yaml.constructor.ConstructorError):
+                    key = _node_identity(key_node)
+                    identity = ("node", key)
+                if identity in seen:
+                    raise _DuplicateFrontmatterKeyError(key, key_node.start_mark)
+                seen.add(identity)
+        return super().construct_mapping(node, deep=deep)
 
 
 @dataclass(frozen=True)
@@ -323,6 +367,28 @@ def _closing_frontmatter_offset(raw: bytes) -> tuple[int, bytes] | None:
     return None
 
 
+def _duplicate_frontmatter_issue(raw: bytes) -> InboxIssue | None:
+    fence = _closing_frontmatter_offset(raw)
+    if fence is None:
+        return None
+    closing_offset, newline = fence
+    bom_length = 3 if raw.startswith(b"\xef\xbb\xbf") else 0
+    content_start = bom_length + 3 + len(newline)
+    try:
+        content = raw[content_start:closing_offset].decode("utf-8")
+        yaml.load(content, Loader=_DuplicateKeyLoader)
+    except _DuplicateFrontmatterKeyError as exc:
+        return InboxIssue(
+            "duplicate-frontmatter-key",
+            f"frontmatter key {exc.key!r} is repeated",
+            line=exc.mark.line + 2,
+            column=exc.mark.column + 1,
+        )
+    except (UnicodeDecodeError, yaml.YAMLError) as exc:
+        return InboxIssue("invalid-frontmatter", str(exc).splitlines()[0])
+    return None
+
+
 def _serialized_mapping_entry(
     key: str, value: object, newline: bytes
 ) -> tuple[bytes, object]:
@@ -354,6 +420,23 @@ def _serialized_mapping_entry(
     return encoded, expected
 
 
+def _validate_rendered_candidate(
+    snapshot: InboxSourceSnapshot,
+    rendered: bytes,
+    expected_values: Mapping[str, object],
+) -> None:
+    try:
+        rendered_text = rendered.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("rendered frontmatter is not valid UTF-8") from exc
+    reparsed = parse_frontmatter(rendered_text, source=snapshot.source.as_posix())
+    if reparsed.issue is not None or reparsed.metadata is None:
+        raise ValueError("rendered frontmatter is not a valid YAML mapping")
+    for key, expected in expected_values.items():
+        if reparsed.metadata.get(key) != expected:
+            raise ValueError(f"frontmatter update {key!r} did not round-trip")
+
+
 def render_frontmatter_updates(
     snapshot: InboxSourceSnapshot,
     updates: Mapping[str, object],
@@ -373,6 +456,7 @@ def render_frontmatter_updates(
         (key, value) for key, value in updates.items() if key not in metadata
     )
     if not missing_updates:
+        _validate_rendered_candidate(snapshot, raw, {})
         return raw
 
     bom_length = 3 if raw.startswith(b"\xef\xbb\xbf") else 0
@@ -404,16 +488,7 @@ def render_frontmatter_updates(
             + raw_without_bom
         )
 
-    try:
-        rendered_text = rendered.decode("utf-8")
-    except UnicodeDecodeError as exc:  # pragma: no cover - snapshot guarantees UTF-8
-        raise ValueError("rendered frontmatter is not valid UTF-8") from exc
-    reparsed = parse_frontmatter(rendered_text, source=snapshot.source.as_posix())
-    if reparsed.issue is not None or reparsed.metadata is None:
-        raise ValueError("rendered frontmatter is not a valid YAML mapping")
-    for key, expected in expected_values.items():
-        if reparsed.metadata.get(key) != expected:
-            raise ValueError(f"frontmatter update {key!r} did not round-trip")
+    _validate_rendered_candidate(snapshot, rendered, expected_values)
     return rendered
 
 
@@ -507,6 +582,14 @@ def _plan_snapshot(root: Path, snapshot: InboxSourceSnapshot, date: str) -> Inbo
         )
 
     title = _note_title(snapshot.source, snapshot.text)
+    duplicate_issue = _duplicate_frontmatter_issue(snapshot.raw)
+    if duplicate_issue is not None:
+        return _issue_item(
+            snapshot,
+            title=title,
+            status="blocked",
+            issue=duplicate_issue,
+        )
     metadata = snapshot.frontmatter.metadata or {}
     metadata_issue = _metadata_issue(metadata)
     if metadata_issue is not None:
@@ -573,6 +656,35 @@ def _plan_snapshot(root: Path, snapshot: InboxSourceSnapshot, date: str) -> Inbo
             status="blocked",
             issue=InboxIssue(
                 "unsafe-destination-path", "destination could not be resolved safely"
+            ),
+        )
+    try:
+        fresh_target = resolve_target_within_vault(
+            root, target, label="Inbox target directory"
+        )
+    except VaultPathError:
+        return _issue_item(
+            snapshot,
+            title=title,
+            status="blocked",
+            issue=InboxIssue(
+                "unsafe-destination-path",
+                "target directory changed during planning",
+            ),
+        )
+    if (
+        not fresh_target.is_dir()
+        or not resolved_destination.parent.is_dir()
+        or fresh_target != resolved_target
+        or resolved_destination.parent != fresh_target
+    ):
+        return _issue_item(
+            snapshot,
+            title=title,
+            status="blocked",
+            issue=InboxIssue(
+                "unsafe-destination-path",
+                "target directory changed during planning",
             ),
         )
     if os.path.lexists(lexical_destination) or os.path.lexists(resolved_destination):

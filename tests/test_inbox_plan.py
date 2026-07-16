@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
+import obsidian_kb_skill.scripts.inbox_plan as inbox_plan
 from obsidian_kb_skill.scripts.inbox_plan import (
     InboxPlanItem,
     legacy_plan_dict,
@@ -579,3 +581,117 @@ def test_legacy_plan_dict_retains_current_ready_and_skip_meanings(
     assert skipped_dict["target"] is None
     assert skipped_dict["title"] == "Skip"
     assert skipped_dict["skip"] == "could not infer a target folder"
+
+
+@pytest.mark.parametrize(
+    ("frontmatter", "duplicate_line", "duplicate_column"),
+    [
+        (
+            "type: web-clip\ntype: insight-note\ntags: [insight]\n",
+            3,
+            1,
+        ),
+        (
+            "type: insight-note\ntags: [one]\ntags: [two]\n",
+            4,
+            1,
+        ),
+        (
+            "extra:\n  nested: one\n  nested: two\n",
+            4,
+            3,
+        ),
+    ],
+)
+def test_plan_blocks_duplicate_frontmatter_keys_at_any_mapping_depth(
+    tmp_path: Path,
+    frontmatter: str,
+    duplicate_line: int,
+    duplicate_column: int,
+) -> None:
+    vault = make_vault(tmp_path)
+    (vault / "30-Insights").mkdir()
+    (vault / "00-Inbox" / "duplicate.md").write_text(
+        f"---\n{frontmatter}---\n# Insight\nidea\n", encoding="utf-8"
+    )
+
+    item = plan_inbox(vault, effective_date="2042-03-04").items[0]
+
+    assert item.status == "blocked"
+    assert item.proposal is None
+    assert item.issue is not None
+    assert item.issue.code == "duplicate-frontmatter-key"
+    assert item.issue.line == duplicate_line
+    assert item.issue.column == duplicate_column
+
+
+def test_plan_blocks_target_replaced_with_file_between_resolver_calls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    vault = make_vault(tmp_path)
+    target = vault / "30-Insights"
+    target.mkdir()
+    (vault / "00-Inbox" / "Note.md").write_text(
+        "# Insight\nidea\n", encoding="utf-8"
+    )
+    original_resolver = inbox_plan.resolve_target_within_vault
+    resolver_calls = 0
+
+    def replace_target_before_destination_resolution(
+        resolver_vault: Path,
+        user_path: str | Path,
+        *,
+        label: str = "path",
+    ) -> Path:
+        nonlocal resolver_calls
+        resolver_calls += 1
+        if label == "Inbox destination":
+            target.rmdir()
+            target.write_bytes(b"ordinary file\n")
+        return original_resolver(resolver_vault, user_path, label=label)
+
+    monkeypatch.setattr(
+        inbox_plan,
+        "resolve_target_within_vault",
+        replace_target_before_destination_resolution,
+    )
+
+    item = plan_inbox(vault, effective_date="2042-03-04").items[0]
+
+    assert resolver_calls >= 4
+    assert item.status == "blocked"
+    assert item.proposal is None
+    assert item.issue is not None
+    assert item.issue.code == "unsafe-destination-path"
+    assert target.read_bytes() == b"ordinary file\n"
+
+
+@pytest.mark.parametrize(
+    "invalid_raw",
+    [
+        b"\xff",
+        b"---\nnull\n---\n",
+    ],
+)
+def test_render_revalidates_raw_candidate_when_no_updates_are_missing(
+    tmp_path: Path, invalid_raw: bytes
+) -> None:
+    original = (
+        b"---\n"
+        b"date: 2040-01-02\n"
+        b"type: insight-note\n"
+        b"tags: [insight]\n"
+        b"---\n# Insight\n"
+    )
+    _vault, _note, snapshot = snapshot_one(tmp_path, original)
+    forged = replace(snapshot, raw=invalid_raw)
+
+    with pytest.raises(ValueError):
+        render_frontmatter_updates(
+            forged,
+            {
+                "date": "2042-03-04",
+                "type": "insight-note",
+                "tags": ("insight",),
+            },
+        )
