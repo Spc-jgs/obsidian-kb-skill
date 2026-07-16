@@ -14,6 +14,25 @@ from obsidian_kb_skill.scripts.vault_paths import (
 )
 
 
+INVALID_FILENAME_CHARS = frozenset('/\\:*?"<>|')
+WINDOWS_RESERVED_FILENAMES = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{number}" for number in range(1, 10)}
+    | {f"LPT{number}" for number in range(1, 10)}
+)
+
+
+class FolderIndexConfigError(ValueError):
+    """A stable validation failure for a Folder Index filename setting."""
+
+    code = "invalid-folder-index-config"
+
+    def __init__(self, field: str) -> None:
+        self.field = field
+        self.message = f"{field} must be a portable visible basename"
+        super().__init__(self.message)
+
+
 @dataclass(frozen=True)
 class FolderIndexConfig:
     enabled: bool = False
@@ -102,14 +121,45 @@ def is_folder_index_excluded(relative: Path, config: FolderIndexConfig) -> bool:
     )
 
 
+def _validate_index_basename(value: str, *, field: str) -> str:
+    windows_stem = value.split(".", 1)[0].upper()
+    if (
+        not value
+        or value != value.strip()
+        or value in {".", ".."}
+        or value.startswith(".")
+        or value.endswith(".")
+        or windows_stem in WINDOWS_RESERVED_FILENAMES
+        or len(value.encode("utf-8")) > 255
+        or any(
+            ord(character) < 32 or character in INVALID_FILENAME_CHARS
+            for character in value
+        )
+    ):
+        raise FolderIndexConfigError(field)
+    return value
+
+
 def expected_folder_index(
     folder: Path, vault: Path, config: FolderIndexConfig
 ) -> Path:
-    if folder == vault:
-        return vault / config.root_index_file
+    root = validate_vault_root(vault)
+    target_folder = resolve_target_within_vault(root, folder, label="folder")
+    if target_folder == root:
+        name = _validate_index_basename(
+            config.root_index_file, field="root_index_file"
+        )
+        return resolve_target_within_vault(root, root / name, label="root index")
     if config.user_specified:
-        return folder / f"{config.index_filename}.md"
-    return folder / f"{folder.name}.md"
+        basename = _validate_index_basename(
+            config.index_filename, field="index_filename"
+        )
+        name = f"{basename}.md"
+    else:
+        name = f"{target_folder.name}.md"
+    return resolve_target_within_vault(
+        root, target_folder / name, label="folder index"
+    )
 
 
 def append_static_index_entry(

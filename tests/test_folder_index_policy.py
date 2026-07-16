@@ -109,6 +109,69 @@ def test_expected_index_name_handles_root_native_and_custom(tmp_path: Path):
     assert expected_folder_index(folder, vault, custom) == folder / "MAP.md"
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("root_index_file", ""),
+        ("root_index_file", ".."),
+        ("root_index_file", "nested/INDEX.md"),
+        ("root_index_file", r"nested\INDEX.md"),
+        ("root_index_file", "/tmp/INDEX.md"),
+        ("index_filename", ""),
+        ("index_filename", ".."),
+        ("index_filename", "nested/INDEX"),
+        ("index_filename", r"nested\INDEX"),
+        ("index_filename", "/tmp/INDEX"),
+    ],
+)
+def test_expected_index_rejects_non_basename_config_values(
+    tmp_path: Path, field: str, value: str
+):
+    vault = make_vault(tmp_path)
+    folder = vault if field == "root_index_file" else vault / "30-Insights"
+    config = FolderIndexConfig(
+        enabled=True,
+        user_specified=field == "index_filename",
+        **{field: value},
+    )
+
+    with pytest.raises(ValueError) as error:
+        expected_folder_index(folder, vault, config)
+
+    assert error.value.code == "invalid-folder-index-config"
+    assert error.value.field == field
+    assert list(tmp_path.glob("INDEX*")) == []
+
+
+@pytest.mark.parametrize(
+    ("root_name", "custom_name", "expected"),
+    [
+        ("INDEX", None, "INDEX"),
+        ("INDEX.md", None, "INDEX.md"),
+        (None, "MAP", "MAP.md"),
+        (None, "INDEX.md", "INDEX.md.md"),
+        (None, "目录", "目录.md"),
+    ],
+)
+def test_expected_index_preserves_valid_visible_basenames(
+    tmp_path: Path,
+    root_name: str | None,
+    custom_name: str | None,
+    expected: str,
+):
+    vault = make_vault(tmp_path)
+    if root_name is not None:
+        folder = vault
+        config = FolderIndexConfig(enabled=True, root_index_file=root_name)
+    else:
+        folder = vault / "30-Insights"
+        config = FolderIndexConfig(
+            enabled=True, user_specified=True, index_filename=custom_name or ""
+        )
+
+    assert expected_folder_index(folder, vault, config) == folder / expected
+
+
 @pytest.mark.parametrize("managed_body", [
     "```folder-index-content\n```\n",
     "```dataview\nLIST\n```\n",
