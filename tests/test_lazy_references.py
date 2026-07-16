@@ -107,6 +107,8 @@ def test_all_reference_files_exist():
         "yaml-standards.md",
         "rules-and-errors.md",
         "git.md",
+        "missing-category.md",
+        "custom-template.md",
     }
     actual = {p.name for p in REFERENCES_DIR.iterdir() if p.is_file()}
     assert expected <= actual, f"missing reference files: {expected - actual}"
@@ -150,9 +152,10 @@ def test_note_creation_documents_the_minimal_ordinary_create_path():
 
 
 def test_note_creation_loads_only_custom_template_contracts():
-    text = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
-    normalized = " ".join(text.split())
-    ordinary = text.split("## Minimal Ordinary Path", 1)[1].split(
+    ordinary_text = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
+    custom_text = (REFERENCES_DIR / "custom-template.md").read_text(encoding="utf-8")
+    normalized = " ".join((ordinary_text + "\n" + custom_text).split())
+    ordinary = ordinary_text.split("## Minimal Ordinary Path", 1)[1].split(
         "## Bundled Helper Runner", 1
     )[0]
 
@@ -160,6 +163,7 @@ def test_note_creation_loads_only_custom_template_contracts():
         "`custom_templates`",
         "template-contract",
         "--expect-template-sha256",
+        "read only `custom-template.md`",
         "prose instructions",
         "lists, tables, and labels",
         "unknown placeholders",
@@ -169,6 +173,8 @@ def test_note_creation_loads_only_custom_template_contracts():
     ):
         assert marker in normalized, f"custom template contract missing: {marker!r}"
     assert "template-contract" not in ordinary
+    assert "prose instructions" not in ordinary_text
+    assert "lists, tables, and labels" not in ordinary_text
 
 
 def test_note_creation_front_loads_git_and_reports_complete_heading_diagnostics():
@@ -185,11 +191,13 @@ def test_note_creation_front_loads_git_and_reports_complete_heading_diagnostics(
 
 
 def test_note_creation_documents_the_missing_category_exception():
-    text = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
-    normalized = " ".join(text.split())
+    ordinary_text = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
+    category_text = (REFERENCES_DIR / "missing-category.md").read_text(encoding="utf-8")
+    normalized = " ".join((ordinary_text + "\n" + category_text).split())
 
     for marker in (
         "Missing category exception",
+        "read only `missing-category.md`",
         "category path",
         "rename it",
         "whether to update the applicable `AGENTS.md`",
@@ -199,6 +207,16 @@ def test_note_creation_documents_the_missing_category_exception():
         "README",
     ):
         assert marker in normalized, f"missing category contract: {marker!r}"
+    assert "--apply --confirmed --compact-json" not in ordinary_text
+
+
+def test_note_creation_selected_type_discovery_is_one_call_and_optional():
+    text = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+
+    assert "--json --compact --type <slug>" in normalized
+    assert "omit `--type`" in normalized
+    assert "Do not run a second discovery call" in normalized
 
 
 def test_missing_category_exception_does_not_expand_the_ordinary_path():
