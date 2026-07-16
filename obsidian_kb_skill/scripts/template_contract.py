@@ -2,9 +2,12 @@
 """Inspect conventional Vault templates and expose customized contracts."""
 from __future__ import annotations
 
+import argparse
 import datetime
 import hashlib
+import json
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +18,11 @@ from obsidian_kb_skill.scripts.note_types import (
     TYPE_TO_TEMPLATE_ASSET,
 )
 from obsidian_kb_skill.scripts.resource_locator import template_dir
+from obsidian_kb_skill.scripts.console import configure_utf8_stdio
+from obsidian_kb_skill.scripts.vault_paths import (
+    InvalidVaultRootError,
+    validate_vault_root,
+)
 
 
 SUPPORTED_PLACEHOLDERS = ("date", "title")
@@ -143,3 +151,59 @@ def custom_template_types(vault: Path) -> list[str]:
         if digest not in _starter_hashes(note_type):
             result.append(note_type)
     return result
+
+
+def _error(code: str, **details: Any) -> dict[str, Any]:
+    return {"error": {"code": code, **details}}
+
+
+def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
+    parser = argparse.ArgumentParser(
+        description="Return one conventional Vault template contract as JSON."
+    )
+    parser.add_argument("vault", type=Path, help="Path to the Obsidian vault")
+    parser.add_argument("--type", required=True, dest="note_type", help="Note type slug")
+    parser.add_argument("--json", action="store_true", help="Emit JSON (default)")
+    args = parser.parse_args(argv)
+
+    try:
+        vault = validate_vault_root(args.vault)
+    except InvalidVaultRootError as exc:
+        print(json.dumps(_error("invalid-vault", message=str(exc)), ensure_ascii=False))
+        return 2
+    if args.note_type not in TYPE_TO_TEMPLATE:
+        print(json.dumps(_error(
+            "unsupported-template-type",
+            note_type=args.note_type,
+            supported=sorted(TYPE_TO_TEMPLATE),
+        ), ensure_ascii=False))
+        return 2
+    try:
+        contract = inspect_template(vault, args.note_type)
+    except TemplateFrontmatterError as exc:
+        print(json.dumps(_error(
+            "invalid-template-frontmatter",
+            source=exc.source,
+            line=exc.line,
+            column=exc.column,
+            message=exc.message,
+        ), ensure_ascii=False))
+        return 2
+    if contract is None:
+        print(json.dumps(_error(
+            "missing-template", note_type=args.note_type
+        ), ensure_ascii=False))
+        return 2
+    if contract["unknown_placeholders"]:
+        print(json.dumps(_error(
+            "unknown-template-placeholder",
+            placeholders=contract["unknown_placeholders"],
+        ), ensure_ascii=False))
+        return 2
+    print(json.dumps(contract, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

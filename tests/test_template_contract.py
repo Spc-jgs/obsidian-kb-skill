@@ -1,7 +1,10 @@
 """Runtime contract tests for user-customized Vault templates."""
 from __future__ import annotations
 
+import json
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 from obsidian_kb_skill.scripts.note_types import (
@@ -113,3 +116,82 @@ def test_normalization_changes_only_transport_details():
     normalized = normalize_template_text(source)
 
     assert normalized == "---\ntype: web-clip\n---\n# Title\n"
+
+
+def run_contract(vault: Path, note_type: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.template_contract",
+            str(vault),
+            "--type",
+            note_type,
+            "--json",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_cli_returns_one_complete_custom_contract(tmp_path: Path):
+    vault = vault_with_shipped_templates(tmp_path)
+    target = vault / "Templates" / "Web Clip.md"
+    target.write_text(
+        target.read_text(encoding="utf-8") + "\n必须评估风险。\n",
+        encoding="utf-8",
+    )
+
+    result = run_contract(vault, "web-clip")
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["type"] == "web-clip"
+    assert payload["customized"] is True
+    assert "必须评估风险" in payload["body"]
+    assert len(payload["sha256"]) == 64
+
+
+def test_cli_rejects_unsupported_template_type(tmp_path: Path):
+    vault = vault_with_shipped_templates(tmp_path)
+
+    result = run_contract(vault, "renamed-template")
+
+    assert result.returncode == 2
+    assert json.loads(result.stdout)["error"]["code"] == "unsupported-template-type"
+
+
+def test_cli_reports_malformed_template_yaml_location(tmp_path: Path):
+    vault = vault_with_shipped_templates(tmp_path)
+    (vault / "Templates" / "Web Clip.md").write_text(
+        '---\ntype: web-clip\nauthor: "broken: "value""\n---\n# Body\n',
+        encoding="utf-8",
+    )
+
+    result = run_contract(vault, "web-clip")
+
+    assert result.returncode == 2
+    error = json.loads(result.stdout)["error"]
+    assert error["code"] == "invalid-template-frontmatter"
+    assert error["source"].endswith("Templates/Web Clip.md")
+    assert error["line"] == 3
+    assert isinstance(error["column"], int)
+
+
+def test_cli_rejects_unknown_placeholders_before_generation(tmp_path: Path):
+    vault = vault_with_shipped_templates(tmp_path)
+    target = vault / "Templates" / "Web Clip.md"
+    target.write_text(
+        target.read_text(encoding="utf-8") + "\n项目：{{project}}，负责人：{{owner}}\n",
+        encoding="utf-8",
+    )
+
+    result = run_contract(vault, "web-clip")
+
+    assert result.returncode == 2
+    error = json.loads(result.stdout)["error"]
+    assert error == {
+        "code": "unknown-template-placeholder",
+        "placeholders": ["owner", "project"],
+    }

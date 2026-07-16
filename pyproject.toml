@@ -35,6 +35,7 @@ obsidian-create-category = "obsidian_kb_skill.scripts.create_category:main"
 obsidian-create-note = "obsidian_kb_skill.scripts.create_note:main"
 obsidian-update-note = "obsidian_kb_skill.scripts.update_note:main"
 obsidian-vault-info = "obsidian_kb_skill.scripts.vault_info:main"
+obsidian-template-contract = "obsidian_kb_skill.scripts.template_contract:main"
 obsidian-detect-index = "obsidian_kb_skill.scripts.detect_index:main"
 obsidian-scaffold-templates = "obsidian_kb_skill.scripts.scaffold_templates:main"
 
