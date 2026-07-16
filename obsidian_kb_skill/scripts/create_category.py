@@ -24,6 +24,7 @@ from obsidian_kb_skill.scripts.index_templates import (
     render_folder_index,
     render_static_index,
 )
+from obsidian_kb_skill.scripts.note_catalog import STANDARD_NOTE_FOLDERS
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
     VaultPathError,
@@ -32,20 +33,6 @@ from obsidian_kb_skill.scripts.vault_paths import (
     validate_vault_root,
 )
 
-
-STANDARD_NOTE_FOLDERS = frozenset(
-    {
-        "00-Inbox",
-        "10-Work",
-        "15-Daily",
-        "20-Learning",
-        "30-Insights",
-        "40-Projects",
-        "50-People",
-        "90-Archive",
-        "Tasks",
-    }
-)
 RESERVED_TOP_LEVEL = frozenset(
     {
         ".git",

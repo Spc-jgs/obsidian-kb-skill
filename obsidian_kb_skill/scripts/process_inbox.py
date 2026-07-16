@@ -27,6 +27,11 @@ from obsidian_kb_skill.scripts.audit_vault import (
     _is_folder_index_excluded,
     _note_title,
 )
+from obsidian_kb_skill.scripts.note_catalog import (
+    DEFAULT_TAG_BY_TYPE,
+    FOLDER_TO_DEFAULT_TYPE,
+    TYPE_TO_FOLDER,
+)
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
     VaultPathError,
@@ -34,19 +39,6 @@ from obsidian_kb_skill.scripts.vault_paths import (
     resolve_target_within_vault,
     validate_vault_root,
 )
-
-# Mirror of the Note Types and Routing table in core/OBSIDIAN_KB.md.
-TYPE_TO_FOLDER = {
-    "daily-note": "15-Daily",
-    "meeting-note": "10-Work",
-    "learning-note": "20-Learning",
-    "web-clip": "20-Learning",
-    "insight-note": "30-Insights",
-    "conversation-digest": "30-Insights",
-    "project-note": "40-Projects",
-    "person-note": "50-People",
-    "task-memory": "Tasks",
-}
 
 # Trigger keywords (lowercased substrings) -> target folder, used when the type
 # is missing or unknown. First match wins.
@@ -60,21 +52,8 @@ KEYWORD_ROUTES = [
 ]
 
 DEFAULT_TAG_BY_FOLDER = {
-    "10-Work": "meeting",
-    "15-Daily": "daily",
-    "20-Learning": "learning",
-    "30-Insights": "insight",
-    "40-Projects": "project",
-    "50-People": "people",
-}
-
-FOLDER_TO_DEFAULT_TYPE = {
-    "10-Work": "meeting-note",
-    "15-Daily": "daily-note",
-    "20-Learning": "learning-note",
-    "30-Insights": "insight-note",
-    "40-Projects": "project-note",
-    "50-People": "person-note",
+    folder: DEFAULT_TAG_BY_TYPE[note_type]
+    for folder, note_type in FOLDER_TO_DEFAULT_TYPE.items()
 }
 
 INDEX_BASENAME = "INDEX.md"

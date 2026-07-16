@@ -41,6 +41,7 @@ from typing import Any
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.detect_index import detect
 from obsidian_kb_skill.scripts.audit_vault import _folder_index_config
+from obsidian_kb_skill.scripts.note_catalog import MANAGED_NOTE_FOLDERS
 from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
 from obsidian_kb_skill.scripts.template_contract import (
     custom_template_types,
@@ -54,16 +55,7 @@ from obsidian_kb_skill.scripts.vault_paths import (
 
 # Note-bearing folders that get an index strategy; Templates/Attachments are
 # listed for existence only.
-NOTE_FOLDERS = [
-    "00-Inbox",
-    "10-Work",
-    "15-Daily",
-    "20-Learning",
-    "30-Insights",
-    "40-Projects",
-    "50-People",
-    "90-Archive",
-]
+NOTE_FOLDERS: list[str] = list(MANAGED_NOTE_FOLDERS)
 STANDARD_FOLDERS = NOTE_FOLDERS + ["Templates", "Attachments"]
 
 

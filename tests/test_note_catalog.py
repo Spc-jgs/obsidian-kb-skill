@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from obsidian_kb_skill.scripts.note_catalog import (
     DEFAULT_TAG_BY_TYPE,
     FOLDER_TO_DEFAULT_TYPE,
@@ -9,6 +11,9 @@ from obsidian_kb_skill.scripts.note_catalog import (
     TYPE_TO_TEMPLATE_ASSET,
     VALID_NOTE_TYPES,
 )
+
+
+ROOT = Path(__file__).resolve().parent.parent
 
 
 EXPECTED_DURABLE = {
@@ -66,3 +71,16 @@ def test_audit_and_folder_sets_are_derived_from_explicit_contracts():
         "00-Inbox", "10-Work", "15-Daily", "20-Learning",
         "30-Insights", "40-Projects", "50-People", "90-Archive", "Tasks",
     }
+
+
+def test_catalog_literals_have_one_owner():
+    forbidden = {
+        "audit_vault.py": "REQUIRED_TYPES =",
+        "create_note.py": "DEFAULT_TAG_BY_TYPE =",
+        "process_inbox.py": "TYPE_TO_FOLDER =",
+        "create_category.py": "STANDARD_NOTE_FOLDERS =",
+        "vault_info.py": "NOTE_FOLDERS =",
+    }
+    scripts = ROOT / "obsidian_kb_skill" / "scripts"
+    for filename, marker in forbidden.items():
+        assert marker not in (scripts / filename).read_text(encoding="utf-8")
