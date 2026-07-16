@@ -6,6 +6,8 @@
 
 [English Version](README_EN.md)
 
+当前稳定版本为 **v1.19.1**。版本变化与升级说明统一记录在 [CHANGELOG.md](CHANGELOG.md)。
+
 ---
 
 ## 解决什么问题
@@ -26,97 +28,29 @@
 
 你的知识以结构化的方式自动积累，从 10 条笔记到 10000 条都能轻松管理。
 
-## v1.19 新增的能力
+## 让 Agent 安装（推荐）
 
-v1.19 让普通沉淀在起草前拿到必要的模板结构，同时把低频异常说明移出常规上下文：
+把下面这段话直接发给你正在使用的 Codex、QoderWork、WorkBuddy、Claude Code 或其他具备终端和文件读写能力的 Agent：
 
-- `vault-info --compact --type <slug>` 只返回所选标准模板的路径和有序二级标题，不返回模板正文或 frontmatter。
-- 普通路径一次发现即可完成 Vault、索引、模板定制状态和标题骨架确认；类型尚不明确时仍可省略 `--type`，由预检兜底。
-- 缺分类与自定义模板的详细说明改为命中后按需加载；预检、正式写入、自动审计、Git 治理与模板 SHA 防漂移保持不变。
-- 普通 Skill 指令面由 2716 降至 2296 `o200k_base` tokens，低频异常说明不再影响每次调用。
+```text
+请从官方仓库 https://github.com/Spc-jgs/obsidian-kb-skill 安装最新稳定版 Obsidian Knowledge Base Skill。
 
-完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.19.0]` 段。
+安装要求：
+1. 先阅读仓库 README、安装器帮助和当前发布说明，再执行任何修改；不要手工拼装不完整的 Skill。
+2. 识别当前 Agent 平台，只安装适用的平台入口；无法可靠判断时先问我。
+3. 从环境变量、现有配置和 Obsidian 目录检测 Vault 路径；无法确定时先询问我，不要猜路径。
+4. 使用仓库提供的官方安装器。保留用户已经修改的模板、Vault 内容和其他平台配置，不要使用会覆盖模板的强制选项。
+5. 安装后从非仓库目录运行已安装 Skill 的 `doctor --json`，确认结果为 ok、版本为最新稳定版，并向我报告 Vault 路径、安装平台、安装位置和诊断结果。
+6. 如果任何检查失败，停止并说明原因；不要删除或重建我的 Vault。
+```
 
-## v1.18 新增的能力
+Agent 会负责获取最新稳定版本、选择正确的安装命令并完成安装态验证。你只需要在它无法确定 Vault 路径或目标平台时回答问题。
 
-v1.18 让用户修改后的模板真正参与笔记质量控制，同时保持默认路径轻量：
+## 手动安装与下载
 
-- `vault-info --compact` 只报告发生变化的模板类型；默认模板不会触发模板契约读取，也不会把模板正文加入模型上下文。
-- 自定义模板只读取当前笔记类型的一份契约；标题下的自然语言说明会被执行，标题、列表、表格、标签式字段和示例会作为结构与深度要求保留。
-- `create-note --expect-template-sha256` 会在预检和正式写入前拒绝已经变化的模板，避免按陈旧说明创建笔记或修改索引。
-- 未知模板占位符会在生成前明确报错；模板重命名支持保留为后续优化，本版不做猜测式匹配。
+如果当前 Agent 不能运行终端命令，再使用下面的手动方式。
 
-完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.18.0]` 段。
-
-## v1.17 新增的能力
-
-v1.17 在不削减治理和质量步骤的前提下压缩普通沉淀路径：
-
-- `vault-info --compact` 省略普通创建不需要的目录笔记文件名数组，保留索引模式、所有权和 Vault 有效性信息。
-- 模板标题缺失或乱序时，一次返回期望顺序、实际顺序和首个错位点，避免逐项修复和多轮预检。
-- Vault 要求 Git 时，会在抓取或深读文章来源前完成安全检查；预检、正式写入和自动审计保持不变。
-
-完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.17.0]` 段。
-
-## v1.16 新增的能力
-
-v1.16 为新增知识领域提供受控的分类初始化能力，同时保持已有分类的普通沉淀路径不变：
-
-- 模型发现明确的新主题时，先建议完整分类路径并提醒用户可以自行命名；未经确认不会创建目录。
-- 是否把新路由写入 Vault 的 `AGENTS.md` 是独立选择；拒绝时仍可创建一次性分类，后续再次遇到该主题会重新询问。
-- `create-category` 使用结构化预检和 `--confirmed` 写入门，按 Vault 当前模式创建 Folder Index、Dataview 或静态索引并执行结构审计。
-- README 等 Vault 本地结构治理仍然生效；已有受管分类不会增加提示、helper 调用或语义模型成本。
-
-完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.16.0]` 段。
-
-## v1.15 新增的能力
-
-v1.15 提升本地链接建议的精度，不引入语义模型或外部依赖：
-
-- 中文标题使用连续双字词匹配，具体标签和标题关联能够进入候选。
-- 高频标签、结构性标签和宽泛的 `java` 标签不再主导排序，同类型只作为辅助信号。
-- 低于置信阈值的弱关联直接省略，兄弟目录只有名称相关时才进入有限候选范围。
-- 链接建议继续只读、由人确认，并将每个候选的正文读取从两次降为一次。
-- v1.15.1 会直接报告输入 YAML 的准确行列，不再静默回退；同时过滤“详解/指南/教程”等泛化标题词。
-
-完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.15.1]` 段。
-
-## v1.14 新增的能力
-
-v1.14 在不减少质量检查的前提下压缩预览响应，并补强写入边界：
-
-- `create-note --preflight-json` 返回最终 frontmatter、目标路径、正文 SHA-256/大小和完整单笔记校验，但不重复回显正文，也不修改 Vault。
-- 预检与写后 audit 共用同一套规则；正式写入仍使用 `--apply --compact-json`，保留明确的两阶段控制点。
-- 相对 `--content-file` 读取经过验证的 Vault 路径；并发同名创建使用排他写入与后缀重试，JSON 错误和模板正文警告也已修正。
-- 原有完整 `--json` dry-run、`--apply --json` 和 v1.13 compact apply 契约保持兼容。
-
-完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.14.1]` 段。详细用法在 `core/references/note-creation.md` 里按需加载。
-
-## v1.13 新增的能力
-
-v1.13 减少长笔记在正式写入阶段的重复回显，同时保持机器可读的审计结果：
-
-- `create-note --apply --compact-json` 返回落盘路径、audit 和链接建议，但不重复返回完整 `rendered` 正文。
-- dry-run 继续使用完整 `--json` 预览；原有 `--apply --json` 契约保持不变，已有调用方无需迁移。
-- canonical reference、所有平台适配产物和标准 Skill manifest 已同步更新。
-
-完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.13.0]` 段。详细用法在 `core/references/note-creation.md` 里按需加载。
-
-## v1.12 新增的能力
-
-v1.12 把完整标准 Skill 正式接入 WorkBuddy，并让安装状态可以独立诊断：
-
-- Bash 与 PowerShell 会把同一份完整 payload 安装到 `~/.workbuddy/skills/obsidian-knowledge-base/`；升级替换旧 symlink 入口但不修改其 clone 目标，卸载保留同级其他 Skill。
-- 标准 Skill 带确定性的 `manifest.json`；只读 `doctor --json` 会核对 payload、runtime、依赖和关键 resources，不执行修复或删除。
-- `run_helper.py <helper> --help` 现在直接转发到所有 helper；坏掉的 `runtime.json` 也不会阻止 doctor 给出诊断。
-- `create-note` 的 stdin/content-file frontmatter 合并与优先级已进入 CLI help、reference 和回归测试，`source`、`related` 不再需要靠猜参数发现。
-- 安装产品测试会在删除 release 源目录后，从 WorkBuddy 副本运行 doctor 与核心 helper；发布前还要完成真实 WorkBuddy 前向任务和 P0 审计。
-
-v1.12 的完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.12.1]` 段。
-
-## 下载
-
-### 方式一：Git 克隆（推荐）
+### 方式一：Git 克隆
 
 ```bash
 git clone https://github.com/Spc-jgs/obsidian-kb-skill.git
@@ -241,7 +175,7 @@ AI 智能体内部执行：
 
 标准 Skill 与平台兼容产物包含**完全一致的核心指令**。注意：`~/.agents/skills` 是 Codex 用户级发现路径，不代表所有 Agent 都会自动扫描该目录。
 
-## 快速开始
+## 使用安装器手动安装（高级）
 
 ### 1. 下载项目
 
@@ -310,7 +244,7 @@ python ~/.workbuddy/skills/obsidian-knowledge-base/scripts/run_helper.py doctor 
 - 「剪藏这篇文章：https://example.com/article」
 - 「创建一个仪表盘重构的项目笔记」
 
-### 手动安装（不用安装脚本）
+### 完全手动复制（不使用安装脚本）
 
 标准 Skill 不再是单个 `SKILL.md`，还包含按需 references、helper code 和模板 assets。最安全的手动方式是复制完整目录；Python 环境需自行保证能导入 PyYAML：
 

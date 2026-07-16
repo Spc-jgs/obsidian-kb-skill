@@ -6,6 +6,8 @@ A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Co
 
 [中文版](README.md)
 
+The current stable release is **v1.19.1**. See [CHANGELOG.md](CHANGELOG.md) for release history and upgrade notes.
+
 ---
 
 ## The Problem
@@ -26,97 +28,29 @@ This skill eliminates that friction by teaching your AI agent a complete knowled
 
 Your knowledge accumulates automatically, in a structured format that scales from 10 notes to 10,000.
 
-## What's New in v1.19
+## Install with Your Agent (Recommended)
 
-v1.19 exposes the template structure needed before drafting while moving rare exception guidance out of ordinary context:
+Send the following prompt to the Codex, QoderWork, WorkBuddy, Claude Code, or another terminal-capable Agent you are currently using:
 
-- `vault-info --compact --type <slug>` returns only the selected conventional template path and ordered level-two headings, never template prose or frontmatter.
-- One ordinary discovery call now covers Vault validity, index ownership, customization state, and heading shape. When type is unclear, callers may omit `--type` and keep preflight as the fallback.
-- Missing-category and customized-template details load only when their branch is entered. Preflight, apply, automatic audit, Git governance, and template SHA protection remain intact.
-- The ordinary Skill instruction surface drops from 2,716 to 2,296 `o200k_base` tokens without removing quality gates.
+```text
+Install the latest stable Obsidian Knowledge Base Skill from the official repository: https://github.com/Spc-jgs/obsidian-kb-skill
 
-See [CHANGELOG.md](CHANGELOG.md) under `[1.19.0]` for the complete diff.
+Installation requirements:
+1. Read the repository README, installer help, and current release notes before changing anything. Do not assemble a partial Skill manually.
+2. Detect the current Agent platform and install only the applicable platform entry. Ask me first if the platform cannot be identified reliably.
+3. Detect the Obsidian Vault path from environment variables, existing configuration, and Obsidian directories. Ask me if it remains unknown; do not guess.
+4. Use the repository's official installer. Preserve user-modified templates, Vault content, and other platform configuration; do not use a force option that overwrites templates.
+5. After installation, run the installed Skill's `doctor --json` from outside the repository. Confirm that it reports ok and the latest stable version, then report the Vault path, installed platforms, installation paths, and diagnostic result.
+6. If any check fails, stop and explain the cause. Do not delete or rebuild my Vault.
+```
 
-## What's New in v1.18
+The Agent handles obtaining the latest stable release, selecting the correct installer command, and validating the installed runtime. You only need to answer when it cannot determine the Vault path or target platform.
 
-v1.18 makes user-edited templates part of note quality control while keeping the default path lightweight:
+## Manual Installation and Downloads
 
-- `vault-info --compact` reports only changed template types; unchanged templates trigger no contract call and add no template-body context.
-- The agent loads exactly one contract for the selected custom type. Natural-language guidance is executed, while headings, lists, tables, labels, and examples remain structural and depth requirements.
-- `create-note --expect-template-sha256` rejects a template that changed before preflight or apply, preventing note or index mutation based on stale instructions.
-- Unknown placeholders fail before generation. Renamed-template discovery remains an explicit future optimization rather than a guessing fallback.
+Use these manual paths only when your current Agent cannot run terminal commands.
 
-See [CHANGELOG.md](CHANGELOG.md) under `[1.18.0]` for the complete diff.
-
-## What's New in v1.17
-
-v1.17 reduces ordinary capture overhead without removing governance or quality gates:
-
-- `vault-info --compact` omits folder note-name arrays that ordinary creation does not need while retaining index mode, ownership, and Vault validity data.
-- Missing or misplaced template headings produce the expected sequence, actual sequence, and first mismatch in one finding, avoiding incremental repair loops.
-- Governance-required Git safety checks finish before source fetching or deep reading; structured preflight, apply, and automatic audit remain unchanged.
-
-See [CHANGELOG.md](CHANGELOG.md) under `[1.17.0]` for the complete diff.
-
-## What's New in v1.16
-
-v1.16 adds governed category initialization for new knowledge domains without changing the ordinary path for existing categories:
-
-- When a clear new topic has no category, the agent proposes a full path and tells the user it can be renamed; nothing is created before confirmation.
-- Persisting the new route in the Vault's `AGENTS.md` is a separate choice. Declining creates a one-off category and causes a future capture to ask again.
-- `create-category` provides structured preflight, an explicit `--confirmed` apply gate, Folder Index/Dataview/static initialization, and focused structure audit.
-- Vault-local structural rules such as README maintenance still apply, while existing governed categories add no prompt, helper call, or semantic-model cost.
-
-See [CHANGELOG.md](CHANGELOG.md) under `[1.16.0]` for the complete diff.
-
-## What's New in v1.15
-
-v1.15 improves local link-suggestion precision without semantic models or external dependencies:
-
-- Chinese titles use overlapping bigrams so specific title relationships can become candidates.
-- Frequent tags, structural tags, and the broad `java` tag no longer dominate ranking; matching note type is supporting evidence only.
-- Weak candidates below a confidence threshold are omitted, and sibling folders enter the bounded scope only when their names are relevant.
-- Suggestions remain read-only and human-confirmed, while each candidate body is read once instead of twice.
-- v1.15.1 reports exact input-YAML locations instead of silently falling back, and filters generic title terms such as “guide” and “tutorial.”
-
-See [CHANGELOG.md](CHANGELOG.md) under `[1.15.1]` for the complete diff.
-
-## What's New in v1.14
-
-v1.14 reduces preview output without removing quality checks and strengthens the write boundary:
-
-- `create-note --preflight-json` returns final frontmatter, destination, body SHA-256/size, and complete note-level validation without echoing the body or mutating the Vault.
-- Preflight and post-write audit share the same rules. The real write still uses `--apply --compact-json`, preserving the explicit two-phase control point.
-- Relative `--content-file` reads use the validated in-Vault path; concurrent same-title creates use exclusive writes with suffix retries, and JSON errors plus template-body warnings are corrected.
-- Full `--json` dry-run, `--apply --json`, and the v1.13 compact apply contract remain compatible.
-
-See [CHANGELOG.md](CHANGELOG.md) under `[1.14.1]` for the complete diff. Detailed usage remains lazy-loaded from `core/references/note-creation.md`.
-
-## What's New in v1.13
-
-v1.13 reduces repeated long-note output during the real write while preserving machine-readable audit results:
-
-- `create-note --apply --compact-json` returns the created path, audit, and link suggestions without repeating the complete `rendered` Markdown body.
-- Dry-run keeps the full `--json` preview, and the existing `--apply --json` contract remains unchanged for current consumers.
-- Canonical guidance, every platform adapter, and the standard Skill manifest are synchronized with the new mode.
-
-See [CHANGELOG.md](CHANGELOG.md) under `[1.13.0]` for the complete diff. Detailed usage remains lazy-loaded from `core/references/note-creation.md`.
-
-## What's New in v1.12
-
-v1.12 formally installs the complete standard Skill into WorkBuddy and makes installed state independently diagnosable:
-
-- Bash and PowerShell install the identical complete payload at `~/.workbuddy/skills/obsidian-knowledge-base/`. Upgrade replaces only an old symlink entry, and uninstall preserves its target clone and sibling Skills.
-- The standard Skill carries a deterministic `manifest.json`; read-only `doctor --json` verifies payload, runtime, dependencies, and required resources without repairing or deleting anything.
-- `run_helper.py <helper> --help` now reaches every child CLI directly. Doctor still runs when `runtime.json` is malformed.
-- The create-note stdin/content-file frontmatter merge and precedence are now discoverable in CLI help, the lazy reference, and regression tests, including `source` and `related`.
-- Installed-product tests remove the release source and then run doctor and core helpers from the WorkBuddy copy. A real WorkBuddy forward task and P0 audit remain release gates.
-
-See [CHANGELOG.md](CHANGELOG.md) under `[1.12.1]` for the complete v1.12 diff.
-
-## Download
-
-### Option 1: Git Clone (Recommended)
+### Option 1: Git Clone
 
 ```bash
 git clone https://github.com/Spc-jgs/obsidian-kb-skill.git
@@ -242,7 +176,7 @@ AI Agent internally executes:
 
 The standard Skill and compatibility artifacts contain identical core instructions. `~/.agents/skills` is Codex's user-level discovery path; it is not a universal discovery path for every agent.
 
-## Quick Start
+## Run the Installer Manually (Advanced)
 
 ### 1. Download the project
 
@@ -312,7 +246,7 @@ Tell your AI assistant:
 - *"Clip this article: https://example.com/article"*
 - *"Create a project note for the dashboard redesign"*
 
-### Manual Installation (Without the Installer)
+### Fully Manual Copy (Without the Installer)
 
 The standard Skill is no longer one `SKILL.md`; it also carries lazy references, helper code, and template assets. For manual setup, copy the full directory and provide a Python environment that can import PyYAML:
 
