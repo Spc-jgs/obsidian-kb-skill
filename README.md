@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.18.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.19.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor、WorkBuddy）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
@@ -25,6 +25,17 @@
 - 用 `[[wikilinks]]` 关联相关笔记
 
 你的知识以结构化的方式自动积累，从 10 条笔记到 10000 条都能轻松管理。
+
+## v1.19 新增的能力
+
+v1.19 让普通沉淀在起草前拿到必要的模板结构，同时把低频异常说明移出常规上下文：
+
+- `vault-info --compact --type <slug>` 只返回所选标准模板的路径和有序二级标题，不返回模板正文或 frontmatter。
+- 普通路径一次发现即可完成 Vault、索引、模板定制状态和标题骨架确认；类型尚不明确时仍可省略 `--type`，由预检兜底。
+- 缺分类与自定义模板的详细说明改为命中后按需加载；预检、正式写入、自动审计、Git 治理与模板 SHA 防漂移保持不变。
+- 普通 Skill 指令面由 2716 降至 2296 `o200k_base` tokens，低频异常说明不再影响每次调用。
+
+完整改动见 [CHANGELOG.md](CHANGELOG.md) 的 `[1.19.0]` 段。
 
 ## v1.18 新增的能力
 

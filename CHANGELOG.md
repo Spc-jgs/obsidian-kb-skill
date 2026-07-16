@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-07-16
+
+### Added
+
+- `vault-info --type <slug>` adds one selected conventional template's path and ordered level-two headings to discovery output without returning template prose or frontmatter.
+- Focused contracts cover selected template shape, unsupported types, missing templates, and conditional reference loading across source, generated Skill, wheel, and installed-runtime surfaces.
+
+### Changed
+
+- Ordinary creation performs one type-aware compact discovery call and receives the required standard heading shape before drafting, while preflight remains the fallback when type is initially unclear.
+- Missing-category and customized-template details moved into separate conditional references, reducing the ordinary `o200k_base` instruction surface from 2,716 to 2,296 tokens.
+
+### Fixed
+
+- Standard template headings no longer appear only after a failed preflight; the lightweight discovery result exposes them early without increasing template maintenance or leaking author instructions.
+
 ## [1.18.0] - 2026-07-16
 
 ### Added

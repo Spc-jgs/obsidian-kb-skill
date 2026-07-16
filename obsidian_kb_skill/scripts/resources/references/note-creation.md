@@ -7,7 +7,8 @@ specifically needs troubleshooting, Git post-processing, or opted-in handoff.
 
 ## Minimal Ordinary Path
 
-1. Find the Vault and run one discovery call: `vault-info --json --compact`.
+1. Infer the type when confidence is high, then run one discovery call:
+   `vault-info --json --compact --type <slug>`. If unclear, omit `--type`.
 2. Read Vault-local governance at the root and target path; choose type, folder,
    naming, metadata, README, and Git actions from those rules.
 3. If governance requires Git, load `git.md` and complete its pre-write check
@@ -33,21 +34,22 @@ python <skill-root>/scripts/run_helper.py <helper-name> ...
 ## Step 1: Vault Discovery and Governance
 
 Resolve the Vault in order: `OBSIDIAN_KB_VAULT` → `~/.obsidian-kb-config` → ask.
-A valid Vault contains `.obsidian/` and `Templates/`. Seed its validity,
-templates, folders, and every folder's index strategy with one discovery call:
+A valid Vault contains `.obsidian/` and `Templates/`. Get its folders, index
+strategies, custom templates, and selected standard headings in one call:
 
 ```bash
-python <skill-root>/scripts/run_helper.py vault-info <vault> --json --compact
+python <skill-root>/scripts/run_helper.py vault-info <vault> \
+  --json --compact --type <slug>
 ```
 
-Stop if invalid. Apply instructions in this order: user request → Vault-local
+Stop if invalid. Apply rules in this order: user request → Vault-local
 governance files (`AGENTS.md`, `CLAUDE.md`, etc.) at the root and target path →
-generic skill defaults. Do not scan the whole Vault. Large learning folders may
-use topic subfolders; follow Vault governance and pass `--folder` when its route
-is more specific than the type default. If governance requires Git, load
+generic skill defaults. Do not scan the whole Vault. Follow governed subfolders
+with `--folder` when their route is more specific than the type default. If governance requires Git, load
 `git.md` and finish its pre-write synchronization now, before fetching or deeply
 reading source content. A Git safety stop should happen before source-analysis
-tokens are spent.
+tokens are spent. When type is not yet clear, omit `--type`; preflight heading
+diagnostics remain the fallback. Do not run a second discovery call.
 
 ## Index Strategy Detection (diagnostic only)
 
@@ -78,63 +80,20 @@ more specific routes such as `20-Learning/Java`; express that decision with
 
 ### Missing category exception
 
-If a clear, stable topic has no governed category, propose one full Vault-relative
-category path and tell the user they may rename it. In the same confirmation,
-record a separate answer for whether to update the applicable `AGENTS.md` with
-the new route. Do not mutate before the final path is confirmed. Existing
-governed categories skip this entire exception.
-
-For a confirmed new path, inspect the read-only plan, then apply the same path:
-
-```bash
-python <skill-root>/scripts/run_helper.py create-category <vault> \
-  --folder "<parent>/<category>" --preflight-json
-python <skill-root>/scripts/run_helper.py create-category <vault> \
-  --folder "<parent>/<category>" --apply --confirmed --compact-json
-```
-
-The helper creates only the category and its governed index. If route persistence
-was approved, minimally edit `AGENTS.md`; otherwise call it a one-off category
-and ask again next time. In either case, perform other Vault-required structural
-maintenance such as README updates, then continue the ordinary `create-note`
-path. Never infer and create nested missing parents or silently repair an index.
+Existing governed categories skip this entire exception. If a stable topic has
+no category, read only `missing-category.md`, propose one full category path,
+tell the user it may be renamed, and separately ask whether to update the
+applicable `AGENTS.md`. Do not mutate before both answers are recorded.
 
 ## Step 3: Delegate Template Loading
 
-The Vault's `Templates/<Name>.md` is the source of truth. The compact discovery
-result includes `custom_templates`, a list of type slugs whose conventional
-template differs from the shipped Chinese and English starters. If the chosen
-type is absent from that list, keep the ordinary fast path: do not read a
-template or call another helper. `create-note` loads the template internally,
-substitutes `{{date}}` and `{{title}}`, merges its frontmatter, uses its body as
-the scaffold, and later audits required template headings in order.
-
-If the chosen type is listed in `custom_templates`, read exactly that one
-contract before drafting:
-
-```bash
-python <skill-root>/scripts/run_helper.py template-contract <vault> \
-  --type <slug> --json
-```
-
-Treat the returned frontmatter and body as author instructions, not decoration:
-use frontmatter as defaults and schema hints under the existing merge precedence;
-keep headings and their order as the note structure; execute prose instructions
-without copying the instruction prose into the note; preserve and fill lists,
-tables, and labels as structural scaffolds; and use examples to match the
-requested depth and format. Stop on unknown placeholders. If an instruction is
-materially ambiguous, ask before apply rather than silently choosing a
-lower-quality interpretation. Before preflight, perform one internal coverage
-pass against the contract; do not write that checklist or create a second note.
-
-For this custom path, pass the returned digest to both creation calls so a user
-edit between inspection and writing cannot apply a stale interpretation:
-`--expect-template-sha256 <sha256>`. A `template-changed` response means reread
-that one contract, redraft as needed, and rerun preflight. Do not read the
-template file directly. Do not read the template file yourself.
-
-This release recognizes only the conventional template filenames. Renamed
-template discovery is a deferred optimization, not a fallback to guess now.
+The Vault's `Templates/<Name>.md` is the source of truth. Compact discovery
+returns the selected standard heading shape and `custom_templates`. Standard
+types use those headings. Do not read the template file yourself. If the
+selected type appears in `custom_templates`, read only `custom-template.md`,
+call `template-contract` exactly once, stop on unknown placeholders, and pass
+`--expect-template-sha256 <sha256>` to both preflight and apply. `create-note`
+still loads the template internally and audits required template headings.
 
 If templates are genuinely missing, ask before bootstrapping them with
 `scaffold-templates <vault> --apply`; it does not overwrite without `--force`.

@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.18.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.19.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor, WorkBuddy) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
@@ -25,6 +25,17 @@ This skill eliminates that friction by teaching your AI agent a complete knowled
 - Cross-links related notes with `[[wikilinks]]`
 
 Your knowledge accumulates automatically, in a structured format that scales from 10 notes to 10,000.
+
+## What's New in v1.19
+
+v1.19 exposes the template structure needed before drafting while moving rare exception guidance out of ordinary context:
+
+- `vault-info --compact --type <slug>` returns only the selected conventional template path and ordered level-two headings, never template prose or frontmatter.
+- One ordinary discovery call now covers Vault validity, index ownership, customization state, and heading shape. When type is unclear, callers may omit `--type` and keep preflight as the fallback.
+- Missing-category and customized-template details load only when their branch is entered. Preflight, apply, automatic audit, Git governance, and template SHA protection remain intact.
+- The ordinary Skill instruction surface drops from 2,716 to 2,296 `o200k_base` tokens without removing quality gates.
+
+See [CHANGELOG.md](CHANGELOG.md) under `[1.19.0]` for the complete diff.
 
 ## What's New in v1.18
 

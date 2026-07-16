@@ -27,6 +27,7 @@ from obsidian_kb_skill.scripts.vault_paths import (
 
 SUPPORTED_PLACEHOLDERS = ("date", "title")
 PLACEHOLDER_RE = re.compile(r"\{\{([^}]+)\}\}")
+LEVEL_TWO_HEADING_RE = re.compile(r"^##[ \t]+(.+?)[ \t]*$", re.MULTILINE)
 
 
 class TemplateFrontmatterError(ValueError):
@@ -114,6 +115,21 @@ def template_path(vault: Path, note_type: str) -> Path | None:
         return None
     path = vault / "Templates" / filename
     return path if path.is_file() else None
+
+
+def template_shape(vault: Path, note_type: str) -> dict[str, Any] | None:
+    """Return only one conventional template's ordered level-two headings."""
+    path = template_path(vault, note_type)
+    if path is None:
+        return None
+    normalized = normalize_template_text(path.read_text(encoding="utf-8"))
+    return {
+        "type": note_type,
+        "path": path.relative_to(vault).as_posix(),
+        "headings": [
+            heading.strip() for heading in LEVEL_TWO_HEADING_RE.findall(normalized)
+        ],
+    }
 
 
 def inspect_template(vault: Path, note_type: str) -> dict[str, Any] | None:

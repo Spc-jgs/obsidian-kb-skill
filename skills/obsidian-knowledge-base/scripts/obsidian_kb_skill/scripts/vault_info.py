@@ -41,7 +41,11 @@ from typing import Any
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.detect_index import detect
 from obsidian_kb_skill.scripts.audit_vault import _folder_index_config
-from obsidian_kb_skill.scripts.template_contract import custom_template_types
+from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
+from obsidian_kb_skill.scripts.template_contract import (
+    custom_template_types,
+    template_shape,
+)
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
     validate_vault_root,
@@ -72,7 +76,7 @@ def _templates(vault: Path) -> list[str]:
     )
 
 
-def collect(vault: Path) -> dict[str, Any]:
+def collect(vault: Path, note_type: str | None = None) -> dict[str, Any]:
     vault = vault.resolve()
     warnings: list[str] = []
     exists = vault.is_dir()
@@ -97,7 +101,7 @@ def collect(vault: Path) -> dict[str, Any]:
             entry["index"] = None
         standard_folders[name] = entry
 
-    return {
+    result = {
         "vault": str(vault),
         "valid": valid,
         "validation": {
@@ -116,6 +120,9 @@ def collect(vault: Path) -> dict[str, Any]:
         "custom_templates": custom_template_types(vault) if exists else [],
         "warnings": warnings,
     }
+    if note_type is not None:
+        result["template_shape"] = template_shape(vault, note_type)
+    return result
 
 
 def compact(info: dict[str, Any]) -> dict[str, Any]:
@@ -142,13 +149,27 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Omit per-folder note filename arrays from discovery output",
     )
+    p.add_argument(
+        "--type",
+        dest="note_type",
+        help="Include only this conventional note type's ordered template headings",
+    )
     args = p.parse_args(argv)
     try:
         vault = validate_vault_root(args.vault)
     except InvalidVaultRootError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    info = collect(vault)
+    if args.note_type is not None and args.note_type not in TYPE_TO_TEMPLATE:
+        print(json.dumps({
+            "error": {
+                "code": "unsupported-template-type",
+                "note_type": args.note_type,
+                "supported": sorted(TYPE_TO_TEMPLATE),
+            }
+        }, ensure_ascii=False))
+        return 2
+    info = collect(vault, note_type=args.note_type)
     if args.compact:
         info = compact(info)
     print(json.dumps(info, ensure_ascii=False, indent=2))
