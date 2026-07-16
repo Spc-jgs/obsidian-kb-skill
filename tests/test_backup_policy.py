@@ -318,3 +318,41 @@ def test_regular_file_candidate_resolves_inside_vault(tmp_path):
     assert not candidate.exists()
     assert latest.is_file()
     assert result.deleted == 1
+
+
+def test_exact_top_level_inbox_namespace_is_preserved_silently(tmp_path):
+    vault = make_vault(tmp_path)
+    transaction = (
+        vault / ".obsidian-kb-backups" / "inbox" / "restore-id" / "manifest.json"
+    )
+    transaction.parent.mkdir(parents=True)
+    transaction.write_text("recovery", encoding="utf-8")
+
+    result = prune_backups(vault, BackupPolicy(1, True))
+
+    assert transaction.read_text(encoding="utf-8") == "recovery"
+    assert result.scanned == 0
+    assert result.deleted == 0
+    assert result.warnings == ()
+
+
+def test_inbox_like_names_are_not_hidden_from_ordinary_retention(tmp_path):
+    vault = make_vault(tmp_path)
+    first = backup(
+        vault, "2026-07-10-100000", "inbox/Tasks/a/TASK.md", "old"
+    )
+    latest = backup(
+        vault, "2026-07-10-100001", "inbox/Tasks/a/TASK.md", "new"
+    )
+    near_name = vault / ".obsidian-kb-backups" / "inbox-copy"
+    near_name.mkdir(parents=True)
+    (near_name / "keep.md").write_text("keep", encoding="utf-8")
+
+    result = prune_backups(vault, BackupPolicy(1, True))
+
+    assert not first.exists()
+    assert latest.is_file()
+    assert (near_name / "keep.md").is_file()
+    assert result.scanned == 2
+    assert result.deleted == 1
+    assert result.warnings == ("retained unknown backup item: inbox-copy",)

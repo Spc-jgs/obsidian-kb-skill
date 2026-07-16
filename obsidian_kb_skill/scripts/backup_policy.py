@@ -174,6 +174,11 @@ def prune_backups(
         return CleanupResult(policy.keep_per_note, 0, 0, tuple(warnings))
 
     for entry in top_entries:
+        # Inbox transactions own a durable recovery namespace, not ordinary
+        # timestamped note history. Retention must neither inspect nor warn for
+        # this exact top-level name.
+        if entry.name == "inbox":
+            continue
         stamp_path = Path(entry.path)
         try:
             is_real_directory = (
