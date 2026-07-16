@@ -51,7 +51,7 @@ def test_transport_only_template_differences_are_standard(tmp_path: Path):
     vault = vault_with_shipped_templates(tmp_path)
     path = vault / "Templates" / "Web Clip.md"
     content = path.read_text(encoding="utf-8").rstrip("\n").replace("\n", "\r\n")
-    path.write_text("\ufeff" + content, encoding="utf-8")
+    path.write_bytes(("\ufeff" + content).encode("utf-8"))
 
     assert custom_template_types(vault) == []
 
@@ -132,6 +132,7 @@ def run_contract(vault: Path, note_type: str) -> subprocess.CompletedProcess[str
         cwd=ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
 
 
