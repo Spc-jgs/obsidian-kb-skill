@@ -127,6 +127,7 @@ def test_wheel_exposes_console_scripts(tmp_path):
         "obsidian-vault-info",
         "obsidian-detect-index",
         "obsidian-scaffold-templates",
+        "obsidian-template-contract",
     ):
         assert f"{script} =" in text, f"console script missing: {script}"
 

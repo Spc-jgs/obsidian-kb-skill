@@ -101,11 +101,40 @@ path. Never infer and create nested missing parents or silently repair an index.
 
 ## Step 3: Delegate Template Loading
 
-The Vault's `Templates/<Name>.md` is the source of truth. `create-note` reads it,
-substitutes `{{date}}`, merges its frontmatter, uses its body as the scaffold,
-and later audits required template headings in order. Do not read the template
-file yourself during ordinary creation. Inspect it only for template debugging
-or an explicit template-editing request.
+The Vault's `Templates/<Name>.md` is the source of truth. The compact discovery
+result includes `custom_templates`, a list of type slugs whose conventional
+template differs from the shipped Chinese and English starters. If the chosen
+type is absent from that list, keep the ordinary fast path: do not read a
+template or call another helper. `create-note` loads the template internally,
+substitutes `{{date}}` and `{{title}}`, merges its frontmatter, uses its body as
+the scaffold, and later audits required template headings in order.
+
+If the chosen type is listed in `custom_templates`, read exactly that one
+contract before drafting:
+
+```bash
+python <skill-root>/scripts/run_helper.py template-contract <vault> \
+  --type <slug> --json
+```
+
+Treat the returned frontmatter and body as author instructions, not decoration:
+use frontmatter as defaults and schema hints under the existing merge precedence;
+keep headings and their order as the note structure; execute prose instructions
+without copying the instruction prose into the note; preserve and fill lists,
+tables, and labels as structural scaffolds; and use examples to match the
+requested depth and format. Stop on unknown placeholders. If an instruction is
+materially ambiguous, ask before apply rather than silently choosing a
+lower-quality interpretation. Before preflight, perform one internal coverage
+pass against the contract; do not write that checklist or create a second note.
+
+For this custom path, pass the returned digest to both creation calls so a user
+edit between inspection and writing cannot apply a stale interpretation:
+`--expect-template-sha256 <sha256>`. A `template-changed` response means reread
+that one contract, redraft as needed, and rerun preflight. Do not read the
+template file directly. Do not read the template file yourself.
+
+This release recognizes only the conventional template filenames. Renamed
+template discovery is a deferred optimization, not a fallback to guess now.
 
 If templates are genuinely missing, ask before bootstrapping them with
 `scaffold-templates <vault> --apply`; it does not overwrite without `--force`.
@@ -128,7 +157,8 @@ Pipe external or transient content through `--stdin`:
 
 ```bash
 python <skill-root>/scripts/run_helper.py create-note <vault> \
-  --type <slug> --title "<title>" --stdin --preflight-json
+  --type <slug> --title "<title>" --stdin [--expect-template-sha256 <sha256>] \
+  --preflight-json
 ```
 
 `--preflight-json` returns final frontmatter, destination, SHA-256, byte/line
@@ -151,7 +181,8 @@ Repeat the exact validated content:
 
 ```bash
 python <skill-root>/scripts/run_helper.py create-note <vault> \
-  --type <slug> --title "<title>" --stdin --apply --compact-json
+  --type <slug> --title "<title>" --stdin [--expect-template-sha256 <sha256>] \
+  --apply --compact-json
 ```
 
 `--content-file` must resolve inside the Vault; external content belongs on

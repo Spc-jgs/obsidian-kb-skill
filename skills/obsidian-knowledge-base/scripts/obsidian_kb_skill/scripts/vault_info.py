@@ -41,6 +41,7 @@ from typing import Any
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.detect_index import detect
 from obsidian_kb_skill.scripts.audit_vault import _folder_index_config
+from obsidian_kb_skill.scripts.template_contract import custom_template_types
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
     validate_vault_root,
@@ -112,6 +113,7 @@ def collect(vault: Path) -> dict[str, Any]:
             "user_specified": config.user_specified,
             "root_index_file": config.root_index_file,
         },
+        "custom_templates": custom_template_types(vault) if exists else [],
         "warnings": warnings,
     }
 

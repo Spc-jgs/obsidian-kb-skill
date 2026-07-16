@@ -27,9 +27,42 @@ HELPERS = (
     "process-inbox",
     "scaffold-templates",
     "suggest-links",
+    "template-contract",
     "update-note",
     "vault-info",
 )
+
+
+def test_installed_runner_reads_one_custom_template_contract(tmp_path):
+    skill = tmp_path / "installed" / "obsidian-knowledge-base"
+    shutil.copytree(STANDARD_SKILL, skill)
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    (vault / "Templates").mkdir()
+    (vault / "Templates" / "Insight Note.md").write_text(
+        "---\ntype: insight-note\ntags: [insight]\n---\n"
+        "# {{title}}\n\n## Reflection\n\nExplain why this matters.\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(skill / "scripts" / "run_helper.py"),
+            "template-contract",
+            str(vault),
+            "--type",
+            "insight-note",
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["customized"] is True
+    assert "Explain why this matters." in payload["body"]
 
 
 def test_installed_runner_preflights_category_from_hostile_cwd(tmp_path):
