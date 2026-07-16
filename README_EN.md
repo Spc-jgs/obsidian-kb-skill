@@ -1,6 +1,6 @@
 # Obsidian Knowledge Base Skill
 
-**v1.19.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.19.1** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor, WorkBuddy) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 

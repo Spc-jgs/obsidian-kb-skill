@@ -207,7 +207,7 @@ class TestEndToEnd:
         assert all(path.is_relative_to(root) for path in payload.values())
 
     def test_project_version_reads_pyproject(self):
-        assert build.project_version() == "1.19.0"
+        assert build.project_version() == "1.19.1"
 
     def test_standard_skill_has_required_resource_directories(self):
         root = ROOT / "skills" / "obsidian-knowledge-base"
@@ -373,20 +373,21 @@ def test_readmes_warn_that_one_instruction_file_is_not_a_complete_install():
     assert "Copying one instruction file is neither a complete standard Skill" in readme_en
 
 
-def test_v1_19_0_release_contract_is_consistent():
+def test_v1_19_1_release_contract_is_consistent():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     core = (ROOT / "core" / "OBSIDIAN_KB.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     readme_en = (ROOT / "README_EN.md").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert 'version = "1.19.0"' in pyproject
-    assert "**Version**: 1.19.0" in core
-    assert "**v1.19.0**" in readme
-    assert "**v1.19.0**" in readme_en
-    assert "## [1.19.0] - 2026-07-16" in changelog
+    assert 'version = "1.19.1"' in pyproject
+    assert "**Version**: 1.19.1" in core
+    assert "**v1.19.1**" in readme
+    assert "**v1.19.1**" in readme_en
+    assert "## [1.19.1] - 2026-07-16" in changelog
     assert "vault-info --type <slug>" in changelog
     assert "2,296 tokens" in changelog
+    assert "fenced code examples" in changelog
     assert "~/.workbuddy/skills/obsidian-knowledge-base" in readme
     assert "run_helper.py doctor" in readme
     assert "WorkBuddy" in readme_en

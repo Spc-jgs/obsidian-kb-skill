@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.19.1] - 2026-07-16
+
+### Fixed
+
+- Template heading discovery and required-heading audits ignore YAML frontmatter and fenced code examples, preventing internal comments or example headings from becoming note sections.
+- Opted-in `task-memory` captures omit selected-template discovery because that note type intentionally has no conventional Vault template.
+
 ## [1.19.0] - 2026-07-16
 
 ### Added
