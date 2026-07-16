@@ -1,18 +1,52 @@
-"""Read-only, immutable snapshots of Inbox source notes."""
+"""Read-only, immutable planning for Inbox source notes."""
 from __future__ import annotations
 
+import datetime
 import hashlib
 import os
+import re
 import stat
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal, Mapping
+
+import yaml
 
 from obsidian_kb_skill.scripts.frontmatter import FrontmatterResult, parse_frontmatter
+from obsidian_kb_skill.scripts.note_catalog import (
+    DEFAULT_TAG_BY_TYPE,
+    FOLDER_TO_DEFAULT_TYPE,
+    TYPE_TO_FOLDER,
+)
 from obsidian_kb_skill.scripts.vault_paths import (
     VaultPathError,
     resolve_target_within_vault,
     validate_vault_root,
 )
+
+if TYPE_CHECKING:
+    from obsidian_kb_skill.scripts.folder_index_policy import StaticIndexPlan
+
+
+InboxStatus = Literal["ready", "skipped", "blocked"]
+
+# Trigger keywords (lowercased substrings) -> target folder. Keep this local to
+# Inbox planning so importing the pure planner does not pull in the CLI module.
+_KEYWORD_ROUTES = (
+    (("meeting", "standup", "review", "sync"), "10-Work"),
+    (("article", "learning", "book", "course", "tutorial"), "20-Learning"),
+    (("web", "url", "blog", "clip"), "20-Learning"),
+    (("analysis", "insight", "idea", "takeaway"), "30-Insights"),
+    (("project", "milestone", "sprint"), "40-Projects"),
+    (("person", "contact", "team"), "50-People"),
+)
+
+_DEFAULT_TAG_BY_FOLDER = {
+    folder: DEFAULT_TAG_BY_TYPE[note_type]
+    for folder, note_type in FOLDER_TO_DEFAULT_TYPE.items()
+}
+
+_FRONTMATTER_KEYS = ("date", "type", "tags")
 
 
 @dataclass(frozen=True)
@@ -40,6 +74,35 @@ class InboxSourceSnapshot:
     text: str | None
     frontmatter: FrontmatterResult | None
     issue: InboxIssue | None
+
+
+@dataclass(frozen=True)
+class InboxProposal:
+    destination: Path
+    target: str
+    note_type: str
+    tags: tuple[str, ...]
+    metadata_updates: tuple[tuple[str, object], ...]
+    rendered_bytes: bytes
+    rendered_sha256: str
+    index: StaticIndexPlan | None
+
+
+@dataclass(frozen=True)
+class InboxPlanItem:
+    source: Path
+    identity: SourceIdentity | None
+    source_sha256: str | None
+    title: str | None
+    status: InboxStatus
+    proposal: InboxProposal | None
+    issue: InboxIssue | None
+
+
+@dataclass(frozen=True)
+class InboxPlan:
+    effective_date: str
+    items: tuple[InboxPlanItem, ...]
 
 
 def sha256_bytes(payload: bytes) -> str:
@@ -223,3 +286,413 @@ def snapshot_inbox_sources(
         _snapshot_entry(entry, source_root / entry.name)
         for entry in markdown_entries
     )
+
+
+def _newline_for(raw_without_bom: bytes) -> bytes:
+    newline_at = raw_without_bom.find(b"\n")
+    if newline_at > 0 and raw_without_bom[newline_at - 1:newline_at] == b"\r":
+        return b"\r\n"
+    return b"\n"
+
+
+def _closing_frontmatter_offset(raw: bytes) -> tuple[int, bytes] | None:
+    """Return the raw closing-fence offset and opening newline convention."""
+    bom_length = 3 if raw.startswith(b"\xef\xbb\xbf") else 0
+    content = raw[bom_length:]
+    if content.startswith(b"---\r\n"):
+        newline = b"\r\n"
+        line_start = 5
+    elif content.startswith(b"---\n"):
+        newline = b"\n"
+        line_start = 4
+    else:
+        return None
+
+    while line_start <= len(content):
+        line_end = content.find(newline, line_start)
+        if line_end == -1:
+            line_end = len(content)
+            next_line = line_end
+        else:
+            next_line = line_end + len(newline)
+        if content[line_start:line_end] == b"---":
+            return bom_length + line_start, newline
+        if line_end == len(content):
+            break
+        line_start = next_line
+    return None
+
+
+def _serialized_mapping_entry(
+    key: str, value: object, newline: bytes
+) -> tuple[bytes, object]:
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]*", key) is None:
+        raise ValueError(f"invalid frontmatter update key: {key!r}")
+    try:
+        dumped = yaml.safe_dump(
+            value,
+            sort_keys=False,
+            allow_unicode=True,
+            default_flow_style=False,
+        )
+        expected = yaml.safe_load(dumped)
+    except yaml.YAMLError as exc:
+        raise ValueError(f"frontmatter update {key!r} is not YAML-safe") from exc
+
+    lines = dumped.splitlines()
+    if lines and lines[-1] == "...":
+        lines.pop()
+    if not lines:
+        raise ValueError(f"frontmatter update {key!r} serialized to no value")
+
+    if len(lines) == 1 and not lines[0].startswith(("-", "?", ":")):
+        entry = f"{key}: {lines[0]}\n"
+    else:
+        indented = "".join(f"  {line}\n" for line in lines)
+        entry = f"{key}:\n{indented}"
+    encoded = entry.encode("utf-8").replace(b"\n", newline)
+    return encoded, expected
+
+
+def render_frontmatter_updates(
+    snapshot: InboxSourceSnapshot,
+    updates: Mapping[str, object],
+) -> bytes:
+    """Insert absent frontmatter keys without rewriting any source bytes."""
+    if (
+        snapshot.issue is not None
+        or snapshot.raw is None
+        or snapshot.frontmatter is None
+        or snapshot.frontmatter.issue is not None
+    ):
+        raise ValueError("cannot render updates for a blocked Inbox snapshot")
+
+    raw = snapshot.raw
+    metadata = snapshot.frontmatter.metadata or {}
+    missing_updates = tuple(
+        (key, value) for key, value in updates.items() if key not in metadata
+    )
+    if not missing_updates:
+        return raw
+
+    bom_length = 3 if raw.startswith(b"\xef\xbb\xbf") else 0
+    raw_without_bom = raw[bom_length:]
+    fence = _closing_frontmatter_offset(raw)
+    newline = fence[1] if fence is not None else _newline_for(raw_without_bom)
+    entries: list[bytes] = []
+    expected_values: dict[str, object] = {}
+    for key, value in missing_updates:
+        entry, expected = _serialized_mapping_entry(key, value, newline)
+        entries.append(entry)
+        expected_values[key] = expected
+    insertion = b"".join(entries)
+
+    if snapshot.frontmatter.present:
+        if fence is None:
+            raise ValueError("valid frontmatter has no raw closing delimiter")
+        closing_offset, _ = fence
+        rendered = raw[:closing_offset] + insertion + raw[closing_offset:]
+    else:
+        bom = raw[:bom_length]
+        rendered = (
+            bom
+            + b"---"
+            + newline
+            + insertion
+            + b"---"
+            + newline
+            + raw_without_bom
+        )
+
+    try:
+        rendered_text = rendered.decode("utf-8")
+    except UnicodeDecodeError as exc:  # pragma: no cover - snapshot guarantees UTF-8
+        raise ValueError("rendered frontmatter is not valid UTF-8") from exc
+    reparsed = parse_frontmatter(rendered_text, source=snapshot.source.as_posix())
+    if reparsed.issue is not None or reparsed.metadata is None:
+        raise ValueError("rendered frontmatter is not a valid YAML mapping")
+    for key, expected in expected_values.items():
+        if reparsed.metadata.get(key) != expected:
+            raise ValueError(f"frontmatter update {key!r} did not round-trip")
+    return rendered
+
+
+def _note_title(relative: Path, text: str) -> str:
+    """Return the first H1 or the date-prefix-stripped filename stem."""
+    body = text
+    if body.startswith("---\n"):
+        end = body.find("\n---\n", 4)
+        if end != -1:
+            body = body[end + 5:]
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#") and not stripped.startswith("##"):
+            candidate = stripped.lstrip("#").strip()
+            if candidate:
+                return candidate
+    return re.sub(r"^\d{4}-\d{2}-\d{2}-?", "", relative.stem).strip()
+
+
+def _infer_target(text: str, metadata: Mapping[str, Any]) -> str | None:
+    note_type = metadata.get("type")
+    if isinstance(note_type, str) and note_type in TYPE_TO_FOLDER:
+        return TYPE_TO_FOLDER[note_type]
+    haystack = text.lower()
+    for keywords, folder in _KEYWORD_ROUTES:
+        if any(keyword in haystack for keyword in keywords):
+            return folder
+    return None
+
+
+def _ambiguous_empty(value: object) -> bool:
+    return value is None or value == "" or (
+        isinstance(value, (list, tuple, dict, set)) and not value
+    )
+
+
+def _issue_item(
+    snapshot: InboxSourceSnapshot,
+    *,
+    title: str | None,
+    status: Literal["skipped", "blocked"],
+    issue: InboxIssue,
+) -> InboxPlanItem:
+    return InboxPlanItem(
+        source=snapshot.source,
+        identity=snapshot.identity,
+        source_sha256=snapshot.sha256,
+        title=title,
+        status=status,
+        proposal=None,
+        issue=issue,
+    )
+
+
+def _metadata_issue(metadata: Mapping[str, object]) -> InboxIssue | None:
+    for key in _FRONTMATTER_KEYS:
+        if key in metadata and _ambiguous_empty(metadata[key]):
+            return InboxIssue(
+                "ambiguous-empty-metadata",
+                f"existing {key!r} metadata is empty and will not be replaced",
+            )
+    note_type = metadata.get("type")
+    if note_type is not None and not isinstance(note_type, str):
+        return InboxIssue("invalid-metadata", "existing 'type' metadata must be text")
+    tags = metadata.get("tags")
+    if tags is not None and not (
+        isinstance(tags, str)
+        or (isinstance(tags, list) and all(isinstance(tag, str) for tag in tags))
+    ):
+        return InboxIssue(
+            "invalid-metadata",
+            "existing 'tags' metadata must be text or a list of text values",
+        )
+    return None
+
+
+def _plan_snapshot(root: Path, snapshot: InboxSourceSnapshot, date: str) -> InboxPlanItem:
+    if snapshot.issue is not None:
+        return _issue_item(
+            snapshot,
+            title=None,
+            status="blocked",
+            issue=snapshot.issue,
+        )
+    if snapshot.text is None or snapshot.frontmatter is None or snapshot.raw is None:
+        return _issue_item(
+            snapshot,
+            title=None,
+            status="blocked",
+            issue=InboxIssue("unreadable-source", "source snapshot is incomplete"),
+        )
+
+    title = _note_title(snapshot.source, snapshot.text)
+    metadata = snapshot.frontmatter.metadata or {}
+    metadata_issue = _metadata_issue(metadata)
+    if metadata_issue is not None:
+        return _issue_item(
+            snapshot,
+            title=title,
+            status="blocked",
+            issue=metadata_issue,
+        )
+
+    target = _infer_target(snapshot.text, metadata)
+    if target is None:
+        return _issue_item(
+            snapshot,
+            title=title,
+            status="skipped",
+            issue=InboxIssue("no-target", "could not infer a target folder"),
+        )
+
+    destination = Path(target) / snapshot.source.name
+    lexical_target = root / target
+    lexical_destination = root / destination
+    try:
+        resolved_target = resolve_target_within_vault(
+            root, target, label="Inbox target directory"
+        )
+    except VaultPathError:
+        return _issue_item(
+            snapshot,
+            title=title,
+            status="blocked",
+            issue=InboxIssue(
+                "unsafe-destination-path",
+                "target directory could not be resolved safely",
+            ),
+        )
+    if os.path.lexists(lexical_target) and not resolved_target.is_dir():
+        return _issue_item(
+            snapshot,
+            title=title,
+            status="blocked",
+            issue=InboxIssue(
+                "unsafe-destination-path", "target directory is not a directory"
+            ),
+        )
+
+    try:
+        resolved_destination = resolve_target_within_vault(
+            root, destination, label="Inbox destination"
+        )
+    except VaultPathError:
+        if os.path.lexists(lexical_destination):
+            return _issue_item(
+                snapshot,
+                title=title,
+                status="skipped",
+                issue=InboxIssue(
+                    "destination-exists", "destination already exists"
+                ),
+            )
+        return _issue_item(
+            snapshot,
+            title=title,
+            status="blocked",
+            issue=InboxIssue(
+                "unsafe-destination-path", "destination could not be resolved safely"
+            ),
+        )
+    if os.path.lexists(lexical_destination) or os.path.lexists(resolved_destination):
+        return _issue_item(
+            snapshot,
+            title=title,
+            status="skipped",
+            issue=InboxIssue("destination-exists", "destination already exists"),
+        )
+
+    existing_type = metadata.get("type")
+    note_type = (
+        existing_type
+        if isinstance(existing_type, str)
+        else FOLDER_TO_DEFAULT_TYPE[target]
+    )
+    existing_tags = metadata.get("tags")
+    if isinstance(existing_tags, str):
+        tags = (existing_tags,)
+    elif isinstance(existing_tags, list):
+        tags = tuple(existing_tags)
+    else:
+        tags = (_DEFAULT_TAG_BY_FOLDER.get(target, "note"),)
+
+    updates: list[tuple[str, object]] = []
+    if "date" not in metadata:
+        updates.append(("date", date))
+    if "type" not in metadata:
+        updates.append(("type", note_type))
+    if "tags" not in metadata:
+        updates.append(("tags", tags))
+    frozen_updates = tuple(updates)
+    try:
+        rendered = render_frontmatter_updates(snapshot, dict(frozen_updates))
+    except (TypeError, ValueError) as exc:
+        return _issue_item(
+            snapshot,
+            title=title,
+            status="blocked",
+            issue=InboxIssue("invalid-rendered-frontmatter", str(exc)),
+        )
+
+    proposal = InboxProposal(
+        destination=resolved_destination.relative_to(root),
+        target=target,
+        note_type=note_type,
+        tags=tags,
+        metadata_updates=frozen_updates,
+        rendered_bytes=rendered,
+        rendered_sha256=sha256_bytes(rendered),
+        index=None,
+    )
+    return InboxPlanItem(
+        source=snapshot.source,
+        identity=snapshot.identity,
+        source_sha256=snapshot.sha256,
+        title=title,
+        status="ready",
+        proposal=proposal,
+        issue=None,
+    )
+
+
+def plan_inbox(
+    vault: Path,
+    inbox_name: str = "00-Inbox",
+    *,
+    effective_date: str | None = None,
+) -> InboxPlan:
+    """Return one immutable, read-only plan from one source snapshot pass."""
+    frozen_date = (
+        effective_date
+        if effective_date is not None
+        else datetime.date.today().isoformat()
+    )
+    snapshots = snapshot_inbox_sources(vault, inbox_name)
+    try:
+        root = validate_vault_root(vault)
+    except VaultPathError:
+        items = tuple(
+            _issue_item(
+                snapshot,
+                title=None,
+                status="blocked",
+                issue=snapshot.issue
+                or InboxIssue("unsafe-inbox-path", "Vault root is unsafe"),
+            )
+            for snapshot in snapshots
+        )
+        return InboxPlan(effective_date=frozen_date, items=items)
+    return InboxPlan(
+        effective_date=frozen_date,
+        items=tuple(_plan_snapshot(root, snapshot, frozen_date) for snapshot in snapshots),
+    )
+
+
+def _destination_index_name(vault: Path, target: str) -> str | None:
+    folder = vault / target
+    if not folder.is_dir():
+        return None
+    for name in (f"{target}.md", "INDEX.md"):
+        if (folder / name).is_file():
+            return name[:-3]
+    return None
+
+
+def legacy_plan_dict(vault: Path, item: InboxPlanItem) -> dict[str, Any]:
+    """Adapt one typed item to the historical Inbox plan dictionary shape."""
+    root = validate_vault_root(vault)
+    result: dict[str, Any] = {
+        "path": root / item.source,
+        "target": item.proposal.target if item.proposal is not None else None,
+        "title": item.title,
+    }
+    if item.proposal is None:
+        result["skip"] = item.issue.message if item.issue is not None else "skipped"
+        return result
+    result["tags"] = list(item.proposal.tags)
+    result["type"] = item.proposal.note_type
+    result["related_suggestion"] = _destination_index_name(
+        root, item.proposal.target
+    )
+    return result
