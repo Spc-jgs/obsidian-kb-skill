@@ -49,6 +49,11 @@ pytest, uv, build.py, wheel/install/runtime test harnesses.
   unlink, rename, tombstone, or age-steal the lock file.
 - Do not store owned fds, identities, expected journal bytes, or backup payloads
   in mutable process-global registries.
+- Every fd-owning factory owns all locally opened descriptors until it returns
+  successfully. Any exception before return closes them in reverse order;
+  successful return is the only ownership-transfer point. If an operation
+  directory already exists, the typed failure carries its incomplete
+  `RecoveryDebris` after local descriptors are closed.
 - Do not expose `PreparedInboxOperation` or public `prepare_inbox_operation()`.
 - Every task follows RED → focused GREEN → relevant regression → commit → exact-
   range spec review → code-quality review. Do not begin the next task until both
@@ -128,12 +133,27 @@ test "$(git rev-parse HEAD)" = "$BASE"
 
 Create tests that import every type, reject mutation of frozen results, enforce
 `applied`/status consistency through factory validation, require Vault-relative
-result paths, and prove `models.py` does not import `inbox_plan`.
+result paths, and use the AST import graph to prove `models.py` does not import
+`inbox_plan` through an absolute, relative, aliased, or `from` import.
 
 ```python
+def imported_modules(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    result: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            result.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            prefix = "." * node.level + (node.module or "")
+            result.add(prefix)
+            result.update(f"{prefix}.{alias.name}" for alias in node.names)
+    return result
+
 def test_runtime_models_do_not_depend_on_planner() -> None:
-    source = Path(models.__file__).read_text(encoding="utf-8")
-    assert "inbox_plan" not in source
+    imports = imported_modules(Path(models.__file__))
+    assert not any(
+        name.lstrip(".").split(".")[-1] == "inbox_plan" for name in imports
+    )
 
 def test_apply_result_rejects_absolute_backup() -> None:
     with pytest.raises(ValueError, match="Vault-relative"):
@@ -255,6 +275,13 @@ class MutationCapabilityProbe(Protocol):
 class PreviewCapabilityProbe(Protocol):
     def probe(self, vault: Path) -> CapabilitySupport: ...
 
+@dataclass(frozen=True)
+class CapabilityProviders:
+    mutation: MutationCapabilityProbe
+    preview: PreviewCapabilityProbe
+
+def default_capability_providers() -> CapabilityProviders: ...
+
 class VaultCapability:
     @classmethod
     def open(cls, vault: Path) -> "VaultCapability": ...
@@ -283,7 +310,12 @@ symlink, FIFO/non-regular objects, parent traversal, absolute paths, and source/
 destination/index paths under `.obsidian-kb-backups`. Inject missing `dir_fd`,
 `O_NOFOLLOW`, directory fsync, hard-link, and `flock` support. Assert mutation
 and preview probes are distinct and preview fails before opening a record when
-safe no-follow traversal is absent.
+safe no-follow traversal is absent. Assert `CapabilityProviders` is frozen,
+`default_capability_providers()` returns stateless production adapters, and
+fake mutation/preview adapters can be supplied without monkeypatching globals.
+Fault-inject `VaultCapability.open()` after each local descriptor acquisition;
+assert every pre-return failure closes the exact opened fds in reverse order and
+that no `VaultCapability` ownership escapes.
 
 ```python
 @pytest.mark.parametrize(
@@ -350,6 +382,14 @@ Mutation probe requires CPython 3.11+, Linux/macOS, required membership in
 `fcntl.flock`. Preview probe requires only secure bound no-follow traversal and
 identity. Do not create a CLI/environment bypass. Document in code that network
 mount semantics remain outside the guarantee even if primitive checks pass.
+`default_capability_providers()` constructs the two production adapters; later
+session/restore internals receive the frozen bundle explicitly while public
+façades construct this default when no internal bundle is supplied.
+
+`VaultCapability.open()` keeps locally opened fds behind an `ExitStack` (or an
+equivalent explicit `try/finally`) until the fully initialized object is ready.
+Disarm that cleanup only on successful return; all earlier failures close in
+reverse order.
 
 - [ ] **Step 6: Run path and shared path-policy regressions**
 
@@ -386,15 +426,22 @@ git commit -m "fix: bind inbox transaction paths to descriptors"
 class InboxVaultLock:
     fd: int
     restore_id: str
-    operation: Literal["apply", "restore"]
+    operation: Literal["apply", "restore"] | None
     warnings: list[str]
 
     @classmethod
-    def acquire(
+    def acquire_exclusive(
         cls,
         vault: VaultCapability,
         restore_id: str,
         operation: Literal["apply", "restore"],
+    ) -> "InboxVaultLock": ...
+
+    @classmethod
+    def acquire_shared_existing(
+        cls,
+        vault: VaultCapability,
+        restore_id: str,
     ) -> "InboxVaultLock": ...
 
     def write_owner(self) -> None: ...
@@ -408,12 +455,19 @@ Use separate processes/open descriptions to prove nonblocking exclusive busy,
 automatic crash release, same lock for apply/restore, persistent pathname after
 normal release, owner corruption as warning, replacement preservation, first-
 creation file and `.locks` parent fsync, and no `.released`/tombstone growth.
+Prove `acquire_shared_existing()` never creates or writes the lock, uses
+`LOCK_SH|LOCK_NB`, permits concurrent previews, reports an exclusive holder as
+busy, and treats a missing/unsafe lock as recovery-required. Inject failures
+after open, binding validation, owner parsing, and before/after `flock`; assert
+the locally owned fd is closed exactly once on every pre-return exception for
+both acquisition modes. A shared holder has `operation is None`, and
+`write_owner()` rejects it without changing bytes.
 
 ```python
 def test_lock_path_persists_after_release(tmp_path: Path) -> None:
     vault = make_vault(tmp_path)
     with VaultCapability.open(vault) as capability:
-        lock = InboxVaultLock.acquire(capability, RESTORE_ID, "apply")
+        lock = InboxVaultLock.acquire_exclusive(capability, RESTORE_ID, "apply")
         lock.write_owner()
         assert lock.close() == ()
     assert (vault / LOCK_RELATIVE).is_file()
@@ -430,15 +484,24 @@ Expected: missing lock module/API failures.
 - [ ] **Step 3: Implement anchored persistent lock creation/acquisition**
 
 Create `.obsidian-kb-backups/inbox/.locks/inbox.lock` only through bound
-directory fds. Fsync the new file and `.locks` parent. Open no-follow, verify a
-regular file, acquire `fcntl.flock(fd, LOCK_EX|LOCK_NB)`, and map busy to
-`inbox-lock-busy`. The fd is authoritative ownership.
+directory fds for `acquire_exclusive()`. Fsync the new file and `.locks` parent.
+Open no-follow, verify a regular file, acquire
+`fcntl.flock(fd, LOCK_EX|LOCK_NB)`, and map busy to `inbox-lock-busy`. The fd is
+authoritative ownership. `acquire_shared_existing()` opens only the existing
+bound lock and takes `LOCK_SH|LOCK_NB`; it performs no create, truncate, owner
+write, or directory mutation.
 
-- [ ] **Step 4: Implement crash-safe owner diagnostics and release**
+Both factories retain local ownership through an `ExitStack` (or equivalent
+`try/finally`) and transfer the fd only when returning a complete
+`InboxVaultLock`. Every earlier exception unlocks if needed and closes exactly
+once in reverse acquisition order.
 
-While locked, parse old diagnostics as a warning-only hint. After session
-prevalidation, write the exact canonical schema-2 owner object by truncate,
-write loop, fsync, and binding verification:
+- [ ] **Step 4: Implement crash-tolerant owner diagnostics and release**
+
+While locked, parse old diagnostics only as crash-tolerant warning metadata;
+the secure unresolved-record scan remains authoritative. After session
+prevalidation, an exclusive apply/restore holder writes the exact canonical
+schema-2 owner object by truncate, write loop, fsync, and binding verification:
 
 ```python
 owner = {
@@ -588,7 +651,16 @@ relative path cross-constraints, control-namespace rejection, source/index
 backup bytes, destination stage bytes, hashes, mode/mtime metadata, no host path,
 file/parent fsync ordering, and live fds. Reject schema 1, unknown keys, bad
 types/hashes, mismatched backup/stage paths, symlinks, and unknown top-level
-Inbox recovery entries.
+Inbox recovery entries. Use the Task 1 AST helper to prove `recovery.py` has no
+absolute, relative, aliased, or `from` import of `inbox_plan`.
+
+Fault-inject `RecoveryRecord.create()` after operation-directory creation,
+backup open/write/fsync, destination-stage open/write/fsync, manifest
+open/write/fsync, journal open/write/fsync, and each parent fsync. At every
+pre-return failure, assert a close trace in reverse acquisition order, no leaked
+fd count, and a typed `InboxTransactionError` whose failure contains the exact
+incomplete `RecoveryDebris` once the operation directory exists. Add the same
+local-ownership/close assertions for every failing `open_existing()` checkpoint.
 
 - [ ] **Step 2: Write journal/state-machine RED tests**
 
@@ -622,6 +694,14 @@ directory exclusively. Create source/index backups and
 `destination/<destination.path>` stage exclusively; fsync exact bytes and every
 new parent entry. Persist canonical manifest and initial `record-created` only
 after their required inputs are durable. Retain open source/index/stage fds.
+
+`create()` and `open_existing()` keep every local fd in an `ExitStack` (or
+equivalent explicit `try/finally`) until a fully initialized `RecoveryRecord`
+can be returned. Successful return is the only ownership transfer. A failure
+after the operation directory is created first closes all local fds, then raises
+the structured failure with the Vault-relative incomplete `RecoveryDebris`;
+cleanup failure text is appended to warnings without replacing the primary
+issue.
 
 - [ ] **Step 5: Implement the hash-chained journal parser/appender**
 
@@ -688,6 +768,7 @@ class InboxTransactionSession:
         item: InboxPlanItem,
         *,
         injector: InboxFailureInjector | None = None,
+        capabilities: CapabilityProviders | None = None,
     ) -> "InboxTransactionSession": ...
 
     def __enter__(self) -> "InboxTransactionSession": ...
@@ -703,7 +784,10 @@ Cover `NEW→LOCKED→PREPARED`, explicit abort, automatic normal-context abort,
 exception abort, incomplete debris before manifest, durable abort after
 manifest, pre-record blocked, lock busy, prior unresolved record, unsupported
 mutation, closed-session rejection for every operation, idempotent close, and
-`final_result()` only after `CLOSED`.
+`final_result()` only after `CLOSED`. Inject fake `CapabilityProviders` directly
+into `open()` to prove the supplied mutation probe is called exactly once before
+Vault/recovery open, the preview probe is not called, and production defaults
+are used only when `capabilities is None`.
 
 ```python
 def test_prepared_session_cannot_escape_context(tmp_path: Path) -> None:
@@ -737,13 +821,16 @@ Expected: missing session API/state failures.
 
 - [ ] **Step 4: Implement one-owner preparation lifetime**
 
-`open()` validates only immutable/syntactic inputs. `__enter__()` establishes
-the context-lifetime guard and returns without filesystem mutation. `prepare()`
-probes, opens the Vault, allocates restore ID, acquires lock, scans unresolved
-records, revalidates item/source/destination/index/rendered bytes, writes owner,
-builds planner-independent `RecoveryInputs`, creates the recovery record, and
-reaches durable `backup-ready` while retaining every fd and lock on `self`;
-only `session.py` imports `InboxPlanItem`.
+`open()` validates only immutable/syntactic inputs and stores the supplied
+frozen `CapabilityProviders`, or constructs `default_capability_providers()`
+when it is `None`. `__enter__()` establishes the context-lifetime guard and
+returns without filesystem mutation. `prepare()` calls the stored mutation
+probe, opens the Vault, allocates restore ID, acquires the exclusive lock with
+`InboxVaultLock.acquire_exclusive()`, scans unresolved records, revalidates
+item/source/destination/index/rendered bytes, writes owner, builds planner-
+independent `RecoveryInputs`, creates the recovery record, and reaches durable
+`backup-ready` while retaining every fd and lock on `self`; only `session.py`
+imports `InboxPlanItem`.
 
 Use instance attributes only:
 
@@ -751,6 +838,7 @@ Use instance attributes only:
 self._vault: VaultCapability | None
 self._lock: InboxVaultLock | None
 self._record: RecoveryRecord | None
+self._capabilities: CapabilityProviders
 self._state: TransactionState
 self._warnings: list[str]
 self._rollback_actions: list[str]
@@ -836,7 +924,9 @@ class RollbackResources:
     record: RecoveryRecord
     source_backup_fd: int
     destination_stage_fd: int
+    destination_installed_identity: FileIdentity | None
     index_backup_fd: int | None
+    index_installed_identity: FileIdentity | None
 
 def rollback_known_state(
     resources: RollbackResources,
@@ -870,8 +960,12 @@ assert phases(vault, result.restore_id)[-1] == "committed"
 Cover public ancestor rebinding before/after destination, index, audit, and
 source operations; destination file/dangling symlink appearance; actual
 hard-link unsupported with destination absent; link error with exact published
-inode; unknown link target; index identity/hash changes; source same bytes/new
-inode; control-namespace paths; and two notes sharing one index.
+inode; unknown link target; destination replacement with the exact rendered
+bytes on a different inode; index identity/hash changes; index replacement with
+the exact post-image bytes on a different inode; source same bytes/new inode;
+control-namespace paths; and two notes sharing one index. The same-bytes/new-
+inode cases must be RED because content equality alone never proves live
+transaction ownership.
 
 - [ ] **Step 3: Write full rollback checkpoint RED matrix**
 
@@ -880,7 +974,8 @@ temp create/write/fsync/recheck/replace/parent-fsync/journal, audit, source
 recheck/unlink/parent-fsync/journal, final verify, committed append/fsync,
 destination cleanup, index restore, and source restore. Every row asserts exact
 business bytes plus status, restore ID, warnings, debris, mutation flag, and
-rollback actions.
+rollback actions. Use the Task 1 AST helper to prove `rollback.py` has no
+absolute, relative, aliased, or `from` import of `session.py`.
 
 - [ ] **Step 4: Run apply tests and confirm RED**
 
@@ -903,7 +998,7 @@ In the same open session:
    recheck before identity/hash, replace, fsync/verify, append `index-installed`.
 5. Read installed destination through a bound fd, verify rendered bytes, decode
    strict UTF-8, call `audit_note_text()`, append `audit-passed` with warnings.
-6. Reopen/recheck source identity/hash, unlink/fync parent last, append
+6. Reopen/recheck source identity/hash, unlink/fsync parent last, append
    `source-removed`.
 7. Revalidate all public/recovery/lock bindings and append `committed`.
 
@@ -911,10 +1006,16 @@ In the same open session:
 
 Rollback runs while the same lock and capabilities remain live. Restore source
 first when absent using source backup and no-overwrite publication. Restore
-index only from expected post-image. Remove destination only when its live stage
-identity or rendered hash proves ownership. Preserve unknown bytes and stop
-destructive steps. Append `rolling-back`, then `rolled-back` after exact original
-state or `recovery-required` with sorted observations.
+index only when the public object has both the exact installed index identity
+and the expected after-hash. Remove destination only when the public object has
+both the exact transaction-owned stage/installed identity and the expected
+rendered hash. If either half differs—even when bytes are identical on a new
+inode—preserve the unknown object and stop destructive steps. Append `rolling-
+back`, then `rolled-back` after exact original state or `recovery-required` with
+sorted observations. These identity-and-hash conjunctions govern live in-
+session rollback; Task 7 follows the specification's separately constrained
+fresh-process observation rules, where inode identity is not persisted as an
+authoritative cross-process ownership claim.
 
 - [ ] **Step 7: Implement the thin public façade**
 
@@ -931,7 +1032,9 @@ def apply_inbox_item(vault, item, *, injector=None):
 ```
 
 Map expected internal failures into typed results; do not expose a traceback or
-free-standing prepared object.
+free-standing prepared object. The public façade intentionally exposes no
+capability-probe parameter; only the internal session seam accepts injected
+providers for deterministic tests.
 
 - [ ] **Step 8: Run transaction and shared-policy regressions**
 
@@ -983,7 +1086,27 @@ def restore_inbox_operation(
     *,
     injector: InboxFailureInjector | None = None,
 ) -> InboxRestoreResult: ...
+
+def _preview_inbox_restore(
+    vault: Path,
+    restore_id: str,
+    *,
+    capabilities: CapabilityProviders,
+) -> InboxRestoreResult: ...
+
+def _restore_inbox_operation(
+    vault: Path,
+    restore_id: str,
+    *,
+    capabilities: CapabilityProviders,
+    injector: InboxFailureInjector | None,
+) -> InboxRestoreResult: ...
 ```
+
+The two underscore-prefixed functions are internal injection seams. Public
+wrappers preserve the stable signatures above and pass
+`default_capability_providers()`; there is no CLI, environment-variable, or
+public probe bypass.
 
 - [ ] **Step 1: Write read-only preview RED tests**
 
@@ -992,6 +1115,10 @@ lock, safe no-`flock` double-read warning, unsupported preview before record
 open, missing/unsafe lock, schema 1/unknown, missing/corrupt manifest/backup/
 stage, relative-path violations, symlink/control-namespace attacks, destination/
 index/source unknown edits, incomplete and unknown debris, and zero writes.
+Inject a fake preview probe through `_preview_inbox_restore()` and assert it is
+called exactly once, the mutation probe is not called, blocked support returns
+before lock/record open, and the public wrapper constructs only default
+providers.
 
 - [ ] **Step 2: Write every crash-prefix and repair RED test**
 
@@ -1007,7 +1134,10 @@ and no dependency on session globals.
 Cover source-first restoration, mode/mtime best effort, index restore,
 destination removal, final `restored`, repeated idempotency, other unresolved
 record blocking, unsupported mutation, state change after preview, every
-restore checkpoint, and retry after `restore-recovery-required`.
+restore checkpoint, and retry after `restore-recovery-required`. Inject fake
+providers through `_restore_inbox_operation()` and assert only its mutation
+probe runs before Vault/lock/recovery open; public restore exposes no provider
+parameter.
 
 - [ ] **Step 4: Run restore tests and confirm RED**
 
@@ -1021,15 +1151,18 @@ Expected: missing restore module/API failures.
 
 Validate restore ID before traversal. If secure no-follow preview binding is
 absent, return blocked before record open. With `flock`, take nonblocking shared
-lock; without it, double-read the same bound identities/bytes and add
-`unserialized-preview`. Parse only valid prefix, classify tail/debris and derive
-actions from manifest, backups, and observed public hashes.
+lock through `InboxVaultLock.acquire_shared_existing()`; without it, double-read
+the same bound identities/bytes and add `unserialized-preview`. The shared path
+never creates, truncates, or writes owner diagnostics. Parse only valid prefix,
+classify tail/debris and derive actions from manifest, backups, and observed
+public hashes.
 
 - [ ] **Step 6: Implement exclusive restore, crash classification, and repair**
 
-Probe mutation support, acquire exclusive Vault lock, scan other unresolved
-records, reopen target, and revalidate. Repair only the exact allowed partial
-tail; bootstrap an empty prefix from verified manifest; append
+Call the injected mutation probe, acquire the exclusive Vault lock through
+`InboxVaultLock.acquire_exclusive()`, scan other unresolved records, reopen
+target, and revalidate. Repair only the exact allowed partial tail; bootstrap an
+empty prefix from verified manifest; append
 `crash-classified`; then abort, complete rolled-back, restore, or require
 recovery according to the transition table. Restore source first, then index,
 then remove a known destination, verify exact final state, append `restored`,
@@ -1189,8 +1322,11 @@ uncooperative same-user writer. Assert generated helper mirrors include
 
 Add hostile-runtime RED contracts: standard Skill runner and wheel console entry
 run Inbox plan outside the repository; Bash-installed payload runs plan from a
-neutral CWD; Windows smoke runs plan and receives a structured unsupported
-result for apply instead of mutating.
+neutral CWD. Update the Windows smoke script so that, when actually executed on
+a Windows runner, it runs plan and receives a structured unsupported result for
+apply instead of mutating. `tests/test_installers.py` verifies the script/command
+contract only; it must not be cited as Windows runtime execution. Task 10 owns
+the exact-HEAD Windows execution/artifact gate.
 
 - [ ] **Step 2: Run docs/build tests and confirm RED**
 
@@ -1285,7 +1421,7 @@ uv run --locked --extra dev pytest \
 
 Expected: zero failures and zero generated drift.
 
-- [ ] **Step 2: Run hostile-CWD and installed-entry-point gates**
+- [ ] **Step 2: Run hostile-CWD, installed-entry-point, and Windows gates**
 
 ```bash
 uv run --locked --extra dev pytest \
@@ -1293,15 +1429,69 @@ uv run --locked --extra dev pytest \
   tests/test_installers.py tests/test_doctor.py -q
 ```
 
-Expected Task 9 evidence: standard Skill runner and wheel console entry run plan
-from hostile/neutral CWD; Bash-installed payload runs plan outside the
-repository; Windows smoke runs plan and returns a structured unsupported result
-for apply.
+Expected local evidence: standard Skill runner and wheel console entry run plan
+from hostile/neutral CWD, and the Bash-installed payload runs plan outside the
+repository. This pytest command proves the Windows smoke contract text only.
+
+For actual Windows runtime evidence, use exactly one of these paths:
+
+1. On a Windows runner at the implementation HEAD, run and retain the complete
+   output plus exit code:
+
+   ```powershell
+   $head = (git rev-parse HEAD).Trim()
+   pwsh -NoProfile -File tests/windows_installer_smoke.ps1
+   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+   Write-Output "verified-head=$head"
+   ```
+
+2. On a non-Windows host, obtain an externally produced Windows CI/job artifact
+   for the exact implementation HEAD. Record its literal metadata in
+   `.superpowers/sdd/windows-smoke-exact-head.json` using `apply_patch` with
+   exact keys `head`, `runner_os`, `command`, `exit_code`, `job_url`, and
+   `artifact_sha256`, then validate it:
+
+   ```bash
+   HEAD=$(git rev-parse HEAD)
+   HEAD="$HEAD" uv run --locked --extra dev python - <<'PY'
+   import json
+   import os
+   from pathlib import Path
+
+   evidence = json.loads(
+       Path(".superpowers/sdd/windows-smoke-exact-head.json").read_text(
+           encoding="utf-8"
+       )
+   )
+   assert set(evidence) == {
+       "artifact_sha256", "command", "exit_code", "head", "job_url", "runner_os"
+   }
+   assert evidence["head"] == os.environ["HEAD"]
+   assert evidence["runner_os"].lower().startswith("windows")
+   assert evidence["command"] == (
+       "pwsh -NoProfile -File tests/windows_installer_smoke.ps1"
+   )
+   assert evidence["exit_code"] == 0
+   assert evidence["job_url"].startswith("https://")
+   assert len(evidence["artifact_sha256"]) == 64
+   int(evidence["artifact_sha256"], 16)
+   PY
+   ```
+
+The final Reviewer must inspect the referenced job/artifact and confirm that
+the reported commit equals `git rev-parse HEAD`; a locally authored JSON file
+alone is not evidence. Under the standing no-push instruction, do not trigger
+remote CI without new user authority. If neither path is available, local work
+may be reported ready for Windows verification, but Task 10 and release
+acceptance remain incomplete.
 
 - [ ] **Step 3: Prove scope, removed architecture, and worktree cleanliness**
 
 ```bash
-BASE=$(git merge-base HEAD design/inbox-transaction-capability-session)
+BASE=$(sed -n 's/^Implementation base: //p' .superpowers/sdd/progress.md)
+test -n "$BASE"
+printf '%s\n' "$BASE" | rg -q '^[0-9a-f]{40}$'
+test "$(git merge-base HEAD "$BASE")" = "$BASE"
 git diff --check "$BASE"..HEAD
 git status --short
 git log --oneline "$BASE"..HEAD
@@ -1316,7 +1506,9 @@ empty, and `master` still at the pre-work HEAD recorded in the handoff.
 - [ ] **Step 4: Generate the exact final review package**
 
 ```bash
-BASE=$(git merge-base HEAD design/inbox-transaction-capability-session)
+BASE=$(sed -n 's/^Implementation base: //p' .superpowers/sdd/progress.md)
+test -n "$BASE"
+test "$(git merge-base HEAD "$BASE")" = "$BASE"
 /Users/shaopc/.agents/superpowers/skills/subagent-driven-development/scripts/review-package \
   "$BASE" HEAD .superpowers/sdd/inbox-transaction-final-review.md
 ```
@@ -1341,5 +1533,6 @@ Only after `Ready to merge: Yes` and all current gates are green, use
 `superpowers:finishing-a-development-branch`. Under the standing instruction,
 keep the branch/worktree intact and record the accepted HEAD; do not merge or
 push. Cherry-pick accepted commits to `fix/inbox-data-safety` only as a separate
-reversible integration step with its own full regression, then continue Tasks
-6–9 of the Inbox safety branch or the next roadmap risk domain.
+reversible integration step with its own full regression. After that regression,
+continue the next roadmap risk domain; do not rerun the old superseded Inbox
+Tasks 4–9.
