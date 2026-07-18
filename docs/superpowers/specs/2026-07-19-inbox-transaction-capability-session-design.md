@@ -147,11 +147,11 @@ The probe checks `os.supports_dir_fd`, required no-follow/open flags,
 `fcntl.flock`, descriptor identity, and file/directory fsync support before an
 operation directory is created. Static-probe failure returns `blocked` with no
 recovery record. A probe in the recovery tree cannot prove semantics for a
-nested destination mount, so the actual same-parent destination publication is
-the authoritative filesystem test. If that primitive fails before publication,
-the session removes only its identity-bound temp and durably rolls back; temp
-cleanup uncertainty becomes `recovery_required`. The probe is an injectable
-adapter in tests, not a CLI/environment-variable bypass.
+nested destination mount, so the actual recovery-stage-to-destination hard-link
+is the authoritative filesystem test. Link failure with destination still
+absent durably aborts without business mutation; an observed exact publication
+enters rollback, and an unknown destination becomes `recovery_required`. The
+probe is an injectable adapter in tests, not a CLI/environment-variable bypass.
 
 The required semantics are:
 
@@ -204,8 +204,8 @@ the probes already demonstrate that it only moves the race window.
 
 ## Safety Invariants
 
-1. No business-file mutation begins until source/index backups, manifest, and
-   `backup-ready` journal state are durable.
+1. No business-file mutation begins until source/index backups, rendered
+   destination stage, manifest, and `backup-ready` journal state are durable.
 2. The Vault Inbox lock is held across public precondition validation. Once an
    operation directory exists, it remains held until a durable `committed`,
    `aborted`, `rolled-back`, or `recovery-required` phase is written when the
@@ -444,7 +444,8 @@ The session exclusively owns:
 - the persistent Vault Inbox lock fd;
 - recovery namespace and operation directory fds;
 - manifest and journal fds plus exact expected journal bytes/state;
-- live source and optional index backup fds;
+- live source backup, rendered destination stage, and optional index backup
+  fds;
 - current state, restore ID, warnings, rollback actions, and debris metadata;
 - current known identities for owned temporary and installed objects.
 
@@ -516,17 +517,19 @@ immediately before and after each business mutation.
 
 1. Verify public destination absence, treating every lexical entry and dangling
    symlink as occupied/unsafe.
-2. Set `business_mutation_started=True`, then write frozen rendered bytes to an
-   exclusive sibling temp through the bound destination parent fd; fsync and
-   verify exact bytes/identity.
-3. Publish with a same-filesystem kernel no-overwrite hard-link operation.
-4. Fsync the destination parent, verify the public destination identity/hash,
-   then unlink and durably remove the temp entry.
+2. Use the already durable recovery-stage file recorded by the manifest; verify
+   its open-fd identity and rendered hash.
+3. Publish that file to the destination with a kernel no-overwrite hard-link
+   operation between the bound recovery and destination parent fds.
+4. Once public destination identity/hash is proved, set
+   `business_mutation_started=True`, fsync the destination parent, unlink the
+   recovery-stage name, and fsync the operation directory.
 
 If the no-overwrite primitive is unsupported in the actual destination parent,
-the session identity-cleans the temp and enters rollback. Exact cleanup yields
-`rolled_back`; uncertain cleanup yields `recovery_required`. The design does
-not reserve and later replace a public destination pathname.
+the session reopens the destination. Absence yields durable `aborted`; a link to
+the exact stage inode enters `rolling-back`; any other entry yields
+`recovery_required`. The design does not reserve and later replace a public
+destination pathname or leave an unrecorded sibling temp.
 
 ### Static index
 
@@ -544,9 +547,10 @@ mutation.
 
 ### Rollback
 
-Live backup fds stay open until commit or rollback is complete. Rollback reads
-from those fds rather than re-resolving mutable public backup paths. Persistent
-backup files remain for crash recovery.
+Live backup and destination-stage fds stay open until commit or rollback is
+complete. Rollback reads from backup fds rather than re-resolving mutable public
+backup paths and uses the stage fd identity to recognize an installed
+destination. Persistent backup files remain for crash recovery.
 
 Source restoration uses an exclusive temp plus the same no-overwrite publish
 primitive. Destination removal and index restoration require both the exact
@@ -562,6 +566,7 @@ Recovery records remain under:
 ├── manifest.json
 ├── events.jsonl
 ├── source/00-Inbox/<note>.md
+├── destination/<target>/<note>.md  # durable rendered publication stage
 └── index/<target>/<index>.md
 ```
 
@@ -583,6 +588,7 @@ when no managed index mutation is planned):
   },
   "destination": {
     "path": "30-Insights/Idea.md",
+    "stage": "destination/30-Insights/Idea.md",
     "absent": true,
     "rendered_sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
   },
@@ -608,9 +614,12 @@ bits are never restored. `mtime_ns` is nonnegative.
 
 All paths are nonempty Vault-relative POSIX paths with no empty, dot, or parent
 component. Source backup must equal `source/<source.path>` and index backup must
-equal `index/<index.path>`. Source, destination, and index public paths must be
-distinct, and none may start with `.obsidian-kb-backups`. The session repeats
-this reserved-namespace check before opening any business capability.
+equal `index/<index.path>`. Destination stage must equal
+`destination/<destination.path>`. Source, destination, and index public paths
+must be distinct, and none may start with `.obsidian-kb-backups`. Recovery
+backup/stage paths are operation-relative and may use only their designated
+`source/`, `destination/`, or `index/` subtree. The session repeats this
+reserved-namespace check before opening any business capability.
 `destination.absent` must be true. A non-null index must have action `append`,
 distinct before/after hashes, and every listed field; other `StaticIndexPlan`
 actions serialize as null because they cause no recovery mutation.
@@ -663,7 +672,7 @@ Phase names, exact `data` keys, and values are:
 | Phase | Required `data` keys |
 | --- | --- |
 | `record-created` | `manifest_sha256` |
-| `backup-ready` | `source_backup_sha256`, `index_backup_sha256` (hash or null) |
+| `backup-ready` | `source_backup_sha256`, `destination_stage_sha256`, `index_backup_sha256` (hash or null) |
 | `destination-installed` | `path`, `sha256`, `identity` |
 | `index-installed` | `path`, `before_sha256`, `after_sha256`, `identity` |
 | `audit-passed` | `warnings` (array of strings) |
@@ -685,16 +694,16 @@ strings. `observations` is a path-sorted array of exact objects
 `{"path": <relative path>, "state": "absent"|"hash", "sha256": <hash|null>}`;
 `sha256` is null exactly when state is `absent`. No phase accepts additional
 data keys. `crash-classified.classification` is exactly `original-state`,
-`partial-mutation`, or `unknown`; its `resumes_phase` is the last valid apply
-phase and its actions are path-sorted.
+`partial-mutation`, or `unknown`; its `resumes_phase` is the last valid
+apply/rollback/restore logical phase and its actions are path-sorted.
 
 The legal phase transitions are:
 
 ```text
 START → record-created
 record-created → backup-ready | aborted | crash-classified | recovery-required
-backup-ready → destination-installed | aborted | crash-classified
-             | recovery-required
+backup-ready → destination-installed | aborted | rolling-back
+             | crash-classified | recovery-required
 destination-installed → index-installed | audit-passed
                       | rolling-back | crash-classified | recovery-required
 index-installed → audit-passed | rolling-back | crash-classified
@@ -706,7 +715,7 @@ source-removed → committed | rolling-back | crash-classified
 rolling-back → rolled-back | crash-classified | recovery-required
 committed → restore-started
 recovery-required → restore-started
-crash-classified → aborted | restored | restore-started
+crash-classified → aborted | rolled-back | restored | restore-started
                  | recovery-required | restore-recovery-required
 restore-started → restored | crash-classified | restore-recovery-required
 restore-recovery-required → restore-started
@@ -726,13 +735,15 @@ public business state. `resumes_phase` may name `record-created`,
 `backup-ready`, `destination-installed`, `index-installed`, `audit-passed`,
 `source-removed`, `rolling-back`, or `restore-started`. For an apply/rollback
 prefix, exact original state yields `original-state` followed by durable
-`aborted` and an `already_restored` result. For a `restore-started` prefix, exact
-original state is followed by durable `restored`. Known transaction-owned
-partial state yields `partial-mutation` followed by a new `restore-started`.
-Unknown bytes, missing required backup, or ambiguous state yields `unknown`
-followed by `recovery-required` for an apply/rollback prefix or
-`restore-recovery-required` for a restore prefix; destructive restore does not
-begin.
+`aborted` and an `already_restored` result when no business mutation phase was
+reached. A `rolling-back` prefix with exact original state completes durable
+`rolled-back` using the recorded/derived rollback actions. For a
+`restore-started` prefix, exact original state is followed by durable
+`restored`. Known transaction-owned partial state yields `partial-mutation`
+followed by a new `restore-started`. Unknown bytes, missing required backup, or
+ambiguous state yields `unknown` followed by `recovery-required` for an
+apply/rollback prefix or `restore-recovery-required` for a restore prefix;
+destructive restore does not begin.
 
 An active session keeps one verified journal fd open. Before append it locks
 that fd exclusively, reads/compares the complete bytes with its exact expected
@@ -745,22 +756,28 @@ The Vault Inbox lock serializes cooperating transactions; the journal lock
 makes the compare/append primitive locally complete and protects offline tools
 that follow the same contract.
 
-Offline preview may classify exactly one nonempty partial segment after the
-last newline as crash residue. It never treats the segment as a completed
-phase and derives actions from the manifest, valid prefix, backup hashes, and
-observed business state. A malformed newline-terminated line is not truncation
-and cannot be repaired automatically.
+Offline preview may classify exactly one partial segment after the last newline
+as crash residue. It never treats the segment as a completed phase and derives
+actions from the manifest, valid prefix, backup hashes, and observed business
+state. A malformed newline-terminated line is not truncation and cannot be
+repaired automatically. A valid durable manifest with a missing/empty journal
+or a partial first `record-created` line is the only allowed empty-valid-prefix
+case; no online business mutation could legally have followed it.
 
 Restore apply acquires the exclusive Vault lock, re-reads the same identity and
-bytes, and may repair only that exact partial tail. While holding the journal
-lock it truncates to the last complete newline, fsyncs journal and operation
+bytes, and may repair only that exact partial tail. With a nonempty valid prefix,
+it truncates to the last complete newline, fsyncs journal and operation
 directory, then appends `journal-repaired` with the discarded bytes' hash and
-length. It then appends `crash-classified` from the resumed logical phase and
-follows the classification transition; it does not jump directly from an
-arbitrary nonterminal phase to `restore-started`. Failure to reproduce,
-truncate, durably record the repair, or classify observed state returns
-`recovery_required` without business mutation. Normal online apply sessions
-never ignore or repair a truncated/unknown tail.
+length. With the allowed empty prefix, it safely creates/opens and truncates the
+journal, durably recreates canonical sequence-0 `record-created` from the
+verified manifest hash, then appends `journal-repaired` with
+`resumes_phase=record-created`; missing/empty bytes use the SHA-256 of empty
+bytes and length zero. It then appends `crash-classified` from the resumed
+logical phase and follows the classification transition; it does not jump
+directly from an arbitrary nonterminal phase to `restore-started`. Failure to
+reproduce, truncate, durably record the repair, or classify observed state
+returns `recovery_required` without business mutation. Normal online apply
+sessions never ignore or repair a truncated/unknown tail.
 
 ## Transaction Data Flow
 
@@ -776,9 +793,10 @@ For one ready item:
    rendered bytes from the public Vault tree.
 7. Durably write current owner diagnostics through the locked fd.
 8. Create and bind the operation directory.
-9. Create exact source/index backups and retain their read fds.
+9. Create exact source/index backups plus the rendered destination stage; retain
+   all read fds.
 10. Write/fsync schema-2 manifest and `record-created`.
-11. Verify backups through the live fds; append/fsync `backup-ready`.
+11. Verify backups/stage through the live fds; append/fsync `backup-ready`.
 12. Install and verify destination; append/fsync `destination-installed`.
 13. Install/verify an owned changed index; append/fsync `index-installed`.
 14. Audit the installed note; append/fsync `audit-passed` with warnings.
@@ -932,7 +950,8 @@ after exact-range review and regression verification.
 
 ### Transaction contracts
 
-- source/index backups and `backup-ready` durable before first business change;
+- source/index backups, destination stage, and `backup-ready` durable before
+  first business change;
 - destination kernel no-overwrite publication;
 - actual destination-parent unsupported-publication cleanup mapping;
 - index before/after identity and hash guards;
@@ -947,7 +966,8 @@ after exact-range review and regression verification.
 - two notes sharing one index remain separate per-note transactions while the
   Vault lock serializes them.
 - fresh-process crash classification and restore from every apply, rollback,
-  and restore nonterminal journal phase.
+  and restore nonterminal journal phase, including partial first
+  `record-created` and partial terminal `rolled-back` events.
 
 ### Reformulated architecture probes
 
