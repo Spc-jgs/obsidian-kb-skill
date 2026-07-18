@@ -145,12 +145,13 @@ the guarantee to a network/distributed filesystem.
 
 The probe checks `os.supports_dir_fd`, required no-follow/open flags,
 `fcntl.flock`, descriptor identity, and file/directory fsync support before an
-operation directory is created. A harmless same-filesystem hard-link probe is
-performed inside the newly bound operation directory before backups or
-business mutation. Static-probe failure returns `blocked` with no recovery
-record. Failure of the bound filesystem probe retains incomplete debris and
-returns `recovery_required`. The probe is an injectable adapter in tests, not a
-CLI/environment-variable bypass.
+operation directory is created. Static-probe failure returns `blocked` with no
+recovery record. A probe in the recovery tree cannot prove semantics for a
+nested destination mount, so the actual same-parent destination publication is
+the authoritative filesystem test. If that primitive fails before publication,
+the session removes only its identity-bound temp and durably rolls back; temp
+cleanup uncertainty becomes `recovery_required`. The probe is an injectable
+adapter in tests, not a CLI/environment-variable bypass.
 
 The required semantics are:
 
@@ -162,12 +163,17 @@ The required semantics are:
   primitive on the same filesystem;
 - advisory exclusive file locking compatible with `flock` semantics.
 
-Planning remains available on every package-supported platform. Preview never
-performs business mutation: where `flock` exists it uses the shared-lock
-protocol; where it does not, it reads the same bound record twice and requires
-identical identity and bytes, adds warning `unserialized-preview`, and never
-authorizes restore apply. Apply and restore mutation fail closed outside the
-supported environment. README/help must state this matrix exactly.
+Planning remains available on every package-supported platform. Preview has a
+separate injectable `PreviewCapabilityProbe`: it requires a securely bound
+Vault root, component-by-component no-follow recovery traversal, and stable
+descriptor identity. If those path capabilities are absent, preview returns
+`blocked` with `unsupported-inbox-preview` without opening the requested record.
+Where safe path binding and `flock` exist, preview uses the shared-lock
+protocol. Where safe path binding exists but `flock` does not, it reads the
+same bound record twice, requires identical identity and bytes, adds warning
+`unserialized-preview`, and never authorizes restore apply. Apply and restore
+mutation fail closed outside the supported mutation environment. README/help
+must state this matrix exactly.
 
 ## Approaches Considered
 
@@ -228,6 +234,9 @@ the probes already demonstrate that it only moves the race window.
     any process-global identity registry.
 15. Every path exposed in results, manifest, journal data, or diagnostics is
     Vault-relative; host absolute paths never enter persisted records or JSON.
+16. Source, destination, and managed index paths are outside the entire
+    `.obsidian-kb-backups/` control namespace. A custom Inbox name cannot place
+    business notes inside recovery, lock, or operation trees.
 
 ## Module Architecture
 
@@ -354,7 +363,8 @@ manifest/backup, or unknown business bytes is `recovery_required`. Restore
 apply revalidates the preview state: a safe actionable record on an unsupported
 mutation platform is `blocked` with `unsupported-inbox-mutation`; an already
 unsafe record remains `recovery_required`. `already_restored` is idempotent and
-performs no write.
+performs no write. Missing secure preview path capabilities return `blocked`
+with `unsupported-inbox-preview` before the record is opened.
 
 Expected validation, lock, platform, mutation, audit, rollback, and recovery
 errors are converted to `InboxApplyResult` at the façade. Internal units use a
@@ -506,14 +516,17 @@ immediately before and after each business mutation.
 
 1. Verify public destination absence, treating every lexical entry and dangling
    symlink as occupied/unsafe.
-2. Write frozen rendered bytes to an exclusive sibling temp through the bound
-   destination parent fd; fsync and verify exact bytes/identity.
+2. Set `business_mutation_started=True`, then write frozen rendered bytes to an
+   exclusive sibling temp through the bound destination parent fd; fsync and
+   verify exact bytes/identity.
 3. Publish with a same-filesystem kernel no-overwrite hard-link operation.
 4. Fsync the destination parent, verify the public destination identity/hash,
    then unlink and durably remove the temp entry.
 
-If the no-overwrite primitive is unsupported, apply is unsupported. The design
-does not reserve and later replace a public destination pathname.
+If the no-overwrite primitive is unsupported in the actual destination parent,
+the session identity-cleans the temp and enters rollback. Exact cleanup yields
+`rolled_back`; uncertain cleanup yields `recovery_required`. The design does
+not reserve and later replace a public destination pathname.
 
 ### Static index
 
@@ -596,10 +609,11 @@ bits are never restored. `mtime_ns` is nonnegative.
 All paths are nonempty Vault-relative POSIX paths with no empty, dot, or parent
 component. Source backup must equal `source/<source.path>` and index backup must
 equal `index/<index.path>`. Source, destination, and index public paths must be
-distinct. `destination.absent` must be true. A non-null index must have action
-`append`, distinct before/after hashes, and every listed field; other
-`StaticIndexPlan` actions serialize as null because they cause no recovery
-mutation.
+distinct, and none may start with `.obsidian-kb-backups`. The session repeats
+this reserved-namespace check before opening any business capability.
+`destination.absent` must be true. A non-null index must have action `append`,
+distinct before/after hashes, and every listed field; other `StaticIndexPlan`
+actions serialize as null because they cause no recovery mutation.
 
 The file is canonical sorted-key compact JSON plus one final newline, created
 exclusively, fsynced, hash-verified, and followed by an operation-directory
@@ -660,6 +674,7 @@ Phase names, exact `data` keys, and values are:
 | `rolled-back` | `actions`, `source_sha256`, `destination_absent` (true), `index_sha256` (hash or null) |
 | `recovery-required` | `code`, `warnings`, `business_mutation_started`, `observations` |
 | `journal-repaired` | `discarded_tail_sha256`, `discarded_length`, `resumes_phase` |
+| `crash-classified` | `resumes_phase`, `classification`, `actions`, `observations` |
 | `restore-started` | `actions` |
 | `restored` | `actions`, `source_sha256`, `destination_absent` (true), `index_sha256` (hash or null) |
 | `restore-recovery-required` | `code`, `warnings`, `completed_actions` |
@@ -669,23 +684,31 @@ identity objects use the manifest formats. Actions/warnings are arrays of
 strings. `observations` is a path-sorted array of exact objects
 `{"path": <relative path>, "state": "absent"|"hash", "sha256": <hash|null>}`;
 `sha256` is null exactly when state is `absent`. No phase accepts additional
-data keys.
+data keys. `crash-classified.classification` is exactly `original-state`,
+`partial-mutation`, or `unknown`; its `resumes_phase` is the last valid apply
+phase and its actions are path-sorted.
 
 The legal phase transitions are:
 
 ```text
 START → record-created
-record-created → backup-ready | aborted | recovery-required
-backup-ready → destination-installed | aborted | recovery-required
+record-created → backup-ready | aborted | crash-classified | recovery-required
+backup-ready → destination-installed | aborted | crash-classified
+             | recovery-required
 destination-installed → index-installed | audit-passed
-                      | rolling-back | recovery-required
-index-installed → audit-passed | rolling-back | recovery-required
-audit-passed → source-removed | rolling-back | recovery-required
-source-removed → committed | rolling-back | recovery-required
-rolling-back → rolled-back | recovery-required
+                      | rolling-back | crash-classified | recovery-required
+index-installed → audit-passed | rolling-back | crash-classified
+                | recovery-required
+audit-passed → source-removed | rolling-back | crash-classified
+             | recovery-required
+source-removed → committed | rolling-back | crash-classified
+               | recovery-required
+rolling-back → rolled-back | crash-classified | recovery-required
 committed → restore-started
 recovery-required → restore-started
-restore-started → restored | restore-recovery-required
+crash-classified → aborted | restored | restore-started
+                 | recovery-required | restore-recovery-required
+restore-started → restored | crash-classified | restore-recovery-required
 restore-recovery-required → restore-started
 aborted | rolled-back | restored → no further mutation phase
 ```
@@ -696,6 +719,20 @@ is a maintenance overlay allowed after any valid non-`restored` phase. Its
 `resumes_phase` must equal that preceding logical phase; the next transition is
 validated as though the logical phase had not changed. A complete valid hash
 chain with an illegal phase or transition is still rejected.
+
+`crash-classified` is available only to offline restore after it holds the
+exclusive Vault lock and compares manifest, valid journal prefix, backups, and
+public business state. `resumes_phase` may name `record-created`,
+`backup-ready`, `destination-installed`, `index-installed`, `audit-passed`,
+`source-removed`, `rolling-back`, or `restore-started`. For an apply/rollback
+prefix, exact original state yields `original-state` followed by durable
+`aborted` and an `already_restored` result. For a `restore-started` prefix, exact
+original state is followed by durable `restored`. Known transaction-owned
+partial state yields `partial-mutation` followed by a new `restore-started`.
+Unknown bytes, missing required backup, or ambiguous state yields `unknown`
+followed by `recovery-required` for an apply/rollback prefix or
+`restore-recovery-required` for a restore prefix; destructive restore does not
+begin.
 
 An active session keeps one verified journal fd open. Before append it locks
 that fd exclusively, reads/compares the complete bytes with its exact expected
@@ -718,8 +755,10 @@ Restore apply acquires the exclusive Vault lock, re-reads the same identity and
 bytes, and may repair only that exact partial tail. While holding the journal
 lock it truncates to the last complete newline, fsyncs journal and operation
 directory, then appends `journal-repaired` with the discarded bytes' hash and
-length. Only after that durable repair may it append `restore-started`. Failure
-to reproduce, truncate, or durably record the repair returns
+length. It then appends `crash-classified` from the resumed logical phase and
+follows the classification transition; it does not jump directly from an
+arbitrary nonterminal phase to `restore-started`. Failure to reproduce,
+truncate, durably record the repair, or classify observed state returns
 `recovery_required` without business mutation. Normal online apply sessions
 never ignore or repair a truncated/unknown tail.
 
@@ -736,7 +775,7 @@ For one ready item:
 6. Revalidate item, source identity/hash, destination absence, index plan, and
    rendered bytes from the public Vault tree.
 7. Durably write current owner diagnostics through the locked fd.
-8. Create and bind the operation directory; run the harmless filesystem probe.
+8. Create and bind the operation directory.
 9. Create exact source/index backups and retain their read fds.
 10. Write/fsync schema-2 manifest and `record-created`.
 11. Verify backups through the live fds; append/fsync `backup-ready`.
@@ -798,16 +837,21 @@ apply/restore holds the exclusive lock, preview returns `blocked` with
 schema/paths/backups/journal prefix and reports actions, conflicts, warnings,
 and debris from observed hashes.
 
-On a platform without `flock`, preview performs the double-read stable snapshot
-defined by the support matrix and adds `unserialized-preview`. It can describe
-actions but cannot authorize restore mutation on that platform.
+If `PreviewCapabilityProbe` cannot bind the record without following links,
+preview returns `unsupported-inbox-preview`. With safe path binding but no
+`flock`, preview performs the double-read stable snapshot defined by the
+support matrix and adds `unserialized-preview`. It can describe actions but
+cannot authorize restore mutation on that platform.
 
 Restore apply acquires the same Vault Inbox lock, scans for other unresolved
 records, reopens/revalidates the target, and performs the exact truncated-tail
-repair protocol when applicable. It then journals `restore-started`, performs
-source-first guarded restoration, known index restoration, and known
-destination removal. It never overwrites unknown edits. Final state is verified
-and `restored` is durably journaled. Repeated restore is idempotent.
+repair protocol when applicable. A nonterminal apply prefix is durably
+`crash-classified`; original state terminates as `aborted`, known partial state
+continues through `restore-started`, and unknown state becomes
+`recovery-required`. Restoration is source-first, followed by known index
+restoration and known destination removal. It never overwrites unknown edits.
+Final state is verified and `restored` is durably journaled. Repeated restore is
+idempotent.
 
 An incomplete record without a valid manifest is reportable but not guessed.
 The tool returns `recovery_required` with its Vault-relative location and
@@ -818,6 +862,10 @@ preserves it for manual inspection.
 The existing console entry point, Inbox name, routing, inferred metadata,
 default read-only behavior, recognizable text plan, top-level JSON plan list,
 and legacy callable names remain.
+
+A custom Inbox name remains supported only when its resolved Vault-relative
+path is outside `.obsidian-kb-backups/`; a control-namespace overlap is a
+validation-blocked item and cannot reach transaction preparation.
 
 `process_inbox.py` becomes an adapter over accepted `plan_inbox()` and the new
 `apply_inbox_item()` façade. It must not call direct `write_bytes()`, `unlink()`,
@@ -864,7 +912,8 @@ after exact-range review and regression verification.
 
 - no-follow fd traversal and complete ancestor identity checks;
 - durable create/write/link/replace/unlink including parent-directory fsync;
-- supported-platform probe and fail-closed unsupported behavior;
+- mutation/preview capability probes, fail-closed unsupported behavior, and
+  no-follow preview rejection before record access;
 - persistent lock pathname, multiprocess serialization, nonblocking busy
   result, crash release, prior owner diagnostics, and no unlink/tombstone;
 - schema-2 manifest validation and host-path exclusion;
@@ -877,12 +926,15 @@ after exact-range review and regression verification.
   after-close construction, deterministic idempotent close, and use-after-close
   rejection;
 - secure unresolved-record scan before owner diagnostics or new operation;
+- reserved control-namespace rejection for source/destination/index/custom
+  Inbox paths;
 - zero mutable process-global ownership registries.
 
 ### Transaction contracts
 
 - source/index backups and `backup-ready` durable before first business change;
 - destination kernel no-overwrite publication;
+- actual destination-parent unsupported-publication cleanup mapping;
 - index before/after identity and hash guards;
 - audit before source removal;
 - source identity/hash recheck and removal last;
@@ -894,6 +946,8 @@ after exact-range review and regression verification.
   mutation-started flag, and rollback actions;
 - two notes sharing one index remain separate per-note transactions while the
   Vault lock serializes them.
+- fresh-process crash classification and restore from every apply, rollback,
+  and restore nonterminal journal phase.
 
 ### Reformulated architecture probes
 
@@ -931,7 +985,8 @@ evidence, not intentions:
 1. The old public prepared-path contract and process-global ownership tables no
    longer exist.
 2. One context-bound session holds the Vault lock and required capabilities
-   through durable commit or rollback.
+   through durable `committed`, `aborted`, `rolled-back`, or
+   `recovery-required` handling once an operation record exists.
 3. Every business mutation is guarded by supported public-path checks and the
    exact known identity/hash contract.
 4. Journal compare/append is serialized and hash-chained; active corruption
@@ -943,8 +998,8 @@ evidence, not intentions:
 6. Crash recovery works in a fresh process without in-memory registry state.
 7. Real CLI apply routes through `apply_inbox_item()` and no longer directly
    mutates destination, index, or source.
-8. Unsupported mutation environments fail closed while read-only operations
-   remain usable.
+8. Unsupported mutation environments fail closed; planning remains usable, and
+   preview runs only when `PreviewCapabilityProbe` can safely bind the record.
 9. Tasks 6–9 restore, compatibility, documentation, distribution, packaging,
    full-suite, and independent-review gates all pass.
 10. `master` remains unchanged until the user explicitly selects integration.
