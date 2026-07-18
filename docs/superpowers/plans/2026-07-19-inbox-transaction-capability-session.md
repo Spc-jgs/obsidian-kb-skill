@@ -454,6 +454,10 @@ only Vault-relative diagnostics, never `VaultCapability.root`. Every
 `BoundDirectory`, including one for the Vault root, owns a distinct fd from the
 Vault capability. Returned regular-file fds are owned by the caller; every
 helper closes locally opened fds on failure before ownership can transfer.
+`VaultCapability` owns only its root fd; its `close()` has the same idempotent,
+warning-returning behavior, and every method rejects use after close. Closing a
+Vault capability does not close independently owned `BoundDirectory` or file
+fds; the session closes those children first in reverse ownership order.
 Directory bindings require a directory at every step and compare only
 `device`/`inode` when revalidating; directory size/mtime may change because of
 legitimate sibling entry updates. Regular-file identity guards compare the full
@@ -461,8 +465,11 @@ legitimate sibling entry updates. Regular-file identity guards compare the full
 
 Both relative validators reject native absolute paths, Windows drive/UNC-shaped
 paths on non-Windows hosts, empty paths, and dot/parent/empty components.
-Every `name` argument is exactly one nonempty lexical component and rejects
-`/`, `\\`, `.` and `..`; callers cannot smuggle traversal through a final name.
+Every `name` argument is exactly one nonempty native lexical component: it
+rejects `.`, `..`, `os.sep`, and `os.altsep` when `os.altsep` exists. Thus POSIX
+accepts an ordinary relative filename containing a literal backslash, matching
+the existing Vault policy, while Windows rejects both native separators.
+Callers cannot smuggle traversal through a final name.
 `sha256_bytes()` returns exactly `sha256:` followed by 64 lowercase hexadecimal
 characters.
 
@@ -535,8 +542,10 @@ global `fcntl` lookup, is the complete orchestration decision.
 Fault-inject `VaultCapability.open()` after each local descriptor acquisition;
 assert every pre-return failure closes the exact opened fds in reverse order and
 that no `VaultCapability` ownership escapes. Cover root and nested
-`BoundDirectory` ownership, distinct fds, idempotent close/warnings, rejection
-after close, immutable chain contents, and public-chain replacement detection.
+`BoundDirectory` ownership, distinct fds, immutable chain contents, and public-
+chain replacement detection. For both `VaultCapability` and `BoundDirectory`,
+cover idempotent close/warnings, rejection after close, and proof that closing
+one owner does not close independently owned child fds.
 Exercise every named primitive's ownership contract: caller-owned returned fds,
 local close on failure, short reads/writes, unchanged `read_all_fd()` offset,
 exclusive create, file/parent fsync order, lexical dangling-symlink occupancy,
