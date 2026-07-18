@@ -23,10 +23,13 @@ pytest, uv, build.py, wheel/install/runtime test harnesses.
   `docs/superpowers/specs/2026-07-19-inbox-transaction-capability-session-design.md`
   exactly; it supersedes only the old Task 4/5 transaction portions.
 - Create `fix/inbox-transaction-capability-session` in a fresh sibling worktree
-  from this plan's final design commit using `superpowers:using-git-worktrees`.
-- Treat `git merge-base HEAD design/inbox-transaction-capability-session` at
-  branch creation as the immutable implementation base; record its printed hash
-  in the ignored task report and use that exact hash for every review package.
+  from the final Reviewer-accepted HEAD of
+  `design/inbox-transaction-capability-session` using
+  `superpowers:using-git-worktrees`.
+- At branch creation, record that exact 40-character HEAD once as
+  `Implementation base: <hash>` in the ignored task report using `apply_patch`.
+  Every review/final command must read that recorded value and assert it remains
+  an ancestor; never recompute a replacement review base.
 - Never edit, commit, merge, or switch `master`; never push unless the user
   changes the standing instruction.
 - Do not cherry-pick `5f8d2df`; Wave 3 is evidence only. Reuse an idea only
@@ -68,11 +71,19 @@ uv run --locked --extra dev pytest \
 ```
 
 Expected: branch `fix/inbox-transaction-capability-session`, clean worktree,
-and the selected baseline tests pass. Print and record the exact base in the
-ignored task report using `apply_patch`:
+and the selected baseline tests pass. Print the design HEAD once, then record
+the literal output as `Implementation base: <hash>` in
+`.superpowers/sdd/progress.md` using `apply_patch`:
 
 ```bash
-git merge-base HEAD design/inbox-transaction-capability-session
+git rev-parse design/inbox-transaction-capability-session
+```
+
+Verify the new implementation branch starts exactly there before any edit:
+
+```bash
+BASE=$(sed -n 's/^Implementation base: //p' .superpowers/sdd/progress.md)
+test "$(git rev-parse HEAD)" = "$BASE"
 ```
 
 ## File Responsibility Map
