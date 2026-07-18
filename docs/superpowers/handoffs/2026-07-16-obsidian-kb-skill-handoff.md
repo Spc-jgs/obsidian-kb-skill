@@ -1,6 +1,7 @@
 # Obsidian KB Skill Evolution Handoff
 
-**Written:** 2026-07-16, Asia/Shanghai  
+**Written:** 2026-07-16, Asia/Shanghai
+**Last updated:** 2026-07-19, Asia/Shanghai
 **Reason:** Context/token budget is low. Work was intentionally stopped at a
 safe task boundary. Do not reconstruct state from conversation memory; use this
 document, Git, and `.superpowers/sdd/progress.md`.
@@ -73,8 +74,8 @@ The roadmap has 13 risk-separated branches. Only branch 1 is accepted; branch
 2 is active:
 
 1. `fix/shared-note-domain` — accepted at `8132365`.
-2. `fix/inbox-data-safety` — active; Tasks 1–3 accepted, Task 4 implemented but
-   not independently reviewed.
+2. `fix/inbox-data-safety` — active; Tasks 1–3 accepted, Task 4 implemented and
+   independently reviewed, but review requested changes.
 3. `fix/self-contained-primary-references`.
 4. `feat/inbox-lifecycle`.
 5. `feat/knowledge-templates-v2`.
@@ -155,7 +156,7 @@ d1eb034 refactor: plan inbox index updates without writes
 - logical wikilink and physical symlink-contained path remain separate;
 - Reviewer: spec PASS, quality APPROVED.
 
-## Current Stop Point: Task 4 Awaiting Review
+## Current Stop Point: Task 4 Review Failed, Fix Wave Pending
 
 Implementation commit:
 
@@ -163,9 +164,18 @@ Implementation commit:
 6a0ac41 feat: add inbox transaction recovery store
 ```
 
-Task 4 is **not accepted yet**. It was completed and self-reviewed, but the user
-asked to stop before an independent Reviewer could run. Do not start Task 5
-until Task 4 receives both:
+Task 4 is **not accepted yet**. A fresh read-only Reviewer assessed the exact
+range `604b64a..6a0ac41` and returned:
+
+```text
+Spec compliance: FAIL
+Code quality: CHANGES_REQUESTED
+Task 4 accepted: NO
+```
+
+Do not start Task 5 until one complete fix wave addresses the findings below,
+new RED-then-GREEN regressions are recorded, and the same exact Task 4 content
+receives both:
 
 ```text
 Spec compliance: PASS
@@ -197,46 +207,73 @@ Full ignored implementation report:
 .superpowers/sdd/task-4-report.md
 ```
 
-### Exact next action
+### Independent Review Findings
 
-From the active worktree:
+Critical:
 
-```bash
-cd /Users/shaopc/playground/obsidian-kb-skill/.worktrees/inbox-data-safety
+1. A source replaced by a different inode with identical bytes is accepted.
+   The verified fd identity is not compared with the planned `item.identity`.
+2. The exclusively created operation root can be replaced by a Vault-contained
+   symlink; subsequent manifest/journal writes re-resolve the pathname and can
+   be redirected. Bind all transaction work to the originally created root,
+   preferably with fd-relative operations and stored identity.
 
-/Users/shaopc/.agents/superpowers/skills/subagent-driven-development/scripts/review-package \
-  604b64a 6a0ac41 .superpowers/sdd/task-4-review-package.md
-```
+Important:
 
-Extract/retain the existing brief if needed:
+1. Failure cleanup deletes an unknown regular file that replaces an owned
+   backup. Record creation identity and delete only the exact owned object.
+2. A lock write/flush/fsync failure leaves an orphan lock because ownership is
+   registered only after `_acquire_lock` returns. Acquisition must clean up its
+   own partially created lock without deleting a replacement.
+3. Lock identity capture and release contain TOCTOU windows: capture identity
+   with `fstat` on the creation fd, and redesign release so a replacement
+   between verification and removal is preserved.
+4. Backup verification protects only the final component with `O_NOFOLLOW`;
+   an ancestor can be swapped to a symlink. Traverse every component safely
+   with directory fds and fail closed where the required primitives are absent.
+5. Files are fsynced but parent directories are not. Add directory durability
+   checkpoints after directory creation/new entries and surface a truthful
+   warning or failure on unsupported platforms as required by the spec.
+
+Minor follow-ups to include if they fit the same wave:
+
+- test two different sources sharing one index, so the index lock itself is
+  proven to serialize operations;
+- preserve/report cleanup and release warnings on the exception path instead
+  of silently discarding them.
+
+The Reviewer also confirmed that the implementation scope was otherwise exact,
+normal behavior did not mutate business files, retention handled the exact
+`inbox/` namespace, and the ordinary manifest/journal/hash behavior was sound.
+
+### Exact Next Action
+
+Use `superpowers:systematic-debugging` and `superpowers:test-driven-development`.
+Send the **complete** finding list above to one fixer; do not split this tightly
+coupled safety repair across Agents. Require deterministic exploit tests to fail
+before implementation and pass afterward. Append evidence to:
 
 ```text
-.superpowers/sdd/task-4-brief.md
+.superpowers/sdd/task-4-report.md
 ```
 
-Dispatch one fresh, read-only Task 4 reviewer. Give it:
+There is one review-range wrinkle: tracked handoff commit `f61c226` follows the
+Task 4 implementation even though it is controller documentation, not Task 4.
+For the cleanest exact re-review, create a temporary repair branch/worktree at
+`6a0ac41`, make the single Task 4 fix commit there, and review
+`604b64a..<repair-head>`. After approval, cherry-pick only that accepted fix
+commit onto `fix/inbox-data-safety`; keep the temporary branch until the
+cherry-pick and active-worktree regression pass. Never base it on or merge it
+into `master`.
 
-- `.superpowers/sdd/task-4-brief.md`
-- `.superpowers/sdd/task-4-report.md`
-- `.superpowers/sdd/task-4-review-package.md`
-- Inbox safety spec transaction/backup/lock sections.
+Give the re-reviewer:
 
-Review focus:
-
-- operation/backup/lock paths cannot traverse or follow symlinks outside Vault;
-- durable state boundary around manifest fsync versus `backup-ready` journal;
-- failure cleanup never deletes unknown replacements;
-- locks are acquired deterministically and released only by identity;
-- source/index backups are re-resolved and read through verified fds;
-- manifest contains only relative paths and exact hashes;
-- `inbox/` retention preservation does not hide near-name ordinary histories;
-- Task 4 truly performs zero business-file mutations;
-- prepared success intentionally returns held locks for Task 5.
-
-If Critical/Important findings exist, send the complete finding list to one
-fixer, require new RED tests, rerun focused regression, update the report, and
-re-review. If clean, update `.superpowers/sdd/progress.md` and start Task 5 with
-the plan's task-brief tool.
+- `.superpowers/sdd/task-4-brief.md`;
+- the updated `.superpowers/sdd/task-4-report.md`;
+- a newly generated exact review package;
+- the Inbox safety spec transaction/backup/lock sections;
+- the prior Critical/Important findings above, requiring explicit disposition
+  of every item.
 
 ## Known Red Gate: Generated Payload Drift
 
@@ -311,7 +348,8 @@ handoff-document commit. Never run destructive reset/checkout/clean commands.
 - Shared-domain branch: accepted and frozen at `8132365`.
 - Inbox safety design and plan: committed and authoritative.
 - Inbox safety Tasks 1–3: accepted.
-- Task 4: implementation committed at `6a0ac41`, review pending.
+- Task 4: implementation committed at `6a0ac41`; independent review failed with
+  two Critical and five Important findings; one integrated TDD fix wave is next.
 - Tasks 5–9: not started.
 - No push or merge performed.
-- Next move is Task 4 independent review, not new implementation.
+- Next move is the Task 4 safety fix wave and re-review, not Task 5.
