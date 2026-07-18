@@ -2,7 +2,8 @@
 
 **Written:** 2026-07-19, Asia/Shanghai
 
-**Status:** safe pause; Goal remains active; implementation has not started
+**Status:** specification and implementation plan accepted; Goal remains active;
+production implementation has not started
 
 **Authoritative for:** the Inbox transaction redesign, reviewed specification,
 implementation-plan review findings, and the exact next resume action
@@ -20,8 +21,8 @@ abandoned.
   commit `5f8d2df` as accepted implementation.
 - Do not merge or push unless the user changes the standing instruction.
 - Use TDD, exact-range independent review, and verification before acceptance.
-- Do not start production implementation until the plan below receives two
-  independent `READY` verdicts for its exact final commit.
+- Start production implementation only from the final exact HEAD of this design
+  branch after the handoff-only commit also receives exact-HEAD confirmation.
 - Do not mark the Goal complete: the broader README, templates, Inbox product
   integration, Skill/token optimization, and remaining roadmap work are still
   pending.
@@ -56,8 +57,8 @@ fix/inbox-data-safety
 
 design/inbox-transaction-capability-session
   path:   .worktrees/inbox-transaction-design
-  commit before this checkpoint: 29b4a2f
-  role:   active design and implementation-plan branch
+  accepted plan commit before final handoff: 9bfe3c5
+  role:   accepted design/plan history; source for the implementation branch
 
 wip/inbox-task4-wave3-architecture
   path:   .worktrees/inbox-task4-hardening
@@ -140,14 +141,16 @@ uv run --locked --extra dev pytest \
 result: passed, exit 0
 ```
 
-## Implementation plan status — not accepted
+## Implementation plan status — accepted
 
 The current plan is:
 
 ```text
 docs/superpowers/plans/2026-07-19-inbox-transaction-capability-session.md
 initial plan commit: 29b4a2f
-review result: NOT READY (0 Critical, 6 Important, 4 Minor across two reviews)
+accepted plan commit: 9bfe3c5ecd9a236ebcf7a09552d94fa3edc1cce5
+review result: READY / 0 Critical / 0 Important / 0 Minor
+               from two independent reviewers
 production implementation: NOT STARTED
 ```
 
@@ -156,61 +159,28 @@ probes, persistent locking, schema 2 recovery/journal, session preparation,
 apply/rollback, fresh-process restore, CLI integration, generated packaging,
 and final verification.
 
-One review fix was started before this checkpoint: the plan now says to record
-the exact final Reviewer-accepted design HEAD once in
-`.superpowers/sdd/progress.md` and reuse it as the immutable implementation
-review base. This checkpoint deliberately preserves that partial edit, but the
-plan must not be treated as Reviewer-accepted until all findings below are
-resolved and the exact new commit is re-reviewed.
+The plan passed after two repair/review waves. The first review of `29b4a2f`
+found six Important and four Minor issues. The review of `942cc2a` confirmed the
+transaction boundary but found two additional Important and two Minor planning
+gaps. `9bfe3c5` closed every finding and both independent reviewers returned
+`READY / 0 / 0 / 0` for that exact commit.
 
-## Required plan amendments before re-review
+The accepted corrections include:
 
-Resolve every item below in the plan, then commit and request two fresh reviews
-against the exact commit.
-
-### Important findings
-
-1. **Use one immutable implementation base everywhere.** Task 10 still
-   recomputes `git merge-base`. It must instead read `Implementation base:` from
-   `.superpowers/sdd/progress.md`, assert it is non-empty and an ancestor, and
-   use that literal hash for every diff/review package. Never replace it with a
-   later merge-base.
-2. **Require real Windows evidence.** A textual PowerShell-script contract is
-   not runtime evidence. If running on Windows, execute the smoke script. On a
-   non-Windows host, final cross-platform acceptance requires a Windows CI/job
-   artifact for the exact implementation HEAD with exit 0. Because the standing
-   instruction forbids push, do not trigger remote CI without new authority;
-   report this external gate honestly if it remains pending.
-3. **Thread capability probes through internal dependency injection.** Add an
-   immutable/default `CapabilityProviders` bundle (or equivalent) for mutation
-   and preview probes. Session and restore internals accept it; public façades
-   keep stable signatures and construct defaults. Tests inject fakes.
-4. **Strengthen live rollback ownership.** Destination removal requires both
-   exact transaction-owned identity and the expected rendered hash whenever
-   identity is available. Index rollback similarly requires exact installed
-   identity and the expected after-hash. Add RED tests for identical bytes on a
-   different inode for both destination and index.
-5. **Define the preview shared-lock API.** Task 3 must add a read-only
-   `acquire_shared_existing()` (or equivalent) that never creates/writes the
-   lock, uses nonblocking shared `flock`, verifies binding, and keeps owner text
-   warning-only. Task 5 uses exclusive acquisition; Task 7 uses shared.
-6. **Fix factory fd ownership.** `VaultCapability.open()`,
-   `InboxVaultLock.acquire_*()`, and `RecoveryRecord.create()` own every local fd
-   until successful return. Any pre-return exception closes them in reverse
-   order and reports incomplete recovery debris where applicable. Successful
-   return is the only ownership-transfer point. Add close-trace/fd-count fault
-   injection at each factory checkpoint.
-
-### Minor findings
-
-1. Replace source-substring dependency tests with AST/import-graph checks for
-   forbidden planner/session imports.
-2. Replace the `fync` typo with `fsync`.
-3. Describe lock-owner metadata as crash-tolerant, warning-only diagnostics;
-   the secure recovery scan is authoritative.
-4. Remove the obsolete final instruction to continue old Inbox Tasks 6–9.
-   After reversible integration regression, continue the next roadmap risk
-   domain without rerunning superseded tasks.
+- immutable one-time `Implementation base:` and `Master base:` records, with
+  machine assertions and no dynamic replacement merge-base;
+- actual Windows exact-HEAD execution or externally verifiable CI artifact as a
+  release gate; a textual script test is explicitly insufficient;
+- frozen mutation/preview providers threaded through internal session/restore
+  seams, including explicit preview `shared-lock` versus `double-read` modes;
+- a read-only shared-existing lock API that cannot create or write the lock;
+- factory-local fd ownership until successful return, reverse close on failure,
+  and incomplete debris propagation;
+- live destination/index rollback requiring owned identity **and** expected
+  hash, with same-bytes/new-inode RED cases;
+- AST import-graph dependency checks, corrected `fsync` wording, authoritative
+  recovery scan semantics, accurate supersession, Task 9 RED ordering, and no
+  obsolete instruction to rerun superseded Inbox tasks.
 
 ## Exact next resume procedure
 
@@ -222,40 +192,41 @@ against the exact commit.
    git log -5 --oneline
    ```
 
-2. Read this handoff, the accepted specification, and the current plan in full.
-3. Finish only the plan amendments listed above. Do not touch production code.
-4. Run documentation integrity checks:
+2. Read this handoff, the accepted specification, and the accepted plan in full.
+3. Read and use `superpowers:using-git-worktrees`,
+   `superpowers:subagent-driven-development`, and
+   `superpowers:test-driven-development` before production edits.
+4. Create fresh sibling branch/worktree
+   `fix/inbox-transaction-capability-session` from the exact current
+   `design/inbox-transaction-capability-session` HEAD. Do not reuse Wave 3.
+5. Print the implementation/design HEAD and `master` HEAD once. Record their
+   literal 40-character values as `Implementation base:` and `Master base:` in
+   the ignored `.superpowers/sdd/progress.md` using `apply_patch`; never
+   recompute replacements.
+6. Run the plan's baseline suite before editing production code:
 
    ```bash
-   git diff --check
-   rg -n 'TODO|TBD|fync|merge-base HEAD design/inbox-transaction' \
-     docs/superpowers/plans/2026-07-19-inbox-transaction-capability-session.md
+   uv run --locked --extra dev pytest \
+     tests/test_inbox_plan.py tests/test_inbox_transaction.py \
+     tests/test_backup_policy.py tests/test_vault_paths.py \
+     tests/test_path_safety_e2e.py -q
    ```
 
-5. Commit the amended plan on
-   `design/inbox-transaction-capability-session` with a reversible docs-only
-   commit.
-6. Ask two independent reviewers to evaluate the exact commit: one for
-   specification/supersession/platform gates and one for transaction ownership,
-   rollback, locking, and fd lifetime. Require `READY / 0 Critical / 0
-   Important` from both.
-7. Only after that gate, read and use
-   `superpowers:subagent-driven-development`; create a fresh
-   `fix/inbox-transaction-capability-session` worktree from the exact accepted
-   design HEAD, record that literal base once, and execute the plan with TDD.
+7. Execute Task 1 with RED first. Use one implementer per bounded task and fresh
+   spec/quality review gates before advancing, exactly as the plan requires.
 8. Keep `master`, the integration branch, and Wave 3 evidence untouched. Do not
    merge or push.
 
 ## Resume checklist
 
 ```text
-[ ] design worktree is clean and on design/inbox-transaction-capability-session
-[ ] accepted specification commit cacec59 is an ancestor
-[ ] all 6 Important and 4 Minor plan findings are fixed
-[ ] plan integrity checks pass
-[ ] exact amended-plan commit receives two READY verdicts
-[ ] fresh implementation worktree starts from that exact commit
-[ ] implementation base is recorded once, never recomputed
+[x] design worktree is clean and on design/inbox-transaction-capability-session
+[x] accepted specification commit cacec59 is an ancestor
+[x] all plan-review findings are fixed
+[x] plan integrity checks pass
+[x] exact plan commit 9bfe3c5 receives two READY / 0 / 0 / 0 verdicts
+[ ] fresh implementation worktree starts from the final reviewed design HEAD
+[ ] implementation and master bases are recorded once, never recomputed
 [ ] production work uses RED → GREEN → refactor and reversible commits
 [ ] Windows exact-HEAD runtime evidence is obtained or honestly left pending
 [ ] no master edit, merge, push, or Wave 3 cherry-pick occurs
@@ -263,7 +234,7 @@ against the exact commit.
 
 ## Final warning
 
-Do not confuse the accepted specification (`cacec59`) with an accepted
-implementation plan. The plan at `29b4a2f` failed review, and the checkpoint
-following it contains only the beginning of the required corrections. The next
-safe action is plan repair and exact-commit re-review, not implementation.
+The specification and plan are accepted; the implementation is not. Do not
+describe docs-only commit `9bfe3c5` as a working transaction, do not cherry-pick
+Wave 3, and do not skip the fresh implementation worktree, recorded baselines,
+baseline tests, or Task 1 RED gate.
