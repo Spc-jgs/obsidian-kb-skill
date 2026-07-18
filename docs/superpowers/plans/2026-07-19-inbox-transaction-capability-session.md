@@ -21,15 +21,19 @@ pytest, uv, build.py, wheel/install/runtime test harnesses.
 
 - Follow
   `docs/superpowers/specs/2026-07-19-inbox-transaction-capability-session-design.md`
-  exactly; it supersedes only the old Task 4/5 transaction portions.
+  exactly. It supersedes the old Task 4/5 boundary and every conflicting Task 6
+  locking, journal, truncated-tail, rollback, and restore mechanism while
+  preserving the old Tasks 6–9 product outcomes that the specification names.
 - Create `fix/inbox-transaction-capability-session` in a fresh sibling worktree
   from the final Reviewer-accepted HEAD of
   `design/inbox-transaction-capability-session` using
   `superpowers:using-git-worktrees`.
 - At branch creation, record that exact 40-character HEAD once as
-  `Implementation base: <hash>` in the ignored task report using `apply_patch`.
-  Every review/final command must read that recorded value and assert it remains
-  an ancestor; never recompute a replacement review base.
+  `Implementation base: <hash>` and the then-current `master` commit once as
+  `Master base: <hash>` in the ignored task report using `apply_patch`. Every
+  review/final command must read the recorded values, assert the implementation
+  base remains an ancestor, and assert `master` remains exact; never recompute a
+  replacement baseline.
 - Never edit, commit, merge, or switch `master`; never push unless the user
   changes the standing instruction.
 - Do not cherry-pick `5f8d2df`; Wave 3 is evidence only. Reuse an idea only
@@ -76,19 +80,23 @@ uv run --locked --extra dev pytest \
 ```
 
 Expected: branch `fix/inbox-transaction-capability-session`, clean worktree,
-and the selected baseline tests pass. Print the design HEAD once, then record
-the literal output as `Implementation base: <hash>` in
+and the selected baseline tests pass. Print the design and `master` HEADs once,
+then record the literal outputs as `Implementation base: <hash>` and
+`Master base: <hash>` in
 `.superpowers/sdd/progress.md` using `apply_patch`:
 
 ```bash
 git rev-parse design/inbox-transaction-capability-session
+git rev-parse master
 ```
 
 Verify the new implementation branch starts exactly there before any edit:
 
 ```bash
 BASE=$(sed -n 's/^Implementation base: //p' .superpowers/sdd/progress.md)
+MASTER_BASE=$(sed -n 's/^Master base: //p' .superpowers/sdd/progress.md)
 test "$(git rev-parse HEAD)" = "$BASE"
+test "$(git rev-parse master)" = "$MASTER_BASE"
 ```
 
 ## File Responsibility Map
@@ -269,11 +277,22 @@ class CapabilitySupport:
     code: str | None
     message: str | None
 
+@dataclass(frozen=True)
+class PreviewCapabilitySupport:
+    supported: bool
+    code: str | None
+    message: str | None
+    serialization: Literal["shared-lock", "double-read"] | None
+
+    def __post_init__(self) -> None:
+        if self.supported != (self.serialization is not None):
+            raise ValueError("preview support and serialization must agree")
+
 class MutationCapabilityProbe(Protocol):
     def probe(self, vault: Path) -> CapabilitySupport: ...
 
 class PreviewCapabilityProbe(Protocol):
-    def probe(self, vault: Path) -> CapabilitySupport: ...
+    def probe(self, vault: Path) -> PreviewCapabilitySupport: ...
 
 @dataclass(frozen=True)
 class CapabilityProviders:
@@ -313,6 +332,10 @@ and preview probes are distinct and preview fails before opening a record when
 safe no-follow traversal is absent. Assert `CapabilityProviders` is frozen,
 `default_capability_providers()` returns stateless production adapters, and
 fake mutation/preview adapters can be supplied without monkeypatching globals.
+Parametrize preview support as unsupported/`None`, supported/`shared-lock`, and
+supported/`double-read`; reject every inconsistent combination such as
+supported/`None` or unsupported/non-`None`. This return value, not a later
+global `fcntl` lookup, is the complete orchestration decision.
 Fault-inject `VaultCapability.open()` after each local descriptor acquisition;
 assert every pre-return failure closes the exact opened fds in reverse order and
 that no `VaultCapability` ownership escapes.
@@ -380,8 +403,11 @@ not a retry signal.
 Mutation probe requires CPython 3.11+, Linux/macOS, required membership in
 `os.supports_dir_fd`, `O_NOFOLLOW`, directory fsync, and importable
 `fcntl.flock`. Preview probe requires only secure bound no-follow traversal and
-identity. Do not create a CLI/environment bypass. Document in code that network
-mount semantics remain outside the guarantee even if primitive checks pass.
+identity, then returns `serialization="shared-lock"` when `flock` is available
+or `serialization="double-read"` when safe path binding exists without it.
+Unsupported preview returns `serialization=None`. Do not create a CLI/
+environment bypass. Document in code that network mount semantics remain
+outside the guarantee even if primitive checks pass.
 `default_capability_providers()` constructs the two production adapters; later
 session/restore internals receive the frozen bundle explicitly while public
 façades construct this default when no internal bundle is supplied.
@@ -1118,7 +1144,10 @@ index/source unknown edits, incomplete and unknown debris, and zero writes.
 Inject a fake preview probe through `_preview_inbox_restore()` and assert it is
 called exactly once, the mutation probe is not called, blocked support returns
 before lock/record open, and the public wrapper constructs only default
-providers.
+providers. A fake `serialization="shared-lock"` result must call
+`acquire_shared_existing()` exactly once; a fake `serialization="double-read"`
+result must never touch the lock module and must execute the stable double-read
+protocol. These tests must not monkeypatch or re-read global `fcntl` support.
 
 - [ ] **Step 2: Write every crash-prefix and repair RED test**
 
@@ -1149,13 +1178,15 @@ Expected: missing restore module/API failures.
 
 - [ ] **Step 5: Implement preview with the separate capability contract**
 
-Validate restore ID before traversal. If secure no-follow preview binding is
-absent, return blocked before record open. With `flock`, take nonblocking shared
-lock through `InboxVaultLock.acquire_shared_existing()`; without it, double-read
-the same bound identities/bytes and add `unserialized-preview`. The shared path
-never creates, truncates, or writes owner diagnostics. Parse only valid prefix,
-classify tail/debris and derive actions from manifest, backups, and observed
-public hashes.
+Validate restore ID, call the stored preview probe exactly once, and branch only
+on its `PreviewCapabilitySupport`. If unsupported, return blocked before record
+open. For `serialization="shared-lock"`, take the nonblocking shared lock through
+`InboxVaultLock.acquire_shared_existing()`. For `serialization="double-read"`,
+never open the lock; double-read the same bound identities/bytes and add
+`unserialized-preview`. Do not inspect global `fcntl` again after the injected
+probe result. The shared path never creates, truncates, or writes owner
+diagnostics. Parse only a valid prefix, classify tail/debris, and derive actions
+from manifest, backups, and observed public hashes.
 
 - [ ] **Step 6: Implement exclusive restore, crash classification, and repair**
 
@@ -1333,10 +1364,13 @@ the exact-HEAD Windows execution/artifact gate.
 ```bash
 uv run --locked --extra dev pytest \
   tests/test_build.py tests/test_cli_integration.py \
-  tests/test_skill_runtime.py tests/test_lazy_references.py -q
+  tests/test_skill_runtime.py tests/test_wheel_install.py \
+  tests/test_installers.py tests/test_lazy_references.py -q
 ```
 
-Expected: documentation/mirror assertions and the known build drift fail.
+Expected: documentation/mirror assertions, wheel/installer hostile-runtime
+contracts, Windows smoke-script contract, and the known build drift fail before
+the docs/generated/script changes are made.
 
 - [ ] **Step 3: Update only Inbox safety documentation/help**
 
@@ -1489,9 +1523,13 @@ acceptance remain incomplete.
 
 ```bash
 BASE=$(sed -n 's/^Implementation base: //p' .superpowers/sdd/progress.md)
+MASTER_BASE=$(sed -n 's/^Master base: //p' .superpowers/sdd/progress.md)
 test -n "$BASE"
+test -n "$MASTER_BASE"
 printf '%s\n' "$BASE" | rg -q '^[0-9a-f]{40}$'
+printf '%s\n' "$MASTER_BASE" | rg -q '^[0-9a-f]{40}$'
 test "$(git merge-base HEAD "$BASE")" = "$BASE"
+test "$(git rev-parse master)" = "$MASTER_BASE"
 git diff --check "$BASE"..HEAD
 git status --short
 git log --oneline "$BASE"..HEAD
@@ -1501,13 +1539,16 @@ git worktree list
 ```
 
 Expected: diff check clean, worktree clean, only scoped commits, forbidden scan
-empty, and `master` still at the pre-work HEAD recorded in the handoff.
+empty, and the machine assertion proves `master` is still exactly the pre-work
+HEAD recorded once in the task report.
 
 - [ ] **Step 4: Generate the exact final review package**
 
 ```bash
 BASE=$(sed -n 's/^Implementation base: //p' .superpowers/sdd/progress.md)
+MASTER_BASE=$(sed -n 's/^Master base: //p' .superpowers/sdd/progress.md)
 test -n "$BASE"
+test "$(git rev-parse master)" = "$MASTER_BASE"
 test "$(git merge-base HEAD "$BASE")" = "$BASE"
 /Users/shaopc/.agents/superpowers/skills/subagent-driven-development/scripts/review-package \
   "$BASE" HEAD .superpowers/sdd/inbox-transaction-final-review.md
