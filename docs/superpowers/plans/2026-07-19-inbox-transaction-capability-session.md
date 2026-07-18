@@ -140,9 +140,10 @@ test "$(git rev-parse master)" = "$MASTER_BASE"
 - [ ] **Step 1: Write frozen-model and dependency RED tests**
 
 Create tests that import every type, reject mutation of frozen results, enforce
-`applied`/status consistency through factory validation, require Vault-relative
-result paths, and use the AST import graph to prove `models.py` does not import
-`inbox_plan` through an absolute, relative, aliased, or `from` import.
+`applied`/status consistency through direct-constructor `__post_init__`
+validation, require Vault-relative result paths, and use the AST import graph to
+prove `models.py` does not import `inbox_plan` through an absolute, relative,
+aliased, or `from` import. There is no separate factory API in this task.
 
 ```python
 def imported_modules(path: Path) -> set[str]:
@@ -233,12 +234,65 @@ class RecoveryDebris:
     restore_id: str
     location: Path
     classification: Literal["incomplete", "unknown"]
+
+@dataclass(frozen=True)
+class InboxApplyResult:
+    source: Path
+    destination: Path | None
+    status: ApplyStatus
+    applied: bool
+    restore_id: str | None
+    backup: Path | None
+    issue: InboxTransactionIssue | None
+    warnings: tuple[str, ...] = ()
+    rollback_actions: tuple[str, ...] = ()
+    recovery_debris: RecoveryDebris | None = None
+    business_mutation_started: bool = False
+
+@dataclass(frozen=True)
+class InboxRestoreResult:
+    restore_id: str
+    status: RestoreStatus
+    applied: bool
+    actions: tuple[str, ...]
+    conflicts: tuple[InboxTransactionIssue, ...]
+    issue: InboxTransactionIssue | None = None
+    warnings: tuple[str, ...] = ()
+    recovery_debris: RecoveryDebris | None = None
+
+@dataclass(frozen=True)
+class InboxFailure:
+    code: str
+    message: str
+    restore_id: str | None
+    recovery_location: Path | None
+    warnings: tuple[str, ...]
+    recovery_debris: RecoveryDebris | None
+    business_mutation_started: bool
 ```
 
-Implement the apply/restore/failure dataclasses exactly as the spec. Define
-`InboxTransactionError` to carry one frozen `InboxFailure`. Define the injector
-as a protocol with `checkpoint(name: str) -> None`. `inbox_tx/__init__.py` must
-remain an internal package marker and must not wildcard re-export internals.
+The direct constructors are the only construction API. Their `__post_init__`
+methods enforce these exact runtime invariants without touching the filesystem:
+
+- `InboxApplyResult.applied` is exactly
+  `(InboxApplyResult.status == "applied")`;
+- `InboxRestoreResult.applied` is exactly
+  `(InboxRestoreResult.status == "restored")`;
+- a runtime status outside its declared `Literal` values raises `ValueError`;
+- `source` is nonempty and Vault-relative; optional `destination`, `backup`,
+  `InboxTransactionIssue.path`, `InboxFailure.recovery_location`, and every
+  `RecoveryDebris.location` are nonempty and Vault-relative when present;
+- Vault-relative means not absolute and containing no empty, dot, or parent
+  component; validation is lexical and never calls `resolve()` or accesses the
+  filesystem;
+- a runtime debris classification outside `"incomplete"`/`"unknown"` raises
+  `ValueError`.
+
+Define `InboxTransactionError` with `__init__(failure: InboxFailure)`; store the
+same frozen object on `.failure` and initialize the exception message from
+`failure.message`. Define the injector as a protocol with
+`checkpoint(name: str) -> None`. `inbox_tx/__init__.py` must remain an internal
+package marker and must not wildcard re-export internals.
 
 - [ ] **Step 4: Run model tests and static import checks**
 
