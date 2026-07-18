@@ -1,5 +1,12 @@
 # Obsidian KB Skill Evolution Handoff
 
+> **2026-07-19 update:** The Task 4 repair reached an architecture stop after
+> this handoff was written. For the current Task 4 state and exact resume
+> procedure, read
+> `2026-07-19-inbox-transaction-architecture-handoff.md`. The roadmap and
+> accepted Tasks 1–3 history below remain valid; the old “one fix wave next”
+> instruction does not.
+
 **Written:** 2026-07-16, Asia/Shanghai
 **Last updated:** 2026-07-19, Asia/Shanghai
 **Reason:** Context/token budget is low. Work was intentionally stopped at a
