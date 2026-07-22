@@ -12,18 +12,22 @@ from typing import Any
 from obsidian_kb_skill.scripts.audit_vault import (
     FOLDER_INDEX_CONTENT_RE,
     Finding,
-    _frontmatter,
-    _folder_index_config,
-    _is_folder_index_excluded,
-    expected_folder_index,
 )
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
+from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
+from obsidian_kb_skill.scripts.folder_index_policy import (
+    FolderIndexConfigError,
+    expected_folder_index,
+    is_folder_index_excluded,
+    read_folder_index_config,
+)
 from obsidian_kb_skill.scripts.detect_index import detect
 from obsidian_kb_skill.scripts.index_templates import (
     render_dataview_index,
     render_folder_index,
     render_static_index,
 )
+from obsidian_kb_skill.scripts.note_catalog import STANDARD_NOTE_FOLDERS
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
     VaultPathError,
@@ -32,20 +36,6 @@ from obsidian_kb_skill.scripts.vault_paths import (
     validate_vault_root,
 )
 
-
-STANDARD_NOTE_FOLDERS = frozenset(
-    {
-        "00-Inbox",
-        "10-Work",
-        "15-Daily",
-        "20-Learning",
-        "30-Insights",
-        "40-Projects",
-        "50-People",
-        "90-Archive",
-        "Tasks",
-    }
-)
 RESERVED_TOP_LEVEL = frozenset(
     {
         ".git",
@@ -221,19 +211,22 @@ def plan_category(vault: Path, folder: str) -> CategoryPlan:
         raise CategoryValidationError("invalid-vault", str(exc)) from exc
     if not (root / ".obsidian").is_dir():
         raise CategoryValidationError("invalid-vault", "Vault is missing .obsidian")
-    relative = _validated_relative_folder(root, folder)
-    parent = relative.parent
-    target = root / relative
-    config = _folder_index_config(root)
-    parent_info = detect(root, parent.as_posix())
-    warnings = tuple(parent_info.get("warnings", ()))
+    try:
+        relative = _validated_relative_folder(root, folder)
+        parent = relative.parent
+        target = root / relative
+        config = read_folder_index_config(root)
+        parent_info = detect(root, parent.as_posix())
+        warnings = tuple(parent_info.get("warnings", ()))
 
-    if config.enabled and not _is_folder_index_excluded(relative, config):
-        mode = "folder-index"
-        index = expected_folder_index(target, root, config).relative_to(root)
-    else:
-        mode = "dataview" if parent_info["mode"] == "dataview" else "static"
-        index = relative / "INDEX.md"
+        if config.enabled and not is_folder_index_excluded(relative, config):
+            mode = "folder-index"
+            index = expected_folder_index(target, root, config).relative_to(root)
+        else:
+            mode = "dataview" if parent_info["mode"] == "dataview" else "static"
+            index = relative / "INDEX.md"
+    except FolderIndexConfigError as exc:
+        raise CategoryValidationError(exc.code, exc.message) from exc
 
     exists = target.is_dir()
     changes = () if exists else (
@@ -266,8 +259,12 @@ def render_category_index(plan: CategoryPlan) -> str:
 def audit_category(plan: CategoryPlan) -> list[Finding]:
     """Validate only the category directory and index created by this helper."""
     findings: list[Finding] = []
-    directory = plan.vault / plan.folder
-    index = plan.vault / plan.index_path
+    directory = resolve_target_within_vault(
+        plan.vault, plan.folder, label="category directory"
+    )
+    index = resolve_target_within_vault(
+        plan.vault, plan.index_path, label="category index"
+    )
     if not directory.is_dir():
         findings.append(
             Finding("missing-category-directory", plan.folder.as_posix(), "category directory is missing")
@@ -285,7 +282,9 @@ def audit_category(plan: CategoryPlan) -> list[Finding]:
             Finding("unreadable-category-index", plan.index_path.as_posix(), str(exc))
         )
         return findings
-    metadata, error = _frontmatter(text)
+    parsed = parse_frontmatter(text, source=plan.index_path.as_posix())
+    metadata = parsed.metadata
+    error = parsed.issue
     expected_type = "folder-index" if plan.index_mode == "folder-index" else "moc"
     if error or not metadata or metadata.get("type") != expected_type:
         findings.append(
@@ -326,8 +325,12 @@ def apply_category(plan: CategoryPlan) -> ApplyResult:
     if plan.exists:
         return ApplyResult(False, "already-exists", (), ())
 
-    directory = plan.vault / plan.folder
-    index = plan.vault / plan.index_path
+    directory = resolve_target_within_vault(
+        plan.vault, plan.folder, label="category directory"
+    )
+    index = resolve_target_within_vault(
+        plan.vault, plan.index_path, label="category index"
+    )
     rendered = render_category_index(plan).encode("utf-8")
     directory.mkdir()
     try:

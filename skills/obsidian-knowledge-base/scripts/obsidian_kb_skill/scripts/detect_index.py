@@ -2,9 +2,9 @@
 """Detect a vault folder's index strategy and print it as JSON.
 
 Single entry point for index-strategy detection so the agent never has to read
-Obsidian's plugin config files and re-derive the mode by hand. Wraps
-`audit_vault._folder_index_config` (the authoritative Folder Index reader) and
-adds Dataview/static detection plus a note listing for link candidates.
+Obsidian's plugin config files and re-derive the mode by hand. Uses the shared
+Folder Index policy and adds Dataview/static detection plus a note listing for
+link candidates.
 
 Output schema (JSON):
   {
@@ -26,10 +26,11 @@ from pathlib import Path
 from typing import Any
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
-from obsidian_kb_skill.scripts.audit_vault import (
-    _folder_index_config,
-    _is_folder_index_excluded,
+from obsidian_kb_skill.scripts.folder_index_policy import (
+    FolderIndexConfigError,
     expected_folder_index,
+    is_folder_index_excluded,
+    read_folder_index_config,
 )
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
@@ -50,7 +51,7 @@ def _index_file_in(folder: Path) -> Path | None:
 
 def detect(vault: Path, folder: str) -> dict[str, Any]:
     v = vault / folder
-    config = _folder_index_config(vault)
+    config = read_folder_index_config(vault)
     result: dict[str, Any] = {
         "vault": str(vault),
         "folder": folder,
@@ -65,7 +66,7 @@ def detect(vault: Path, folder: str) -> dict[str, Any]:
     index_path = _index_file_in(v) if v.is_dir() else None
 
     # 1) Folder Index mode (plugin-owned; never append).
-    if config.enabled and not _is_folder_index_excluded(Path(folder), config):
+    if config.enabled and not is_folder_index_excluded(Path(folder), config):
         idx = expected_folder_index(v, vault, config)
         result["mode"] = "folder-index"
         result["index_file"] = idx.name
@@ -125,7 +126,17 @@ def main(argv: list[str] | None = None) -> int:
         resolve_target_within_vault(vault, args.folder, label="--folder")
     except VaultPathError as exc:
         return report_cli_violation(exc, param="--folder", json_mode=args.json)
-    out = detect(vault, args.folder)
+    try:
+        out = detect(vault, args.folder)
+    except FolderIndexConfigError as exc:
+        if args.json:
+            print(json.dumps({"error": {
+                "code": exc.code,
+                "message": exc.message,
+            }}, ensure_ascii=False, indent=2))
+        else:
+            print(f"error: {exc.code}: {exc.message}", file=sys.stderr)
+        return 2
     print(json.dumps(out, ensure_ascii=False, indent=2))
     return 0
 

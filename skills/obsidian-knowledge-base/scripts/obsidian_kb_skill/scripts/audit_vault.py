@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import fnmatch
 import json
 import re
 import difflib
@@ -13,9 +12,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-import yaml
-
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
+from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
+from obsidian_kb_skill.scripts.folder_index_policy import (
+    FolderIndexConfig,
+    FolderIndexConfigError,
+    expected_folder_index,
+    is_folder_index_excluded,
+    read_folder_index_config,
+)
+from obsidian_kb_skill.scripts.note_catalog import VALID_NOTE_TYPES
 from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
 from obsidian_kb_skill.scripts.template_contract import markdown_section_headings
 from obsidian_kb_skill.scripts.vault_paths import (
@@ -33,17 +39,6 @@ class Finding:
     code: str
     path: str
     message: str
-
-
-@dataclass(frozen=True)
-class FolderIndexConfig:
-    enabled: bool = False
-    graph_overwrite: bool = False
-    root_index_file: str = "INDEX.md"
-    user_specified: bool = False
-    index_filename: str = "INDEX"
-    exclude_folders: tuple[str, ...] = ()
-    exclude_patterns: tuple[str, ...] = ()
 
 
 EXEMPT_NAMES = {"README.md", "AGENTS.md", "CLAUDE.md"}
@@ -64,22 +59,6 @@ VAULT_WIDE_CODES = frozenset(
         "similar-title",
     }
 )
-REQUIRED_TYPES = {
-    "daily-note",
-    "daily-report",
-    "weekly-report",
-    "meeting-note",
-    "learning-note",
-    "web-clip",
-    "insight-note",
-    "conversation-digest",
-    "project-note",
-    "person-note",
-    "archive-note",
-    "task-memory",
-    "folder-index",
-    "moc",
-}
 # Folders whose contents are never real notes and must be skipped. Hidden
 # (dotfile) directories are skipped automatically by _is_ignored, so this set
 # only needs explicit entries for non-hidden tool/metadata folders.
@@ -116,61 +95,6 @@ def _is_ignored(relative: Path) -> bool:
     return relative.parts[:2] == ("docs", "superpowers")
 
 
-def _read_json(path: Path, default: Any) -> Any:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return default
-
-
-def _folder_index_config(vault: Path) -> FolderIndexConfig:
-    obsidian = vault / ".obsidian"
-    enabled = _read_json(obsidian / "community-plugins.json", [])
-    if not isinstance(enabled, list) or "obsidian-folder-index" not in enabled:
-        return FolderIndexConfig()
-    settings = _read_json(
-        obsidian / "plugins" / "obsidian-folder-index" / "data.json", {}
-    )
-    if not isinstance(settings, dict):
-        settings = {}
-    return FolderIndexConfig(
-        enabled=True,
-        graph_overwrite=bool(settings.get("graphOverwrite", False)),
-        root_index_file=str(settings.get("rootIndexFile", "INDEX.md")),
-        user_specified=bool(settings.get("indexFileUserSpecified", False)),
-        index_filename=str(settings.get("indexFilename", "INDEX")),
-        exclude_folders=tuple(
-            str(item).strip("/")
-            for item in settings.get("excludeFolders", [])
-            if str(item)
-        ),
-        exclude_patterns=tuple(
-            str(item) for item in settings.get("excludePatterns", []) if str(item)
-        ),
-    )
-
-
-def _is_folder_index_excluded(relative: Path, config: FolderIndexConfig) -> bool:
-    if _is_ignored(relative):
-        return True
-    value = relative.as_posix()
-    for excluded in config.exclude_folders:
-        if value == excluded or value.startswith(f"{excluded}/"):
-            return True
-    return any(
-        fnmatch.fnmatch(value, pattern) or fnmatch.fnmatch(relative.name, pattern)
-        for pattern in config.exclude_patterns
-    )
-
-
-def expected_folder_index(folder: Path, vault: Path, config: FolderIndexConfig) -> Path:
-    if folder == vault:
-        return vault / config.root_index_file
-    if config.user_specified:
-        return folder / f"{config.index_filename}.md"
-    return folder / f"{folder.name}.md"
-
-
 def _markdown_files(vault: Path) -> list[Path]:
     return sorted(
         path
@@ -188,20 +112,16 @@ def _all_linkable_files(vault: Path) -> list[Path]:
 
 
 def _frontmatter(text: str) -> tuple[dict[str, Any] | None, str | None]:
-    if not text.startswith("---\n"):
+    result = parse_frontmatter(text, source="note")
+    if not result.present:
         return None, None
-    end = text.find("\n---\n", 4)
-    if end == -1:
-        return None, "frontmatter opening fence has no closing fence"
-    try:
-        parsed = yaml.safe_load(text[4:end])
-    except yaml.YAMLError as exc:
-        return None, str(exc).splitlines()[0]
-    if parsed is None:
-        return {}, None
-    if not isinstance(parsed, dict):
-        return None, "frontmatter must be a YAML mapping"
-    return parsed, None
+    if result.issue is not None:
+        if result.issue.code == "invalid-frontmatter":
+            return None, result.issue.context or result.issue.message
+        if result.issue.code == "unclosed-frontmatter":
+            return None, "frontmatter opening fence has no closing fence"
+        return None, result.issue.message
+    return result.metadata, None
 
 
 def _add(
@@ -222,7 +142,7 @@ def _audit_metadata(
     note_type = metadata.get("type")
     if not note_type:
         _add(findings, "missing-type", relative, "required property 'type' is missing")
-    elif note_type not in REQUIRED_TYPES:
+    elif note_type not in VALID_NOTE_TYPES:
         _add(findings, "invalid-type", relative, f"unsupported note type: {note_type}")
 
     if note_type not in INDEX_TYPES and not metadata.get("date"):
@@ -588,7 +508,7 @@ def _audit_folder_index_graph(
         path
         for path in sorted(vault.rglob("*"))
         if path.is_dir()
-        and not _is_folder_index_excluded(path.relative_to(vault), config)
+        and not is_folder_index_excluded(path.relative_to(vault), config)
     ]
     root_index = expected_folder_index(vault, vault, config)
     if not root_index.is_file():
@@ -669,7 +589,7 @@ def audit_vault(vault: Path) -> list[Finding]:
     """Return deterministic findings sorted by path, code, and message."""
     vault = vault.resolve()
     findings: list[Finding] = []
-    folder_index_config = _folder_index_config(vault)
+    folder_index_config = read_folder_index_config(vault)
     linkable = _all_linkable_files(vault)
     by_name: dict[str, list[Path]] = defaultdict(list)
     by_stem: dict[str, list[Path]] = defaultdict(list)
@@ -892,7 +812,17 @@ def main(argv: list[str] | None = None) -> int:
     if not (vault / ".obsidian").is_dir():
         print(f"error: not an Obsidian vault: {vault}", file=sys.stderr)
         return 2
-    findings = audit_vault(vault)
+    try:
+        findings = audit_vault(vault)
+    except FolderIndexConfigError as exc:
+        if args.json:
+            print(json.dumps({"error": {
+                "code": exc.code,
+                "message": exc.message,
+            }}, ensure_ascii=False, indent=2))
+        else:
+            print(f"error: {exc.code}: {exc.message}", file=sys.stderr)
+        return 2
     if args.json:
         out = [
             {"code": f.code, "path": f.path, "message": f.message} for f in findings

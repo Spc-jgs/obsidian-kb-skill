@@ -7,7 +7,7 @@ filled, and a link is appended to the destination folder's static INDEX.md (only
 when the Folder Index plugin is not enabled). Folder Index and Dataview listings
 are never touched.
 
-Reuses vault-parsing helpers from audit_vault.py instead of reimplementing them.
+Reuses shared parsing and vault helpers instead of reimplementing them.
 """
 from __future__ import annotations
 
@@ -21,11 +21,16 @@ from typing import Any
 import yaml
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
-from obsidian_kb_skill.scripts.audit_vault import (
-    _frontmatter,
-    _folder_index_config,
-    _is_folder_index_excluded,
-    _note_title,
+from obsidian_kb_skill.scripts.audit_vault import _note_title
+from obsidian_kb_skill.scripts.folder_index_policy import (
+    StaticIndexEntry,
+    append_static_index_entry,
+)
+from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
+from obsidian_kb_skill.scripts.note_catalog import (
+    DEFAULT_TAG_BY_TYPE,
+    FOLDER_TO_DEFAULT_TYPE,
+    TYPE_TO_FOLDER,
 )
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
@@ -34,19 +39,6 @@ from obsidian_kb_skill.scripts.vault_paths import (
     resolve_target_within_vault,
     validate_vault_root,
 )
-
-# Mirror of the Note Types and Routing table in core/OBSIDIAN_KB.md.
-TYPE_TO_FOLDER = {
-    "daily-note": "15-Daily",
-    "meeting-note": "10-Work",
-    "learning-note": "20-Learning",
-    "web-clip": "20-Learning",
-    "insight-note": "30-Insights",
-    "conversation-digest": "30-Insights",
-    "project-note": "40-Projects",
-    "person-note": "50-People",
-    "task-memory": "Tasks",
-}
 
 # Trigger keywords (lowercased substrings) -> target folder, used when the type
 # is missing or unknown. First match wins.
@@ -60,21 +52,8 @@ KEYWORD_ROUTES = [
 ]
 
 DEFAULT_TAG_BY_FOLDER = {
-    "10-Work": "meeting",
-    "15-Daily": "daily",
-    "20-Learning": "learning",
-    "30-Insights": "insight",
-    "40-Projects": "project",
-    "50-People": "people",
-}
-
-FOLDER_TO_DEFAULT_TYPE = {
-    "10-Work": "meeting-note",
-    "15-Daily": "daily-note",
-    "20-Learning": "learning-note",
-    "30-Insights": "insight-note",
-    "40-Projects": "project-note",
-    "50-People": "person-note",
+    folder: DEFAULT_TAG_BY_TYPE[note_type]
+    for folder, note_type in FOLDER_TO_DEFAULT_TYPE.items()
 }
 
 INDEX_BASENAME = "INDEX.md"
@@ -109,7 +88,7 @@ def destination_index_name(vault: Path, target: str) -> str | None:
 
 def plan_note(path: Path, vault: Path) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8")
-    metadata, _ = _frontmatter(text)
+    metadata = parse_frontmatter(text, source=path.as_posix()).metadata
     target = infer_target(text, metadata)
     result: dict[str, Any] = {
         "path": path,
@@ -150,25 +129,6 @@ def _fill_frontmatter(
     return f"---\n{dump}\n---\n{body}"
 
 
-def _maybe_update_static_index(vault: Path, plan: dict[str, Any], date: str) -> None:
-    config = _folder_index_config(vault)
-    if config.enabled and not _is_folder_index_excluded(
-        Path(plan["target"]), config
-    ):
-        return
-    index = vault / plan["target"] / INDEX_BASENAME
-    if not index.is_file():
-        return
-    index_text = index.read_text(encoding="utf-8")
-    if "folder-index-content" in index_text or "dataview" in index_text:
-        return
-    stem = plan["path"].stem
-    title = plan.get("title") or stem
-    line = f"- [[{plan['target']}/{stem}|{title}]] ({date})\n"
-    with index.open("a", encoding="utf-8") as handle:
-        handle.write(line)
-
-
 def apply_plan(plan: dict[str, Any], vault: Path, silent: bool = False) -> None:
     if plan.get("skip"):
         if not silent:
@@ -182,7 +142,7 @@ def apply_plan(plan: dict[str, Any], vault: Path, silent: bool = False) -> None:
         return
     dest_folder.mkdir(parents=True, exist_ok=True)
     text = source.read_text(encoding="utf-8")
-    metadata, _ = _frontmatter(text)
+    metadata = parse_frontmatter(text, source=source.as_posix()).metadata
     today = datetime.date.today().isoformat()
     updates: dict[str, Any] = {}
     if not (metadata and metadata.get("date")):
@@ -193,7 +153,14 @@ def apply_plan(plan: dict[str, Any], vault: Path, silent: bool = False) -> None:
         updates["tags"] = plan["tags"]
     dest.write_bytes(_fill_frontmatter(text, metadata, updates).encode("utf-8"))
     source.unlink()
-    _maybe_update_static_index(vault, plan, today)
+    append_static_index_entry(
+        vault,
+        StaticIndexEntry(
+            note=dest.relative_to(vault),
+            title=plan.get("title") or dest.stem,
+            date=today,
+        ),
+    )
     if not silent:
         print(f"  moved: {source.as_posix()} -> {dest.as_posix()}")
 

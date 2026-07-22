@@ -208,6 +208,7 @@ def test_cli_reports_malformed_template_yaml_location(tmp_path: Path):
     assert error["source"].endswith("Templates/Web Clip.md")
     assert error["line"] == 3
     assert isinstance(error["column"], int)
+    assert error["message"] == "expected <block end>, but found '<scalar>'"
 
 
 def test_cli_rejects_unknown_placeholders_before_generation(tmp_path: Path):

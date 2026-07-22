@@ -20,26 +20,12 @@ import sys
 from pathlib import Path
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
+from obsidian_kb_skill.scripts.note_catalog import NOTE_TYPES
 from obsidian_kb_skill.scripts.resource_locator import ResourceError, template_dir
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
     validate_vault_root,
 )
-
-# Map note type -> (template filename used inside the vault, source file name
-# in core/templates/). These are shipped starter files; users may edit the
-# copies in {VAULT}/Templates/ freely.
-TEMPLATE_MAP: list[tuple[str, str, str]] = [
-    ("daily-note", "Daily Note.md", "daily-note.md"),
-    ("meeting-note", "Meeting Note.md", "meeting-note.md"),
-    ("learning-note", "Learning Note.md", "learning-note.md"),
-    ("web-clip", "Web Clip.md", "web-clip.md"),
-    ("insight-note", "Insight Note.md", "insight-note.md"),
-    ("conversation-digest", "Digest Note.md", "digest-note.md"),
-    ("project-note", "Project Note.md", "project-note.md"),
-    ("person-note", "Person Note.md", "person-note.md"),
-]
-
 
 def main(argv: list[str] | None = None) -> int:
     configure_utf8_stdio()
@@ -103,7 +89,11 @@ def main(argv: list[str] | None = None) -> int:
     skipped: list[str] = []
     missing: list[str] = []
     planned: list[str] = []
-    for type_name, vault_fname, src_fname in TEMPLATE_MAP:
+    for type_name, spec in NOTE_TYPES.items():
+        vault_fname = spec.template_name
+        src_fname = spec.template_asset
+        if vault_fname is None or src_fname is None:
+            continue
         src = src_dir / src_fname
         dest = templates_dir / vault_fname
         if not src.is_file():

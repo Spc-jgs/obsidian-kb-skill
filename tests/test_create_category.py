@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,11 @@ from obsidian_kb_skill.scripts.create_category import (
     plan_category,
     render_category_index,
 )
-from obsidian_kb_skill.scripts.process_inbox import _maybe_update_static_index
+from obsidian_kb_skill.scripts.folder_index_policy import (
+    StaticIndexEntry,
+    append_static_index_entry,
+)
+from obsidian_kb_skill.scripts.vault_paths import VaultPathError
 
 
 def make_vault(
@@ -99,6 +104,73 @@ def test_plans_custom_folder_index_filename(tmp_path: Path):
     assert any("structural graph incomplete" in item for item in plan.warnings)
 
 
+def _write_folder_index_filename(vault: Path, value: str) -> None:
+    data = vault / ".obsidian/plugins/obsidian-folder-index/data.json"
+    settings = json.loads(data.read_text(encoding="utf-8"))
+    settings["indexFileUserSpecified"] = True
+    settings["indexFilename"] = value
+    data.write_text(json.dumps(settings), encoding="utf-8")
+
+
+def test_plan_rejects_escaping_folder_index_filename_without_mutation(
+    tmp_path: Path,
+):
+    vault = make_vault(tmp_path, folder_index=True, custom_index=True)
+    _write_folder_index_filename(vault, "../../../escaped")
+
+    with pytest.raises(CategoryValidationError) as error:
+        plan_category(vault, "20-Learning/Rust")
+
+    assert error.value.code == "invalid-folder-index-config"
+    assert not (tmp_path / "escaped.md").exists()
+    assert not (vault / "20-Learning/Rust").exists()
+
+
+@pytest.mark.parametrize("json_mode", [False, True])
+def test_confirmed_apply_rejects_escaping_folder_index_filename_cleanly(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    json_mode: bool,
+):
+    vault = make_vault(tmp_path, folder_index=True, custom_index=True)
+    _write_folder_index_filename(vault, "../../../escaped")
+    argv = [
+        str(vault),
+        "--folder",
+        "20-Learning/Rust",
+        "--apply",
+        "--confirmed",
+    ]
+    if json_mode:
+        argv.append("--json")
+
+    assert main(argv) == 2
+
+    output = capsys.readouterr()
+    if json_mode:
+        assert json.loads(output.out)["error"]["code"] == "invalid-folder-index-config"
+        assert output.err == ""
+    else:
+        assert "error: invalid-folder-index-config:" in output.err
+        assert "Traceback" not in output.err
+    assert not (tmp_path / "escaped.md").exists()
+    assert not (vault / "20-Learning/Rust").exists()
+
+
+def test_apply_resolves_direct_plan_index_before_any_mutation(tmp_path: Path):
+    vault = make_vault(tmp_path)
+    plan = replace(
+        plan_category(vault, "20-Learning/Rust"),
+        index_path=Path("../escaped.md"),
+    )
+
+    with pytest.raises(VaultPathError):
+        apply_category(plan)
+
+    assert not (tmp_path / "escaped.md").exists()
+    assert not (vault / "20-Learning/Rust").exists()
+
+
 def test_renders_one_folder_index_content_block(tmp_path: Path):
     vault = make_vault(tmp_path, folder_index=True)
 
@@ -144,10 +216,13 @@ def test_folder_index_excluded_category_uses_and_updates_static_index(
     result = apply_category(plan)
     note = vault / plan.folder / "2026-07-15 Rust所有权.md"
     note.write_text("# Rust所有权\n", encoding="utf-8")
-    _maybe_update_static_index(
+    append_static_index_entry(
         vault,
-        {"path": note, "target": plan.folder.as_posix(), "title": "Rust所有权"},
-        "2026-07-15",
+        StaticIndexEntry(
+            note=note.relative_to(vault),
+            title="Rust所有权",
+            date="2026-07-15",
+        ),
     )
 
     assert plan.index_mode == "static"
