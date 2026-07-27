@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.20.1] - 2026-07-27
+
+### Fixed
+
+- Full-vault audits now apply a versioned v1.20 Chinese or English deep-capture heading baseline to every historical web clip, even when an upgraded Vault preserves an older or customized shallow template.
+- Full-vault audits report an outdated `Templates/Web Clip.md` separately, while per-note creation audits continue to honor the active Vault template contract.
+- Required web-clip metadata rejects normalized compound placeholders such as `TODO: verify`, `unknown author`, and `待补充作者` without rejecting meaningful values that merely contain the same substrings.
+
 ## [1.20.0] - 2026-07-27
 
 ### Added

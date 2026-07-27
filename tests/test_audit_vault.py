@@ -138,30 +138,201 @@ def test_audit_note_text_checks_required_template_heading_order(tmp_path):
     assert "first mismatch: Second" in finding.message
 
 
-def test_audit_vault_checks_required_template_heading_order(tmp_path):
+def test_audit_vault_checks_versioned_deep_capture_heading_order(tmp_path):
     (tmp_path / ".obsidian").mkdir()
     templates = tmp_path / "Templates"
     templates.mkdir()
     (templates / "Web Clip.md").write_text(
         '---\ntype: web-clip\ntags: [web-clip]\n---\n'
-        "# Template\n\n## Source and Conclusion\n\n## Procedure\n",
+        "# Template\n\n"
+        "## Source and Conclusion\n\n"
+        "## Problem, Prerequisites, and Boundaries\n\n"
+        "## Core Knowledge and Rationale\n\n"
+        "## Procedure and Worked Example\n\n"
+        "## Verification, Risks, and Limitations\n\n"
+        "## Interpretation and Insights\n\n"
+        "## Related Notes\n",
         encoding="utf-8",
     )
     (tmp_path / "Candidate.md").write_text(
         '---\ndate: "2026-07-14"\ntype: web-clip\n'
         'tags: [web-clip]\nsource: "https://example.com"\n'
         'author: "Jane"\npublished: "2026-01-01"\n---\n'
-        "# Candidate\n\n## Summary\n\nOnly a shallow summary.\n",
+        "# Candidate\n\n"
+        "## Source and Conclusion\n\nConclusion.\n\n"
+        "## Problem, Prerequisites, and Boundaries\n\nBoundaries.\n\n"
+        "## Procedure and Worked Example\n\nProcedure appears too early.\n\n"
+        "## Core Knowledge and Rationale\n\nRationale.\n\n"
+        "## Verification, Risks, and Limitations\n\nVerification.\n\n"
+        "## Interpretation and Insights\n\nInsights.\n\n"
+        "## Related Notes\n",
         encoding="utf-8",
     )
 
     findings = audit_vault(tmp_path)
 
     assert any(
+        finding.code == "missing-deep-capture-heading"
+        and finding.path == "Candidate.md"
+        for finding in findings
+    )
+
+
+def test_full_audit_uses_versioned_deep_capture_baseline_with_shallow_template(
+    tmp_path,
+):
+    (tmp_path / ".obsidian").mkdir()
+    templates = tmp_path / "Templates"
+    templates.mkdir()
+    (templates / "Web Clip.md").write_text(
+        '---\ntype: web-clip\ntags: [web-clip]\n---\n'
+        "# Template\n\n## Source\n\n## Summary\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "Candidate.md").write_text(
+        '---\ndate: "2026-07-27"\ntype: web-clip\n'
+        'tags: [web-clip]\nsource: "https://example.com"\n'
+        'author: "Jane"\npublished: "2026-01-01"\n---\n'
+        "# Candidate\n\n## Source\n\nLink.\n\n## Summary\n\nShallow summary.\n",
+        encoding="utf-8",
+    )
+
+    findings = audit_vault(tmp_path)
+
+    assert any(
+        finding.code == "missing-deep-capture-heading"
+        and finding.path == "Candidate.md"
+        for finding in findings
+    )
+    assert any(
+        finding.code == "outdated-deep-capture-template"
+        and finding.path == "Templates/Web Clip.md"
+        for finding in findings
+    )
+    assert not any(
         finding.code == "missing-template-heading"
         and finding.path == "Candidate.md"
         for finding in findings
     )
+
+
+def test_full_audit_deep_baseline_is_independent_of_shallow_vault_template(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    templates = tmp_path / "Templates"
+    templates.mkdir()
+    (templates / "Web Clip.md").write_text(
+        '---\ntype: web-clip\ntags: [web-clip]\n---\n'
+        "# Template\n\n## Source\n\n## Summary\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "Candidate.md").write_text(
+        '---\ndate: "2026-07-27"\ntype: web-clip\n'
+        'tags: [web-clip]\nsource: "https://example.com"\n'
+        'author: "Jane"\npublished: "2026-01-01"\n---\n'
+        "# Candidate\n\n"
+        "## 来源与结论\n\nConclusion.\n\n"
+        "## 问题、前提与适用边界\n\nBoundaries.\n\n"
+        "## 核心知识与原理\n\nRationale.\n\n"
+        "## 具体做法与示例\n\nProcedure.\n\n"
+        "## 验证、风险与限制\n\nVerification.\n\n"
+        "## 理解与启发\n\nInsights.\n\n"
+        "## 关联笔记\n",
+        encoding="utf-8",
+    )
+
+    findings = audit_vault(tmp_path)
+
+    assert not any(
+        finding.code in {"missing-deep-capture-heading", "missing-template-heading"}
+        and finding.path == "Candidate.md"
+        for finding in findings
+    )
+    assert any(
+        finding.code == "outdated-deep-capture-template"
+        and finding.path == "Templates/Web Clip.md"
+        for finding in findings
+    )
+
+
+def test_full_audit_accepts_optional_atx_closing_markers(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    templates = tmp_path / "Templates"
+    templates.mkdir()
+    headings = (
+        "Source and Conclusion",
+        "Problem, Prerequisites, and Boundaries",
+        "Core Knowledge and Rationale",
+        "Procedure and Worked Example",
+        "Verification, Risks, and Limitations",
+        "Interpretation and Insights",
+        "Related Notes",
+    )
+    body = "\n\n".join(f"## {heading} ##\n\nContent." for heading in headings)
+    (templates / "Web Clip.md").write_text(
+        '---\ntype: web-clip\ntags: [web-clip]\n---\n# Template\n\n' + body + "\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "Candidate.md").write_text(
+        '---\ndate: "2026-07-27"\ntype: web-clip\n'
+        'tags: [web-clip]\nsource: "https://example.com"\n'
+        'author: "Jane"\npublished: "2026-01-01"\n---\n'
+        "# Candidate\n\n"
+        + body
+        + "\n",
+        encoding="utf-8",
+    )
+
+    findings = audit_vault(tmp_path)
+
+    assert not any(
+        finding.code
+        in {"missing-deep-capture-heading", "outdated-deep-capture-template"}
+        for finding in findings
+    )
+
+
+def test_full_audit_deep_baseline_does_not_require_a_vault_template(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Candidate.md").write_text(
+        '---\ndate: "2026-07-27"\ntype: web-clip\n'
+        'tags: [web-clip]\nsource: "https://example.com"\n'
+        'author: "Jane"\npublished: "2026-01-01"\n---\n'
+        "# Candidate\n\n## Summary\n\nShallow summary.\n",
+        encoding="utf-8",
+    )
+
+    findings = audit_vault(tmp_path)
+
+    assert any(
+        finding.code == "missing-deep-capture-heading"
+        and finding.path == "Candidate.md"
+        for finding in findings
+    )
+
+
+def test_note_level_audit_still_respects_a_custom_web_clip_template(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    templates = tmp_path / "Templates"
+    templates.mkdir()
+    (templates / "Web Clip.md").write_text(
+        '---\ntype: web-clip\ntags: [web-clip]\n---\n'
+        "# Template\n\n## Custom Evidence\n\n## Custom Action\n",
+        encoding="utf-8",
+    )
+    rendered = (
+        '---\ndate: "2026-07-27"\ntype: web-clip\n'
+        'tags: [web-clip]\nsource: "https://example.com"\n'
+        'author: "Jane"\npublished: "2026-01-01"\n---\n'
+        "# Candidate\n\n## Custom Evidence\n\nEvidence.\n\n"
+        "## Custom Action\n\nAction.\n"
+    )
+
+    findings = audit_note_text(tmp_path, tmp_path / "Candidate.md", rendered)
+
+    assert "missing-template-heading" not in [finding.code for finding in findings]
+    assert "missing-deep-capture-heading" not in [
+        finding.code for finding in findings
+    ]
 
 
 def test_required_template_headings_ignore_frontmatter_and_fenced_examples(tmp_path):
@@ -522,7 +693,27 @@ def test_accepts_complete_web_clip(tmp_path):
     assert "web-clip-missing-published" not in found
 
 
-@pytest.mark.parametrize("placeholder", ["unknown", "未知", "N/A", "TODO", "待补充"])
+@pytest.mark.parametrize(
+    "placeholder",
+    [
+        "unknown",
+        "未知",
+        "N/A",
+        "TODO",
+        "待补充",
+        "TODO: verify",
+        "unknown author",
+        "unknown作者",
+        "unknown writer",
+        "unknown (not provided)",
+        "TODO待确认",
+        "待补充作者",
+        "none provided",
+        "null value",
+        "N/A pending",
+        "ＴＯＤＯ：verify",
+    ],
+)
 def test_rejects_vague_web_clip_metadata_placeholders(tmp_path, placeholder):
     (tmp_path / ".obsidian").mkdir()
     (tmp_path / "Clip.md").write_text(
@@ -533,6 +724,30 @@ def test_rejects_vague_web_clip_metadata_placeholders(tmp_path, placeholder):
     )
 
     assert "web-clip-missing-author" in codes(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "author",
+    [
+        "Todor Zhivkov",
+        "Nulla Rossi",
+        "Jane TODO Smith",
+        "Unknown Mortal Orchestra",
+        "unknown@example.com",
+    ],
+)
+def test_accepts_meaningful_metadata_containing_placeholder_substrings(
+    tmp_path, author
+):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Clip.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: web-clip\n'
+        'tags: [web-clip]\nsource: "https://example.com/a"\n'
+        f'author: "{author}"\npublished: "2026-01-01"\n---\n# Clip\n',
+        encoding="utf-8",
+    )
+
+    assert "web-clip-missing-author" not in codes(tmp_path)
 
 
 def test_accepts_explicit_web_clip_source_absence_markers(tmp_path):

@@ -200,6 +200,13 @@ headings, broken wikilinks, unresolved placeholders, and required web-clip
 metadata. A clean compact apply audit completes verification; do not re-read
 the note merely to prove it exists. Investigate only if the audit reports a
 finding or the user explicitly requests an additional content review.
+
+The per-note create audit follows the active Vault template, including a
+customized contract. A full-vault audit additionally checks every historical
+`web-clip` against the versioned v1.20 deep-capture heading baseline and reports
+an outdated `Templates/Web Clip.md`; preserving an old template must not lower
+that historical quality gate.
+
 Mechanical audit does not prove semantic depth. For deep article capture, a
 clean audit is necessary but completion additionally requires the source-
 coverage pass above. Do not report success when either gate fails.

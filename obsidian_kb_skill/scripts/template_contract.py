@@ -29,6 +29,7 @@ from obsidian_kb_skill.scripts.vault_paths import (
 SUPPORTED_PLACEHOLDERS = ("date", "title")
 PLACEHOLDER_RE = re.compile(r"\{\{([^}]+)\}\}")
 ATX_HEADING_RE = re.compile(r"^(#{2,6})[ \t]+(.+?)[ \t]*$")
+ATX_CLOSING_RE = re.compile(r"[ \t]+#+[ \t]*$")
 FENCE_LINE_RE = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
 
 
@@ -124,7 +125,9 @@ def markdown_section_headings(
             continue
         heading = ATX_HEADING_RE.fullmatch(line)
         if heading and len(heading.group(1)) in levels:
-            headings.append(heading.group(2).strip())
+            text = ATX_CLOSING_RE.sub("", heading.group(2)).strip()
+            if text:
+                headings.append(text)
     return headings
 
 
