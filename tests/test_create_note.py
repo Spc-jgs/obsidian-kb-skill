@@ -11,6 +11,7 @@ import pytest
 
 from obsidian_kb_skill.scripts.create_note import (
     build_note,
+    missing_required_metadata,
     resolve_dest,
     sanitize_filename,
     split_frontmatter,
@@ -76,6 +77,27 @@ def test_build_note_web_clip_has_required_fields():
     )
     for field in ("source:", "author:", "published:"):
         assert field in rendered
+
+
+@pytest.mark.parametrize("placeholder", ["unknown", "未知", "N/A", "TODO", "待补充"])
+def test_web_clip_required_metadata_rejects_vague_placeholders(placeholder):
+    metadata = {
+        "source": "https://example.com/article",
+        "author": placeholder,
+        "published": "2026-07-27",
+    }
+
+    assert missing_required_metadata("web-clip", metadata) == ["author"]
+
+
+def test_web_clip_required_metadata_accepts_explicit_source_absence():
+    metadata = {
+        "source": "https://example.com/article",
+        "author": "原文未署名",
+        "published": "原文未标明",
+    }
+
+    assert missing_required_metadata("web-clip", metadata) == []
 
 
 def test_build_note_normalizes_yaml_date_scalars():

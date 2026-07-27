@@ -38,8 +38,43 @@ def test_chinese_templates_are_actually_chinese():
     learning = (ROOT / "core" / "templates" / "learning-note.md").read_text(
         encoding="utf-8"
     )
+    web_clip = (ROOT / "core" / "templates" / "web-clip.md").read_text(
+        encoding="utf-8"
+    )
     assert "## 今天学了什么" in learning
     assert "### WHY：为什么这样设计" in learning
+    for heading in (
+        "## 来源与结论",
+        "## 问题、前提与适用边界",
+        "## 核心知识与原理",
+        "## 具体做法与示例",
+        "## 验证、风险与限制",
+        "## 理解与启发",
+    ):
+        assert heading in web_clip
+    assert "不限制篇幅" in web_clip
+    assert "足以复现" in web_clip
+
+
+def test_web_clip_locales_share_deep_capture_semantics():
+    zh = (ROOT / "core" / "templates" / "web-clip.md").read_text(
+        encoding="utf-8"
+    )
+    en = (ROOT / "core" / "templates" / "en" / "web-clip.md").read_text(
+        encoding="utf-8"
+    )
+
+    for marker in ("版本", "代码", "验证", "限制", "启发", "真实存在"):
+        assert marker in zh
+    for marker in (
+        "versions",
+        "code",
+        "Verification",
+        "Limitations",
+        "Insights",
+        "existing Vault notes",
+    ):
+        assert marker in en
 
 
 def _skill_union_text():

@@ -10,25 +10,34 @@ related: []
 
 # Article Title
 
-## Source
+## Source and Conclusion
 
 - **URL**:
 - **Author**:
 - **Published**:
 - **Clipped**: {{date}}
+- **One-sentence conclusion**:
 
-## One-sentence Summary
+## Problem, Prerequisites, and Boundaries
 
-## Key Ideas
+<!-- Explain the problem, required versions/environment/prior knowledge, and applicable or inapplicable scenarios. Mark facts the source omits as "not stated in the source"; do not guess. -->
 
-## Highlights
+## Core Knowledge and Rationale
 
-> Keep quotations short and necessary.
+<!-- Reconstruct all material knowledge, causal reasoning, and evidence without a fixed length or bullet limit. Keep only necessary short quotations and distinguish sourced claims from your inferences. -->
 
-## My Notes
+## Procedure and Worked Example
 
-## Actions
+<!-- For technical sources, preserve enough dependencies, versions, configuration, commands, code, parameters, ordering, and examples to reproduce the work. For conceptual sources, give a transferable case or application method; do not invent missing steps. -->
 
-- [ ]
+## Verification, Risks, and Limitations
+
+<!-- State success criteria, verification, common failures, constraints, trade-offs, and open questions. -->
+
+## Interpretation and Insights
+
+<!-- After reconstructing the source, derive supported transferable principles, connections to existing work, and new implications. Do not merely summarize or speak on the user's behalf. -->
 
 ## Related Notes
+
+<!-- Link only to existing Vault notes with a clear relationship; leave empty when no high-confidence link exists. -->

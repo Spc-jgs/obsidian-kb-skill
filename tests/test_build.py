@@ -207,7 +207,7 @@ class TestEndToEnd:
         assert all(path.is_relative_to(root) for path in payload.values())
 
     def test_project_version_reads_pyproject(self):
-        assert build.project_version() == "1.19.1"
+        assert build.project_version() == "1.20.0"
 
     def test_standard_skill_has_required_resource_directories(self):
         root = ROOT / "skills" / "obsidian-knowledge-base"
@@ -330,9 +330,12 @@ class TestGovernanceContract:
         assert "Stop on divergence or conflict" in self.skill
         assert "Never auto-resolve INDEX conflicts" in self.skill
 
-    def test_web_clip_defines_bounded_interpretation(self):
+    def test_web_clip_defines_deep_capture(self):
         assert "## 理解与启发" in self.web_clip
-        assert "2–4 句" in self.web_clip
+        assert "## 具体做法与示例" in self.web_clip
+        assert "## 验证、风险与限制" in self.web_clip
+        assert "不限制篇幅" in self.web_clip
+        assert "足以复现" in self.web_clip
         assert "不要代替用户表达个人立场" in self.web_clip
 
     def test_native_folder_index_graph_contract(self):
@@ -395,21 +398,21 @@ def test_readmes_use_agent_first_installation_and_changelog_owns_history():
     assert "## What's New in v1.12" not in readme_en
 
 
-def test_v1_19_1_release_contract_is_consistent():
+def test_v1_20_0_release_contract_is_consistent():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     core = (ROOT / "core" / "OBSIDIAN_KB.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     readme_en = (ROOT / "README_EN.md").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert 'version = "1.19.1"' in pyproject
-    assert "**Version**: 1.19.1" in core
-    assert "**v1.19.1**" in readme
-    assert "**v1.19.1**" in readme_en
-    assert "## [1.19.1] - 2026-07-16" in changelog
-    assert "vault-info --type <slug>" in changelog
-    assert "2,296 tokens" in changelog
-    assert "fenced code examples" in changelog
+    assert 'version = "1.20.0"' in pyproject
+    assert "**Version**: 1.20.0" in core
+    assert "**v1.20.0**" in readme
+    assert "**v1.20.0**" in readme_en
+    assert "## [1.20.0] - 2026-07-27" in changelog
+    assert "Deep article capture" in changelog
+    assert "no artificial token, length, or bullet-count limit" in changelog
+    assert "Source access failures stop deep capture" in changelog
     assert "~/.workbuddy/skills/obsidian-knowledge-base" in readme
     assert "run_helper.py doctor" in readme
     assert "WorkBuddy" in readme_en

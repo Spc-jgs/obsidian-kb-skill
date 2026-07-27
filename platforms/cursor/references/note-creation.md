@@ -78,6 +78,46 @@ The bundled type default supplies a top-level folder. Vault governance wins for
 more specific routes such as `20-Learning/Java`; express that decision with
 `--folder`. The helper is not expected to parse arbitrary governance prose.
 
+### Article capture depth
+
+Treat an explicit request to save, summarize into the knowledge base, learn
+from, or “沉淀” an article, tutorial, paper, transcript, or technical post as a
+**deep knowledge capture**. The note must stand on its own: a future reader
+should not need to reopen the source to understand what happened, carry out the
+procedure, or recover the useful reasoning. Do not optimize the finished note
+for brevity, token count, a fixed number of bullets, or a fixed word count.
+Preserve all material knowledge while avoiding unnecessary verbatim copying.
+
+Use `web-clip` for a deeply reconstructed source-backed article unless
+Vault-local governance selects a more specific deep template. A request that is
+explicitly only a bookmark, quick save, or unread-source capture goes to
+`00-Inbox/`; it must not be presented as a finished article note.
+
+Read the complete accessible source before drafting. If access is partial,
+blocked, or missing important code, images, tables, or attachments, stop before
+creating a finished note and report exactly what source material is missing.
+Never substitute a concept summary for unavailable implementation details.
+
+Before preflight, perform a source-coverage pass:
+
+1. State the problem, prerequisites, versions or environment, and applicability
+   boundaries. Mark facts absent from the source as such instead of guessing.
+2. Reconstruct the key knowledge, causal chain, evidence, and trade-offs in
+   enough detail to teach the subject rather than merely name the concepts.
+3. Preserve the actionable path. When the source contains dependencies,
+   configuration, commands, code, parameters, ordered steps, data, or worked
+   examples, retain enough of them for a reader to reproduce the result.
+4. Explain how to verify success and record common failures, risks, limitations,
+   alternatives, and unresolved questions.
+5. Separate sourced claims from the writer's interpretation, then derive
+   supported transferable insights and connections to the reader's work.
+6. Add only existing, high-confidence Vault links. No link is better than an
+   invented or merely topical link.
+
+The capture is incomplete if it answers only “what is this?” but not the
+source-relevant forms of “how does it work?”, “how do I do it?”, “how do I know
+it worked?”, “where does it fail?”, and “what can I infer or reuse?”.
+
 ### Missing category exception
 
 Existing governed categories skip this entire exception. If a stable topic has
@@ -111,6 +151,10 @@ related: ["[[Existing Note]]"]
 Merge precedence is `type defaults < Vault template < input frontmatter < explicit CLI fields`.
 Always use today's date and the routed type. `web-clip` requires non-empty
 `source`, `author`, and `published`; missing fields fail before any mutation.
+Do not use vague placeholders such as `unknown`, `未知`, `N/A`, `TODO`, or
+`待补充` to bypass this gate. When the complete source genuinely omits a fact,
+use an explicit provenance marker such as `author: "原文未署名"` or
+`published: "原文未标明"`.
 
 Pipe external or transient content through `--stdin`:
 
@@ -156,6 +200,9 @@ headings, broken wikilinks, unresolved placeholders, and required web-clip
 metadata. A clean compact apply audit completes verification; do not re-read
 the note merely to prove it exists. Investigate only if the audit reports a
 finding or the user explicitly requests an additional content review.
+Mechanical audit does not prove semantic depth. For deep article capture, a
+clean audit is necessary but completion additionally requires the source-
+coverage pass above. Do not report success when either gate fails.
 
 ## Write Boundary
 

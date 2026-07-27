@@ -23,6 +23,7 @@ from obsidian_kb_skill.scripts.folder_index_policy import (
 )
 from obsidian_kb_skill.scripts.note_catalog import VALID_NOTE_TYPES
 from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
+from obsidian_kb_skill.scripts.metadata_quality import is_meaningful_metadata
 from obsidian_kb_skill.scripts.template_contract import markdown_section_headings
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
@@ -321,12 +322,12 @@ def _audit_web_clip(
         return
     for field in ("source", "author", "published"):
         value = metadata.get(field)
-        if not isinstance(value, str) or not value.strip():
+        if not is_meaningful_metadata(value):
             _add(
                 findings,
                 f"web-clip-missing-{field}",
                 relative,
-                f"web-clip note must set a non-empty '{field}' field",
+                f"web-clip note must set a non-placeholder '{field}' field",
             )
 
 
@@ -632,6 +633,10 @@ def audit_vault(vault: Path) -> list[Finding]:
         _audit_related(findings, relative, metadata)
         _audit_web_clip(findings, relative, metadata)
         _audit_empty_template(findings, relative, text, metadata)
+        if metadata and metadata.get("type") == "web-clip":
+            _audit_required_template_headings(
+                findings, vault, relative, text, metadata
+            )
         _audit_folder_index_content(findings, relative, text, metadata)
         if len(FENCE_RE.findall(text)) % 2:
             _add(findings, "unclosed-fence", relative, "odd number of fenced code block markers")

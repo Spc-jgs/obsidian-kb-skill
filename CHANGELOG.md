@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-07-27
+
+### Added
+
+- Deep article capture now requires standalone coverage of the source problem and boundaries, core knowledge and causal reasoning, reproducible steps or examples, verification and risks, and clearly distinguished insights.
+- Web-clip creation and full-vault audits reject placeholder metadata such as `unknown`, `N/A`, `TODO`, and `待补充` instead of treating it as complete attribution.
+- Historical web clips are audited against the complete deep-article section contract, exposing articles that still depend on their original links for essential details.
+
+### Changed
+
+- Saved articles default to durable knowledge notes with no artificial token, length, or bullet-count limit; unread or incomplete sources route to Inbox instead.
+- Chinese and English web-clip templates now provide dedicated sections for source conclusions, applicability, principles, concrete implementation, validation and limitations, insights, and real related notes.
+- Source access failures stop deep capture rather than silently producing a concept-only summary.
+
 ## [1.19.1] - 2026-07-16
 
 ### Fixed
