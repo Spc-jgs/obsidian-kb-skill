@@ -13,6 +13,11 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
+from obsidian_kb_skill.scripts.deep_capture_contract import (
+    DEEP_CAPTURE_CONTRACT_VERSION,
+    formatted_deep_capture_variants,
+    matches_deep_capture_contract,
+)
 from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
 from obsidian_kb_skill.scripts.folder_index_policy import (
     FolderIndexConfig,
@@ -242,6 +247,58 @@ def _audit_required_template_headings(
         "required template headings are missing or out of order; "
         f"expected headings: {expected}; actual headings: {observed}; "
         f"first mismatch: {first_mismatch}",
+    )
+
+
+def _audit_deep_capture_headings(
+    findings: list[Finding],
+    relative: Path,
+    text: str,
+    metadata: dict[str, Any] | None,
+) -> None:
+    if (
+        not metadata
+        or metadata.get("type") != "web-clip"
+        or (relative.parts and relative.parts[0] == "Templates")
+    ):
+        return
+    actual = markdown_section_headings(text, levels=(2,))
+    if matches_deep_capture_contract(actual):
+        return
+    observed = " -> ".join(actual) or "(none)"
+    _add(
+        findings,
+        "missing-deep-capture-heading",
+        relative,
+        f"web-clip does not satisfy the v{DEEP_CAPTURE_CONTRACT_VERSION} "
+        "deep-capture heading baseline; "
+        f"accepted baselines: {formatted_deep_capture_variants()}; "
+        f"actual headings: {observed}",
+    )
+
+
+def _audit_deep_capture_template(
+    findings: list[Finding],
+    vault: Path,
+) -> None:
+    template = vault / "Templates" / "Web Clip.md"
+    if not template.is_file():
+        return
+    actual = markdown_section_headings(
+        template.read_text(encoding="utf-8"),
+        levels=(2,),
+    )
+    if matches_deep_capture_contract(actual):
+        return
+    observed = " -> ".join(actual) or "(none)"
+    _add(
+        findings,
+        "outdated-deep-capture-template",
+        template.relative_to(vault),
+        f"Web Clip template does not satisfy the v{DEEP_CAPTURE_CONTRACT_VERSION} "
+        "deep-capture heading baseline and can keep producing shallow articles; "
+        f"accepted baselines: {formatted_deep_capture_variants()}; "
+        f"actual headings: {observed}",
     )
 
 
@@ -590,6 +647,7 @@ def audit_vault(vault: Path) -> list[Finding]:
     """Return deterministic findings sorted by path, code, and message."""
     vault = vault.resolve()
     findings: list[Finding] = []
+    _audit_deep_capture_template(findings, vault)
     folder_index_config = read_folder_index_config(vault)
     linkable = _all_linkable_files(vault)
     by_name: dict[str, list[Path]] = defaultdict(list)
@@ -634,9 +692,7 @@ def audit_vault(vault: Path) -> list[Finding]:
         _audit_web_clip(findings, relative, metadata)
         _audit_empty_template(findings, relative, text, metadata)
         if metadata and metadata.get("type") == "web-clip":
-            _audit_required_template_headings(
-                findings, vault, relative, text, metadata
-            )
+            _audit_deep_capture_headings(findings, relative, text, metadata)
         _audit_folder_index_content(findings, relative, text, metadata)
         if len(FENCE_RE.findall(text)) % 2:
             _add(findings, "unclosed-fence", relative, "odd number of fenced code block markers")

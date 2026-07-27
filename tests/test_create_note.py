@@ -79,7 +79,22 @@ def test_build_note_web_clip_has_required_fields():
         assert field in rendered
 
 
-@pytest.mark.parametrize("placeholder", ["unknown", "未知", "N/A", "TODO", "待补充"])
+@pytest.mark.parametrize(
+    "placeholder",
+    [
+        "unknown",
+        "未知",
+        "N/A",
+        "TODO",
+        "待补充",
+        "TODO: verify",
+        "unknown author",
+        "unknown作者",
+        "TODO待确认",
+        "待补充作者",
+        "ＴＯＤＯ：verify",
+    ],
+)
 def test_web_clip_required_metadata_rejects_vague_placeholders(placeholder):
     metadata = {
         "source": "https://example.com/article",
@@ -88,6 +103,17 @@ def test_web_clip_required_metadata_rejects_vague_placeholders(placeholder):
     }
 
     assert missing_required_metadata("web-clip", metadata) == ["author"]
+
+
+@pytest.mark.parametrize("author", ["Todor Zhivkov", "Nulla Rossi", "Jane TODO Smith"])
+def test_web_clip_required_metadata_accepts_nonplaceholder_substrings(author):
+    metadata = {
+        "source": "https://example.com/article",
+        "author": author,
+        "published": "2026-07-27",
+    }
+
+    assert missing_required_metadata("web-clip", metadata) == []
 
 
 def test_web_clip_required_metadata_accepts_explicit_source_absence():
