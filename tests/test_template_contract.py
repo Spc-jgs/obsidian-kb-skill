@@ -14,6 +14,7 @@ from obsidian_kb_skill.scripts.note_types import (
 from obsidian_kb_skill.scripts.template_contract import (
     custom_template_types,
     inspect_template,
+    markdown_section_headings,
     normalize_template_text,
     template_shape,
     template_sha256,
@@ -138,6 +139,21 @@ def test_template_shape_returns_none_for_missing_conventional_template(tmp_path:
     (vault / "Templates" / "Web Clip.md").unlink()
 
     assert template_shape(vault, "web-clip") is None
+
+
+def test_markdown_section_headings_normalizes_optional_atx_closing_markers():
+    text = (
+        "## Source and Conclusion ##\n"
+        "## Core Knowledge and Rationale ###   \n"
+        "## C# language\n"
+        "### Nested ###\n"
+    )
+
+    assert markdown_section_headings(text, levels=(2,)) == [
+        "Source and Conclusion",
+        "Core Knowledge and Rationale",
+        "C# language",
+    ]
 
 
 def test_normalization_changes_only_transport_details():

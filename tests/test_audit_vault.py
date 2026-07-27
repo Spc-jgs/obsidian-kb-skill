@@ -254,6 +254,43 @@ def test_full_audit_deep_baseline_is_independent_of_shallow_vault_template(tmp_p
     )
 
 
+def test_full_audit_accepts_optional_atx_closing_markers(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    templates = tmp_path / "Templates"
+    templates.mkdir()
+    headings = (
+        "Source and Conclusion",
+        "Problem, Prerequisites, and Boundaries",
+        "Core Knowledge and Rationale",
+        "Procedure and Worked Example",
+        "Verification, Risks, and Limitations",
+        "Interpretation and Insights",
+        "Related Notes",
+    )
+    body = "\n\n".join(f"## {heading} ##\n\nContent." for heading in headings)
+    (templates / "Web Clip.md").write_text(
+        '---\ntype: web-clip\ntags: [web-clip]\n---\n# Template\n\n' + body + "\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "Candidate.md").write_text(
+        '---\ndate: "2026-07-27"\ntype: web-clip\n'
+        'tags: [web-clip]\nsource: "https://example.com"\n'
+        'author: "Jane"\npublished: "2026-01-01"\n---\n'
+        "# Candidate\n\n"
+        + body
+        + "\n",
+        encoding="utf-8",
+    )
+
+    findings = audit_vault(tmp_path)
+
+    assert not any(
+        finding.code
+        in {"missing-deep-capture-heading", "outdated-deep-capture-template"}
+        for finding in findings
+    )
+
+
 def test_full_audit_deep_baseline_does_not_require_a_vault_template(tmp_path):
     (tmp_path / ".obsidian").mkdir()
     (tmp_path / "Candidate.md").write_text(
@@ -669,6 +706,9 @@ def test_accepts_complete_web_clip(tmp_path):
         "unknown作者",
         "TODO待确认",
         "待补充作者",
+        "none provided",
+        "null value",
+        "N/A pending",
         "ＴＯＤＯ：verify",
     ],
 )
@@ -684,7 +724,16 @@ def test_rejects_vague_web_clip_metadata_placeholders(tmp_path, placeholder):
     assert "web-clip-missing-author" in codes(tmp_path)
 
 
-@pytest.mark.parametrize("author", ["Todor Zhivkov", "Nulla Rossi", "Jane TODO Smith"])
+@pytest.mark.parametrize(
+    "author",
+    [
+        "Todor Zhivkov",
+        "Nulla Rossi",
+        "Jane TODO Smith",
+        "Unknown Mortal Orchestra",
+        "unknown@example.com",
+    ],
+)
 def test_accepts_meaningful_metadata_containing_placeholder_substrings(
     tmp_path, author
 ):

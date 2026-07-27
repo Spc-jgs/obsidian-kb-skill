@@ -21,11 +21,21 @@ PLACEHOLDER_VALUES = frozenset(
     }
 )
 
-LATIN_PLACEHOLDER_PREFIX_RE = re.compile(
-    r"^(?:unknown|n/a|na|none|null|todo|tbd)"
-    r"(?=$|[\s\W_\u3400-\u9fff])"
+COMPOUND_PLACEHOLDER_RE = re.compile(
+    r"^(?:"
+    r"unknown[\s:;,.!?\-_/\\()\[\]{}]+"
+    r"(?:author|source|date|published|publication date|url|link|name|value)\b.*"
+    r"|(?:todo|tbd)[\s:;,.!?\-_/\\()\[\]{}]+"
+    r"(?:verify|confirm|check|fill|update|replace|add|complete|research|find|"
+    r"pending|later)\b.*"
+    r"|(?:none|null|n/a|na)[\s:;,.!?\-_/\\()\[\]{}]+"
+    r"(?:provided|available|specified|known|given|found|pending|value)\b.*"
+    r"|unknown(?:作者|来源|日期|发布日期|链接|网址|名称|值).*$"
+    r"|(?:todo|tbd)(?:待确认|待补充|验证|核实|检查).*$"
+    r"|(?:未知|待补充|待确认)"
+    r"(?:作者|来源|日期|发布日期|链接|网址|字段|信息|内容|值).*$"
+    r")$"
 )
-CJK_PLACEHOLDER_PREFIXES = ("未知", "待补充", "待确认")
 
 
 def is_meaningful_metadata(value: Any) -> bool:
@@ -37,6 +47,4 @@ def is_meaningful_metadata(value: Any) -> bool:
     )
     if not normalized or normalized in PLACEHOLDER_VALUES:
         return False
-    if LATIN_PLACEHOLDER_PREFIX_RE.match(normalized):
-        return False
-    return not normalized.startswith(CJK_PLACEHOLDER_PREFIXES)
+    return COMPOUND_PLACEHOLDER_RE.fullmatch(normalized) is None
