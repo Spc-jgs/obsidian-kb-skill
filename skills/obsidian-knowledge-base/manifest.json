@@ -40,7 +40,7 @@
     "scripts/obsidian_kb_skill/scripts/folder_index_policy.py": "22d3c4c6bb3b8c2adbbba4b0a993dafefa2dc796e9909913dfd17c19e11e807f",
     "scripts/obsidian_kb_skill/scripts/frontmatter.py": "faf6e4b31bf12a2eec25191d6d6e4b8e047c4daba39ccbc1256352bd7a365b40",
     "scripts/obsidian_kb_skill/scripts/index_templates.py": "27171d2cd9acb06ef1749006c87a9899676849811e7612752db43abbbc52d28c",
-    "scripts/obsidian_kb_skill/scripts/metadata_quality.py": "6095f163e75dd723461c61e888cb90546f1f77dbe4ef87d6d4bc2d22ce4394d2",
+    "scripts/obsidian_kb_skill/scripts/metadata_quality.py": "2768d0de3cc1ee215d69515a30d67a5f6c1587e76a42110fbd9fb7880849e86b",
     "scripts/obsidian_kb_skill/scripts/note_catalog.py": "5d12cc25f71a5158e15f7fa138461cbaf0f2df201f77d69251c07d146b2fffbe",
     "scripts/obsidian_kb_skill/scripts/note_types.py": "ae5f477de22ee7032b3c5e133b9823afd159a4692eba3f721100a0266b08f4fa",
     "scripts/obsidian_kb_skill/scripts/process_inbox.py": "dd2a4bb95f04ebc61031c8560e2ababa3337464030eba864f847efaeaa7d2566",

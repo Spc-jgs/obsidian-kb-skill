@@ -90,6 +90,8 @@ def test_build_note_web_clip_has_required_fields():
         "TODO: verify",
         "unknown author",
         "unknown作者",
+        "unknown writer",
+        "unknown (not provided)",
         "TODO待确认",
         "待补充作者",
         "none provided",

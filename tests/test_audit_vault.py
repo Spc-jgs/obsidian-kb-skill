@@ -704,6 +704,8 @@ def test_accepts_complete_web_clip(tmp_path):
         "TODO: verify",
         "unknown author",
         "unknown作者",
+        "unknown writer",
+        "unknown (not provided)",
         "TODO待确认",
         "待补充作者",
         "none provided",

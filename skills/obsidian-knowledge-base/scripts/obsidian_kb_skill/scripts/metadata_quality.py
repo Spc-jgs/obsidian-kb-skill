@@ -24,7 +24,9 @@ PLACEHOLDER_VALUES = frozenset(
 COMPOUND_PLACEHOLDER_RE = re.compile(
     r"^(?:"
     r"unknown[\s:;,.!?\-_/\\()\[\]{}]+"
-    r"(?:author|source|date|published|publication date|url|link|name|value)\b.*"
+    r"(?:author|writer|creator|contributor|publisher|source|date|published|"
+    r"publication date|url|link|name|value|not provided|not available|"
+    r"not specified|not stated|not known|not given|not found)\b.*"
     r"|(?:todo|tbd)[\s:;,.!?\-_/\\()\[\]{}]+"
     r"(?:verify|confirm|check|fill|update|replace|add|complete|research|find|"
     r"pending|later)\b.*"
