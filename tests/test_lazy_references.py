@@ -132,6 +132,12 @@ def test_note_creation_documents_complete_markdown_and_web_clip_preflight():
         "type defaults < Vault template < input frontmatter < explicit CLI fields",
         "`web-clip` requires non-empty",
         "`--content-file` must resolve inside the Vault",
+        "deep knowledge capture",
+        "should not need to reopen the source",
+        "Do not optimize the finished note",
+        "source-coverage pass",
+        "Never substitute a concept summary",
+        "Mechanical audit does not prove semantic depth",
     ):
         assert marker in text, f"note creation reference missing: {marker!r}"
 

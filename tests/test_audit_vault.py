@@ -138,6 +138,32 @@ def test_audit_note_text_checks_required_template_heading_order(tmp_path):
     assert "first mismatch: Second" in finding.message
 
 
+def test_audit_vault_checks_required_template_heading_order(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    templates = tmp_path / "Templates"
+    templates.mkdir()
+    (templates / "Web Clip.md").write_text(
+        '---\ntype: web-clip\ntags: [web-clip]\n---\n'
+        "# Template\n\n## Source and Conclusion\n\n## Procedure\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "Candidate.md").write_text(
+        '---\ndate: "2026-07-14"\ntype: web-clip\n'
+        'tags: [web-clip]\nsource: "https://example.com"\n'
+        'author: "Jane"\npublished: "2026-01-01"\n---\n'
+        "# Candidate\n\n## Summary\n\nOnly a shallow summary.\n",
+        encoding="utf-8",
+    )
+
+    findings = audit_vault(tmp_path)
+
+    assert any(
+        finding.code == "missing-template-heading"
+        and finding.path == "Candidate.md"
+        for finding in findings
+    )
+
+
 def test_required_template_headings_ignore_frontmatter_and_fenced_examples(tmp_path):
     (tmp_path / ".obsidian").mkdir()
     templates = tmp_path / "Templates"
@@ -492,6 +518,33 @@ def test_accepts_complete_web_clip(tmp_path):
     )
     found = codes(tmp_path)
     assert "web-clip-missing-source" not in found
+    assert "web-clip-missing-author" not in found
+    assert "web-clip-missing-published" not in found
+
+
+@pytest.mark.parametrize("placeholder", ["unknown", "未知", "N/A", "TODO", "待补充"])
+def test_rejects_vague_web_clip_metadata_placeholders(tmp_path, placeholder):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Clip.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: web-clip\n'
+        'tags: [web-clip]\nsource: "https://example.com/a"\n'
+        f'author: "{placeholder}"\npublished: "2026-01-01"\n---\n# Clip\n',
+        encoding="utf-8",
+    )
+
+    assert "web-clip-missing-author" in codes(tmp_path)
+
+
+def test_accepts_explicit_web_clip_source_absence_markers(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Clip.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: web-clip\n'
+        'tags: [web-clip]\nsource: "https://example.com/a"\n'
+        'author: "原文未署名"\npublished: "原文未标明"\n---\n# Clip\n',
+        encoding="utf-8",
+    )
+
+    found = codes(tmp_path)
     assert "web-clip-missing-author" not in found
     assert "web-clip-missing-published" not in found
 

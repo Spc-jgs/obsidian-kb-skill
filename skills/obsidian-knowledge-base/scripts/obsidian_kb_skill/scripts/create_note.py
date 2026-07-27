@@ -33,6 +33,7 @@ from obsidian_kb_skill.scripts.note_catalog import (
     TYPE_TO_FOLDER,
     TYPE_TO_TEMPLATE,
 )
+from obsidian_kb_skill.scripts.metadata_quality import is_meaningful_metadata
 from obsidian_kb_skill.scripts.folder_index_policy import (
     StaticIndexEntry,
     append_static_index_entry,
@@ -159,13 +160,13 @@ def split_frontmatter(
 
 
 def missing_required_metadata(note_type: str, metadata: dict[str, Any]) -> list[str]:
-    """Return non-empty string fields required before a note may be written."""
+    """Return required fields that are empty or vague placeholders."""
     if note_type != "web-clip":
         return []
     return [
         field
         for field in ("source", "author", "published")
-        if not isinstance(metadata.get(field), str) or not metadata[field].strip()
+        if not is_meaningful_metadata(metadata.get(field))
     ]
 
 
