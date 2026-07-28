@@ -14,10 +14,12 @@ specifically needs troubleshooting, Git post-processing, or opted-in handoff.
    naming, metadata, README, and Git actions from those rules.
 3. If governance requires Git, load `git.md` and complete its pre-write check
    before fetching or deeply reading source content.
-4. Supply complete Markdown to `create-note --preflight-json` and inspect the
+4. For a finished source-backed article or material rewrite, read only
+   `deep-capture.md` and complete its semantic gate before preflight.
+5. Supply complete Markdown to `create-note --preflight-json` and inspect the
    structured validation.
-5. Repeat the same input with `--apply --compact-json`; keep automatic audit on.
-6. Optionally use bounded link suggestions, then report the saved path.
+6. Repeat the same input with `--apply --compact-json`; keep automatic audit on.
+7. Optionally use bounded link suggestions, then report the saved path.
 
 The helper handles template loading, index strategy, exclusive creation, and
 per-note audit. Ordinary creation needs no template read, second index probe,
@@ -80,43 +82,16 @@ more specific routes such as `20-Learning/Java`; express that decision with
 
 ### Article capture depth
 
-Treat an explicit request to save, summarize into the knowledge base, learn
-from, or “沉淀” an article, tutorial, paper, transcript, or technical post as a
-**deep knowledge capture**. The note must stand on its own: a future reader
-should not need to reopen the source to understand what happened, carry out the
-procedure, or recover the useful reasoning. Do not optimize the finished note
-for brevity, token count, a fixed number of bullets, or a fixed word count.
-Preserve all material knowledge while avoiding unnecessary verbatim copying.
+A saved article is deep by default when the user asks to learn, summarize into
+the knowledge base, archive as knowledge, or “沉淀” it. Before drafting or
+materially rewriting a finished source-backed article, read only
+`deep-capture.md` and follow its intent routing, source access, profile,
+materiality, coverage, enrichment, and acceptance contract.
 
-Use `web-clip` for a deeply reconstructed source-backed article unless
-Vault-local governance selects a more specific deep template. A request that is
-explicitly only a bookmark, quick save, or unread-source capture goes to
-`00-Inbox/`; it must not be presented as a finished article note.
-
-Read the complete accessible source before drafting. If access is partial,
-blocked, or missing important code, images, tables, or attachments, stop before
-creating a finished note and report exactly what source material is missing.
-Never substitute a concept summary for unavailable implementation details.
-
-Before preflight, perform a source-coverage pass:
-
-1. State the problem, prerequisites, versions or environment, and applicability
-   boundaries. Mark facts absent from the source as such instead of guessing.
-2. Reconstruct the key knowledge, causal chain, evidence, and trade-offs in
-   enough detail to teach the subject rather than merely name the concepts.
-3. Preserve the actionable path. When the source contains dependencies,
-   configuration, commands, code, parameters, ordered steps, data, or worked
-   examples, retain enough of them for a reader to reproduce the result.
-4. Explain how to verify success and record common failures, risks, limitations,
-   alternatives, and unresolved questions.
-5. Separate sourced claims from the writer's interpretation, then derive
-   supported transferable insights and connections to the reader's work.
-6. Add only existing, high-confidence Vault links. No link is better than an
-   invented or merely topical link.
-
-The capture is incomplete if it answers only “what is this?” but not the
-source-relevant forms of “how does it work?”, “how do I do it?”, “how do I know
-it worked?”, “where does it fail?”, and “what can I infer or reuse?”.
+An explicitly quick, bookmark, save-for-later, or unread source belongs in
+`00-Inbox/` and must not be presented as finished knowledge. If required source
+material is inaccessible, follow `deep-capture.md` instead of silently reducing
+the result to a concept summary.
 
 ### Missing category exception
 
@@ -207,9 +182,9 @@ customized contract. A full-vault audit additionally checks every historical
 an outdated `Templates/Web Clip.md`; preserving an old template must not lower
 that historical quality gate.
 
-Mechanical audit does not prove semantic depth. For deep article capture, a
-clean audit is necessary but completion additionally requires the source-
-coverage pass above. Do not report success when either gate fails.
+Mechanical audit does not prove semantic depth. For deep article capture,
+completion additionally requires the semantic acceptance in
+`deep-capture.md`. Do not report success when either gate fails.
 
 ## Write Boundary
 
@@ -221,4 +196,6 @@ for it or higher-priority runtime instructions explicitly require it.
 ### Step 10: Confirm to User
 
 Report the saved path, a brief capture summary, audit status, and only useful
-follow-up actions. Do not narrate redundant internal reads or checks.
+follow-up actions. For deep capture, separately report the selected profile,
+source coverage, semantic acceptance, and mechanical audit. Do not narrate
+redundant internal reads or checks.

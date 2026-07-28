@@ -112,6 +112,66 @@ def test_audit_note_text_matches_written_note(tmp_path, rendered):
     assert prewrite == postwrite
 
 
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "用 2–4 句话区分原文观点与自己的推论，不机械复述。",
+        "说明原文解决什么问题、需要哪些版本和环境。",
+        "Explain the problem, required versions, environment, and prior knowledge.",
+    ],
+)
+def test_reports_residual_template_instruction_comments(tmp_path, instruction):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Templates").mkdir()
+    rendered = (
+        '---\ndate: "2026-07-28"\ntype: insight-note\n'
+        "tags: [insight]\n---\n# Candidate\n\n"
+        f"<!-- {instruction} -->\n\nActual content.\n"
+    )
+
+    findings = audit_note_text(tmp_path, tmp_path / "Candidate.md", rendered)
+
+    assert any(
+        finding.code == "residual-template-instruction"
+        and finding.path == "Candidate.md"
+        for finding in findings
+    )
+
+
+def test_allows_ordinary_html_comments_and_fenced_template_examples(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Templates").mkdir()
+    rendered = (
+        '---\ndate: "2026-07-28"\ntype: insight-note\n'
+        "tags: [insight]\n---\n# Candidate\n\n"
+        "<!-- diagram anchor: keep this comment -->\n\n"
+        "```markdown\n"
+        "<!-- 说明原文解决什么问题、需要哪些版本和环境。 -->\n"
+        "```\n"
+    )
+
+    findings = audit_note_text(tmp_path, tmp_path / "Candidate.md", rendered)
+
+    assert "residual-template-instruction" not in {
+        finding.code for finding in findings
+    }
+
+
+def test_ignores_template_instruction_comments_inside_templates(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    templates = tmp_path / "Templates"
+    templates.mkdir()
+    template = templates / "Learning Note.md"
+    template.write_text(
+        '---\ndate: "{{date}}"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Template\n\n"
+        "<!-- 说明原文解决什么问题、需要哪些版本和环境。 -->\n",
+        encoding="utf-8",
+    )
+
+    assert "residual-template-instruction" not in codes(tmp_path)
+
+
 def test_audit_note_text_checks_required_template_heading_order(tmp_path):
     (tmp_path / ".obsidian").mkdir()
     templates = tmp_path / "Templates"

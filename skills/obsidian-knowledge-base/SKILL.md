@@ -20,6 +20,8 @@ This skill **never writes to the vault on its own**. Act only after **explicit s
 1. **Find vault**: env `OBSIDIAN_KB_VAULT` → `~/.obsidian-kb-config` → ask. Refuse unless a real vault (`.obsidian/` + `Templates/`).
 2. **Read exactly one primary reference before writing**:
    - New note: read only `note-creation.md`.
+   - Finished source-backed article: after `note-creation.md` routes it, also read
+     `deep-capture.md`; quick/unread captures do not load it.
    - Existing note: read only `update-note.md`; conversation archive: read only `conversation-digest.md`.
    - Task Memory: read `task-memory.md` only after explicit opt-in (**off by default**).
    - YAML, rules, and Git references are troubleshooting or post-processing material: load `yaml-standards.md`, `rules-and-errors.md`, or `git.md` only when the current task requires it.

@@ -85,6 +85,24 @@ FOLDER_INDEX_CONTENT_RE = re.compile(
 )
 
 PLACEHOLDER_RE = re.compile(r"\{\{[^}]+\}\}")
+HTML_COMMENT_RE = re.compile(r"<!--([\s\S]*?)-->")
+TEMPLATE_INSTRUCTION_MARKERS = (
+    "用 2–4 句话",
+    "用 2-4 句话",
+    "区分原文观点与自己的推论",
+    "说明原文解决什么问题",
+    "完整重构原文的关键知识",
+    "技术文章保留足以复现",
+    "写清成功标准",
+    "在完整理解原文后提炼",
+    "只添加 vault 中真实存在",
+    "explain the problem, required versions",
+    "reconstruct all material knowledge",
+    "for technical sources, preserve enough",
+    "write clear success criteria",
+    "after reconstructing the source",
+    "add only vault notes that actually exist",
+)
 
 
 def _is_ignored(relative: Path) -> bool:
@@ -207,6 +225,30 @@ def _audit_template_placeholders(
             relative,
             "note contains an unresolved template placeholder such as {{date}}",
         )
+
+
+def _audit_template_instruction_comments(
+    findings: list[Finding],
+    relative: Path,
+    text: str,
+) -> None:
+    if relative.name in EXEMPT_NAMES:
+        return
+    if relative.parts and relative.parts[0] == "Templates":
+        return
+    without_examples = _without_code_examples(text)
+    for match in HTML_COMMENT_RE.finditer(without_examples):
+        normalized = " ".join(match.group(1).lower().split())
+        if not any(marker in normalized for marker in TEMPLATE_INSTRUCTION_MARKERS):
+            continue
+        _add(
+            findings,
+            "residual-template-instruction",
+            relative,
+            "note contains an instructional template comment that should be "
+            "executed and removed before saving",
+        )
+        return
 
 
 def _audit_required_template_headings(
@@ -697,6 +739,7 @@ def audit_vault(vault: Path) -> list[Finding]:
         if len(FENCE_RE.findall(text)) % 2:
             _add(findings, "unclosed-fence", relative, "odd number of fenced code block markers")
         _audit_template_placeholders(findings, relative, text)
+        _audit_template_instruction_comments(findings, relative, text)
         if relative.name not in EXEMPT_NAMES:
             _audit_links(
                 findings,
@@ -769,6 +812,7 @@ def _audit_note_content(
     _audit_empty_template(findings, relative, text, metadata)
     _audit_folder_index_content(findings, relative, text, metadata)
     _audit_template_placeholders(findings, relative, text)
+    _audit_template_instruction_comments(findings, relative, text)
     _audit_required_template_headings(findings, vault, relative, text, metadata)
     if len(FENCE_RE.findall(text)) % 2:
         _add(

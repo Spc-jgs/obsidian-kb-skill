@@ -207,7 +207,7 @@ class TestEndToEnd:
         assert all(path.is_relative_to(root) for path in payload.values())
 
     def test_project_version_reads_pyproject(self):
-        assert build.project_version() == "1.20.1"
+        assert build.project_version() == "1.21.0"
 
     def test_standard_skill_has_required_resource_directories(self):
         root = ROOT / "skills" / "obsidian-knowledge-base"
@@ -398,21 +398,22 @@ def test_readmes_use_agent_first_installation_and_changelog_owns_history():
     assert "## What's New in v1.12" not in readme_en
 
 
-def test_v1_20_1_release_contract_is_consistent():
+def test_v1_21_0_release_contract_is_consistent():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     core = (ROOT / "core" / "OBSIDIAN_KB.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     readme_en = (ROOT / "README_EN.md").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert 'version = "1.20.1"' in pyproject
-    assert "**Version**: 1.20.1" in core
-    assert "**v1.20.1**" in readme
-    assert "**v1.20.1**" in readme_en
-    assert "## [1.20.1] - 2026-07-27" in changelog
-    assert "versioned v1.20 Chinese or English deep-capture heading baseline" in changelog
-    assert "outdated `Templates/Web Clip.md`" in changelog
-    assert "`TODO: verify`, `unknown author`, and `待补充作者`" in changelog
+    assert 'version = "1.21.0"' in pyproject
+    assert "**Version**: 1.21.0" in core
+    assert "**v1.21.0**" in readme
+    assert "**v1.21.0**" in readme_en
+    assert "## [1.21.0] - 2026-07-28" in changelog
+    assert "dedicated semantic contract with intent routing" in changelog
+    assert "source inventory and coverage ledger" in changelog
+    assert "instructional template comments" in changelog
+    assert "lazy-loaded `deep-capture.md`" in changelog
     assert "~/.workbuddy/skills/obsidian-knowledge-base" in readme
     assert "run_helper.py doctor" in readme
     assert "WorkBuddy" in readme_en
