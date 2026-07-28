@@ -1,6 +1,6 @@
 {
   "files": {
-    "SKILL.md": "e199ee8435bf365077485aa00dbb3d83996e2aa94e02167a024223e047e07f60",
+    "SKILL.md": "dd1e7ea8897bf855bbadf96c5f8b3a9fe6953848e02f5b01cb43b90df7505555",
     "agents/openai.yaml": "9bebeaa3b5ab50ddb081218c4e11096c662bb5120431b08e8f9c1b8411450b14",
     "assets/templates/daily-note.md": "0a13e43e068e10531234941609190ec02f01f7a35e8c77a58a036d29ca02757c",
     "assets/templates/digest-note.md": "9cb3f3c309719883ccef3447f4f82fbdf5512b34728de9e4359c8b11407cc4bd",
@@ -20,16 +20,17 @@
     "assets/templates/web-clip.md": "29ae50fe9ebccc98c4bc741947c82cfb66adf13af0cfa0c5896ebd12b409e378",
     "references/conversation-digest.md": "e3bd2200edddc46960be4518b4ea943b33a7081f91a1398d35f9af74b6d8a5f4",
     "references/custom-template.md": "de98b2fbb06bfd7f1c3caf7593f54f49fccb5548a42c9e0575180271119483ac",
+    "references/deep-capture.md": "e00405fe9a5b488ae06410fdb45ce6c9e67a8d426d301158a7a7d3d09a344708",
     "references/git.md": "d1e7d9976967f99b9be5818ad09c1e8a29ccda717f1a3e4272e5214b438a7252",
     "references/missing-category.md": "98da98f566a2f57bcbfbd5f17df6318ac8eb85ccd9727ca0a04936ee075a7462",
-    "references/note-creation.md": "3ef47cb38ba261b8e80ceffe005a65a969f37d565d98e131150d5a3964b1efe3",
+    "references/note-creation.md": "86c25b90f19fc350b44fdac46c43724a24bf0453946e1a570b98d6b077ac73d1",
     "references/rules-and-errors.md": "db6fffef221545850ea425db953f710ae3a0fce73d058dcb4ea4f23dac165b49",
     "references/task-memory.md": "7addab42c12137a56d16c3068a10325ba2a3e93bdc55a77a4e7fbb379aa35021",
     "references/update-note.md": "cf6dd29283d1887ce618c70aad53e3315c3e51c299d1e2a169d1c7603819f725",
     "references/yaml-standards.md": "4943d240c36367cda138b3ec8a30cd76d70bbc204e756f047e9d233362fae965",
     "scripts/obsidian_kb_skill/__init__.py": "b6f9cfd724f0d4944bcc4f8d2d04e70c33ff378503cb21498a6d306362901763",
     "scripts/obsidian_kb_skill/scripts/__init__.py": "ea3771d4d955569ada4adce0855760a4ba997fc8b7ab87e3d871f68b9def9ee7",
-    "scripts/obsidian_kb_skill/scripts/audit_vault.py": "ea411ec193c924d491251ba3d232f9bc00e310bf1506200860ca9e48857fc1a1",
+    "scripts/obsidian_kb_skill/scripts/audit_vault.py": "ca5a3ab63c1af5d06726140368be2643427ccbd7164aeb2397ce170bbd4aceba",
     "scripts/obsidian_kb_skill/scripts/backup_policy.py": "fbab84603bf0ad0dd76914516406cc05701e9bb9e9ae49eca468750be05df90c",
     "scripts/obsidian_kb_skill/scripts/console.py": "6d6eea164e78b50a0126a6cac68dc9ddcec08d2df2b4a9e9a7a8e62ff35ad0af",
     "scripts/obsidian_kb_skill/scripts/create_category.py": "95fc81c41bc79e00b3ed9c0fd663066e4c5ecba5f7c3c56d50f166d17661337e",
@@ -55,5 +56,5 @@
   },
   "product": "obsidian-kb-skill",
   "schema_version": 1,
-  "version": "1.20.1"
+  "version": "1.21.0"
 }

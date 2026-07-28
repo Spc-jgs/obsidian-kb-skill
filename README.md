@@ -1,12 +1,12 @@
 # Obsidian Knowledge Base Skill
 
-**v1.20.1** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.21.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor、WorkBuddy）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
 [English Version](README_EN.md)
 
-当前稳定版本为 **v1.20.1**。版本变化与升级说明统一记录在 [CHANGELOG.md](CHANGELOG.md)。
+当前稳定版本为 **v1.21.0**。版本变化与升级说明统一记录在 [CHANGELOG.md](CHANGELOG.md)。
 
 ---
 

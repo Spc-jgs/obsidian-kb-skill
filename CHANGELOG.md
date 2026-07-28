@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-07-28
+
+### Added
+
+- Finished source-backed captures now load a dedicated semantic contract with intent routing, source-access hard stops, materiality rules, and separate profiles for tutorials, resource surveys, conceptual analysis, and evidence reports.
+- Deep capture requires a temporary source inventory and coverage ledger before preflight, rejects unresolved material omissions and unsupported claims, and permits labeled first-party enrichment when the primary article is too shallow.
+- The Vault auditor reports leaked instructional template comments in rendered notes while allowing ordinary HTML comments, template files, and fenced examples.
+- Four bounded synthetic evaluation fixtures preserve profile-specific versions, links, commands, causal boundaries, measurements, limitations, and tempting unsupported inventions for repeatable contract walkthroughs.
+
+### Changed
+
+- Article-only quality instructions moved from the ordinary create path into lazy-loaded `deep-capture.md`, so meetings, daily notes, projects, quick Inbox bookmarks, and other non-article captures no longer load the semantic article contract.
+- Completion reports must distinguish selected capture profile, source coverage, semantic acceptance, and deterministic mechanical audit; `0 findings` alone is no longer a semantic success claim.
+- Historical notes remain explicitly unreviewed until a bounded semantic migration or material rewrite instead of being treated as upgraded by a new template or structural audit.
+
 ## [1.20.1] - 2026-07-27
 
 ### Fixed

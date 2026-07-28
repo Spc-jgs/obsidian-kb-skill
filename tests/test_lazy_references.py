@@ -36,6 +36,7 @@ POINTER_MARKERS = [
     "off by default",              # task memory is off unless enabled
     "task-memory.md",              # where the full task-memory spec lives
     "note-creation.md",            # where the create workflow lives
+    "deep-capture.md",             # conditional finished-article contract
     "rules-and-errors.md",         # where the rules live
 ]
 
@@ -80,6 +81,7 @@ def test_core_selects_only_the_reference_for_the_requested_operation():
 
     for marker in (
         "New note: read only `note-creation.md`",
+        "also read `deep-capture.md`; quick/unread captures do not load it",
         "Task Memory: read `task-memory.md` only after explicit opt-in",
         "YAML, rules, and Git references are troubleshooting or post-processing",
     ):
@@ -109,6 +111,7 @@ def test_all_reference_files_exist():
         "git.md",
         "missing-category.md",
         "custom-template.md",
+        "deep-capture.md",
     }
     actual = {p.name for p in REFERENCES_DIR.iterdir() if p.is_file()}
     assert expected <= actual, f"missing reference files: {expected - actual}"
@@ -124,22 +127,74 @@ def test_references_use_the_standard_skill_runner_not_removed_script_paths():
     assert not re.search(r"python\s+scripts/[a-z_]+\.py", text)
 
 
-def test_note_creation_documents_complete_markdown_and_web_clip_preflight():
-    text = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
+def test_note_creation_routes_deep_articles_to_one_lazy_reference():
+    ordinary = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
+    deep = (REFERENCES_DIR / "deep-capture.md").read_text(encoding="utf-8")
+    normalized = " ".join(ordinary.split())
 
     for marker in (
         "complete Markdown",
         "type defaults < Vault template < input frontmatter < explicit CLI fields",
         "`web-clip` requires non-empty",
         "`--content-file` must resolve inside the Vault",
+        "read only `deep-capture.md`",
+        "saved article",
+        "quick, bookmark, save-for-later, or unread",
+        "materially rewriting",
+    ):
+        assert marker in normalized, f"note creation routing missing: {marker!r}"
+
+    for heavy_marker in (
+        "Resource Survey or Product Comparison",
+        "Materiality Standard",
+        "Source Inventory and Coverage Ledger",
+        "Semantic Hard Failures",
+    ):
+        assert heavy_marker not in ordinary
+        assert heavy_marker in deep
+
+
+def test_deep_capture_reference_defines_intent_profiles_and_semantic_gate():
+    text = (REFERENCES_DIR / "deep-capture.md").read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+
+    for marker in (
         "deep knowledge capture",
         "should not need to reopen the source",
-        "Do not optimize the finished note",
-        "source-coverage pass",
-        "Never substitute a concept summary",
-        "Mechanical audit does not prove semantic depth",
+        "Do not optimize",
+        "Tutorial or Technical Procedure",
+        "Resource Survey or Product Comparison",
+        "Conceptual or Opinion Analysis",
+        "Research, Data, News, or Evidence Report",
+        "hybrid",
+        "Materiality Standard",
+        "Source Inventory and Coverage Ledger",
+        "unsupported factual claim",
+        "first-party",
+        "Mechanical acceptance",
+        "Semantic acceptance",
+        "Historical Notes",
     ):
-        assert marker in text, f"note creation reference missing: {marker!r}"
+        assert marker in normalized, f"deep capture contract missing: {marker!r}"
+
+
+def test_deep_capture_rejects_proxy_metrics_and_requires_profile_usefulness():
+    text = (REFERENCES_DIR / "deep-capture.md").read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+
+    for marker in (
+        "word-count",
+        "bullet-count",
+        "link-count",
+        "table-count",
+        "code-block-count",
+        "reproduce",
+        "select",
+        "apply",
+        "evidence-aware decision",
+        "No unresolved material item",
+    ):
+        assert marker in normalized, f"deep capture quality rule missing: {marker!r}"
 
 
 def test_note_creation_documents_the_minimal_ordinary_create_path():

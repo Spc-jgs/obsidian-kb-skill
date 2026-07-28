@@ -1,0 +1,86 @@
+[
+  {
+    "id": "tutorial",
+    "profile": "Tutorial or Technical Procedure",
+    "source": "Build the service with Java 25 and Spring Boot 4.0.1. Add dependency org.example:widget:2.3.0, set widget.timeout=750ms, then run ./mvnw test. Start the app and verify GET /widgets/42 returns HTTP 200 with status=ready. If port 8080 is occupied, set server.port=0 before retrying.",
+    "material_anchors": [
+      "Java 25",
+      "Spring Boot 4.0.1",
+      "org.example:widget:2.3.0",
+      "widget.timeout=750ms",
+      "./mvnw test",
+      "GET /widgets/42",
+      "HTTP 200",
+      "status=ready",
+      "server.port=0"
+    ],
+    "forbidden_inventions": [
+      "Java 17",
+      "Gradle",
+      "HTTP 204"
+    ]
+  },
+  {
+    "id": "resource-survey",
+    "profile": "Resource Survey or Product Comparison",
+    "source": "Atlas (https://example.com/atlas) targets Java 25 scaffolding and starts with atlas init. Beacon (https://example.com/beacon) supports Java 21 and focuses on testing with beacon verify. Choose Atlas for new Spring Boot 4 projects; choose Beacon when retrofitting tests into an existing Java 21 service. Atlas does not support legacy Boot 2 applications.",
+    "material_anchors": [
+      "https://example.com/atlas",
+      "Java 25",
+      "atlas init",
+      "https://example.com/beacon",
+      "Java 21",
+      "beacon verify",
+      "new Spring Boot 4 projects",
+      "existing Java 21 service",
+      "does not support legacy Boot 2"
+    ],
+    "forbidden_inventions": [
+      "Kotlin",
+      "commercial support",
+      "GraalVM"
+    ]
+  },
+  {
+    "id": "conceptual",
+    "profile": "Conceptual or Opinion Analysis",
+    "source": "A cache stampede occurs when many clients recompute the same expired value simultaneously. The causal chain is synchronized expiry, concurrent misses, duplicate backend work, and overload. A per-key single-flight guard interrupts that chain. It is unnecessary when values expire at staggered times and recomputation is already cheap. Apply the idea by measuring duplicate work before adding coordination.",
+    "material_anchors": [
+      "synchronized expiry",
+      "concurrent misses",
+      "duplicate backend work",
+      "overload",
+      "per-key single-flight guard",
+      "staggered times",
+      "recomputation is already cheap",
+      "measuring duplicate work"
+    ],
+    "forbidden_inventions": [
+      "Redis lock",
+      "30 seconds",
+      "database transaction"
+    ]
+  },
+  {
+    "id": "evidence-report",
+    "profile": "Research, Data, News, or Evidence Report",
+    "source": "On 2026-06-30, a single-region experiment measured 240 requests. The new path had p95 latency of 180ms with a 95% confidence interval of 160-205ms, versus 225ms for the control. Requests were sampled only during daytime traffic, so the result does not establish multi-region or overnight performance. The evidence supports a larger rollout experiment, not an immediate global launch.",
+    "material_anchors": [
+      "2026-06-30",
+      "single-region",
+      "240 requests",
+      "p95 latency of 180ms",
+      "95% confidence interval of 160-205ms",
+      "225ms",
+      "daytime traffic",
+      "does not establish multi-region or overnight performance",
+      "larger rollout experiment",
+      "not an immediate global launch"
+    ],
+    "forbidden_inventions": [
+      "statistically significant",
+      "production outage",
+      "10,000 requests"
+    ]
+  }
+]
