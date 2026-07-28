@@ -23,6 +23,13 @@ from typing import Any, Iterator
 import yaml
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
+from obsidian_kb_skill.scripts.capture_receipt import (
+    CaptureReceiptError,
+    load_receipt_file,
+    parse_receipt_json,
+    requires_capture_receipt,
+    validate_capture_receipt,
+)
 from obsidian_kb_skill.scripts.frontmatter import (
     FrontmatterIssue,
     parse_frontmatter,
@@ -47,6 +54,7 @@ from obsidian_kb_skill.scripts.template_contract import (
 from obsidian_kb_skill.scripts.vault_paths import (
     EXIT_PATH_VIOLATION,
     InvalidVaultRootError,
+    PathNotFoundError,
     VaultPathError,
     report_cli_violation,
     resolve_existing_within_vault,
@@ -346,8 +354,6 @@ def write_new_note(
     rendered_bytes: bytes,
 ) -> Path:
     """Create one note exclusively, retrying suffixes when another writer wins."""
-    dest_folder = vault / folder
-    dest_folder.mkdir(parents=True, exist_ok=True)
     for candidate in destination_candidates(vault, folder, filename):
         try:
             with candidate.open("xb") as handle:
@@ -411,6 +417,21 @@ def main(argv: list[str] | None = None) -> int:
         "--expect-template-sha256",
         type=sha256_argument,
         help="Reject the operation if the conventional Vault template changed",
+    )
+    receipt_input = parser.add_mutually_exclusive_group()
+    receipt_input.add_argument(
+        "--capture-receipt-json",
+        help="Content-bound semantic evidence required for a finished web clip",
+    )
+    receipt_input.add_argument(
+        "--capture-receipt-file",
+        type=Path,
+        help="Path to a bounded UTF-8 semantic receipt JSON file",
+    )
+    parser.add_argument(
+        "--expect-capture-receipt-sha256",
+        type=sha256_argument,
+        help="On apply, require the exact semantic receipt accepted by preflight",
     )
     args = parser.parse_args(argv)
     json_mode = args.json or args.compact_json or args.preflight_json
@@ -576,6 +597,134 @@ def main(argv: list[str] | None = None) -> int:
             )
         return 2
 
+    try:
+        destination_folder = resolve_existing_within_vault(
+            vault, folder, label="destination folder"
+        )
+    except PathNotFoundError:
+        error = {
+            "code": "missing-destination-folder",
+            "message": (
+                "destination folder must already exist; create a governed "
+                "category with create-category after explicit confirmation"
+            ),
+            "folder": folder,
+        }
+        if json_mode:
+            print(json.dumps({"error": error}, ensure_ascii=False, indent=2))
+        else:
+            print(f"error: {error['message']}: {folder}", file=sys.stderr)
+        return 2
+    except VaultPathError as exc:
+        return report_cli_violation(
+            exc, param="destination folder", json_mode=json_mode
+        )
+    if not destination_folder.is_dir():
+        error = {
+            "code": "invalid-destination-folder",
+            "message": "destination folder must be a real directory",
+            "folder": folder,
+        }
+        if json_mode:
+            print(json.dumps({"error": error}, ensure_ascii=False, indent=2))
+        else:
+            print(f"error: {error['message']}: {folder}", file=sys.stderr)
+        return 2
+
+    receipt_required = requires_capture_receipt(args.type, folder)
+    receipt_error: CaptureReceiptError | None = None
+    semantic_receipt: dict[str, Any] | None = None
+    receipt_provided = bool(
+        args.capture_receipt_json is not None or args.capture_receipt_file is not None
+    )
+    if receipt_provided and args.type != "web-clip":
+        receipt_error = CaptureReceiptError(
+            "unexpected-capture-receipt",
+            "capture receipts apply only to source-backed web clips",
+        )
+    elif receipt_required and not receipt_provided:
+        receipt_error = CaptureReceiptError(
+            "missing-capture-receipt",
+            "finished web clip requires a content-bound semantic receipt",
+        )
+    elif receipt_provided:
+        candidate_source = rendered_meta.get("source")
+        if not isinstance(candidate_source, str) or not candidate_source:
+            receipt_error = CaptureReceiptError(
+                "missing-candidate-source",
+                "capture receipt validation requires non-empty source metadata",
+            )
+        else:
+            try:
+                receipt = (
+                    parse_receipt_json(args.capture_receipt_json)
+                    if args.capture_receipt_json is not None
+                    else load_receipt_file(args.capture_receipt_file)
+                )
+                semantic_receipt = validate_capture_receipt(
+                    receipt,
+                    rendered,
+                    candidate_source=candidate_source,
+                )
+            except CaptureReceiptError as exc:
+                receipt_error = exc
+    if semantic_receipt is not None and args.expect_capture_receipt_sha256:
+        if semantic_receipt["sha256"] != args.expect_capture_receipt_sha256:
+            receipt_error = CaptureReceiptError(
+                "capture-receipt-changed",
+                "capture receipt changed after semantic preflight",
+                details={
+                    "expected": args.expect_capture_receipt_sha256,
+                    "actual": semantic_receipt["sha256"],
+                },
+            )
+    if (
+        receipt_required
+        and args.apply
+        and receipt_error is None
+        and not args.expect_capture_receipt_sha256
+    ):
+        receipt_error = CaptureReceiptError(
+            "missing-capture-receipt-sha256",
+            "deep-capture apply requires the receipt SHA-256 accepted by preflight",
+        )
+    if receipt_required or receipt_provided:
+        result["semantic_receipt"] = semantic_receipt
+
+    if receipt_error is not None:
+        content = {
+            "sha256": hashlib.sha256(rendered_bytes).hexdigest(),
+            "utf8_bytes": len(rendered_bytes),
+            "line_count": len(rendered.splitlines()),
+        }
+        if args.preflight_json:
+            findings = audit_note_text(vault, dest, rendered)
+            payload = {
+                "vault": str(vault),
+                "folder": folder,
+                "path": str(dest),
+                "applied": False,
+                "dry_run": True,
+                "frontmatter": rendered_meta,
+                "content": content,
+                "validation": finding_payload(findings),
+                "semantic_receipt": {
+                    "ok": False,
+                    "error": receipt_error.payload(),
+                },
+                "suggested_links": None,
+            }
+        else:
+            payload = {"error": receipt_error.payload()}
+        if json_mode:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            print(
+                f"error: {receipt_error.code}: {receipt_error.message}",
+                file=sys.stderr,
+            )
+        return 2
+
     if args.preflight_json:
         findings = audit_note_text(vault, dest, rendered)
         payload = {
@@ -593,6 +742,8 @@ def main(argv: list[str] | None = None) -> int:
             "validation": finding_payload(findings),
             "suggested_links": None,
         }
+        if receipt_required or receipt_provided:
+            payload["semantic_receipt"] = semantic_receipt
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0 if not findings else 2
 

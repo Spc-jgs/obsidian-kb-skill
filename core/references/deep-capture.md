@@ -94,6 +94,154 @@ current first-party documentation, repositories, specifications, or datasets,
 label the supplemental material, and retain its canonical link. Do not invent
 implementation details. Keep the capture incomplete if a critical gap remains.
 
+## Content-Bound Capture Receipt
+
+A finished `web-clip` outside `00-Inbox` requires a structured receipt. It makes
+the coverage review inspectable and binds it to the exact candidate; it does not
+turn agent self-review into proof that a claim is true.
+
+Draft the complete article first. Run `create-note --preflight-json` once without
+a receipt when the final rendered SHA-256 is not yet known. It must return
+`missing-capture-receipt`, the content SHA-256, and no mutation. Build a compact
+JSON receipt with:
+
+```json
+{
+  "schema_version": 1,
+  "content_sha256": "<preflight content sha256>",
+  "profile": "conceptual-opinion",
+  "source_access": "complete",
+  "primary_sources": ["https://example.com/article"],
+  "supplemental_sources": [],
+  "material_items": [
+    {
+      "id": "application-method",
+      "kind": "application-method",
+      "source": "https://example.com/article",
+      "note_anchor": "### 可复用的应用方法",
+      "status": "resolved"
+    },
+    {
+      "id": "causal-chain",
+      "kind": "causal-claim",
+      "source": "https://example.com/article",
+      "note_anchor": "### 为什么这样工作",
+      "status": "resolved"
+    },
+    {
+      "id": "applicability-boundary",
+      "kind": "boundary",
+      "source": "https://example.com/article",
+      "note_anchor": "### 适用边界",
+      "status": "resolved"
+    },
+    {
+      "id": "counterexample",
+      "kind": "counterexample",
+      "source": "https://example.com/article",
+      "note_anchor": "### 不适用的反例",
+      "status": "resolved"
+    }
+  ],
+  "numeric_claims": [],
+  "inferences": [],
+  "practical_artifact": {
+    "kind": "application-method",
+    "note_anchor": "### 可复用的应用方法"
+  },
+  "unresolved_items": []
+}
+```
+
+Use one `profile`, or a sorted unique `profiles` array for a hybrid:
+
+- `tutorial-procedure`;
+- `resource-survey`;
+- `conceptual-opinion`;
+- `research-evidence`.
+
+Required material evidence is:
+
+| Profile | Required material kinds | Practical artifact kind |
+| --- | --- | --- |
+| tutorial-procedure | `prerequisite`, `procedure`, `verification`, `failure-mode` | `reproducible-procedure` |
+| resource-survey | `canonical-link`, `compatibility`, `limitation`, `selection-criteria`, `starting-example` | `selection-decision` |
+| conceptual-opinion | `causal-claim`, `application-method`, `boundary`, `counterexample` | `application-method` |
+| research-evidence | `decision-implication`, `evidence`, `limitation`, `measurement-context`, `uncertainty` | `decision-method` |
+
+Every `note_anchor` and `note_excerpt` must be exact reader-facing text in the
+candidate. The candidate `source` metadata must appear in `primary_sources`.
+Declare every material supplemental source separately.
+
+Do not collapse compatibility across unrelated resources. For a resource
+survey, bind compatibility and limitations to concrete reader-facing entries.
+Copyable fenced shell examples that create `SKILL.md` must contain a closed,
+parseable YAML mapping with meaningful `name` and `description`; show an invalid
+source snippet only as non-copyable text and provide a labeled corrected
+example.
+
+For every percentage, ratio, duration, before/after measurement, abbreviated
+large count, or star count in prose, add a `numeric_claims` entry:
+
+```json
+{
+  "note_excerpt": "交付周期从 12 天压缩至 5 天",
+  "provenance": "source-self-report",
+  "source": "https://example.com/article",
+  "measurement_context": "作者自述；原文未提供样本、统计周期或对照方法"
+}
+```
+
+Allowed provenance is `primary-source`, `source-self-report`,
+`supplemental-primary`, or `calculation`. Do not omit a numerical conclusion
+from the receipt merely because it is presented as insight.
+
+For every writer-derived conclusion, add an `inferences` entry whose exact
+excerpt, evidence basis, and explicit reader-facing label distinguish it from
+source fact:
+
+```json
+{
+  "note_excerpt": "本文推导：流程设计比工具熟练度更可迁移。",
+  "basis": "原文对比了频繁变化的工具和保持稳定的任务分工",
+  "label": "本文推导"
+}
+```
+
+Rerun preflight with:
+
+```bash
+python <skill-root>/scripts/run_helper.py create-note <vault> \
+  --type web-clip --title "<title>" --stdin \
+  --capture-receipt-json '<compact-json>' --preflight-json
+```
+
+Use `--capture-receipt-file <path>` instead of the mutually exclusive inline
+JSON option when a detailed receipt approaches command-line or shell-quoting
+limits. It must be a regular, non-symlink UTF-8 JSON file no larger than 1 MiB;
+it is transient evidence and is not copied into the Vault.
+
+Apply the identical Markdown and receipt only when both semantic receipt and
+mechanical validation pass. Pass
+`--expect-capture-receipt-sha256 <semantic_receipt.sha256>` on apply. Any
+template, body, or receipt change fails before mutation and requires another
+semantic preflight.
+
+For a material rewrite of an existing finished article, validate the complete
+candidate before the native edit:
+
+```bash
+python <skill-root>/scripts/run_helper.py capture-receipt <vault> \
+  --content-file <vault-relative-candidate> \
+  --receipt-file <path> --json
+```
+
+Use `--receipt-json '<compact-json>'` instead for a safely short inline receipt.
+The candidate must be an in-Vault file. Run the normal backup/edit workflow
+only after validation, then mechanically audit the resulting note. Report the
+receipt result; do not claim that a native edit was receipt-enforced by the
+filesystem.
+
 ## Semantic Hard Failures
 
 Do not apply the note when:
@@ -125,8 +273,9 @@ headings, placeholders, instructional template comments, links, fences, and
 other deterministic rules.
 
 Semantic acceptance comes from the completed source inventory and coverage
-ledger: complete access, material coverage, profile usefulness, factual
-support, verification context, limitations, and evidence-backed insight.
+ledger plus a valid content-bound receipt: complete access, material coverage,
+profile usefulness, factual support, numerical provenance, verification
+context, limitations, and evidence-backed insight.
 
 Require both gates before reporting completion. A mechanical audit with
 `0 findings` is necessary but does not prove semantic quality. Report:
@@ -134,6 +283,7 @@ Require both gates before reporting completion. A mechanical audit with
 - selected capture profile;
 - primary-source access and material supplemental sources;
 - whether every material inventory item was resolved;
+- capture receipt SHA-256 and unresolved item count;
 - semantic acceptance separately from mechanical audit.
 
 ## Historical Notes

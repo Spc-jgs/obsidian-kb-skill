@@ -37,6 +37,7 @@ POINTER_MARKERS = [
     "task-memory.md",              # where the full task-memory spec lives
     "note-creation.md",            # where the create workflow lives
     "deep-capture.md",             # conditional finished-article contract
+    "folder-routing.md",            # conditional crowded-folder contract
     "rules-and-errors.md",         # where the rules live
 ]
 
@@ -82,6 +83,7 @@ def test_core_selects_only_the_reference_for_the_requested_operation():
     for marker in (
         "New note: read only `note-creation.md`",
         "also read `deep-capture.md`; quick/unread captures do not load it",
+        "also read `folder-routing.md`; uncrowded destinations do not load it",
         "Task Memory: read `task-memory.md` only after explicit opt-in",
         "YAML, rules, and Git references are troubleshooting or post-processing",
     ):
@@ -112,6 +114,7 @@ def test_all_reference_files_exist():
         "missing-category.md",
         "custom-template.md",
         "deep-capture.md",
+        "folder-routing.md",
     }
     actual = {p.name for p in REFERENCES_DIR.iterdir() if p.is_file()}
     assert expected <= actual, f"missing reference files: {expected - actual}"
@@ -174,6 +177,10 @@ def test_deep_capture_reference_defines_intent_profiles_and_semantic_gate():
         "Mechanical acceptance",
         "Semantic acceptance",
         "Historical Notes",
+        "Content-Bound Capture Receipt",
+        "missing-capture-receipt",
+        "numeric_claims",
+        "capture receipt SHA-256",
     ):
         assert marker in normalized, f"deep capture contract missing: {marker!r}"
 
@@ -193,6 +200,7 @@ def test_deep_capture_rejects_proxy_metrics_and_requires_profile_usefulness():
         "apply",
         "evidence-aware decision",
         "No unresolved material item",
+        "content-bound receipt",
     ):
         assert marker in normalized, f"deep capture quality rule missing: {marker!r}"
 
@@ -208,6 +216,9 @@ def test_note_creation_documents_the_minimal_ordinary_create_path():
         "Do not read the template file yourself",
         "A clean compact apply audit completes verification",
         "Do not read or write `.workbuddy/memory`",
+        "`crowded_folders`",
+        "`--capture-receipt-json`",
+        "destination directory must already exist",
     ):
         assert marker in normalized, f"note creation reference missing: {marker!r}"
 
@@ -269,6 +280,25 @@ def test_note_creation_documents_the_missing_category_exception():
     ):
         assert marker in normalized, f"missing category contract: {marker!r}"
     assert "--apply --confirmed --compact-json" not in ordinary_text
+
+
+def test_note_creation_routes_crowded_folders_to_one_lazy_reference():
+    ordinary = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
+    routing = (REFERENCES_DIR / "folder-routing.md").read_text(encoding="utf-8")
+    normalized = " ".join((ordinary + "\n" + routing).split())
+
+    for marker in (
+        "read only `folder-routing.md`",
+        "`crowded_folders`",
+        "at least five",
+        "Never create a one-note directory",
+        "at most two category levels",
+        "--apply --confirmed --compact-json",
+        "will reject a missing destination folder",
+        "Do not silently create it or move historical notes",
+    ):
+        assert marker in normalized, f"crowded-folder contract missing: {marker!r}"
+    assert "--apply --confirmed --compact-json" not in ordinary
 
 
 def test_note_creation_selected_type_discovery_is_one_call_and_optional():

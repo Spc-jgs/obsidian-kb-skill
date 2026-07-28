@@ -433,6 +433,7 @@ def test_web_clip_preflight_rejects_missing_metadata_without_mutation(tmp_path):
 
 def test_complete_web_clip_from_stdin_is_normalized_and_audited(tmp_path):
     vault = make_vault(tmp_path)
+    (vault / "20-Learning").mkdir()
     complete_markdown = (
         "---\n"
         "source: https://example.com/article\n"
@@ -440,9 +441,154 @@ def test_complete_web_clip_from_stdin_is_normalized_and_audited(tmp_path):
         "published: 2026-07-13\n"
         "---\n"
         "# 中文文章\n\n"
-        "多智能体协作。\n"
+        "## 来源与结论\n\n来源结论。\n\n"
+        "## 问题、前提与适用边界\n\n"
+        "### 适用边界\n\n仅适用于示例项目。\n\n"
+        "### 反例\n\n职责无法稳定拆分时不应强行采用多智能体。\n\n"
+        "## 核心知识与原理\n\n"
+        "### 因果链\n\n多智能体通过明确分工协作。\n\n"
+        "## 具体做法与示例\n\n"
+        "### 应用方法\n\n先规划，再执行，最后验证。\n\n"
+        "## 验证、风险与限制\n\n运行项目测试确认结果。\n\n"
+        "## 理解与启发\n\n"
+        "本文推导：职责隔离可以降低上下文干扰。\n\n"
+        "## 关联笔记\n"
     )
 
+    preflight = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--title",
+            "中文文章",
+            "--stdin",
+            "--date",
+            "2026-07-13",
+            "--preflight-json",
+        ],
+        input=complete_markdown,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=ROOT,
+        env=ENV,
+    )
+
+    assert preflight.returncode == 2
+    initial = json.loads(preflight.stdout)
+    assert initial["semantic_receipt"]["error"]["code"] == "missing-capture-receipt"
+    receipt = {
+        "schema_version": 1,
+        "content_sha256": initial["content"]["sha256"],
+        "profile": "conceptual-opinion",
+        "source_access": "complete",
+        "primary_sources": ["https://example.com/article"],
+        "supplemental_sources": [],
+        "material_items": [
+            {
+                "id": "boundary",
+                "kind": "boundary",
+                "source": "https://example.com/article",
+                "note_anchor": "### 适用边界",
+                "status": "resolved",
+            },
+            {
+                "id": "causal-chain",
+                "kind": "causal-claim",
+                "source": "https://example.com/article",
+                "note_anchor": "### 因果链",
+                "status": "resolved",
+            },
+            {
+                "id": "application-method",
+                "kind": "application-method",
+                "source": "https://example.com/article",
+                "note_anchor": "### 应用方法",
+                "status": "resolved",
+            },
+            {
+                "id": "counterexample",
+                "kind": "counterexample",
+                "source": "https://example.com/article",
+                "note_anchor": "### 反例",
+                "status": "resolved",
+            },
+        ],
+        "numeric_claims": [],
+        "inferences": [
+            {
+                "note_excerpt": "本文推导：职责隔离可以降低上下文干扰。",
+                "basis": "文中的多智能体职责分工",
+                "label": "本文推导",
+            }
+        ],
+        "practical_artifact": {
+            "kind": "application-method",
+            "note_anchor": "### 应用方法",
+        },
+        "unresolved_items": [],
+    }
+    accepted = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--title",
+            "中文文章",
+            "--stdin",
+            "--date",
+            "2026-07-13",
+            "--capture-receipt-json",
+            json.dumps(receipt, ensure_ascii=False),
+            "--preflight-json",
+        ],
+        input=complete_markdown,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=ROOT,
+        env=ENV,
+    )
+    assert accepted.returncode == 0, accepted.stdout
+    receipt_sha256 = json.loads(accepted.stdout)["semantic_receipt"]["sha256"]
+    missing_identity = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--title",
+            "中文文章",
+            "--stdin",
+            "--date",
+            "2026-07-13",
+            "--capture-receipt-json",
+            json.dumps(receipt, ensure_ascii=False),
+            "--apply",
+            "--compact-json",
+        ],
+        input=complete_markdown,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=ROOT,
+        env=ENV,
+    )
+    assert missing_identity.returncode == 2
+    assert (
+        json.loads(missing_identity.stdout)["error"]["code"]
+        == "missing-capture-receipt-sha256"
+    )
+    assert not list((vault / "20-Learning").glob("*中文文章.md"))
     result = subprocess.run(
         [
             sys.executable,
@@ -456,6 +602,10 @@ def test_complete_web_clip_from_stdin_is_normalized_and_audited(tmp_path):
             "--stdin",
             "--date",
             "2026-07-13",
+            "--capture-receipt-json",
+            json.dumps(receipt, ensure_ascii=False),
+            "--expect-capture-receipt-sha256",
+            receipt_sha256,
             "--apply",
         ],
         input=complete_markdown,
@@ -473,7 +623,68 @@ def test_complete_web_clip_from_stdin_is_normalized_and_audited(tmp_path):
     assert metadata["published"] == "2026-07-13"
     assert isinstance(metadata["published"], str)
     assert metadata["author"] == "张三"
-    assert "多智能体协作" in body
+    assert "多智能体通过明确分工协作" in body
+
+
+def test_quick_inbox_web_clip_does_not_require_capture_receipt(tmp_path):
+    vault = make_vault(tmp_path)
+    (vault / "00-Inbox").mkdir()
+    markdown = (
+        "---\n"
+        "source: https://example.com/unread\n"
+        "author: 示例作者\n"
+        "published: 2026-07-28\n"
+        "---\n"
+        "# 稍后阅读\n"
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--folder",
+            "00-Inbox",
+            "--title",
+            "稍后阅读",
+            "--stdin",
+            "--date",
+            "2026-07-28",
+            "--apply",
+            "--compact-json",
+        ],
+        input=markdown,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=ROOT,
+        env=ENV,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "semantic_receipt" not in json.loads(result.stdout)
+
+
+def test_create_note_rejects_missing_destination_folder(tmp_path):
+    vault = make_vault(tmp_path)
+
+    result = _run(
+        str(vault),
+        "--type",
+        "insight-note",
+        "--folder",
+        "30-Insights/New",
+        "--title",
+        "No Silent Directory",
+        "--preflight-json",
+    )
+
+    assert result.returncode == 2
+    assert json.loads(result.stdout)["error"]["code"] == "missing-destination-folder"
+    assert not (vault / "30-Insights" / "New").exists()
 
 
 def test_split_frontmatter_accepts_utf8_bom_and_windows_newlines():

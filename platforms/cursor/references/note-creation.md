@@ -16,10 +16,12 @@ specifically needs troubleshooting, Git post-processing, or opted-in handoff.
    before fetching or deeply reading source content.
 4. For a finished source-backed article or material rewrite, read only
    `deep-capture.md` and complete its semantic gate before preflight.
-5. Supply complete Markdown to `create-note --preflight-json` and inspect the
+5. If discovery reports the selected destination in `crowded_folders`, read
+   only `folder-routing.md` and resolve the route before writing.
+6. Supply complete Markdown to `create-note --preflight-json` and inspect the
    structured validation.
-6. Repeat the same input with `--apply --compact-json`; keep automatic audit on.
-7. Optionally use bounded link suggestions, then report the saved path.
+7. Repeat the same input with `--apply --compact-json`; keep automatic audit on.
+8. Optionally use bounded link suggestions, then report the saved path.
 
 The helper handles template loading, index strategy, exclusive creation, and
 per-note audit. Ordinary creation needs no template read, second index probe,
@@ -38,7 +40,8 @@ python <skill-root>/scripts/run_helper.py <helper-name> ...
 
 Resolve the Vault in order: `OBSIDIAN_KB_VAULT` → `~/.obsidian-kb-config` → ask.
 A valid Vault contains `.obsidian/` and `Templates/`. Get its folders, index
-strategies, custom templates, and selected standard headings in one call:
+strategies, custom templates, crowded-folder signals, and selected standard
+headings in one call:
 
 ```bash
 python <skill-root>/scripts/run_helper.py vault-info <vault> \
@@ -100,6 +103,13 @@ no category, read only `missing-category.md`, propose one full category path,
 tell the user it may be renamed, and separately ask whether to update the
 applicable `AGENTS.md`. Do not mutate before both answers are recorded.
 
+### Crowded destination
+
+If compact discovery reports the selected existing destination in
+`crowded_folders`, read only `folder-routing.md`. Reuse an existing suitable
+child or propose one stable subject child under that contract. Do not create a
+missing directory through `create-note`.
+
 ## Step 3: Delegate Template Loading
 
 The Vault's `Templates/<Name>.md` is the source of truth. Compact discovery
@@ -145,6 +155,17 @@ body. A template-order finding includes the expected headings, actual headings,
 and first mismatch; repair the complete sequence in one edit before rerunning
 preflight. Use full `--json` only when the rendered body is explicitly needed.
 
+For a finished article outside `00-Inbox`, `deep-capture.md` adds a required
+content-bound `--capture-receipt-json`. The first preflight may intentionally
+return `missing-capture-receipt` together with the final content SHA-256; build
+the receipt against that hash and rerun preflight. This is not a successful
+preflight and must not be followed by apply. Preserve the accepted
+`semantic_receipt.sha256` for apply.
+
+Use the mutually exclusive `--capture-receipt-file <path>` form described in
+`deep-capture.md` when the receipt is too detailed for safe inline shell
+transport.
+
 ## Step 6: Wikilinks
 
 Use `[[wikilinks]]` only for high-confidence semantic relationships. With
@@ -160,13 +181,16 @@ Repeat the exact validated content:
 ```bash
 python <skill-root>/scripts/run_helper.py create-note <vault> \
   --type <slug> --title "<title>" --stdin [--expect-template-sha256 <sha256>] \
+  [--capture-receipt-json '<compact-json>' \
+   --expect-capture-receipt-sha256 <preflight-receipt-sha256>] \
   --apply --compact-json
 ```
 
 `--content-file` must resolve inside the Vault; external content belongs on
 `--stdin`. The helper merges the template, writes exclusively with a numeric
 suffix on collision, updates only a static index when applicable, and returns
-the applied path plus audit. Do not manually update Folder Index or Dataview.
+the applied path plus audit. The destination directory must already exist. Do
+not manually update Folder Index or Dataview.
 
 ### Step 9: Validate Result
 
@@ -197,5 +221,6 @@ for it or higher-priority runtime instructions explicitly require it.
 
 Report the saved path, a brief capture summary, audit status, and only useful
 follow-up actions. For deep capture, separately report the selected profile,
-source coverage, semantic acceptance, and mechanical audit. Do not narrate
-redundant internal reads or checks.
+source coverage, semantic receipt SHA-256, unresolved item count, semantic
+acceptance, and mechanical audit. Do not narrate redundant internal reads or
+checks.

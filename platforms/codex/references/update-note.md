@@ -20,6 +20,11 @@ Same as Create workflow.
 
 Always read the complete file before editing. Note the YAML frontmatter, section headings, and current content.
 
+If this is a material rewrite of a finished source-backed article, also read
+`deep-capture.md`, rebuild the source inventory, and validate the complete
+candidate with `capture-receipt` before replacing the original. A metadata-only
+edit does not trigger semantic revalidation.
+
 ### Step 4: Decide the Insertion Point
 
 Match the new content to the most appropriate section:
@@ -41,6 +46,11 @@ Match the new content to the most appropriate section:
 5. If the edit removes or rewrites more than a few lines, ask the user to confirm first
 6. **Tell the user** where the backup landed so they can roll back manually if needed
 
+For a material article rewrite, do not apply until the candidate's
+content-bound receipt passes. Keep the validated candidate inside the Vault,
+then use the normal backup boundary above. The helper validates but does not
+perform or authorize the edit.
+
 ### Step 6: Refresh a Static Index (Only If Needed)
 
 Skip index changes in Folder Index and Dataview modes. In Static mode, update an index line only if the note's title, date, or summary blurb changed.
@@ -55,3 +65,5 @@ Tell the user:
 - Which file was edited (full path)
 - Which section(s) received new content
 - A 1–2 sentence summary of what was added
+- For a material article rewrite: selected profile, receipt SHA-256, unresolved
+  item count, semantic acceptance, and mechanical audit separately

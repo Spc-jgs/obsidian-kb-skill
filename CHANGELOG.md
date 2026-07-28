@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-07-28
+
+### Added
+
+- Finished web clips outside Inbox now require a structured semantic capture receipt bound to the exact rendered content SHA-256, and apply must repeat the exact receipt identity accepted by preflight.
+- Capture receipts expose selected profiles, complete source access, material coverage, numerical-claim provenance and measurement context, labeled inferences, a profile-appropriate practical artifact, and unresolved items.
+- The read-only `capture-receipt` helper applies the same validation to complete in-Vault candidates before a material rewrite.
+- Detailed receipts may use a bounded non-symlink UTF-8 JSON file instead of inline JSON, avoiding Windows command-length and shell-quoting limits without writing evidence into the Vault.
+- Compact Vault discovery now reports a bounded, deterministic `crowded_folders` list for managed categories with at least 20 direct notes.
+- A lazy `folder-routing.md` contract reuses suitable child categories or proposes a stable subject child only when at least five notes form a real cluster.
+
+### Changed
+
+- `create-note` no longer creates a missing destination directory; new categories must pass the existing user-confirmed `create-category` preflight and apply flow.
+- Deep-capture completion reports now include receipt identity and unresolved-item count separately from the mechanical audit.
+- Quick or unread web clips in `00-Inbox` and ordinary note types retain the receipt-free fast path.
+
+### Fixed
+
+- Measurement-shaped values such as percentages, ratios, durations, before/after results, abbreviated large counts, and star counts can no longer be silently omitted from deep-capture provenance evidence.
+- Resource-survey receipts now require explicit compatibility and limitation evidence, and copyable shell examples that create `SKILL.md` reject malformed YAML frontmatter.
+- Crowded-folder discovery excludes hidden files, folder indexes, nested notes, and directory symlinks instead of inflating direct-note counts or escaping the Vault.
+
 ## [1.21.0] - 2026-07-28
 
 ### Added

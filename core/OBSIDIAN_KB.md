@@ -1,6 +1,6 @@
 # Obsidian Personal Knowledge Base — Universal Instructions
 
-> **Version**: 1.21.0 · **Single source of truth**: `core/OBSIDIAN_KB.md`. Full workflows live in `core/references/*.md`, loaded only when about to save. This file is tiny on purpose: loading the skill costs almost no tokens, and the first rule is "do not auto-save".
+> **Version**: 1.22.0 · **Single source of truth**: `core/OBSIDIAN_KB.md`. Full workflows live in `core/references/*.md`, loaded only when about to save. This file is tiny on purpose: loading the skill costs almost no tokens, and the first rule is "do not auto-save".
 > Do not edit generated files directly — edit this file, then `python build.py`.
 
 ## Overview
@@ -18,6 +18,8 @@ This skill **never writes to the vault on its own**. Act only after **explicit s
    - New note: read only `note-creation.md`.
    - Finished source-backed article: after `note-creation.md` routes it, also read
      `deep-capture.md`; quick/unread captures do not load it.
+   - Crowded selected destination: when compact discovery reports it, also read
+     `folder-routing.md`; uncrowded destinations do not load it.
    - Existing note: read only `update-note.md`; conversation archive: read only `conversation-digest.md`.
    - Task Memory: read `task-memory.md` only after explicit opt-in (**off by default**).
    - YAML, rules, and Git references are troubleshooting or post-processing material: load `yaml-standards.md`, `rules-and-errors.md`, or `git.md` only when the current task requires it.

@@ -1,12 +1,12 @@
 # Obsidian Knowledge Base Skill
 
-**v1.21.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.22.0** | **让任何 AI 编程助手变成你的个人知识管理助手。**
 
 一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor、WorkBuddy）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
 
 [English Version](README_EN.md)
 
-当前稳定版本为 **v1.21.0**。版本变化与升级说明统一记录在 [CHANGELOG.md](CHANGELOG.md)。
+当前稳定版本为 **v1.22.0**。版本变化与升级说明统一记录在 [CHANGELOG.md](CHANGELOG.md)。
 
 ---
 
@@ -493,10 +493,11 @@ python -m pytest
 
 CI 使用同一 lockfile，分别在 Python 3.11 和 3.14 上运行构建检查与测试。
 
-安装 `.[dev]` 或 wheel 后，9 个业务 helper 以控制台命令形式提供，另有安装诊断 `doctor`。通过安装脚本部署的标准 Skill 则使用 `<skill-root>/scripts/run_helper.py`；两种入口调用同一套 Python 实现：
+安装 `.[dev]` 或 wheel 后，10 个业务 helper 以控制台命令形式提供，另有安装诊断 `doctor`。通过安装脚本部署的标准 Skill 则使用 `<skill-root>/scripts/run_helper.py`；两种入口调用同一套 Python 实现：
 
 ```bash
 obsidian-audit-vault        /你的知识库路径 --strict
+obsidian-capture-receipt    /你的知识库路径 --content-file 20-Learning/候选文章.md --receipt-json '{...}' --json
 obsidian-process-inbox      /你的知识库路径 --apply
 obsidian-suggest-links      /你的知识库路径 --note 30-Insights/某笔记.md
 obsidian-create-category   /你的知识库路径 --folder 20-Learning/Rust --preflight-json

@@ -23,6 +23,7 @@ REQUIRED_RESOURCES = (
 )
 HELPER_MODULES = (
     "audit_vault",
+    "capture_receipt",
     "process_inbox",
     "suggest_links",
     "template_contract",

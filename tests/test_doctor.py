@@ -47,8 +47,9 @@ def test_doctor_accepts_complete_installed_skill(tmp_path):
     result = doctor.inspect_installation(skill, home)
 
     assert result["ok"] is True
-    assert result["version"] == "1.21.0"
+    assert result["version"] == "1.22.0"
     assert "create_category" in doctor.HELPER_MODULES
+    assert "capture_receipt" in doctor.HELPER_MODULES
     assert {check["name"] for check in result["checks"]} == {
         "manifest",
         "payload",

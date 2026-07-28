@@ -1,12 +1,12 @@
 # Obsidian Knowledge Base Skill
 
-**v1.21.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.22.0** | **Turn any AI coding agent into your personal knowledge management assistant.**
 
 A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor, WorkBuddy) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
 
 [中文版](README.md)
 
-The current stable release is **v1.21.0**. See [CHANGELOG.md](CHANGELOG.md) for release history and upgrade notes.
+The current stable release is **v1.22.0**. See [CHANGELOG.md](CHANGELOG.md) for release history and upgrade notes.
 
 ---
 
@@ -498,13 +498,14 @@ python -m pytest
 CI consumes the same lockfile and runs build checks and tests on Python 3.11 and
 3.14.
 
-After installing `.[dev]` or a wheel, nine operational helpers are available as
+After installing `.[dev]` or a wheel, ten operational helpers are available as
 console commands, plus the installation `doctor`. Installer-deployed standard
 Skills use `<skill-root>/scripts/run_helper.py`; both entry styles invoke the
 same Python implementation:
 
 ```bash
 obsidian-audit-vault        /path/to/vault --strict
+obsidian-capture-receipt    /path/to/vault --content-file 20-Learning/candidate.md --receipt-json '{...}' --json
 obsidian-process-inbox      /path/to/vault --apply
 obsidian-suggest-links      /path/to/vault --note 30-Insights/some-note.md
 obsidian-create-category   /path/to/vault --folder 20-Learning/Rust --preflight-json

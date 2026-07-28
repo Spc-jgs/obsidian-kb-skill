@@ -41,7 +41,10 @@ from typing import Any
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.detect_index import detect
 from obsidian_kb_skill.scripts.folder_index_policy import (
+    FolderIndexConfig,
     FolderIndexConfigError,
+    expected_folder_index,
+    is_folder_index_excluded,
     read_folder_index_config,
 )
 from obsidian_kb_skill.scripts.note_catalog import MANAGED_NOTE_FOLDERS
@@ -60,6 +63,8 @@ from obsidian_kb_skill.scripts.vault_paths import (
 # listed for existence only.
 NOTE_FOLDERS: list[str] = list(MANAGED_NOTE_FOLDERS)
 STANDARD_FOLDERS = NOTE_FOLDERS + ["Templates", "Attachments"]
+CROWDED_FOLDER_THRESHOLD = 20
+MAX_CROWDED_FOLDERS = 20
 
 
 def _templates(vault: Path) -> list[str]:
@@ -69,6 +74,59 @@ def _templates(vault: Path) -> list[str]:
     return sorted(
         p.stem for p in templates_dir.glob("*.md") if not p.name.startswith(".")
     )
+
+
+def _index_names(vault: Path, folder: Path, config: FolderIndexConfig) -> set[str]:
+    names = {"INDEX.md", f"{folder.name}.md"}
+    relative = folder.relative_to(vault)
+    if config.enabled and not is_folder_index_excluded(relative, config):
+        names.add(expected_folder_index(folder, vault, config).name)
+    return names
+
+
+def crowded_folders(
+    vault: Path,
+    config: FolderIndexConfig,
+    *,
+    threshold: int = CROWDED_FOLDER_THRESHOLD,
+    limit: int = MAX_CROWDED_FOLDERS,
+) -> list[dict[str, Any]]:
+    """Return bounded navigation-pressure signals under managed note roots."""
+    findings: list[dict[str, Any]] = []
+    stack = [
+        vault / name
+        for name in MANAGED_NOTE_FOLDERS
+        if (vault / name).is_dir() and not (vault / name).is_symlink()
+    ]
+    while stack:
+        folder = stack.pop()
+        index_names = _index_names(vault, folder, config)
+        direct_notes = 0
+        try:
+            children = sorted(folder.iterdir(), key=lambda path: path.name)
+        except OSError:
+            continue
+        for child in children:
+            if child.name.startswith(".") or child.is_symlink():
+                continue
+            if child.is_dir():
+                stack.append(child)
+            elif (
+                child.suffix.lower() == ".md"
+                and child.name not in index_names
+                and child.is_file()
+            ):
+                direct_notes += 1
+        if direct_notes >= threshold:
+            findings.append(
+                {
+                    "path": folder.relative_to(vault).as_posix(),
+                    "direct_notes": direct_notes,
+                    "threshold": threshold,
+                }
+            )
+    findings.sort(key=lambda item: (-item["direct_notes"], item["path"]))
+    return findings[:limit]
 
 
 def collect(vault: Path, note_type: str | None = None) -> dict[str, Any]:
@@ -113,6 +171,7 @@ def collect(vault: Path, note_type: str | None = None) -> dict[str, Any]:
             "root_index_file": config.root_index_file,
         },
         "custom_templates": custom_template_types(vault) if exists else [],
+        "crowded_folders": crowded_folders(vault, config) if exists else [],
         "warnings": warnings,
     }
     if note_type is not None:

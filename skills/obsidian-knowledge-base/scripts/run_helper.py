@@ -12,6 +12,7 @@ from pathlib import Path
 
 HELPERS = {
     "audit-vault": "obsidian_kb_skill.scripts.audit_vault",
+    "capture-receipt": "obsidian_kb_skill.scripts.capture_receipt",
     "process-inbox": "obsidian_kb_skill.scripts.process_inbox",
     "suggest-links": "obsidian_kb_skill.scripts.suggest_links",
     "template-contract": "obsidian_kb_skill.scripts.template_contract",
