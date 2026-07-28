@@ -9,7 +9,11 @@ This workflow carries the *state of one long task* across agent handoffs. Exampl
 **OFF by default.** Disabled unless the user explicitly opts in ("开启任务记忆" / "handoff", or a task note carries `task-memory: enabled`). When off, agents work as before: no task note read/written, zero overhead. Rationale: a global always-on task log becomes noise nobody maintains, so activation is per-task and explicit.
 
 - **Global master switch** (optional): env `OBSIDIAN_KB_TASK_MEMORY=on|off` (default `off`).
-- **Per-task switch**: once opted in, create `Tasks/<slug>/TASK.md` with `task-memory: enabled`. Set `disabled` (or archive the note) to turn off.
+- **Per-task switch**: once opted in, create `Tasks/<slug>/TASK.md` with
+  `task-memory: enabled`. The `create-note --type task-memory` helper may
+  initialize only this normalized lowercase operational path; this narrow
+  exception does not permit ordinary notes to create categories. Set `disabled`
+  (or archive the note) to turn off.
 
 ## TASK.md structure
 

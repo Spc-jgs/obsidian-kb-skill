@@ -144,6 +144,8 @@ def test_note_creation_routes_deep_articles_to_one_lazy_reference():
         "saved article",
         "quick, bookmark, save-for-later, or unread",
         "materially rewriting",
+        "Use `web-clip` for a finished source-backed article",
+        "Do not choose `learning-note` merely because",
     ):
         assert marker in normalized, f"note creation routing missing: {marker!r}"
 
@@ -177,6 +179,9 @@ def test_deep_capture_reference_defines_intent_profiles_and_semantic_gate():
         "Mechanical acceptance",
         "Semantic acceptance",
         "Historical Notes",
+        "`resources` array",
+        "`resource_id`",
+        "must occur inside `note_excerpt`",
         "Content-Bound Capture Receipt",
         "missing-capture-receipt",
         "numeric_claims",
@@ -328,6 +333,21 @@ def test_task_memory_reference_carries_full_spec():
     text = ref.read_text(encoding="utf-8")
     for need in ("Handoff protocol", "Outgoing agent (before yielding)", "obsidian-update-note"):
         assert need in text, f"task-memory reference missing: {need!r}"
+    assert "normalized lowercase operational path" in text
+    assert "does not permit ordinary notes to create categories" in text
+
+
+def test_material_article_rewrite_routes_through_capture_receipt():
+    text = (REFERENCES_DIR / "update-note.md").read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+
+    for marker in (
+        "material rewrite of a finished source-backed article",
+        "`deep-capture.md`",
+        "`capture-receipt`",
+        "content-bound receipt passes",
+    ):
+        assert marker in normalized
 
 
 def test_note_creation_reference_exposes_frontmatter_input_contract():

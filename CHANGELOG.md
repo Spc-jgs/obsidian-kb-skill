@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.22.1] - 2026-07-28
+
+### Changed
+
+- Finished source-backed articles explicitly use `web-clip` unless Vault governance selects a more specific source-backed template, preventing `learning-note` from bypassing the semantic receipt contract.
+- Resource-survey notes expose one explicit reader-facing inventory whose names and canonical URLs must exactly match the receipt; compatibility and limitation evidence then bind to every concrete resource instead of satisfying the profile with one global set.
+- Explicit Task Memory creation may initialize only a normalized lowercase `Tasks/<slug>/TASK.md` operational note; ordinary note types still cannot create missing directories.
+
+### Fixed
+
+- Capture-receipt routing now uses the canonical resolved destination, so traversal spellings and in-Vault symlink aliases cannot inherit the Inbox exemption after resolving outside Inbox.
+- Material, numerical, inference, and practical anchors must occur in reader-facing body content rather than YAML frontmatter or hidden HTML comments.
+- Inference labels must occur inside their exact reader-facing excerpt.
+- Copyable `SKILL.md` validation recognizes heredoc-first `cat <<EOF > path/SKILL.md` commands.
+- Measurement provenance detects English months and years, B/thousand/million/billion counts, and Chinese 万/亿 counts even when adjacent to Chinese prose.
+- Instructional-comment auditing matches the shipped English Web Clip comments and correctly ignores tilde or variable-length fenced examples.
+- Material rewrites of existing source-backed articles retain the v1.22 deep-capture and standalone receipt route.
+
 ## [1.22.0] - 2026-07-28
 
 ### Added

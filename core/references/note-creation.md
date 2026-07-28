@@ -82,6 +82,11 @@ Uncertain quick capture routes to `00-Inbox/`.
 The bundled type default supplies a top-level folder. Vault governance wins for
 more specific routes such as `20-Learning/Java`; express that decision with
 `--folder`. The helper is not expected to parse arbitrary governance prose.
+Use `web-clip` for a finished source-backed article unless Vault governance
+selects a more specific source-backed article template. Do not choose
+`learning-note` merely because the destination is under `20-Learning`;
+`learning-note` is for learning material that is not a reconstructed source
+article.
 
 ### Article capture depth
 
