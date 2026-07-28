@@ -1,0 +1,28 @@
+[
+  {
+    "id": "opinion-unsupported-numbers",
+    "source": "The author reports that 67% of commits came from AI, 3.2 hours per day were saved, and delivery changed from 12 days to 5 days. The source does not define the sample, observation period, or comparison method.",
+    "candidate_failures": [
+      "Repeated work falls by more than 60%.",
+      "AI should execute 70/30 of the work."
+    ],
+    "required_receipt_failures": [
+      "uncovered-numeric-claim",
+      "missing-measurement-context"
+    ]
+  },
+  {
+    "id": "resource-guide-overgeneralization",
+    "source": "One Spring Boot Engineer subagent advertises 88%+ coverage and a 2.3 second startup target. A separate Spring AI library requires its own dependency, version, and registration code. Compatibility differs by resource.",
+    "candidate_failures": [
+      "Use 88%+ coverage and 2.3 seconds as universal project gates.",
+      "Every listed Skill works unchanged in every Agent Skills or MCP client.",
+      "description: Review Java code.\\nUse when the user asks for review."
+    ],
+    "required_receipt_failures": [
+      "uncovered-numeric-claim",
+      "incomplete-profile-evidence",
+      "unlabeled-inference"
+    ]
+  }
+]

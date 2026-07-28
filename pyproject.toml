@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "obsidian-kb-skill"
-version = "1.21.0"
+version = "1.22.0"
 description = "Cross-platform AI agent skill for managing an Obsidian personal knowledge base."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -29,6 +29,7 @@ namespaces = true
 
 [project.scripts]
 obsidian-audit-vault = "obsidian_kb_skill.scripts.audit_vault:main"
+obsidian-capture-receipt = "obsidian_kb_skill.scripts.capture_receipt:main"
 obsidian-process-inbox = "obsidian_kb_skill.scripts.process_inbox:main"
 obsidian-suggest-links = "obsidian_kb_skill.scripts.suggest_links:main"
 obsidian-create-category = "obsidian_kb_skill.scripts.create_category:main"

@@ -122,6 +122,7 @@ def test_wheel_exposes_console_scripts(tmp_path):
         "obsidian-create-note",
         "obsidian-update-note",
         "obsidian-audit-vault",
+        "obsidian-capture-receipt",
         "obsidian-process-inbox",
         "obsidian-suggest-links",
         "obsidian-vault-info",
@@ -190,6 +191,7 @@ def test_installed_cli_works_without_repo(tmp_path):
     assert (vault / "Templates" / "Daily Note.md").is_file()
 
     # create_note must also resolve resources from the wheel (no --skill-root).
+    (vault / "30-Insights").mkdir()
     create = scripts / "obsidian-create-note"
     res = subprocess.run(
         [

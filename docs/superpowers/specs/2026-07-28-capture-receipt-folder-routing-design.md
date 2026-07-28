@@ -62,10 +62,31 @@ The JSON receipt schema is:
   "supplemental_sources": [],
   "material_items": [
     {
+      "id": "causal-chain",
+      "kind": "causal-claim",
+      "source": "https://example.com/article",
+      "note_anchor": "### 为什么这样工作",
+      "status": "resolved"
+    },
+    {
       "id": "workflow-method",
-      "kind": "procedure",
+      "kind": "application-method",
       "source": "https://example.com/article",
       "note_anchor": "### 实战工作流搭建三步法",
+      "status": "resolved"
+    },
+    {
+      "id": "applicability-boundary",
+      "kind": "boundary",
+      "source": "https://example.com/article",
+      "note_anchor": "### 适用边界",
+      "status": "resolved"
+    },
+    {
+      "id": "counterexample",
+      "kind": "counterexample",
+      "source": "https://example.com/article",
+      "note_anchor": "### 不适用的反例",
       "status": "resolved"
     }
   ],
@@ -109,7 +130,7 @@ Every receipt must:
 - contain at least one primary source matching the candidate's `source`
   metadata;
 - bind to the exact rendered UTF-8 content SHA-256;
-- contain at least one resolved material item per selected profile;
+- contain every required material kind for each selected profile;
 - contain no unresolved item;
 - point every material item, numerical claim, inference, and practical
   artifact to text that exists in the rendered note;
@@ -117,6 +138,11 @@ Every receipt must:
   context;
 - label every inference and state its evidence basis;
 - include one profile-appropriate practical artifact.
+
+Resource surveys must explicitly cover compatibility and limitations instead of
+collapsing every named project into one global support statement. Copyable shell
+examples that create `SKILL.md` are mechanically checked for a closed,
+parseable YAML mapping with meaningful `name` and `description`.
 
 The validator deliberately does not claim that a URL proves a statement or
 that an agent's coverage ledger is factually correct. It makes skipped review,
@@ -129,7 +155,13 @@ machine-blocking.
 
 ```text
 --capture-receipt-json '<compact JSON>'
+--capture-receipt-file <temporary JSON file>
 ```
+
+The options are mutually exclusive. The file form accepts a regular,
+non-symlink UTF-8 file up to 1 MiB and avoids command-line length and quoting
+limits for detailed receipts. The file may live outside the Vault because it is
+read-only transient evidence; its content is never copied into the Vault.
 
 For a deep capture:
 
@@ -139,8 +171,9 @@ For a deep capture:
 3. The agent builds the receipt against that exact hash and reruns preflight.
 4. Preflight validates the receipt and returns its SHA-256 under
    `semantic_receipt`.
-5. Apply repeats the identical Markdown and receipt. Any body, template, or
-   receipt change fails before write.
+5. Apply repeats the identical Markdown and receipt and passes
+   `--expect-capture-receipt-sha256 <preflight-receipt-sha256>`. Any body,
+   template, or receipt change fails before write.
 
 Quick Inbox captures do not return a receipt error. Supplying malformed receipt
 JSON fails closed with a stable structured error.
@@ -150,9 +183,11 @@ The standalone helper supports material rewrite review:
 ```bash
 python <skill-root>/scripts/run_helper.py capture-receipt \
   --content-file <vault-relative-note> \
-  --receipt-json '<compact JSON>' \
+  --receipt-file <path> \
   --json <vault>
 ```
+
+The mutually exclusive inline form is `--receipt-json '<compact JSON>'`.
 
 It reads only an in-Vault candidate, validates the same schema and content
 binding, and performs no mutation. The update workflow must run it before a
@@ -237,6 +272,7 @@ Tests cover:
 - malformed, stale-hash, incomplete-access, unresolved, missing-anchor,
   unprovenanced-number, unlabeled-inference, and missing-practical-artifact
   receipts fail before mutation;
+- malformed copyable `SKILL.md` frontmatter fails before mutation;
 - a valid receipt passes preflight and apply and returns a stable receipt hash;
 - template changes invalidate content binding;
 - the standalone helper validates in-Vault material-rewrite candidates and

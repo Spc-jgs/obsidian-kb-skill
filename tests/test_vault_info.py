@@ -129,3 +129,70 @@ def test_compact_omits_note_lists_without_mutating_full_result(tmp_path: Path):
     assert compact_index["mode"] == "static"
     assert compact_index["index_file"] == "INDEX.md"
     assert compact_index["can_append"] is True
+
+
+def test_crowded_folders_count_direct_notes_and_exclude_indexes(tmp_path: Path):
+    vault = _make_vault(tmp_path)
+    topic = vault / "20-Learning" / "AI-Agent"
+    topic.mkdir()
+    (topic / "INDEX.md").write_text("# Index\n", encoding="utf-8")
+    (topic / "AI-Agent.md").write_text("# Folder Index\n", encoding="utf-8")
+    (topic / ".hidden.md").write_text("hidden\n", encoding="utf-8")
+    for number in range(22):
+        (topic / f"note-{number:02}.md").write_text("note\n", encoding="utf-8")
+    nested = topic / "Skills"
+    nested.mkdir()
+    for number in range(7):
+        (nested / f"skill-{number:02}.md").write_text("skill\n", encoding="utf-8")
+
+    info = collect(vault)
+
+    assert info["crowded_folders"] == [
+        {
+            "path": "20-Learning/AI-Agent",
+            "direct_notes": 22,
+            "threshold": 20,
+        }
+    ]
+
+
+def test_crowded_folders_are_bounded_and_sorted(tmp_path: Path):
+    vault = _make_vault(tmp_path)
+    learning = vault / "20-Learning"
+    for folder_number in range(25):
+        topic = learning / f"Topic-{folder_number:02}"
+        topic.mkdir()
+        for note_number in range(20 + folder_number):
+            (topic / f"note-{note_number:02}.md").write_text(
+                "note\n", encoding="utf-8"
+            )
+
+    info = collect(vault)
+    crowded = info["crowded_folders"]
+
+    assert len(crowded) == 20
+    assert crowded[0] == {
+        "path": "20-Learning/Topic-24",
+        "direct_notes": 44,
+        "threshold": 20,
+    }
+    assert crowded[-1]["direct_notes"] == 25
+
+
+def test_crowded_folders_skip_directory_symlinks(tmp_path: Path):
+    vault = _make_vault(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    for number in range(25):
+        (outside / f"note-{number:02}.md").write_text("note\n", encoding="utf-8")
+    alias = vault / "20-Learning" / "External"
+    try:
+        alias.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        import pytest
+
+        pytest.skip(f"directory symlink creation unavailable: {exc}")
+
+    info = collect(vault)
+
+    assert all(item["path"] != "20-Learning/External" for item in info["crowded_folders"])

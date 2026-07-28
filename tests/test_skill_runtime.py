@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 STANDARD_SKILL = ROOT / "skills" / "obsidian-knowledge-base"
 HELPERS = (
     "audit-vault",
+    "capture-receipt",
     "create-category",
     "create-note",
     "detect-index",
@@ -39,6 +40,7 @@ def test_installed_runner_reads_one_custom_template_contract(tmp_path):
     vault = tmp_path / "vault"
     (vault / ".obsidian").mkdir(parents=True)
     (vault / "Templates").mkdir()
+    (vault / "00-Inbox").mkdir()
     (vault / "Templates" / "Insight Note.md").write_text(
         "---\ntype: insight-note\ntags: [insight]\n---\n"
         "# {{title}}\n\n## Reflection\n\nExplain why this matters.\n",
@@ -233,6 +235,7 @@ def test_skill_runner_bridges_create_note_stdin_bytes(tmp_path):
     work.mkdir()
     (vault / ".obsidian").mkdir(parents=True)
     (vault / "Templates").mkdir()
+    (vault / "00-Inbox").mkdir()
     markdown = (
         "\ufeff---\r\n"
         "source: https://example.com/runtime\r\n"
@@ -250,6 +253,8 @@ def test_skill_runner_bridges_create_note_stdin_bytes(tmp_path):
             str(vault),
             "--type",
             "web-clip",
+            "--folder",
+            "00-Inbox",
             "--title",
             "Runtime UTF-8",
             "--stdin",
