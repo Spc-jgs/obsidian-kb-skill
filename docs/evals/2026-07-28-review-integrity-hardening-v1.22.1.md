@@ -50,17 +50,18 @@ The regression suite verifies:
   measurement shapes;
 - inference labels occurring inside their exact note excerpt;
 - a concrete resource inventory with canonical URL plus compatibility,
-  limitation, and canonical-link evidence for every declared resource;
+  limitation, and canonical-link evidence for every declared resource, with
+  the reader-visible inventory reconciled exactly against the receipt;
 - finished source-backed articles routing through `web-clip`;
 - fresh Task Memory preflight remaining read-only and apply creating only
-  `Tasks/<slug>`;
+  `Tasks/<slug>/TASK.md`;
 - ordinary missing destinations continuing to fail;
 - material source-backed rewrites continuing to load deep capture and require a
   receipt.
 
 ## Build and Test Evidence
 
-- full local suite: 621 tests passed;
+- full local suite: 623 tests passed;
 - focused capture, creation, and audit suites passed again after the final
   defensive input hardening;
 - generated adapters, packaged references, and embedded scripts match source;
@@ -116,3 +117,17 @@ notes do not pay the article-only contract cost.
 - package build and isolated installation: passed;
 - real Vault read-only regression: failed as intended;
 - repository and real Vault state before publishing: no unrelated changes.
+
+## Final Review Stop Line
+
+PR #23's automated review found three release-blocking contract failures. This
+release fixes all three: an omitted visible resource now fails inventory
+reconciliation, compact Chinese prose such as `覆盖3万用户` requires numerical
+provenance, and fresh Task Memory writes the documented fixed `TASK.md`
+filename.
+
+Four bounded P2 follow-ups are deliberately not expanded into this patch:
+canonical Task Memory symlink aliases, piped `SKILL.md` writers, visible HTML
+comment syntax inside inline code, and fence-looking lines inside HTML
+comments. They are recorded in GitHub issue #24 for evidence-driven follow-up.
+No second automated review cycle is required for this bounded release.

@@ -603,7 +603,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    filename = f"{date} {sanitize_filename(args.title)}.md"
+    filename = (
+        "TASK.md"
+        if args.type == "task-memory"
+        else f"{date} {sanitize_filename(args.title)}.md"
+    )
     if args.type == "task-memory" and not is_task_memory_folder(args.type, folder):
         error = {
             "code": "invalid-task-memory-folder",

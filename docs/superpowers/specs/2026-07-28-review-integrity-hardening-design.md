@@ -92,7 +92,13 @@ does not distinguish the claimed sentence from source fact.
 
 ### 4. Resource evidence is per concrete resource
 
-A `resource-survey` receipt will include a non-empty `resources` array:
+A `resource-survey` candidate will include exactly one reader-facing
+`## Resource Inventory` or `## 资源清单` section. Its complete canonical URL set
+must match the receipt exactly, and every declared resource name must appear in
+that section. This gives the validator a deterministic candidate-side baseline:
+a receipt cannot silently omit a visible resource.
+
+The receipt will include a non-empty `resources` array:
 
 ```json
 {
@@ -107,10 +113,11 @@ A `resource-survey` receipt will include a non-empty `resources` array:
 ```
 
 Each resource must have unique, meaningful identity and a canonical URL visible
-in the candidate. Material items of kinds `canonical-link`, `compatibility`, and
-`limitation` must declare `resource_id`. Every declared resource must have all
-three kinds. Profile-wide `selection-criteria` and `starting-example` remain
-allowed because they may compare or start from the survey as a whole.
+in that inventory. Unrelated URLs belong outside the inventory. Material items
+of kinds `canonical-link`, `compatibility`, and `limitation` must declare
+`resource_id`. Every declared resource must have all three kinds. Profile-wide
+`selection-criteria` and `starting-example` remain allowed because they may
+compare or start from the survey as a whole.
 
 This tightens schema version 1 rather than accepting old weak receipts. Receipts
 are transient preflight artifacts, not stored Vault data, and preflight/apply

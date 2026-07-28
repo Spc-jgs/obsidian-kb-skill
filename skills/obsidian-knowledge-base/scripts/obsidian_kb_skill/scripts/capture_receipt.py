@@ -97,21 +97,27 @@ NUMERIC_PROVENANCE = frozenset(
 # inventions observed in real captures. Dates and ordinary list numbers are
 # intentionally excluded; versions remain covered by profile material items.
 _METRIC_RE = re.compile(
-    r"(?<![\w])(?:"
+    r"(?:"
+    r"(?<![A-Za-z0-9_])\d+(?:\.\d+)?\s*(?:万|亿)"
+    r"|(?<![\w])(?:"
     r"\d+(?:\.\d+)?\s*(?:%|％)"
     r"|\d+(?:\.\d+)?\s*(?:小时|分钟|秒|天|周|个月|年|毫秒)"
-    r"|\d+(?:\.\d+)?\s*(?:万|亿)"
     r"|\d+(?:\.\d+)?\s*(?:ms|s|min|mins|minutes?|hours?|days?|weeks?|months?|years?)\b"
     r"|\d+(?:\.\d+)?\s*(?:/|:|：)\s*\d+(?:\.\d+)?"
     r"|\d+(?:\.\d+)?\s*(?:[kKmMbB]|thousand|million|billion)\b"
     r"|\d{1,3}(?:,\d{3})+(?:\+)?"
     r"|⭐\s*\d+(?:\.\d+)?(?:\s*[kKmMbB])?"
-    r")"
+    r"))"
 )
 _FENCE_OPEN_RE = re.compile(
     r"^[ \t]{0,3}(?P<fence>`{3,}|~{3,})(?P<info>[^\r\n]*)$"
 )
 _FRONTMATTER_LINE_RE = re.compile(r"(?m)^---[ \t]*$")
+_MARKDOWN_HEADING_RE = re.compile(
+    r"^[ \t]{0,3}(?P<marks>#{1,6})[ \t]+(?P<title>.*?)[ \t]*#*[ \t]*$"
+)
+_RESOURCE_INVENTORY_HEADINGS = frozenset({"resource inventory", "资源清单"})
+_HTTP_URL_RE = re.compile(r"https?://[^\s<>()\[\]{}\"']+")
 _COPYABLE_SKILL_COMMAND_RE = re.compile(
     r"^[ \t]*(?:"
     r"cat\b[^\r\n]*?>{1,2}[^\r\n]*SKILL\.md"
@@ -367,6 +373,41 @@ def _reader_facing_body(rendered: str) -> str:
     return "".join(output)
 
 
+def _resource_inventory(reader_facing: str) -> tuple[str, set[str]]:
+    """Return the explicit reader-visible resource inventory and its URLs."""
+    inventory: list[str] = []
+    heading_level: int | None = None
+    for line in reader_facing.splitlines(keepends=True):
+        heading = _MARKDOWN_HEADING_RE.fullmatch(line.rstrip("\r\n"))
+        if heading is not None:
+            level = len(heading.group("marks"))
+            title = heading.group("title").strip().casefold()
+            if title in _RESOURCE_INVENTORY_HEADINGS:
+                if heading_level is not None:
+                    raise CaptureReceiptError(
+                        "invalid-capture-receipt",
+                        "resource survey must contain exactly one resource inventory heading",
+                    )
+                heading_level = level
+                inventory.append(line)
+                continue
+            if heading_level is not None and level <= heading_level:
+                break
+        if heading_level is not None:
+            inventory.append(line)
+    if heading_level is None:
+        raise CaptureReceiptError(
+            "incomplete-resource-evidence",
+            "resource survey requires a ## Resource Inventory or ## 资源清单 section",
+        )
+    text = "".join(inventory)
+    urls = {
+        match.group(0).rstrip(".,;:!?，。；：！？")
+        for match in _HTTP_URL_RE.finditer(text)
+    }
+    return text, urls
+
+
 def _mask_fenced_code(text: str) -> str:
     output: list[str] = []
     fence_character: str | None = None
@@ -523,8 +564,11 @@ def validate_capture_receipt(
     all_sources = set(primary_sources) | set(supplemental_sources)
     resource_ids: set[str] = set()
     resource_evidence: dict[str, set[str]] = {}
+    resource_inventory_text = ""
+    inventory_urls: set[str] = set()
     resources = receipt.get("resources")
     if "resource-survey" in profiles:
+        resource_inventory_text, inventory_urls = _resource_inventory(reader_facing)
         if not isinstance(resources, list) or not resources:
             raise CaptureReceiptError(
                 "incomplete-resource-evidence",
@@ -584,6 +628,24 @@ def validate_capture_receipt(
             resource_names.add(str(name))
             resource_urls.add(canonical_url)
             resource_evidence[resource_id] = set()
+        if inventory_urls != resource_urls:
+            raise CaptureReceiptError(
+                "incomplete-resource-evidence",
+                "resource inventory URLs must exactly match declared resources",
+                details={
+                    "undeclared_urls": sorted(inventory_urls - resource_urls),
+                    "unlisted_urls": sorted(resource_urls - inventory_urls),
+                },
+            )
+        missing_names = sorted(
+            name for name in resource_names if name not in resource_inventory_text
+        )
+        if missing_names:
+            raise CaptureReceiptError(
+                "incomplete-resource-evidence",
+                "every declared resource name must appear in the resource inventory",
+                details={"missing_names": missing_names},
+            )
     elif resources is not None:
         raise CaptureReceiptError(
             "invalid-capture-receipt",

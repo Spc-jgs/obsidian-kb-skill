@@ -131,9 +131,11 @@ def resource_candidate() -> str:
         "tags: [web-clip]\n"
         "---\n\n"
         "# Resource Survey\n\n"
+        "## Resource Inventory\n\n"
         f"Tool A: {RESOURCE_A}\n\n"
-        "Tool A supports the current LTS runtime and lacks offline mode.\n\n"
         f"Tool B: {RESOURCE_B}\n\n"
+        "## Evaluation\n\n"
+        "Tool A supports the current LTS runtime and lacks offline mode.\n\n"
         "Tool B supports the previous LTS runtime and lacks Windows support.\n\n"
         "Choose by deployment environment. Start with the Tool A quickstart.\n"
     )
@@ -295,7 +297,7 @@ def test_metric_detection_ignores_dates_urls_and_code_but_covers_ratios():
     rendered = candidate().replace(
         "来源结论。",
         (
-            "来源结论。链接 https://example.com/2026/12；"
+            "来源结论。发布于2026年；链接 https://example.com/2026/12；"
             "代码 `timeout=30s`；正文判断为 70/30。"
         ),
     )
@@ -315,8 +317,8 @@ def test_metric_detection_ignores_dates_urls_and_code_but_covers_ratios():
         ("2 years", "2 years"),
         ("1.2B users", "1.2B"),
         ("2 million users", "2 million"),
-        ("覆盖 3 万用户", "3 万"),
-        ("服务 2 亿请求", "2 亿"),
+        ("覆盖3万用户", "3万"),
+        ("处理2亿请求", "2亿"),
     ],
 )
 def test_common_duration_and_abbreviated_count_units_require_provenance(
@@ -489,6 +491,33 @@ def test_resource_survey_requires_evidence_for_every_concrete_resource():
         "resource_id": "tool-b",
         "missing_kinds": ["limitation"],
     }
+
+
+def test_resource_survey_rejects_visible_resource_omitted_from_receipt():
+    rendered = resource_candidate().replace(
+        f"Tool B: {RESOURCE_B}\n\n",
+        f"Tool B: {RESOURCE_B}\n\nTool C: https://tool-c.example/\n\n",
+    )
+    receipt = valid_resource_receipt(rendered)
+
+    with pytest.raises(CaptureReceiptError) as caught:
+        validate_capture_receipt(receipt, rendered, candidate_source=SOURCE)
+
+    assert caught.value.code == "incomplete-resource-evidence"
+    assert caught.value.details == {
+        "undeclared_urls": ["https://tool-c.example/"],
+        "unlisted_urls": [],
+    }
+
+
+def test_resource_survey_requires_explicit_reader_visible_inventory():
+    rendered = resource_candidate().replace("## Resource Inventory\n\n", "")
+    receipt = valid_resource_receipt(rendered)
+
+    with pytest.raises(CaptureReceiptError) as caught:
+        validate_capture_receipt(receipt, rendered, candidate_source=SOURCE)
+
+    assert caught.value.code == "incomplete-resource-evidence"
 
 
 def test_resource_survey_rejects_global_compatibility_without_resource_identity():

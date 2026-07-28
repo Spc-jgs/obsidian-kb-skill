@@ -786,7 +786,8 @@ def test_task_memory_preflight_is_read_only_and_apply_initializes_operational_pa
     assert applied.returncode == 0, applied.stdout
     payload = json.loads(applied.stdout)
     assert payload["folder"] == "Tasks/demo"
-    assert (vault / "Tasks" / "demo" / "2026-07-28 TASK.md").is_file()
+    assert payload["path"].endswith("/Tasks/demo/TASK.md")
+    assert (vault / "Tasks" / "demo" / "TASK.md").is_file()
 
 
 @pytest.mark.parametrize(

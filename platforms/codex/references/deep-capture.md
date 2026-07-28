@@ -175,8 +175,12 @@ candidate body, not YAML frontmatter or a hidden HTML comment. The candidate
 supplemental source separately.
 
 Do not collapse compatibility across unrelated resources. For a resource
-survey, add a `resources` array with one unique lowercase `id`, meaningful
-`name`, and reader-visible `canonical_url` for every concrete resource. Its
+survey, include exactly one reader-facing `## Resource Inventory` or
+`## 资源清单` section containing the name and canonical URL of every concrete
+resource and no unrelated URLs. Add a `resources` array with one unique
+lowercase `id`, meaningful `name`, and matching `canonical_url` for every entry
+in that section. The helper reconciles the section's complete URL set with the
+receipt, so an omitted visible resource fails validation. Its
 `canonical-link`, `compatibility`, and `limitation` material items must each
 declare that resource's `resource_id`; every declared resource needs all three.
 Profile-wide selection criteria and a starting example may compare or start
