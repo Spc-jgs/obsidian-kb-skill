@@ -118,6 +118,8 @@ def test_audit_note_text_matches_written_note(tmp_path, rendered):
         "用 2–4 句话区分原文观点与自己的推论，不机械复述。",
         "说明原文解决什么问题、需要哪些版本和环境。",
         "Explain the problem, required versions, environment, and prior knowledge.",
+        "State success criteria, verification, common failures, constraints, trade-offs, and open questions.",
+        "Link only to existing Vault notes with a clear relationship.",
     ],
 )
 def test_reports_residual_template_instruction_comments(tmp_path, instruction):
@@ -138,16 +140,38 @@ def test_reports_residual_template_instruction_comments(tmp_path, instruction):
     )
 
 
-def test_allows_ordinary_html_comments_and_fenced_template_examples(tmp_path):
+@pytest.mark.parametrize(
+    "example",
+    [
+        (
+            "```markdown\n"
+            "<!-- 说明原文解决什么问题、需要哪些版本和环境。 -->\n"
+            "```\n"
+        ),
+        (
+            "~~~markdown\n"
+            "<!-- 说明原文解决什么问题、需要哪些版本和环境。 -->\n"
+            "~~~\n"
+        ),
+        (
+            "````markdown\n"
+            "```markdown\n"
+            "<!-- 说明原文解决什么问题、需要哪些版本和环境。 -->\n"
+            "```\n"
+            "````\n"
+        ),
+    ],
+)
+def test_allows_ordinary_html_comments_and_fenced_template_examples(
+    tmp_path, example
+):
     (tmp_path / ".obsidian").mkdir()
     (tmp_path / "Templates").mkdir()
     rendered = (
         '---\ndate: "2026-07-28"\ntype: insight-note\n'
         "tags: [insight]\n---\n# Candidate\n\n"
         "<!-- diagram anchor: keep this comment -->\n\n"
-        "```markdown\n"
-        "<!-- 说明原文解决什么问题、需要哪些版本和环境。 -->\n"
-        "```\n"
+        f"{example}"
     )
 
     findings = audit_note_text(tmp_path, tmp_path / "Candidate.md", rendered)

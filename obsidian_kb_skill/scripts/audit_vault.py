@@ -76,8 +76,9 @@ IGNORED_PARTS = {
     ".workbuddy",  # agent working memory / metadata
 }
 WIKILINK_RE = re.compile(r"!?\[\[([^\]]+)\]\]")
-FENCE_RE = re.compile(r"^\s*```", re.MULTILINE)
-FENCED_CODE_RE = re.compile(r"```[\s\S]*?```")
+FENCE_OPEN_RE = re.compile(
+    r"^[ \t]{0,3}(?P<fence>`{3,}|~{3,})(?P<info>[^\r\n]*)$"
+)
 INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
 TAG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 FOLDER_INDEX_CONTENT_RE = re.compile(
@@ -100,8 +101,10 @@ TEMPLATE_INSTRUCTION_MARKERS = (
     "reconstruct all material knowledge",
     "for technical sources, preserve enough",
     "write clear success criteria",
+    "state success criteria",
     "after reconstructing the source",
     "add only vault notes that actually exist",
+    "link only to existing vault notes",
 )
 
 
@@ -481,9 +484,43 @@ def _clean_link_target(raw: str) -> str:
     return target.strip()
 
 
+def _without_fenced_code(text: str) -> tuple[str, bool]:
+    """Return Markdown outside fenced code and whether one fence is unclosed."""
+    output: list[str] = []
+    fence_character: str | None = None
+    fence_length = 0
+    for line in text.splitlines(keepends=True):
+        candidate = line.rstrip("\r\n")
+        if fence_character is None:
+            match = FENCE_OPEN_RE.fullmatch(candidate)
+            if match is None:
+                output.append(line)
+                continue
+            fence = match.group("fence")
+            info = match.group("info")
+            if fence[0] == "`" and "`" in info:
+                output.append(line)
+                continue
+            fence_character = fence[0]
+            fence_length = len(fence)
+            continue
+        if re.fullmatch(
+            rf"[ \t]{{0,3}}{re.escape(fence_character)}{{{fence_length},}}[ \t]*",
+            candidate,
+        ):
+            fence_character = None
+            fence_length = 0
+    return "".join(output), fence_character is not None
+
+
 def _without_code_examples(text: str) -> str:
-    text = FENCED_CODE_RE.sub("", text)
-    return INLINE_CODE_RE.sub("", text)
+    outside, _ = _without_fenced_code(text)
+    return INLINE_CODE_RE.sub("", outside)
+
+
+def _has_unclosed_fence(text: str) -> bool:
+    _, unclosed = _without_fenced_code(text)
+    return unclosed
 
 
 def _audit_links(
@@ -736,8 +773,8 @@ def audit_vault(vault: Path) -> list[Finding]:
         if metadata and metadata.get("type") == "web-clip":
             _audit_deep_capture_headings(findings, relative, text, metadata)
         _audit_folder_index_content(findings, relative, text, metadata)
-        if len(FENCE_RE.findall(text)) % 2:
-            _add(findings, "unclosed-fence", relative, "odd number of fenced code block markers")
+        if _has_unclosed_fence(text):
+            _add(findings, "unclosed-fence", relative, "fenced code block is not closed")
         _audit_template_placeholders(findings, relative, text)
         _audit_template_instruction_comments(findings, relative, text)
         if relative.name not in EXEMPT_NAMES:
@@ -814,12 +851,12 @@ def _audit_note_content(
     _audit_template_placeholders(findings, relative, text)
     _audit_template_instruction_comments(findings, relative, text)
     _audit_required_template_headings(findings, vault, relative, text, metadata)
-    if len(FENCE_RE.findall(text)) % 2:
+    if _has_unclosed_fence(text):
         _add(
             findings,
             "unclosed-fence",
             relative,
-            "odd number of fenced code block markers",
+            "fenced code block is not closed",
         )
 
     linkable = _all_linkable_files(vault)

@@ -155,6 +155,53 @@ def sanitize_filename(name: str) -> str:
     return cleaned or "untitled"
 
 
+def is_task_memory_folder(note_type: str, folder: str) -> bool:
+    """Allow only the explicit operational Tasks/<slug> initialization shape."""
+    if note_type != "task-memory" or "\\" in folder or Path(folder).is_absolute():
+        return False
+    raw_parts = folder.split("/")
+    return (
+        len(raw_parts) == 2
+        and raw_parts[0] == "Tasks"
+        and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", raw_parts[1]) is not None
+    )
+
+
+def initialize_task_memory_folder(vault: Path, folder: str) -> tuple[Path, ...]:
+    """Create only Tasks/<slug>, returning directories created for rollback."""
+    target = resolve_target_within_vault(
+        vault, folder, label="task-memory destination folder"
+    )
+    created: list[Path] = []
+    try:
+        for directory in (target.parent, target):
+            if directory.exists():
+                continue
+            directory.mkdir()
+            created.append(directory)
+        verified = resolve_existing_within_vault(
+            vault, folder, label="task-memory destination folder"
+        )
+        if verified != target or not verified.is_dir():
+            raise OSError("task-memory destination changed during initialization")
+    except Exception:
+        for directory in reversed(created):
+            try:
+                directory.rmdir()
+            except OSError:
+                pass
+        raise
+    return tuple(created)
+
+
+def cleanup_empty_directories(paths: tuple[Path, ...]) -> None:
+    for directory in reversed(paths):
+        try:
+            directory.rmdir()
+        except OSError:
+            pass
+
+
 def split_frontmatter(
     text: str, *, source: str = "input"
 ) -> tuple[dict[str, Any], str]:
@@ -557,6 +604,20 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     filename = f"{date} {sanitize_filename(args.title)}.md"
+    if args.type == "task-memory" and not is_task_memory_folder(args.type, folder):
+        error = {
+            "code": "invalid-task-memory-folder",
+            "message": (
+                "task-memory requires a normalized lowercase Tasks/<slug> "
+                "operational path"
+            ),
+            "folder": folder,
+        }
+        if json_mode:
+            print(json.dumps({"error": error}, ensure_ascii=False, indent=2))
+        else:
+            print(f"error: {error['message']}: {folder}", file=sys.stderr)
+        return 2
     dest = resolve_dest(vault, folder, filename)
 
     result: dict[str, Any] = {
@@ -597,29 +658,41 @@ def main(argv: list[str] | None = None) -> int:
             )
         return 2
 
+    task_memory_initialization = False
     try:
         destination_folder = resolve_existing_within_vault(
             vault, folder, label="destination folder"
         )
     except PathNotFoundError:
-        error = {
-            "code": "missing-destination-folder",
-            "message": (
-                "destination folder must already exist; create a governed "
-                "category with create-category after explicit confirmation"
-            ),
-            "folder": folder,
-        }
-        if json_mode:
-            print(json.dumps({"error": error}, ensure_ascii=False, indent=2))
+        if args.type == "task-memory":
+            try:
+                destination_folder = resolve_target_within_vault(
+                    vault, folder, label="task-memory destination folder"
+                )
+            except VaultPathError as exc:
+                return report_cli_violation(
+                    exc, param="destination folder", json_mode=json_mode
+                )
+            task_memory_initialization = True
         else:
-            print(f"error: {error['message']}: {folder}", file=sys.stderr)
-        return 2
+            error = {
+                "code": "missing-destination-folder",
+                "message": (
+                    "destination folder must already exist; create a governed "
+                    "category with create-category after explicit confirmation"
+                ),
+                "folder": folder,
+            }
+            if json_mode:
+                print(json.dumps({"error": error}, ensure_ascii=False, indent=2))
+            else:
+                print(f"error: {error['message']}: {folder}", file=sys.stderr)
+            return 2
     except VaultPathError as exc:
         return report_cli_violation(
             exc, param="destination folder", json_mode=json_mode
         )
-    if not destination_folder.is_dir():
+    if not task_memory_initialization and not destination_folder.is_dir():
         error = {
             "code": "invalid-destination-folder",
             "message": "destination folder must be a real directory",
@@ -630,6 +703,11 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"error: {error['message']}: {folder}", file=sys.stderr)
         return 2
+
+    folder = destination_folder.relative_to(vault).as_posix()
+    dest = resolve_dest(vault, folder, filename)
+    result["folder"] = folder
+    result["path"] = str(dest)
 
     receipt_required = requires_capture_receipt(args.type, folder)
     receipt_error: CaptureReceiptError | None = None
@@ -758,7 +836,26 @@ def main(argv: list[str] | None = None) -> int:
     if not rendered_body.strip() and not json_mode:
         print("warning: empty body; creating a frontmatter-only note.", file=sys.stderr)
 
-    dest = write_new_note(vault, folder, filename, rendered_bytes)
+    created_task_directories: tuple[Path, ...] = ()
+    if task_memory_initialization:
+        try:
+            created_task_directories = initialize_task_memory_folder(vault, folder)
+        except (OSError, VaultPathError) as exc:
+            error = {
+                "code": "task-memory-initialization-failed",
+                "message": str(exc),
+                "folder": folder,
+            }
+            if json_mode:
+                print(json.dumps({"error": error}, ensure_ascii=False, indent=2))
+            else:
+                print(f"error: {error['message']}: {folder}", file=sys.stderr)
+            return 2
+    try:
+        dest = write_new_note(vault, folder, filename, rendered_bytes)
+    except OSError:
+        cleanup_empty_directories(created_task_directories)
+        raise
     result["path"] = str(dest)
     result["applied"] = True
 

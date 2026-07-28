@@ -100,18 +100,27 @@ _METRIC_RE = re.compile(
     r"(?<![\w])(?:"
     r"\d+(?:\.\d+)?\s*(?:%|％)"
     r"|\d+(?:\.\d+)?\s*(?:小时|分钟|秒|天|周|个月|年|毫秒)"
-    r"|\d+(?:\.\d+)?\s*(?:ms|s|min|mins|minutes?|hours?|days?|weeks?)\b"
+    r"|\d+(?:\.\d+)?\s*(?:万|亿)"
+    r"|\d+(?:\.\d+)?\s*(?:ms|s|min|mins|minutes?|hours?|days?|weeks?|months?|years?)\b"
     r"|\d+(?:\.\d+)?\s*(?:/|:|：)\s*\d+(?:\.\d+)?"
-    r"|\d+(?:\.\d+)?\s*[kKmM]\b"
+    r"|\d+(?:\.\d+)?\s*(?:[kKmMbB]|thousand|million|billion)\b"
     r"|\d{1,3}(?:,\d{3})+(?:\+)?"
-    r"|⭐\s*\d+(?:\.\d+)?(?:\s*[kKmM])?"
+    r"|⭐\s*\d+(?:\.\d+)?(?:\s*[kKmMbB])?"
     r")"
 )
-_FENCED_BLOCK_RE = re.compile(
-    r"(?P<fence>```|~~~)[^\n]*\n(?P<body>.*?)(?P=fence)",
-    re.DOTALL,
+_FENCE_OPEN_RE = re.compile(
+    r"^[ \t]{0,3}(?P<fence>`{3,}|~{3,})(?P<info>[^\r\n]*)$"
 )
 _FRONTMATTER_LINE_RE = re.compile(r"(?m)^---[ \t]*$")
+_COPYABLE_SKILL_COMMAND_RE = re.compile(
+    r"^[ \t]*(?:"
+    r"cat\b[^\r\n]*?>{1,2}[^\r\n]*SKILL\.md"
+    r"|tee\b[^\r\n]*SKILL\.md"
+    r"|set-content\b[^\r\n]*SKILL\.md"
+    r"|out-file\b[^\r\n]*SKILL\.md"
+    r")",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 class CaptureReceiptError(ValueError):
@@ -257,28 +266,147 @@ def _selected_profiles(receipt: dict[str, Any]) -> tuple[str, ...]:
     return tuple(values)
 
 
-def _exact_anchor(rendered: str, value: Any, *, field: str) -> str:
+def _fence_opening(line: str) -> tuple[str, int] | None:
+    match = _FENCE_OPEN_RE.fullmatch(line.rstrip("\r\n"))
+    if match is None:
+        return None
+    fence = match.group("fence")
+    if fence[0] == "`" and "`" in match.group("info"):
+        return None
+    return fence[0], len(fence)
+
+
+def _is_fence_closing(line: str, character: str, length: int) -> bool:
+    return (
+        re.fullmatch(
+            rf"[ \t]{{0,3}}{re.escape(character)}{{{length},}}[ \t]*",
+            line.rstrip("\r\n"),
+        )
+        is not None
+    )
+
+
+def _iter_fenced_blocks(text: str) -> list[str]:
+    blocks: list[str] = []
+    body: list[str] | None = None
+    fence_character = ""
+    fence_length = 0
+    for line in text.splitlines(keepends=True):
+        if body is None:
+            opening = _fence_opening(line)
+            if opening is None:
+                continue
+            fence_character, fence_length = opening
+            body = []
+            continue
+        if _is_fence_closing(line, fence_character, fence_length):
+            blocks.append("".join(body))
+            body = None
+            fence_character = ""
+            fence_length = 0
+            continue
+        body.append(line)
+    if body is not None:
+        blocks.append("".join(body))
+    return blocks
+
+
+def _mask_text(value: str) -> str:
+    return "".join(
+        "\n" if character == "\n" else "\r" if character == "\r" else " "
+        for character in value
+    )
+
+
+def _mask_html_comments(line: str, inside: bool) -> tuple[str, bool]:
+    output: list[str] = []
+    position = 0
+    while position < len(line):
+        if inside:
+            end = line.find("-->", position)
+            if end < 0:
+                output.append(_mask_text(line[position:]))
+                return "".join(output), True
+            output.append(_mask_text(line[position : end + 3]))
+            position = end + 3
+            inside = False
+            continue
+        start = line.find("<!--", position)
+        if start < 0:
+            output.append(line[position:])
+            break
+        output.append(line[position:start])
+        position = start
+        inside = True
+    return "".join(output), inside
+
+
+def _reader_facing_body(rendered: str) -> str:
+    """Return Markdown body with hidden comments masked outside visible code."""
+    parsed = parse_frontmatter(rendered, source="candidate")
+    body = parsed.body if parsed.present and parsed.issue is None else rendered
+    output: list[str] = []
+    fence_character: str | None = None
+    fence_length = 0
+    inside_comment = False
+    for line in body.splitlines(keepends=True):
+        if fence_character is None:
+            if not inside_comment:
+                opening = _fence_opening(line)
+                if opening is not None:
+                    fence_character, fence_length = opening
+                    output.append(line)
+                    continue
+            visible, inside_comment = _mask_html_comments(line, inside_comment)
+            output.append(visible)
+            continue
+        output.append(line)
+        if _is_fence_closing(line, fence_character, fence_length):
+            fence_character = None
+            fence_length = 0
+    return "".join(output)
+
+
+def _mask_fenced_code(text: str) -> str:
+    output: list[str] = []
+    fence_character: str | None = None
+    fence_length = 0
+    for line in text.splitlines(keepends=True):
+        if fence_character is None:
+            opening = _fence_opening(line)
+            if opening is None:
+                output.append(line)
+                continue
+            fence_character, fence_length = opening
+            output.append(_mask_text(line))
+            continue
+        output.append(_mask_text(line))
+        if _is_fence_closing(line, fence_character, fence_length):
+            fence_character = None
+            fence_length = 0
+    return "".join(output)
+
+
+def _exact_anchor(reader_facing: str, value: Any, *, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise CaptureReceiptError(
             "invalid-capture-receipt", f"{field} must be non-empty text"
         )
-    if value not in rendered:
+    if value not in reader_facing:
         raise CaptureReceiptError(
             "missing-receipt-anchor",
-            f"{field} does not exist in the rendered candidate",
+            f"{field} does not exist in reader-facing candidate content",
             details={"anchor": value},
         )
     return value
 
 
 def _masked_body(rendered: str) -> str:
-    parsed = parse_frontmatter(rendered, source="candidate")
-    body = parsed.body if parsed.present and parsed.issue is None else rendered
+    body = _mask_fenced_code(_reader_facing_body(rendered))
 
     def mask(match: re.Match[str]) -> str:
-        return " " * len(match.group(0))
+        return _mask_text(match.group(0))
 
-    body = re.sub(r"```.*?```|~~~.*?~~~", mask, body, flags=re.DOTALL)
     body = re.sub(r"`[^`\n]*`", mask, body)
     body = re.sub(r"https?://[^\s)>]+", mask, body)
     return body
@@ -299,16 +427,8 @@ def _validate_copyable_skill_frontmatter(rendered: str) -> None:
     """Reject malformed YAML in shell examples that create a SKILL.md."""
     parsed = parse_frontmatter(rendered, source="candidate")
     body = parsed.body if parsed.present and parsed.issue is None else rendered
-    for block_index, match in enumerate(_FENCED_BLOCK_RE.finditer(body)):
-        block = match.group("body")
-        if (
-            re.search(
-                r"(?:cat\s+>|tee\b|set-content\b|out-file\b).*SKILL\.md",
-                block,
-                re.IGNORECASE | re.DOTALL,
-            )
-            is None
-        ):
+    for block_index, block in enumerate(_iter_fenced_blocks(body)):
+        if _COPYABLE_SKILL_COMMAND_RE.search(block) is None:
             continue
         delimiters = list(_FRONTMATTER_LINE_RE.finditer(block))
         if len(delimiters) < 2:
@@ -378,6 +498,7 @@ def validate_capture_receipt(
                 "actual": receipt.get("content_sha256"),
             },
         )
+    reader_facing = _reader_facing_body(rendered)
     profiles = _selected_profiles(receipt)
     if receipt.get("source_access") != "complete":
         raise CaptureReceiptError(
@@ -400,6 +521,74 @@ def validate_capture_receipt(
             details={"candidate_source": candidate_source},
         )
     all_sources = set(primary_sources) | set(supplemental_sources)
+    resource_ids: set[str] = set()
+    resource_evidence: dict[str, set[str]] = {}
+    resources = receipt.get("resources")
+    if "resource-survey" in profiles:
+        if not isinstance(resources, list) or not resources:
+            raise CaptureReceiptError(
+                "incomplete-resource-evidence",
+                "resource-survey requires a non-empty resources array",
+            )
+        resource_names: set[str] = set()
+        resource_urls: set[str] = set()
+        for index, resource in enumerate(resources):
+            if not isinstance(resource, dict):
+                raise CaptureReceiptError(
+                    "invalid-capture-receipt",
+                    "resources entries must be objects",
+                    details={"index": index},
+                )
+            resource_id = resource.get("id")
+            if (
+                not isinstance(resource_id, str)
+                or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", resource_id)
+                or resource_id in resource_ids
+            ):
+                raise CaptureReceiptError(
+                    "invalid-capture-receipt",
+                    "resource IDs must be unique lowercase slugs",
+                    details={"index": index},
+                )
+            name = resource.get("name")
+            if not is_meaningful_metadata(name) or name in resource_names:
+                raise CaptureReceiptError(
+                    "invalid-capture-receipt",
+                    "resource names must be unique meaningful text",
+                    details={"index": index},
+                )
+            canonical_url = resource.get("canonical_url")
+            if not isinstance(canonical_url, str):
+                raise CaptureReceiptError(
+                    "invalid-capture-receipt",
+                    "resource canonical_url must be an HTTP URL",
+                    details={"index": index},
+                )
+            parsed_url = urlparse(canonical_url)
+            if (
+                parsed_url.scheme not in {"http", "https"}
+                or not parsed_url.netloc
+                or canonical_url in resource_urls
+            ):
+                raise CaptureReceiptError(
+                    "invalid-capture-receipt",
+                    "resource canonical URLs must be unique HTTP URLs",
+                    details={"index": index},
+                )
+            _exact_anchor(
+                reader_facing,
+                canonical_url,
+                field=f"resources[{index}].canonical_url",
+            )
+            resource_ids.add(resource_id)
+            resource_names.add(str(name))
+            resource_urls.add(canonical_url)
+            resource_evidence[resource_id] = set()
+    elif resources is not None:
+        raise CaptureReceiptError(
+            "invalid-capture-receipt",
+            "resources is allowed only when resource-survey is selected",
+        )
 
     unresolved = receipt.get("unresolved_items")
     if not isinstance(unresolved, list):
@@ -441,7 +630,7 @@ def validate_capture_receipt(
             )
         ids.add(item_id)
         kind = item.get("kind")
-        if kind not in MATERIAL_KINDS:
+        if not isinstance(kind, str) or kind not in MATERIAL_KINDS:
             raise CaptureReceiptError(
                 "invalid-capture-receipt",
                 "material item has an unsupported kind",
@@ -460,8 +649,31 @@ def validate_capture_receipt(
                 "material item source must be declared",
                 details={"id": item_id},
             )
+        resource_id = item.get("resource_id")
+        if resource_id is not None and (
+            not isinstance(resource_id, str) or resource_id not in resource_ids
+        ):
+            raise CaptureReceiptError(
+                "invalid-capture-receipt",
+                "material item resource_id must identify a declared resource",
+                details={"id": item_id, "resource_id": resource_id},
+            )
+        if "resource-survey" in profiles and kind in {
+            "canonical-link",
+            "compatibility",
+            "limitation",
+        }:
+            if not isinstance(resource_id, str) or resource_id not in resource_ids:
+                raise CaptureReceiptError(
+                    "incomplete-resource-evidence",
+                    f"{kind} evidence must identify one concrete resource",
+                    details={"id": item_id},
+                )
+            resource_evidence[str(resource_id)].add(str(kind))
         _exact_anchor(
-            rendered, item.get("note_anchor"), field=f"material_items[{index}].note_anchor"
+            reader_facing,
+            item.get("note_anchor"),
+            field=f"material_items[{index}].note_anchor",
         )
     for profile in profiles:
         missing = PROFILE_REQUIRED_KINDS[profile] - material_kinds
@@ -470,6 +682,18 @@ def validate_capture_receipt(
                 "incomplete-profile-evidence",
                 f"{profile} is missing required material evidence",
                 details={"missing_kinds": sorted(missing)},
+            )
+    required_resource_kinds = {"canonical-link", "compatibility", "limitation"}
+    for resource_id, evidence in resource_evidence.items():
+        missing = required_resource_kinds - evidence
+        if missing:
+            raise CaptureReceiptError(
+                "incomplete-resource-evidence",
+                "each resource needs canonical-link, compatibility, and limitation evidence",
+                details={
+                    "resource_id": resource_id,
+                    "missing_kinds": sorted(missing),
+                },
             )
 
     numeric_claims = receipt.get("numeric_claims")
@@ -486,7 +710,7 @@ def validate_capture_receipt(
                 details={"index": index},
             )
         excerpt = _exact_anchor(
-            rendered,
+            reader_facing,
             claim.get("note_excerpt"),
             field=f"numeric_claims[{index}].note_excerpt",
         )
@@ -544,8 +768,8 @@ def validate_capture_receipt(
                 "inferences entries must be objects",
                 details={"index": index},
             )
-        _exact_anchor(
-            rendered,
+        excerpt = _exact_anchor(
+            reader_facing,
             inference.get("note_excerpt"),
             field=f"inferences[{index}].note_excerpt",
         )
@@ -555,10 +779,11 @@ def validate_capture_receipt(
                 "inference requires an evidence basis",
                 details={"index": index},
             )
-        if not is_meaningful_metadata(inference.get("label")):
+        label = inference.get("label")
+        if not is_meaningful_metadata(label) or str(label) not in excerpt:
             raise CaptureReceiptError(
                 "unlabeled-inference",
-                "inference requires an explicit reader-facing label",
+                "inference label must occur inside its reader-facing excerpt",
                 details={"index": index},
             )
 
@@ -579,12 +804,12 @@ def validate_capture_receipt(
             details={"allowed": sorted(allowed_artifacts)},
         )
     _exact_anchor(
-        rendered,
+        reader_facing,
         practical.get("note_anchor"),
         field="practical_artifact.note_anchor",
     )
 
-    return {
+    summary = {
         "ok": True,
         "schema_version": SCHEMA_VERSION,
         "sha256": receipt_sha256(receipt),
@@ -597,6 +822,9 @@ def validate_capture_receipt(
         "inference_count": len(inferences),
         "unresolved_item_count": 0,
     }
+    if "resource-survey" in profiles:
+        summary["resource_count"] = len(resource_ids)
+    return summary
 
 
 def main(argv: list[str] | None = None) -> int:

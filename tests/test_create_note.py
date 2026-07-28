@@ -668,6 +668,61 @@ def test_quick_inbox_web_clip_does_not_require_capture_receipt(tmp_path):
     assert "semantic_receipt" not in json.loads(result.stdout)
 
 
+@pytest.mark.parametrize("folder", ["00-Inbox/../20-Learning", "00-Inbox/Alias"])
+def test_canonical_destination_cannot_bypass_capture_receipt(tmp_path, folder):
+    vault = make_vault(tmp_path)
+    (vault / "00-Inbox").mkdir()
+    (vault / "20-Learning").mkdir()
+    if folder.endswith("/Alias"):
+        try:
+            (vault / "00-Inbox" / "Alias").symlink_to(
+                vault / "20-Learning", target_is_directory=True
+            )
+        except OSError as exc:
+            pytest.skip(f"directory symlink creation unavailable: {exc}")
+    markdown = (
+        "---\n"
+        "source: https://example.com/article\n"
+        "author: 示例作者\n"
+        "published: 2026-07-28\n"
+        "---\n"
+        "# Finished article\n"
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--folder",
+            folder,
+            "--title",
+            "Canonical Route",
+            "--stdin",
+            "--date",
+            "2026-07-28",
+            "--apply",
+            "--compact-json",
+        ],
+        input=markdown,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=ROOT,
+        env=ENV,
+    )
+
+    assert result.returncode == 2
+    assert (
+        json.loads(result.stdout)["error"]["code"]
+        == "missing-capture-receipt"
+    )
+    assert not list((vault / "20-Learning").glob("*Canonical Route.md"))
+
+
 def test_create_note_rejects_missing_destination_folder(tmp_path):
     vault = make_vault(tmp_path)
 
@@ -685,6 +740,76 @@ def test_create_note_rejects_missing_destination_folder(tmp_path):
     assert result.returncode == 2
     assert json.loads(result.stdout)["error"]["code"] == "missing-destination-folder"
     assert not (vault / "30-Insights" / "New").exists()
+
+
+def test_task_memory_preflight_is_read_only_and_apply_initializes_operational_path(
+    tmp_path,
+):
+    vault = make_vault(tmp_path)
+    common = [
+        sys.executable,
+        "-m",
+        "obsidian_kb_skill.scripts.create_note",
+        str(vault),
+        "--type",
+        "task-memory",
+        "--folder",
+        "Tasks/demo",
+        "--title",
+        "TASK",
+        "--date",
+        "2026-07-28",
+        "--stdin",
+    ]
+    preflight = subprocess.run(
+        [*common, "--preflight-json"],
+        input="# Task\n\nActive context.\n",
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        env=ENV,
+    )
+
+    assert preflight.returncode == 0, preflight.stdout
+    assert json.loads(preflight.stdout)["folder"] == "Tasks/demo"
+    assert not (vault / "Tasks").exists()
+
+    applied = subprocess.run(
+        [*common, "--apply", "--compact-json"],
+        input="# Task\n\nActive context.\n",
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        env=ENV,
+    )
+
+    assert applied.returncode == 0, applied.stdout
+    payload = json.loads(applied.stdout)
+    assert payload["folder"] == "Tasks/demo"
+    assert (vault / "Tasks" / "demo" / "2026-07-28 TASK.md").is_file()
+
+
+@pytest.mark.parametrize(
+    "folder",
+    ["Tasks", "Tasks/Demo", "Tasks/demo/nested", "Tasks/../demo", "Other/demo"],
+)
+def test_task_memory_initialization_rejects_non_operational_paths(tmp_path, folder):
+    vault = make_vault(tmp_path)
+
+    result = _run(
+        str(vault),
+        "--type",
+        "task-memory",
+        "--folder",
+        folder,
+        "--title",
+        "TASK",
+        "--preflight-json",
+    )
+
+    assert result.returncode == 2
+    assert json.loads(result.stdout)["error"]["code"] == "invalid-task-memory-folder"
+    assert not (vault / "Tasks").exists()
 
 
 def test_split_frontmatter_accepts_utf8_bom_and_windows_newlines():

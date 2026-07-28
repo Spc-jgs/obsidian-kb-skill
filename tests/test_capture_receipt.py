@@ -117,6 +117,106 @@ def valid_receipt(rendered: str | None = None) -> dict[str, object]:
     }
 
 
+RESOURCE_A = "https://example.com/tool-a"
+RESOURCE_B = "https://example.com/tool-b"
+
+
+def resource_candidate() -> str:
+    return (
+        "---\n"
+        f"source: {SOURCE}\n"
+        "author: 示例作者\n"
+        "published: 2026-07-28\n"
+        "type: web-clip\n"
+        "tags: [web-clip]\n"
+        "---\n\n"
+        "# Resource Survey\n\n"
+        f"Tool A: {RESOURCE_A}\n\n"
+        "Tool A supports the current LTS runtime and lacks offline mode.\n\n"
+        f"Tool B: {RESOURCE_B}\n\n"
+        "Tool B supports the previous LTS runtime and lacks Windows support.\n\n"
+        "Choose by deployment environment. Start with the Tool A quickstart.\n"
+    )
+
+
+def valid_resource_receipt(rendered: str | None = None) -> dict[str, object]:
+    text = rendered or resource_candidate()
+    material = [
+        ("tool-a-link", "canonical-link", "tool-a", RESOURCE_A),
+        (
+            "tool-a-compatibility",
+            "compatibility",
+            "tool-a",
+            "Tool A supports the current LTS runtime",
+        ),
+        (
+            "tool-a-limitation",
+            "limitation",
+            "tool-a",
+            "lacks offline mode",
+        ),
+        ("tool-b-link", "canonical-link", "tool-b", RESOURCE_B),
+        (
+            "tool-b-compatibility",
+            "compatibility",
+            "tool-b",
+            "Tool B supports the previous LTS runtime",
+        ),
+        (
+            "tool-b-limitation",
+            "limitation",
+            "tool-b",
+            "lacks Windows support",
+        ),
+    ]
+    return {
+        "schema_version": 1,
+        "content_sha256": hashlib.sha256(text.encode()).hexdigest(),
+        "profile": "resource-survey",
+        "source_access": "complete",
+        "primary_sources": [SOURCE],
+        "supplemental_sources": [],
+        "resources": [
+            {"id": "tool-a", "name": "Tool A", "canonical_url": RESOURCE_A},
+            {"id": "tool-b", "name": "Tool B", "canonical_url": RESOURCE_B},
+        ],
+        "material_items": [
+            {
+                "id": item_id,
+                "kind": kind,
+                "resource_id": resource_id,
+                "source": SOURCE,
+                "note_anchor": anchor,
+                "status": "resolved",
+            }
+            for item_id, kind, resource_id, anchor in material
+        ]
+        + [
+            {
+                "id": "selection",
+                "kind": "selection-criteria",
+                "source": SOURCE,
+                "note_anchor": "Choose by deployment environment",
+                "status": "resolved",
+            },
+            {
+                "id": "starting-example",
+                "kind": "starting-example",
+                "source": SOURCE,
+                "note_anchor": "Start with the Tool A quickstart",
+                "status": "resolved",
+            },
+        ],
+        "numeric_claims": [],
+        "inferences": [],
+        "practical_artifact": {
+            "kind": "selection-decision",
+            "note_anchor": "Choose by deployment environment",
+        },
+        "unresolved_items": [],
+    }
+
+
 def test_valid_receipt_is_bound_and_summarized():
     rendered = candidate()
     receipt = valid_receipt(rendered)
@@ -208,6 +308,93 @@ def test_metric_detection_ignores_dates_urls_and_code_but_covers_ratios():
     assert caught.value.details["values"] == ["70/30"]
 
 
+@pytest.mark.parametrize(
+    ("measurement", "detected"),
+    [
+        ("3 months", "3 months"),
+        ("2 years", "2 years"),
+        ("1.2B users", "1.2B"),
+        ("2 million users", "2 million"),
+        ("覆盖 3 万用户", "3 万"),
+        ("服务 2 亿请求", "2 亿"),
+    ],
+)
+def test_common_duration_and_abbreviated_count_units_require_provenance(
+    measurement, detected
+):
+    rendered = candidate().replace("来源结论。", f"来源结论。测量结果为 {measurement}。")
+    receipt = valid_receipt(rendered)
+
+    with pytest.raises(CaptureReceiptError) as caught:
+        validate_capture_receipt(receipt, rendered, candidate_source=SOURCE)
+
+    assert caught.value.code == "uncovered-numeric-claim"
+    assert detected in caught.value.details["values"]
+
+
+def test_hidden_frontmatter_and_comment_text_cannot_satisfy_anchors():
+    rendered = candidate().replace(
+        "### 因果链\n\n",
+        "### 因果链\n\n<!-- hidden causal evidence -->\n\n",
+    )
+    receipt = valid_receipt(rendered)
+    receipt["material_items"][0]["note_anchor"] = "hidden causal evidence"
+
+    with pytest.raises(CaptureReceiptError) as caught:
+        validate_capture_receipt(receipt, rendered, candidate_source=SOURCE)
+
+    assert caught.value.code == "missing-receipt-anchor"
+
+    receipt = valid_receipt()
+    receipt["material_items"][0]["note_anchor"] = SOURCE
+    with pytest.raises(CaptureReceiptError) as caught:
+        validate_capture_receipt(receipt, candidate(), candidate_source=SOURCE)
+    assert caught.value.code == "missing-receipt-anchor"
+
+    rendered = candidate().replace(
+        "### 因果链\n\n",
+        (
+            "### 因果链\n\n"
+            "<!-- hidden block starts\n"
+            "```text\n"
+            "hidden evidence across a fence-looking line\n"
+            "```\n"
+            "-->\n\n"
+        ),
+    )
+    receipt = valid_receipt(rendered)
+    receipt["material_items"][0]["note_anchor"] = (
+        "hidden evidence across a fence-looking line"
+    )
+    with pytest.raises(CaptureReceiptError) as caught:
+        validate_capture_receipt(receipt, rendered, candidate_source=SOURCE)
+    assert caught.value.code == "missing-receipt-anchor"
+
+
+def test_visible_fenced_code_can_satisfy_a_procedure_anchor():
+    rendered = candidate().replace(
+        "### 应用方法\n\n",
+        "### 应用方法\n\n```bash\necho verify-visible-step\n```\n\n",
+    )
+    receipt = valid_receipt(rendered)
+    receipt["material_items"][1]["note_anchor"] = "echo verify-visible-step"
+    receipt["practical_artifact"]["note_anchor"] = "echo verify-visible-step"
+
+    result = validate_capture_receipt(receipt, rendered, candidate_source=SOURCE)
+
+    assert result["ok"] is True
+
+
+def test_inference_label_must_occur_inside_reader_facing_excerpt():
+    receipt = valid_receipt()
+    receipt["inferences"][0]["label"] = "Writer inference"
+
+    with pytest.raises(CaptureReceiptError) as caught:
+        validate_capture_receipt(receipt, candidate(), candidate_source=SOURCE)
+
+    assert caught.value.code == "unlabeled-inference"
+
+
 def test_receipt_file_supports_long_or_shell_unsafe_json(tmp_path: Path):
     path = tmp_path / "receipt.json"
     expected = valid_receipt()
@@ -254,6 +441,70 @@ def test_receipt_rejects_invalid_copyable_skill_frontmatter():
         validate_capture_receipt(receipt, rendered, candidate_source=SOURCE)
 
     assert caught.value.code == "invalid-copyable-skill-frontmatter"
+
+
+def test_receipt_rejects_invalid_heredoc_first_skill_frontmatter():
+    rendered = candidate().replace(
+        "### 应用方法\n\n",
+        (
+            "### 应用方法\n\n"
+            "```bash\n"
+            "cat << 'EOF' > .claude/skills/reviewer/SKILL.md\n"
+            "---\n"
+            "name: reviewer\n"
+            "description: Review Java code.\n"
+            "Use when the user asks for review.\n"
+            "---\n"
+            "# Reviewer\n"
+            "EOF\n"
+            "```\n\n"
+        ),
+    )
+
+    with pytest.raises(CaptureReceiptError) as caught:
+        validate_capture_receipt(
+            valid_receipt(rendered), rendered, candidate_source=SOURCE
+        )
+
+    assert caught.value.code == "invalid-copyable-skill-frontmatter"
+
+
+def test_resource_survey_requires_evidence_for_every_concrete_resource():
+    rendered = resource_candidate()
+    receipt = valid_resource_receipt(rendered)
+
+    result = validate_capture_receipt(receipt, rendered, candidate_source=SOURCE)
+    assert result["resource_count"] == 2
+
+    receipt = valid_resource_receipt(rendered)
+    receipt["material_items"] = [
+        item
+        for item in receipt["material_items"]
+        if item["id"] != "tool-b-limitation"
+    ]
+    with pytest.raises(CaptureReceiptError) as caught:
+        validate_capture_receipt(receipt, rendered, candidate_source=SOURCE)
+    assert caught.value.code == "incomplete-resource-evidence"
+    assert caught.value.details == {
+        "resource_id": "tool-b",
+        "missing_kinds": ["limitation"],
+    }
+
+
+def test_resource_survey_rejects_global_compatibility_without_resource_identity():
+    rendered = resource_candidate()
+    receipt = valid_resource_receipt(rendered)
+    compatibility = next(
+        item
+        for item in receipt["material_items"]
+        if item["id"] == "tool-b-compatibility"
+    )
+    compatibility.pop("resource_id")
+
+    with pytest.raises(CaptureReceiptError) as caught:
+        validate_capture_receipt(receipt, rendered, candidate_source=SOURCE)
+
+    assert caught.value.code == "incomplete-resource-evidence"
 
 
 def test_receipt_accepts_valid_copyable_skill_frontmatter():

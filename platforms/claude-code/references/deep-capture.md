@@ -170,11 +170,40 @@ Required material evidence is:
 | research-evidence | `decision-implication`, `evidence`, `limitation`, `measurement-context`, `uncertainty` | `decision-method` |
 
 Every `note_anchor` and `note_excerpt` must be exact reader-facing text in the
-candidate. The candidate `source` metadata must appear in `primary_sources`.
-Declare every material supplemental source separately.
+candidate body, not YAML frontmatter or a hidden HTML comment. The candidate
+`source` metadata must appear in `primary_sources`. Declare every material
+supplemental source separately.
 
 Do not collapse compatibility across unrelated resources. For a resource
-survey, bind compatibility and limitations to concrete reader-facing entries.
+survey, add a `resources` array with one unique lowercase `id`, meaningful
+`name`, and reader-visible `canonical_url` for every concrete resource. Its
+`canonical-link`, `compatibility`, and `limitation` material items must each
+declare that resource's `resource_id`; every declared resource needs all three.
+Profile-wide selection criteria and a starting example may compare or start
+from the survey as a whole.
+
+```json
+{
+  "resources": [
+    {
+      "id": "example-tool",
+      "name": "Example Tool",
+      "canonical_url": "https://example.com/tool"
+    }
+  ],
+  "material_items": [
+    {
+      "id": "example-tool-compatibility",
+      "kind": "compatibility",
+      "resource_id": "example-tool",
+      "source": "https://example.com/article",
+      "note_anchor": "Example Tool requires Java 17",
+      "status": "resolved"
+    }
+  ]
+}
+```
+
 Copyable fenced shell examples that create `SKILL.md` must contain a closed,
 parseable YAML mapping with meaningful `name` and `description`; show an invalid
 source snippet only as non-copyable text and provide a labeled corrected
@@ -198,7 +227,8 @@ from the receipt merely because it is presented as insight.
 
 For every writer-derived conclusion, add an `inferences` entry whose exact
 excerpt, evidence basis, and explicit reader-facing label distinguish it from
-source fact:
+source fact. The exact label must occur inside `note_excerpt`; a label supplied
+only in the receipt does not count.
 
 ```json
 {

@@ -579,7 +579,7 @@ def test_bash_workbuddy_install_is_complete_and_manifested(tmp_path):
     installed = _workbuddy_skill(home)
     assert _payload_hashes(installed) == expected
     manifest = json.loads((installed / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == "1.22.0"
+    assert manifest["version"] == "1.22.1"
 
 
 def test_windows_smoke_exercises_installed_runner_from_hostile_cwd():
