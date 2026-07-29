@@ -5,6 +5,7 @@ import importlib.util
 import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -383,6 +384,69 @@ def test_readme_documents_standard_skill_entry():
     assert "~/.agents/skills/obsidian-knowledge-base" in readme
     assert "skills/obsidian-knowledge-retrieval/SKILL.md" in readme
     assert "obsidian-knowledge-retrieval" in readme
+
+
+def test_user_documentation_is_linked_and_keeps_the_readmes_focused():
+    expected_docs = {
+        "README.md": "# Obsidian Knowledge Base Skill 使用文档",
+        "getting-started.md": "# 快速开始",
+        "feature-guide.md": "# 完整功能指南",
+        "retrieval.md": "# 只读知识检索",
+        "capture-and-governance.md": "# 知识沉淀与治理",
+        "platforms-and-installation.md": "# 平台与安装",
+        "troubleshooting.md": "# 故障排查",
+    }
+    docs_index = (ROOT / "docs" / "README.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme_en = (ROOT / "README_EN.md").read_text(encoding="utf-8")
+
+    for filename, title in expected_docs.items():
+        document = ROOT / "docs" / filename
+        assert document.is_file()
+        assert title in document.read_text(encoding="utf-8")
+        if filename != "README.md":
+            assert f"({filename})" in docs_index
+
+    assert "(docs/README.md)" in readme
+    assert "(docs/README.md)" in readme_en
+    hero = ROOT / "docs" / "assets" / "obsidian-kb-hero.webp"
+    assert hero.is_file()
+    assert hero.stat().st_size < 100_000
+    assert hero.read_bytes()[:4] == b"RIFF"
+    assert 'src="docs/assets/obsidian-kb-hero.webp"' in readme
+    assert 'src="docs/assets/obsidian-kb-hero.webp"' in readme_en
+    assert "img.shields.io/github/v/release/Spc-jgs/obsidian-kb-skill" in readme
+    assert "img.shields.io/github/v/release/Spc-jgs/obsidian-kb-skill" in readme_en
+    assert "```mermaid" in readme
+    assert "```mermaid" in readme_en
+    assert sum(
+        path.read_text(encoding="utf-8").count("```mermaid")
+        for path in (ROOT / "docs").glob("*.md")
+    ) >= 3
+    assert len(readme.splitlines()) < 350
+    assert len(readme_en.splitlines()) < 350
+
+    user_documents = [
+        ROOT / "README.md",
+        ROOT / "README_EN.md",
+        *(ROOT / "docs").glob("*.md"),
+    ]
+    for document in user_documents:
+        content = document.read_text(encoding="utf-8")
+        targets = re.findall(r"\[[^\]]+\]\(([^)]+)\)", content)
+        targets.extend(re.findall(r'(?:href|src)="([^"]+)"', content))
+        for target in targets:
+            local_target = target.split("#", 1)[0]
+            if (
+                not local_target
+                or local_target.startswith("#")
+                or "://" in local_target
+                or local_target.startswith("mailto:")
+            ):
+                continue
+            assert (document.parent / local_target).resolve().exists(), (
+                f"{document.relative_to(ROOT)} links to missing {target}"
+            )
 
 
 def test_readmes_do_not_tell_users_to_edit_generated_platform_files():
