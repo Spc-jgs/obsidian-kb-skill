@@ -56,6 +56,38 @@ def test_chinese_templates_are_actually_chinese():
     assert "足以复现" in web_clip
 
 
+def test_digest_templates_share_v2_context_recovery_structure():
+    zh = (ROOT / "core" / "templates" / "digest-note.md").read_text(
+        encoding="utf-8"
+    )
+    en = (ROOT / "core" / "templates" / "en" / "digest-note.md").read_text(
+        encoding="utf-8"
+    )
+
+    for marker in (
+        "## 恢复卡片",
+        "## 边界与约束",
+        "## 决策与依据",
+        "## 证据与产物",
+        "## 未决事项与下一步",
+        "**目标**",
+        "**当前结论**",
+    ):
+        assert marker in zh
+    for marker in (
+        "## Resume Card",
+        "## Scope and Constraints",
+        "## Decisions and Rationale",
+        "## Evidence and Artifacts",
+        "## Open Questions and Next Actions",
+        "**Goal**",
+        "**Current conclusion**",
+    ):
+        assert marker in en
+    assert "decisions:" not in zh
+    assert "decisions:" not in en
+
+
 def test_web_clip_locales_share_deep_capture_semantics():
     zh = (ROOT / "core" / "templates" / "web-clip.md").read_text(
         encoding="utf-8"

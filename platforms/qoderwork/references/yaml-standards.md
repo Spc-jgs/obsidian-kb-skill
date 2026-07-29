@@ -25,7 +25,7 @@ Additional fields by type:
 | `project-note` | `status: active`, `updated: "YYYY-MM-DD"`, `related: []` |
 | `insight-note` | `source: ""`, `related: []` |
 | `person-note` | `role: ""`, `organization: ""`, `updated: "YYYY-MM-DD"`, `related: []` |
-| `conversation-digest` | `source: ""`, `related: []` |
+| `conversation-digest` | `source: ""`, `project: ""`, `related: []` |
 
 For a `web-clip`, `source` stores the canonical source URL only. Keep the article title in the note heading and source-information section; use `author` and `published` for their respective values. For non-web notes, `source` may be a concise source description when no canonical URL exists.
 

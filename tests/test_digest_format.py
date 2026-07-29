@@ -1,7 +1,7 @@
-"""Conversation Digest redesign: keep the agent-friendly format in sync.
+"""Conversation Digest v2: keep layered context recovery lazy and in sync.
 
-The digest was redesigned from a narrative essay into a decision-dense,
-link-rich, short context artifact. The spec lives in
+The digest is a 30-second resume card plus the details needed for safe context
+recovery. The spec lives in
 core/references/conversation-digest.md (lazy-loaded); the always-loaded body
 only points to it, so generated artifacts must NOT inline the digest details.
 """
@@ -14,17 +14,20 @@ GENERATED = [
     ROOT / "skills" / "obsidian-knowledge-base" / "SKILL.md",
 ]
 
-# Markers that define the redesigned, agent-friendly digest format.
+# Markers that define layered context recovery.
 MARKERS = [
-    "decision-dense",          # the core design intent
-    "decisions",               # structured frontmatter list (primary field)
-    "TL;DR",                   # short body anchor
-    "250 words",               # explicit brevity cap
+    "30-second Resume Card",
+    "Scope and Constraints",
+    "Decisions and Rationale",
+    "Evidence and Artifacts",
+    "Open Questions and Next Actions",
 ]
 
-# Phrases from the OLD narrative format that must NOT survive.
+# Phrases from superseded formats that must NOT survive.
 FORBIDDEN = [
     "confirmed conclusions",
+    "250 words",
+    "Frontmatter carries the load",
 ]
 
 
@@ -48,7 +51,9 @@ def test_generated_artifacts_do_not_inline_digest_spec():
         if not path.exists():
             continue
         text = path.read_text(encoding="utf-8")
-        assert "250 words" not in text, f"{path.name} inlines digest spec (should be lazy-loaded)"
+        assert "30-second Resume Card" not in text, (
+            f"{path.name} inlines digest spec (should be lazy-loaded)"
+        )
         assert "## Conversation Digest Workflow" not in text, (
             f"{path.name} inlines digest spec (should be lazy-loaded)"
         )

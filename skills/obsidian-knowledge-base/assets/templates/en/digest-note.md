@@ -3,31 +3,34 @@ date: "{{date}}"
 type: conversation-digest
 tags: [insight]
 source: ""
+project: ""
 related: []
 ---
 
 # Conversation Title
 
-## Context
+## Resume Card
 
-> Why this conversation happened, who was involved, and what the goal was.
+<!-- Fill every field in at most 12 non-empty lines. This is the 30-second layer, not a whole-note length limit. -->
 
-## Confirmed Conclusions
+- **Goal**:
+- **State**:
+- **Current conclusion**:
+- **Next step**:
+- **Key artifacts**:
 
--
+## Scope and Constraints
 
-## Rejected or Revised Ideas
+<!-- Keep only scope, non-goals, user requirements, and constraints needed for safe continuation. -->
 
--
+## Decisions and Rationale
 
-## Follow-up Tasks
+<!-- State decisions and necessary rationale. Include a rejected option only when it prevents repeated work. -->
 
-- [ ]
+## Evidence and Artifacts
 
-## Related Projects
+<!-- Cite paths, commands and results, tests, commits, logs, or links; distinguish verified, inferred, and open claims. -->
 
--
+## Open Questions and Next Actions
 
-## Open Questions
-
--
+<!-- State open questions, blockers, the first action, and completion condition; explicitly close completed work. -->

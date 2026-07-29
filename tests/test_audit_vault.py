@@ -1087,3 +1087,113 @@ def test_accepts_conversation_digest_type(tmp_path):
     codes_found = codes(tmp_path)
     assert "invalid-type" not in codes_found
     assert "missing-type" not in codes_found
+
+
+def _write_digest_template(vault: Path) -> None:
+    templates = vault / "Templates"
+    templates.mkdir(exist_ok=True)
+    (templates / "Digest Note.md").write_text(
+        '---\ndate: "{{date}}"\ntype: conversation-digest\n'
+        "tags: [insight]\nsource: ''\nproject: ''\nrelated: []\n---\n"
+        "# Conversation\n\n"
+        "## Resume Card\n\n"
+        "- **Goal**:\n- **State**:\n- **Current conclusion**:\n"
+        "- **Next step**:\n- **Key artifacts**:\n\n"
+        "## Scope and Constraints\n\n"
+        "## Decisions and Rationale\n\n"
+        "## Evidence and Artifacts\n\n"
+        "## Open Questions and Next Actions\n",
+        encoding="utf-8",
+    )
+
+
+def _valid_digest() -> str:
+    return (
+        '---\ndate: "2026-07-29"\ntype: conversation-digest\n'
+        'tags: [insight]\nsource: "Codex"\nproject: "obsidian-kb-skill"\n'
+        "related: []\n---\n"
+        "# Conversation context\n\n"
+        "## Resume Card\n\n"
+        "- **Goal**: Upgrade conversation context recovery.\n"
+        "- **State**: Decided; implementation is in progress.\n"
+        "- **Current conclusion**: Use a layered immutable digest.\n"
+        "- **Next step**: Implement and validate the v2 contract.\n"
+        "- **Key artifacts**: Design spec and focused tests.\n\n"
+        "## Scope and Constraints\n\n"
+        "Keep Task Memory authoritative for active task state.\n\n"
+        "## Decisions and Rationale\n\n"
+        "Use a short resume card plus details so scanning does not remove evidence.\n\n"
+        "## Evidence and Artifacts\n\n"
+        "The template, reference, preflight, and audit must agree.\n\n"
+        "## Open Questions and Next Actions\n\n"
+        "Run the complete regression suite after focused tests pass.\n"
+    )
+
+
+def test_accepts_complete_conversation_digest_v2(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    _write_digest_template(tmp_path)
+
+    findings = audit_note_text(
+        tmp_path,
+        tmp_path / "Digest.md",
+        _valid_digest(),
+    )
+
+    assert not {
+        finding.code
+        for finding in findings
+        if finding.code.startswith("conversation-digest")
+        or finding.code == "missing-conversation-digest-heading"
+    }
+
+
+def test_reports_outdated_conversation_digest_template_and_note(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    templates = tmp_path / "Templates"
+    templates.mkdir()
+    (templates / "Digest Note.md").write_text(
+        '---\ntype: conversation-digest\ntags: [insight]\n---\n'
+        "# Template\n\n## Context\n\n## Confirmed Conclusions\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "Digest.md").write_text(
+        '---\ndate: "2026-07-29"\ntype: conversation-digest\n'
+        'tags: [insight]\nsource: "Codex"\nrelated: []\n---\n'
+        "# Digest\n\n## Context\n\nOld shape.\n\n"
+        "## Confirmed Conclusions\n\nA conclusion.\n",
+        encoding="utf-8",
+    )
+
+    findings = audit_vault(tmp_path)
+
+    assert any(
+        finding.code == "outdated-conversation-digest-template"
+        and finding.path == "Templates/Digest Note.md"
+        for finding in findings
+    )
+    assert any(
+        finding.code == "missing-conversation-digest-heading"
+        and finding.path == "Digest.md"
+        for finding in findings
+    )
+
+
+def test_reports_missing_resume_fields_and_overlong_resume_card(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    _write_digest_template(tmp_path)
+    rendered = _valid_digest().replace(
+        "- **Current conclusion**: Use a layered immutable digest.\n",
+        "- **Current conclusion**:\n"
+        + "".join(f"- Extra context line {index}.\n" for index in range(10)),
+    )
+
+    findings = audit_note_text(
+        tmp_path,
+        tmp_path / "Digest.md",
+        rendered,
+    )
+    found_codes = {finding.code for finding in findings}
+
+    assert "conversation-digest-missing-resume-field" in found_codes
+    assert "conversation-digest-resume-card-too-long" in found_codes

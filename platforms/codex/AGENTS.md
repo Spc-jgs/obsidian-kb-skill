@@ -6,7 +6,7 @@
 
 Installed compatibility resources live at `~/.obsidian-kb-skill/skill`; use that directory as `<skill-root>` for references, assets, and bundled helpers.
 
-**Trigger**: Only on explicit save intent ("save to Obsidian", "沉淀", "记一下"). Never for Q&A/debug/chat.
+**Trigger**: Use on explicit save intent ("save to Obsidian", "沉淀", "记一下") or an explicit request to evaluate what from a conversation is worth capturing. Harvest analysis may be read-only; never mutate the Vault without save intent. Never use for unrelated Q&A/debug/chat.
 
 ## Overview
 
@@ -14,20 +14,24 @@ Agent-agnostic instructions to create, organize, and update notes in an Obsidian
 
 ## DO NOT auto-save
 
-This skill **never writes to the vault on its own**. Act only after **explicit save intent** ("save to Obsidian", "沉淀", "总结存档"). For Q&A, debugging, or casual chat: do nothing.
+This skill **never writes to the vault on its own**. Write only after **explicit save intent** ("save to Obsidian", "沉淀", "总结存档"). An explicit request to evaluate what from a conversation is worth capturing may run `conversation-harvest.md` as analysis only. For unrelated Q&A, debugging, or casual chat: do nothing.
 
-## When the user asks to save
+## When the user asks to save or review capture candidates
 
-1. **Find vault**: env `OBSIDIAN_KB_VAULT` → `~/.obsidian-kb-config` → ask. Refuse unless a real vault (`.obsidian/` + `Templates/`).
-2. **Read exactly one primary reference before writing**:
+1. **Route analysis before Vault discovery**: for an analysis-only conversation review, read `conversation-harvest.md`, return the candidate proposal, and stop without locating or scanning a Vault. Otherwise continue.
+2. **Find vault for a write**: env `OBSIDIAN_KB_VAULT` → `~/.obsidian-kb-config` → ask. Refuse unless a real vault (`.obsidian/` + `Templates/`).
+3. **Read the smallest operation-specific reference set before writing**:
    - New note: read only `note-creation.md`.
    - Finished source-backed article: after `note-creation.md` routes it, also read
      `deep-capture.md`; quick/unread captures do not load it.
    - Crowded selected destination: when compact discovery reports it, also read
      `folder-routing.md`; uncrowded destinations do not load it.
-   - Existing note: read only `update-note.md`; conversation archive: read only `conversation-digest.md`.
+   - Existing note: read only `update-note.md`.
+   - Conversation context archive: read `conversation-digest.md`.
+   - Conversation knowledge review: read `conversation-harvest.md`; load
+     `note-creation.md` only after one durable candidate is selected for writing.
    - Task Memory: read `task-memory.md` only after explicit opt-in (**off by default**).
    - YAML, rules, and Git references are troubleshooting or post-processing material: load `yaml-standards.md`, `rules-and-errors.md`, or `git.md` only when the current task requires it.
-3. **Prefer bundled helpers** (never a one-off script): run `python <skill-root>/scripts/run_helper.py <helper> ...`, where `<skill-root>` contains this `SKILL.md`. For new notes use `create-note --preflight-json`, inspect the structured validation, then repeat with `--apply --compact-json`; `update-note` is only for Task Memory, while ordinary existing-note edits follow `update-note.md` with native file tools.
-4. **Stay bounded**: ≤10 files scanned, ≤1 note written, ≤5 wikilinks. Never overwrite; add `-2` on name clash. Validate after.
-5. **Route**: daily→`15-Daily` · meeting→`10-Work` · learning/article→`20-Learning` · insight/digest→`30-Insights` · project→`40-Projects` · person→`50-People` · quick/unread source→`00-Inbox`. A saved article is deep by default; a bookmark or incompletely read source is not a finished knowledge note.
+4. **Prefer bundled helpers** (never a one-off script): run `python <skill-root>/scripts/run_helper.py <helper> ...`, where `<skill-root>` contains this `SKILL.md`. For new notes use `create-note --preflight-json`, inspect the structured validation, then repeat with `--apply --compact-json`; `update-note` is only for Task Memory, while ordinary existing-note edits follow `update-note.md` with native file tools.
+5. **Stay bounded**: ≤10 files scanned, ≤1 note written, ≤5 wikilinks. Never overwrite; add `-2` on name clash. Validate after.
+6. **Route**: daily→`15-Daily` · meeting→`10-Work` · learning/article→`20-Learning` · insight/digest→`30-Insights` · project→`40-Projects` · person→`50-People` · quick/unread source→`00-Inbox`. A saved article is deep by default; a bookmark or incompletely read source is not a finished knowledge note.

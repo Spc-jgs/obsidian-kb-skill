@@ -1,43 +1,116 @@
 # Conversation Digest Workflow (reference)
 
-Loaded only when the user asks to compress a chat into a note. The always-loaded skill body points here.
+Load only when the user asks to preserve one coherent conversation as an
+immutable context snapshot for later reading or continuation.
 
-## Conversation Digest Workflow
+## Purpose and Boundary
 
-Turn a conversation into a **reusable context artifact** — a note a future agent (or you) re-reads in seconds to resume work (triggers: "沉淀这段对话", "summarize this chat", "把对话存成笔记").
+Create a `conversation-digest` when the user wants to save a discussion's
+context, conclusions, evidence, and next actions. The digest is an **immutable
+snapshot** of that conversation, not a transcript, durable knowledge article,
+or continuously updated task state.
 
-> **Design intent.** A digest is *decision-dense, link-rich, and short* — **not** a transcript or essay. Its only job: let a future reader answer *"what was decided, what's open, where are the details"* without re-reading the chat. Put depth in the linked durable notes; keep the digest shallow.
+Route by future use:
 
-### When to use
-- The conversation produced decisions, trade-offs, or action items worth keeping.
-- The user explicitly asks to save or summarize.
+- Preserve why a conversation reached its current conclusion →
+  `conversation-digest`.
+- Continue an active task across agents, sessions, or tools → Task Memory
+  (`task-memory.md`), which remains the authoritative mutable state.
+- Identify reusable problems, knowledge, reflection, or design from a
+  conversation → `conversation-harvest.md`.
+- If “沉淀这段对话” does not reveal which future use the user means, ask one
+  focused routing question before writing.
 
-### Routing
-- Specific active project → `40-Projects/`. Otherwise → `30-Insights/` with `type: conversation-digest`.
-- One digest per *coherent topic*; split only when topics are independent.
+Route a project-specific digest to `40-Projects/`; otherwise use
+`30-Insights/`. Keep one digest per coherent topic. A digest may link to an
+active `TASK.md`, but must not duplicate or compete with its current state.
 
-### Format (keep scannable)
-1. Resolve & validate the vault (same as Note Creation).
-2. `type: conversation-digest`. **Frontmatter carries the load** — a future agent scans this first:
-   - `date`: today.
-   - `tags`: 2–5 lowercase kebab-case (general category; satisfies the validator).
-   - `decisions`: **list of short, self-contained decision lines** (≤ ~120 chars; state the outcome, add *why* only if non-obvious). This is the primary field.
-   - `open`: optional open questions / blockers carried forward.
-   - `source`: counterpart or agent (e.g. "WorkBuddy").
-   - `related`: wikilinks to the *durable* notes holding the details — the digest stays shallow on purpose.
-3. Body (target ≤ ~250 words):
-   - `## TL;DR` — one or two sentences: what this conversation achieved.
-   - `## Decisions` — bullets mirroring `decisions` (1 line each; link out instead of explaining).
-   - `## Open` — optional bullets mirroring `open`.
-   - **No** "background / narrative / revised-ideas" essays.
-4. Wikilinks: prefer *existing* durable notes over re-explaining (bounded-search rules from Note Creation).
-5. Write, apply the detected index strategy, validate (same as Note Creation).
+## Layered Context Recovery
 
-### Quality guarantee (no factual drift, no loss)
-- **Grounded only.** Every `decisions` bullet must trace to this conversation. If you're unsure X was actually decided, **do not write it** — capture outcomes, not inferences.
-- **Atomic, not narrative.** One self-contained outcome per bullet. Depth belongs in `related` notes; never re-tell the story (prose is where drift crept in before).
-- **Conflict resolution (Mem0-style).** If a new decision contradicts an existing digest's `decisions`, **update the old bullet** — never append a contradictory second one.
-- **Completeness.** `TL;DR` + `decisions` are mandatory and non-empty. An empty-decisions digest is invalid.
-- **Self-check.** After writing, run `audit_vault.py --strict` and re-read the note; delete any claim not grounded in the chat.
+Keep a **30-second Resume Card** at the top. The 30-second target applies to
+that first layer, **not a whole-note word limit**. Include as much grounded
+detail as needed below it, without narrating the chat turn by turn.
 
-> Rule of thumb: a future agent gets the gist in <30 seconds and knows which linked note holds the depth. If not, shorten it.
+Frontmatter carries only identity, routing, and retrieval metadata:
+
+```yaml
+date: 2026-07-29
+type: conversation-digest
+tags: [insight, project-topic]
+source: "Codex"
+project: ""
+related: []
+```
+
+Do not duplicate decisions or open items in both frontmatter and body. The
+reader-visible body is authoritative.
+
+Use the localized standard structure:
+
+1. `## Resume Card`
+2. `## Scope and Constraints`
+3. `## Decisions and Rationale`
+4. `## Evidence and Artifacts`
+5. `## Open Questions and Next Actions`
+
+The Chinese template uses the equivalent headings `恢复卡片`, `边界与约束`,
+`决策与依据`, `证据与产物`, and `未决事项与下一步`.
+
+### Resume Card
+
+Use at most 12 non-empty visible lines. Supply non-empty values for:
+
+- **Goal** — the problem or outcome this conversation addressed;
+- **State** — exploring, decided, paused, completed, or an equally clear state;
+- **Current conclusion** — the best grounded result at this snapshot;
+- **Next step** — the first executable continuation, or an explicit closed/no
+  further action statement;
+- **Key artifacts** — the canonical files, notes, commits, URLs, logs, or an
+  explicit statement that the source conversation is the only artifact.
+
+### Scope and Constraints
+
+Record material in-scope and out-of-scope boundaries, user requirements,
+non-goals, invariants, and constraints that a future reader must not violate.
+Omit chat history that does not change future action.
+
+### Decisions and Rationale
+
+Record atomic decisions and enough rationale to avoid reopening the original
+conversation. Include a rejected or revised option only when its reason will
+prevent repeated work. An exploratory conversation may say that no final
+decision exists, but must preserve the current options or working conclusion.
+
+### Evidence and Artifacts
+
+Point to reader-inspectable evidence: file paths, commands and results, tests,
+commits, pull requests, logs, screenshots, URLs, or related Vault notes.
+Separate **verified**, **inferred**, and **open** claims in reader-visible text.
+Never present a successful edit, test, external action, or decision as verified
+when the conversation does not contain its evidence.
+
+### Open Questions and Next Actions
+
+Keep unresolved questions, blockers, the first safe next action, and its
+completion condition. A completed conversation may explicitly state that no
+next action remains instead of inventing one.
+
+## Quality Contract
+
+- **Grounded:** every fact, decision, failure, and status traces to the source
+  conversation or a cited artifact.
+- **Minimum sufficient context:** a cold reader can answer goal, state, current
+  conclusion, next action, and evidence location from the Resume Card.
+- **Safe continuation:** the detailed sections expose constraints, rationale,
+  verification boundaries, and only the failed attempts worth not repeating.
+- **No narrative transcript:** preserve causal context, not turn-by-turn prose.
+- **No competing state:** Task Memory owns mutable active-task state; durable
+  notes own deep knowledge.
+- **Structural acceptance:** preflight and audit must accept the versioned v2
+  headings and the complete Resume Card.
+- **Semantic acceptance:** re-read the candidate as a cold reader. If safe
+  continuation still requires reopening the chat, the digest is incomplete.
+
+Create the note through the ordinary `note-creation.md` preflight/apply path,
+then report the saved path and structural audit result separately from the
+cold-reader semantic check.

@@ -1,5 +1,5 @@
 ---
-description: "Save/update notes in an Obsidian vault. Invoke ONLY on explicit save intent ('save to Obsidian', '沉淀', '记一下'). Never for Q&A/debug/chat."
+description: "Save/update notes in an Obsidian vault or evaluate what from a conversation is worth capturing. Harvest analysis may be read-only; never mutate the Vault without explicit save intent. Never use for unrelated Q&A/debug/chat."
 globs:
   - "**/knowledge*"
   - "**/notes*"
