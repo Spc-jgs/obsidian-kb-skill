@@ -1,0 +1,103 @@
+# 完整功能指南
+
+## 功能总览
+
+| 能力 | 做什么 | 默认是否写入 Vault | 主要入口 |
+|---|---|---:|---|
+| 只读知识检索 | 按标题、别名、标签、标题层级、wikilink 和正文排序 | 否 | `obsidian-knowledge-retrieval` |
+| 带引用回答 | 返回相对路径、标题、行号、片段和匹配原因 | 否 | `search-vault` |
+| Vault 发现 | 识别 Vault、目录、模板、索引策略和自定义治理 | 否 | `vault-info` |
+| 笔记创建 | 路由类型、合并 frontmatter、套用模板、避免覆盖 | 仅 `--apply` | `create-note` |
+| 深度文章沉淀 | 保留原理、步骤、配置、验证、限制与来源证据 | 需明确保存意图 | 写入 Skill |
+| 会议/学习/洞察/项目/人物 | 使用八种预置模板和 Vault 自定义模板 | 需明确保存意图 | 写入 Skill |
+| 新分类创建 | 先预检，再经用户确认创建目录和索引 | 仅确认后 | `create-category` |
+| Inbox 归档 | 推断目标类型与目录，先计划后移动 | 默认否 | `process-inbox` |
+| 链接建议 | 在受限候选集中解释关联原因 | 否 | `suggest-links` |
+| Vault 审计 | 检查 frontmatter、模板、链接、索引和文章完整性 | 否 | `audit-vault` |
+| 自定义模板识别 | 识别模板变化并绑定模板哈希，避免陈旧解释 | 否 | `template-contract` |
+| 索引兼容 | 支持 Folder Index、Dataview 和静态 INDEX | 按所有权决定 | `detect-index` |
+| Task Memory | 多 Agent 长任务的可选交接日志 | 默认关闭 | `update-note` |
+| 写前备份 | 更新任务记忆前按全局策略保留有限备份 | 更新时 | helper 内部 |
+| 安装诊断 | 校验 manifest、payload、Python、依赖和资源 | 否 | `doctor` |
+
+## 两个 Skill 如何配合
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant R as Retrieval Skill
+    participant W as Write Skill
+    participant V as Obsidian Vault
+
+    U->>R: “查一下现有设计决定”
+    R->>V: 只读扫描与排序
+    V-->>R: 路径、行号、片段
+    R-->>U: 带引用回答
+
+    U->>W: “把结论更新到项目笔记”
+    W->>V: 读取治理、模板、Git 与目标状态
+    W-->>U: 预检或必要确认
+    U-->>W: 明确确认
+    W->>V: 受约束写入并审计
+    W-->>U: 写入路径与验收结果
+```
+
+检索不会隐式触发写入。即使一句话同时包含“先找再保存”，也要先完成只读证据收集，再让写入 Skill 独立执行自己的授权和预检。
+
+## 预置笔记类型
+
+| 类型 | 默认目录 | 适合内容 |
+|---|---|---|
+| `daily-note` | `15-Daily/` | 日记、计划、复盘 |
+| `meeting-note` | `10-Work/` | 会议、评审、站会 |
+| `learning-note` | `20-Learning/` | 课程、书籍、普通学习 |
+| `web-clip` | `20-Learning/` | 完整文章、博客、论文沉淀 |
+| `insight-note` | `30-Insights/` | 洞察、分析、AI 对话结论 |
+| `project-note` | `40-Projects/` | 项目目标、进展、风险 |
+| `person-note` | `50-People/` | 人物、角色、互动与跟进 |
+| `digest-note` | 按内容路由 | AI 对话摘要和后续任务 |
+
+实际路由优先服从 Vault 根目录及子目录的 `AGENTS.md`，再使用项目默认值。
+
+## CLI 入口
+
+安装 wheel 或 `.[dev]` 后可使用：
+
+```text
+obsidian-audit-vault
+obsidian-capture-receipt
+obsidian-create-category
+obsidian-create-note
+obsidian-detect-index
+obsidian-process-inbox
+obsidian-scaffold-templates
+obsidian-search-vault
+obsidian-suggest-links
+obsidian-template-contract
+obsidian-update-note
+obsidian-vault-info
+```
+
+通过安装器部署的 Skill 使用：
+
+```bash
+python <skill-root>/scripts/run_helper.py <helper> ...
+```
+
+所有支持 `--json` 的命令都会输出一个完整 JSON 文档，适合 Agent 或自动化工具消费。
+
+## 默认安全策略
+
+- 不因普通问答自动保存。
+- 只在配置的 Vault 根目录内解析路径，并在解析 symlink 后再次校验边界。
+- 创建不覆盖同名文件；更新只修改受约束区域。
+- 外部来源不完整时不冒充完成的深度文章。
+- Folder Index 或 Dataview 拥有目录成员列表时，不由 Agent 重复维护。
+- Git 分歧或冲突会停止，不自动解决索引冲突。
+- 检索不联网、不创建持久索引或缓存、不包含写 helper。
+
+继续阅读：
+
+- [只读检索](retrieval.md)
+- [知识沉淀与治理](capture-and-governance.md)
+- [故障排查](troubleshooting.md)
