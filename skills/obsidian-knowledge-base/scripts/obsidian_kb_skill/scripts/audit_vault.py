@@ -13,6 +13,13 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
+from obsidian_kb_skill.scripts.conversation_digest_contract import (
+    CONVERSATION_DIGEST_CONTRACT_VERSION,
+    CONVERSATION_DIGEST_HEADING_VARIANTS,
+    CONVERSATION_DIGEST_RESUME_FIELD_VARIANTS,
+    conversation_digest_locale,
+    formatted_conversation_digest_variants,
+)
 from obsidian_kb_skill.scripts.deep_capture_contract import (
     DEEP_CAPTURE_CONTRACT_VERSION,
     formatted_deep_capture_variants,
@@ -105,6 +112,16 @@ TEMPLATE_INSTRUCTION_MARKERS = (
     "after reconstructing the source",
     "add only vault notes that actually exist",
     "link only to existing vault notes",
+    "用不超过 12 个非空行填写全部字段",
+    "只保留未来续接不能违反的范围",
+    "写决定及必要理由",
+    "列出路径、命令及结果",
+    "写开放问题、阻塞项、第一步行动",
+    "fill every field in at most 12 non-empty lines",
+    "keep only scope, non-goals, user requirements",
+    "state decisions and necessary rationale",
+    "cite paths, commands and results",
+    "state open questions, blockers, the first action",
 )
 
 
@@ -347,6 +364,31 @@ def _audit_deep_capture_template(
     )
 
 
+def _audit_conversation_digest_template(
+    findings: list[Finding],
+    vault: Path,
+) -> None:
+    template = vault / "Templates" / "Digest Note.md"
+    if not template.is_file():
+        return
+    actual = markdown_section_headings(
+        template.read_text(encoding="utf-8"),
+        levels=(2,),
+    )
+    if conversation_digest_locale(actual) is not None:
+        return
+    observed = " -> ".join(actual) or "(none)"
+    _add(
+        findings,
+        "outdated-conversation-digest-template",
+        template.relative_to(vault),
+        "Digest Note template does not satisfy the version "
+        f"{CONVERSATION_DIGEST_CONTRACT_VERSION} context-recovery baseline; "
+        f"accepted baselines: {formatted_conversation_digest_variants()}; "
+        f"actual headings: {observed}",
+    )
+
+
 def _audit_related(
     findings: list[Finding],
     relative: Path,
@@ -516,6 +558,95 @@ def _without_fenced_code(text: str) -> tuple[str, bool]:
 def _without_code_examples(text: str) -> str:
     outside, _ = _without_fenced_code(text)
     return INLINE_CODE_RE.sub("", outside)
+
+
+def _h2_sections(text: str) -> dict[str, str]:
+    """Return visible level-two section bodies outside frontmatter and code."""
+    visible = _without_code_examples(text)
+    if visible.startswith("---\n"):
+        end = visible.find("\n---\n", 4)
+        if end != -1:
+            visible = visible[end + 5 :]
+    sections: dict[str, list[str]] = {}
+    current: str | None = None
+    for line in visible.splitlines():
+        match = re.fullmatch(r"##[ \t]+(.+?)[ \t]*#*[ \t]*", line)
+        if match:
+            current = match.group(1).strip()
+            sections.setdefault(current, [])
+            continue
+        if current is not None:
+            sections[current].append(line)
+    return {
+        heading: "\n".join(lines)
+        for heading, lines in sections.items()
+    }
+
+
+def _audit_conversation_digest(
+    findings: list[Finding],
+    relative: Path,
+    text: str,
+    metadata: dict[str, Any] | None,
+) -> None:
+    if (
+        not metadata
+        or metadata.get("type") != "conversation-digest"
+        or (relative.parts and relative.parts[0] == "Templates")
+    ):
+        return
+    actual = markdown_section_headings(text, levels=(2,))
+    locale = conversation_digest_locale(actual)
+    if locale is None:
+        observed = " -> ".join(actual) or "(none)"
+        _add(
+            findings,
+            "missing-conversation-digest-heading",
+            relative,
+            "conversation-digest does not satisfy the version "
+            f"{CONVERSATION_DIGEST_CONTRACT_VERSION} context-recovery "
+            "heading baseline; accepted baselines: "
+            f"{formatted_conversation_digest_variants()}; "
+            f"actual headings: {observed}",
+        )
+        return
+
+    required_headings = dict(CONVERSATION_DIGEST_HEADING_VARIANTS)[locale]
+    resume_heading = required_headings[0]
+    resume = _h2_sections(text).get(resume_heading, "")
+    visible_resume = HTML_COMMENT_RE.sub("", resume)
+    visible_lines = [
+        line.strip()
+        for line in visible_resume.splitlines()
+        if line.strip()
+    ]
+    if len(visible_lines) > 12:
+        _add(
+            findings,
+            "conversation-digest-resume-card-too-long",
+            relative,
+            "Resume Card must contain at most 12 non-empty visible lines; "
+            f"found {len(visible_lines)}",
+        )
+
+    missing: list[str] = []
+    for field in CONVERSATION_DIGEST_RESUME_FIELD_VARIANTS[locale]:
+        pattern = re.compile(
+            rf"^[ \t]*[-*][ \t]+\*\*{re.escape(field)}\*\*"
+            rf"[ \t]*[:：][ \t]*(?P<value>.+?)?[ \t]*$",
+            re.MULTILINE | re.IGNORECASE,
+        )
+        match = pattern.search(visible_resume)
+        if match is None or not (match.group("value") or "").strip():
+            missing.append(field)
+    if missing:
+        _add(
+            findings,
+            "conversation-digest-missing-resume-field",
+            relative,
+            "Resume Card requires non-empty values for: "
+            + ", ".join(missing),
+        )
 
 
 def _has_unclosed_fence(text: str) -> bool:
@@ -727,6 +858,7 @@ def audit_vault(vault: Path) -> list[Finding]:
     vault = vault.resolve()
     findings: list[Finding] = []
     _audit_deep_capture_template(findings, vault)
+    _audit_conversation_digest_template(findings, vault)
     folder_index_config = read_folder_index_config(vault)
     linkable = _all_linkable_files(vault)
     by_name: dict[str, list[Path]] = defaultdict(list)
@@ -772,6 +904,7 @@ def audit_vault(vault: Path) -> list[Finding]:
         _audit_empty_template(findings, relative, text, metadata)
         if metadata and metadata.get("type") == "web-clip":
             _audit_deep_capture_headings(findings, relative, text, metadata)
+        _audit_conversation_digest(findings, relative, text, metadata)
         _audit_folder_index_content(findings, relative, text, metadata)
         if _has_unclosed_fence(text):
             _add(findings, "unclosed-fence", relative, "fenced code block is not closed")
@@ -847,6 +980,7 @@ def _audit_note_content(
     _audit_related(findings, relative, metadata)
     _audit_web_clip(findings, relative, metadata)
     _audit_empty_template(findings, relative, text, metadata)
+    _audit_conversation_digest(findings, relative, text, metadata)
     _audit_folder_index_content(findings, relative, text, metadata)
     _audit_template_placeholders(findings, relative, text)
     _audit_template_instruction_comments(findings, relative, text)

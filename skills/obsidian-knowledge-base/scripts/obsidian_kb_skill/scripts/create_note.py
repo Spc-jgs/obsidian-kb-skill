@@ -82,7 +82,7 @@ EXTRA_FIELDS: dict[str, dict[str, Any]] = {
     "learning-note": {"source": "", "category": "", "related": []},
     "web-clip": {"source": "", "author": "", "published": "", "related": []},
     "insight-note": {"source": "", "related": []},
-    "conversation-digest": {"source": "", "related": []},
+    "conversation-digest": {"source": "", "project": "", "related": []},
     "project-note": {"status": "active", "related": []},
     "person-note": {"role": "", "organization": "", "related": []},
     "task-memory": {

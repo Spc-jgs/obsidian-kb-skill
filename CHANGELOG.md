@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-07-29
+
+### Added
+
+- Added the lazy `conversation-harvest` workflow to evaluate conversation-derived problems, reusable knowledge, reflection, and design with `verified`, `inferred`, `open`, and `skip` evidence states before any write.
+- Added a dedicated guide for choosing between immutable conversation digests, mutable Task Memory, and durable knowledge promotion.
+
+### Changed
+
+- Redesigned `conversation-digest` as a versioned layered context-recovery artifact: a bounded 30-second Resume Card leads into scope, rationale, evidence, and next actions without imposing a whole-note word limit.
+- Conversation harvest remains an analysis and routing workflow rather than a new note type; one clear durable candidate may use the existing single-note path, while multiple independent candidates require selection.
+
+### Fixed
+
+- Synchronized the Digest reference, Chinese and English templates, creation fallback metadata, documentation slug, and generated payloads.
+- Vault and candidate-note audits now report outdated Digest templates, incomplete v2 heading structures, missing Resume Card fields, and overlong Resume Cards.
+
 ## [1.23.0] - 2026-07-29
 
 ### Added

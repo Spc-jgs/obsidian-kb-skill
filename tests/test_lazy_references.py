@@ -27,6 +27,8 @@ GATING_MARKERS = [
     "DO NOT auto-save",
     "never writes to the vault on its own",
     "explicit save intent",
+    "conversation-harvest.md",
+    "analysis only",
 ]
 
 # Pointers that MUST stay in the always-loaded body. The gate names each
@@ -38,6 +40,7 @@ POINTER_MARKERS = [
     "note-creation.md",            # where the create workflow lives
     "deep-capture.md",             # conditional finished-article contract
     "folder-routing.md",            # conditional crowded-folder contract
+    "conversation-harvest.md",      # conditional conversation value review
     "rules-and-errors.md",         # where the rules live
 ]
 
@@ -96,6 +99,16 @@ def test_core_limits_update_helper_to_task_memory_notes():
     assert "`update-note` is only for Task Memory" in text
 
 
+def test_harvest_analysis_does_not_grant_write_authority():
+    text = CORE.read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+
+    assert "Write only after **explicit save intent**" in normalized
+    assert "conversation-harvest.md` as analysis only" in normalized
+    assert "Route analysis before Vault discovery" in normalized
+    assert "stop without locating or scanning a Vault" in normalized
+
+
 def test_core_body_does_not_inline_heavy_specs():
     text = CORE.read_text(encoding="utf-8")
     for bad in BODY_FORBIDDEN:
@@ -107,6 +120,7 @@ def test_all_reference_files_exist():
         "note-creation.md",
         "update-note.md",
         "conversation-digest.md",
+        "conversation-harvest.md",
         "task-memory.md",
         "yaml-standards.md",
         "rules-and-errors.md",

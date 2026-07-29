@@ -10,6 +10,7 @@
 | 了解目前到底有哪些功能 | [完整功能指南](feature-guide.md) |
 | 从 Vault 搜索、引用和回答问题 | [只读检索](retrieval.md) |
 | 创建、更新、剪藏、治理笔记 | [知识沉淀与治理](capture-and-governance.md) |
+| 保存对话上下文或提炼对话知识 | [对话上下文恢复与知识萃取](conversations.md) |
 | 查看各 Agent 的安装位置和差异 | [平台与安装](platforms-and-installation.md) |
 | 安装失败、检索不到或 doctor 报错 | [故障排查](troubleshooting.md) |
 

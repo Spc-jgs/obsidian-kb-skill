@@ -32,7 +32,7 @@
   </tr>
 </table>
 
-一个仓库包含两个职责分离的 Skill：`obsidian-knowledge-retrieval` 负责只读搜索、引用和问答；`obsidian-knowledge-base` 仅在用户明确授权后创建、更新和治理笔记。当前稳定版本为 **v1.23.0**。
+一个仓库包含两个职责分离的 Skill：`obsidian-knowledge-retrieval` 负责只读搜索、引用和问答；`obsidian-knowledge-base` 仅在用户明确授权后创建、更新和治理笔记。当前稳定版本为 **v1.24.0**。
 
 ## 一图看懂
 
@@ -71,6 +71,8 @@ AI 对话里产生的方案、会议结论、学习记录和排障经验很容�
 
 把这次架构评审的结论沉淀到知识库。
 
+复盘这次对话，找出值得长期保存的问题、知识、反思和设计；低价值内容不要写。
+
 剪藏这篇文章，保留原理、实践步骤、验证方式和来源证据。
 ```
 
@@ -93,6 +95,7 @@ AI 对话里产生的方案、会议结论、学习记录和排障经验很容�
 | 只读知识检索 | 可追溯到文件和行号的搜索结果与回答 | [只读检索](docs/retrieval.md) |
 | 八种预置笔记 | 日记、会议、学习、网页、洞察、项目、人物、摘要 | [完整功能指南](docs/feature-guide.md) |
 | 深度文章沉淀 | 原理、步骤、配置、验证、限制和来源证据 | [知识沉淀与治理](docs/capture-and-governance.md) |
+| 对话上下文与知识萃取 | 分层恢复目标、状态、决定和证据，筛选长期知识候选 | [对话上下文恢复与知识萃取](docs/conversations.md) |
 | Vault 自定义治理 | 服从 `AGENTS.md`、自定义模板、目录和索引所有权 | [知识沉淀与治理](docs/capture-and-governance.md) |
 | 安全创建与更新 | dry-run、路径边界、模板哈希、Git 预检、写后审计 | [完整功能指南](docs/feature-guide.md) |
 | 新分类与 Inbox | 确认后建分类，先预览再归档 Inbox | [知识沉淀与治理](docs/capture-and-governance.md) |
@@ -186,6 +189,7 @@ Windows PowerShell：
 | [完整功能指南](docs/feature-guide.md) | 想了解所有能力与 CLI |
 | [只读检索](docs/retrieval.md) | 想理解排序、范围、引用和限制 |
 | [知识沉淀与治理](docs/capture-and-governance.md) | 想创建、更新、剪藏或治理笔记 |
+| [对话上下文恢复与知识萃取](docs/conversations.md) | 想归档一次讨论或提炼对话中的长期知识 |
 | [平台与安装](docs/platforms-and-installation.md) | 多平台安装、升级或卸载 |
 | [故障排查](docs/troubleshooting.md) | `doctor` 失败或行为不符合预期 |
 | [CHANGELOG](CHANGELOG.md) | 查看版本变化和升级注意事项 |
@@ -253,6 +257,8 @@ python -m pytest
 **会自动记录所有聊天吗？**
 
 不会。普通问答不写入，只有明确的保存或更新意图才会触发写入 Skill。
+只询问“哪些内容值得沉淀”时，Conversation Harvest 默认返回候选分析，不会
+自动创建笔记。
 
 **为什么 Agent 找不到 Skill？**
 

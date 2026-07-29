@@ -1,4 +1,4 @@
 interface:
   display_name: "Obsidian Knowledge Base"
-  short_description: "Save and govern notes in a local Obsidian vault"
-  default_prompt: "Use $obsidian-knowledge-base to save this into my Obsidian vault."
+  short_description: "Review conversations, save, and govern Obsidian knowledge"
+  default_prompt: "Use $obsidian-knowledge-base to evaluate what is worth capturing, then save only what I explicitly authorize."

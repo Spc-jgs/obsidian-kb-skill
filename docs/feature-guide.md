@@ -9,6 +9,8 @@
 | Vault 发现 | 识别 Vault、目录、模板、索引策略和自定义治理 | 否 | `vault-info` |
 | 笔记创建 | 路由类型、合并 frontmatter、套用模板、避免覆盖 | 仅 `--apply` | `create-note` |
 | 深度文章沉淀 | 保留原理、步骤、配置、验证、限制与来源证据 | 需明确保存意图 | 写入 Skill |
+| 对话上下文恢复 | 用分层 Digest 保存目标、状态、决定、证据和下一步 | 需明确保存意图 | `conversation-digest` |
+| 对话知识萃取 | 识别问题、知识、反思和设计候选并判断长期价值 | 分析默认不写 | `conversation-harvest` |
 | 会议/学习/洞察/项目/人物 | 使用八种预置模板和 Vault 自定义模板 | 需明确保存意图 | 写入 Skill |
 | 新分类创建 | 先预检，再经用户确认创建目录和索引 | 仅确认后 | `create-category` |
 | Inbox 归档 | 推断目标类型与目录，先计划后移动 | 默认否 | `process-inbox` |
@@ -55,7 +57,7 @@ sequenceDiagram
 | `insight-note` | `30-Insights/` | 洞察、分析、AI 对话结论 |
 | `project-note` | `40-Projects/` | 项目目标、进展、风险 |
 | `person-note` | `50-People/` | 人物、角色、互动与跟进 |
-| `digest-note` | 按内容路由 | AI 对话摘要和后续任务 |
+| `conversation-digest` | `30-Insights/` 或具体项目目录 | AI 对话上下文、决定依据、证据和后续行动 |
 
 实际路由优先服从 Vault 根目录及子目录的 `AGENTS.md`，再使用项目默认值。
 
@@ -96,8 +98,23 @@ python <skill-root>/scripts/run_helper.py <helper> ...
 - Git 分歧或冲突会停止，不自动解决索引冲突。
 - 检索不联网、不创建持久索引或缓存、不包含写 helper。
 
+## 对话分流
+
+同一段 AI 对话按未来用途选择不同路径：
+
+- 保存一次讨论的上下文和推理 → `conversation-digest`；
+- 继续一个活跃的跨 Agent 任务 → `task-memory`；
+- 判断哪些问题、知识、反思和设计值得复用 →
+  `conversation-harvest`。
+
+Digest v2 的 30 秒限制只用于首屏恢复卡片，正文可以保留安全续接所需的边界、
+理由和证据。Harvest 是按需分析工作流，不是新的笔记类型；只在一个候选价值
+明确且用户授权保存时，才路由到现有笔记类型。完整示例和验收标准见
+[AI 对话的上下文恢复与知识萃取](conversations.md)。
+
 继续阅读：
 
 - [只读检索](retrieval.md)
 - [知识沉淀与治理](capture-and-governance.md)
+- [AI 对话的上下文恢复与知识萃取](conversations.md)
 - [故障排查](troubleshooting.md)

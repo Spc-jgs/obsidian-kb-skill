@@ -1,0 +1,57 @@
+[
+  {
+    "id": "architecture-discussion",
+    "intent": "保存这次架构讨论的结论和依据，方便以后继续",
+    "expected_route": "conversation-digest",
+    "required_context": [
+      "goal",
+      "state",
+      "current conclusion",
+      "constraints",
+      "decisions and rationale",
+      "evidence and artifacts",
+      "open questions and next actions"
+    ]
+  },
+  {
+    "id": "bug-investigation",
+    "intent": "把这次排障过程做成上下文摘要",
+    "expected_route": "conversation-digest",
+    "required_context": [
+      "symptom",
+      "root cause or current hypothesis",
+      "fix",
+      "verification",
+      "remaining risk",
+      "failed attempt only when it prevents repeated work"
+    ]
+  },
+  {
+    "id": "active-task-handoff",
+    "intent": "开启任务记忆，把当前进度交接给另一个 Agent",
+    "expected_route": "task-memory",
+    "required_context": [
+      "status",
+      "step",
+      "decisions",
+      "constraints",
+      "artifacts",
+      "open"
+    ]
+  },
+  {
+    "id": "knowledge-harvest",
+    "intent": "这次对话有哪些值得沉淀的问题、知识、反思和好设计？",
+    "expected_route": "conversation-harvest",
+    "required_context": [
+      "problem",
+      "knowledge",
+      "reflection",
+      "design",
+      "verified",
+      "inferred",
+      "open",
+      "skip"
+    ]
+  }
+]

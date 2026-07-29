@@ -32,7 +32,7 @@
   </tr>
 </table>
 
-One repository provides two skills with separate responsibilities: `obsidian-knowledge-retrieval` searches, cites, and answers without writing; `obsidian-knowledge-base` creates, updates, and governs notes only after explicit user authorization. The current stable release is **v1.23.0**.
+One repository provides two skills with separate responsibilities: `obsidian-knowledge-retrieval` searches, cites, and answers without writing; `obsidian-knowledge-base` creates, updates, and governs notes only after explicit user authorization. The current stable release is **v1.24.0**.
 
 ## At a Glance
 
@@ -71,6 +71,8 @@ Search my Obsidian Vault for how we handled multi-agent handoffs.
 
 Save the conclusions from this architecture review to my knowledge base.
 
+Review this conversation for reusable problems, knowledge, reflection, and design; do not save low-value material.
+
 Capture this article with its principles, practical steps, verification, and source evidence.
 ```
 
@@ -93,6 +95,7 @@ Retrieval v1 uses deterministic local lexical ranking. It needs no embedding mod
 | Read-only knowledge retrieval | Search results and answers traceable to files and lines | [Retrieval](docs/retrieval.md) |
 | Eight built-in note types | Daily, meeting, learning, web, insight, project, person, digest | [Feature guide](docs/feature-guide.md) |
 | Deep article capture | Principles, steps, configuration, verification, limits, evidence | [Capture and governance](docs/capture-and-governance.md) |
+| Conversation context and knowledge harvest | Layered context recovery plus selective durable-knowledge candidates | [Conversation guide](docs/conversations.md) |
 | Vault-specific governance | Honors `AGENTS.md`, custom templates, folders, and index ownership | [Capture and governance](docs/capture-and-governance.md) |
 | Safe create and update | Dry runs, path boundaries, template hashes, Git checks, post-write audits | [Feature guide](docs/feature-guide.md) |
 | Categories and Inbox | Confirmed category creation and plan-before-move Inbox processing | [Capture and governance](docs/capture-and-governance.md) |
@@ -256,6 +259,7 @@ No. The current stable release uses local lexical ranking by default. Embeddings
 **Does it record every conversation automatically?**
 
 No. Ordinary questions do not write. Only explicit save or update intent triggers the write skill.
+An analysis-only request asking what is worth capturing returns Conversation Harvest candidates without creating a note.
 
 **Why can my agent not find the skill?**
 
