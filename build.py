@@ -24,6 +24,7 @@ from typing import Callable
 
 ROOT = Path(__file__).resolve().parent
 CORE_FILE = ROOT / "core" / "OBSIDIAN_KB.md"
+RETRIEVAL_CORE_FILE = ROOT / "core" / "RETRIEVAL.md"
 BODY_MARKER = "## Overview"
 
 @dataclass(frozen=True)
@@ -31,42 +32,64 @@ class BuildTarget:
     """One generated instruction artifact."""
 
     name: str
+    core: Path
     header: Path
     output: Path
+    references: Path
+
+
+REFERENCES_SRC = ROOT / "core" / "references"
+RETRIEVAL_REFERENCES_SRC = ROOT / "core" / "retrieval-references"
 
 
 TARGETS = [
     BuildTarget(
         "standard-agent-skill",
+        CORE_FILE,
         ROOT / "skills" / "obsidian-knowledge-base" / "header.md",
         ROOT / "skills" / "obsidian-knowledge-base" / "SKILL.md",
+        REFERENCES_SRC,
+    ),
+    BuildTarget(
+        "standard-retrieval-skill",
+        RETRIEVAL_CORE_FILE,
+        ROOT / "skills" / "obsidian-knowledge-retrieval" / "header.md",
+        ROOT / "skills" / "obsidian-knowledge-retrieval" / "SKILL.md",
+        RETRIEVAL_REFERENCES_SRC,
     ),
     BuildTarget(
         "qoderwork",
+        CORE_FILE,
         ROOT / "skills" / "obsidian-knowledge-base" / "header.md",
         ROOT / "platforms" / "qoderwork" / "SKILL.md",
+        REFERENCES_SRC,
     ),
     BuildTarget(
         "claude-code",
+        CORE_FILE,
         ROOT / "platforms" / "claude-code" / "header.md",
         ROOT / "platforms" / "claude-code" / "CLAUDE.md",
+        REFERENCES_SRC,
     ),
     BuildTarget(
         "codex",
+        CORE_FILE,
         ROOT / "platforms" / "codex" / "header.md",
         ROOT / "platforms" / "codex" / "AGENTS.md",
+        REFERENCES_SRC,
     ),
     BuildTarget(
         "cursor",
+        CORE_FILE,
         ROOT / "platforms" / "cursor" / "header.md",
         ROOT / "platforms" / "cursor" / "obsidian-kb.mdc",
+        REFERENCES_SRC,
     ),
 ]
 
 # Reference docs are lazy-loaded: an agent reads them only when needed, so they
 # are NOT part of the always-loaded body. build.py ships them next to each
 # generated artifact so the relative path in the pointer resolves for every agent.
-REFERENCES_SRC = ROOT / "core" / "references"
 
 # Bundled runtime templates/references that ship inside the wheel. They are kept
 # in sync from core/ so the wheel carries the same single source of truth that
@@ -80,11 +103,24 @@ PACKAGED_REFERENCES_DST = PACKAGED_RESOURCES / "references"
 # A standard Skill is a self-contained folder. Build its assets and bundled
 # helper implementation from the same canonical sources as the wheel.
 STANDARD_SKILL_ROOT = ROOT / "skills" / "obsidian-knowledge-base"
+RETRIEVAL_SKILL_ROOT = ROOT / "skills" / "obsidian-knowledge-retrieval"
 STANDARD_ASSETS_DST = STANDARD_SKILL_ROOT / "assets" / "templates"
 STANDARD_HELPER_SRC = ROOT / "obsidian_kb_skill"
 STANDARD_HELPER_DST = STANDARD_SKILL_ROOT / "scripts" / "obsidian_kb_skill"
+RETRIEVAL_HELPER_DST = RETRIEVAL_SKILL_ROOT / "scripts" / "obsidian_kb_skill"
+RETRIEVAL_HELPER_FILES = (
+    Path("__init__.py"),
+    Path("scripts/__init__.py"),
+    Path("scripts/console.py"),
+    Path("scripts/doctor.py"),
+    Path("scripts/frontmatter.py"),
+    Path("scripts/retrieval_vault_info.py"),
+    Path("scripts/search_vault.py"),
+    Path("scripts/vault_paths.py"),
+)
 PYPROJECT = ROOT / "pyproject.toml"
 STANDARD_MANIFEST = STANDARD_SKILL_ROOT / "manifest.json"
+RETRIEVAL_MANIFEST = RETRIEVAL_SKILL_ROOT / "manifest.json"
 
 
 def read_text(path: Path) -> str:
@@ -145,6 +181,54 @@ def sync_exact_tree(
         destination = dst / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(path.read_bytes())
+    if dst.is_dir():
+        for directory in sorted(
+            (path for path in dst.rglob("*") if path.is_dir()),
+            key=lambda path: len(path.parts),
+            reverse=True,
+        ):
+            if not any(directory.iterdir()):
+                directory.rmdir()
+
+
+def selected_tree_drift(
+    src: Path,
+    dst: Path,
+    relative_files: tuple[Path, ...],
+) -> list[str]:
+    expected = {path.as_posix() for path in relative_files}
+    actual = set(_file_map(dst, exclude=_exclude_housekeeping))
+    drift: list[str] = []
+    for relative in sorted(expected | actual):
+        source = src / relative
+        target = dst / relative
+        if relative not in actual:
+            drift.append(f"missing: {relative}")
+        elif relative not in expected:
+            drift.append(f"extra: {relative}")
+        elif not source.is_file():
+            drift.append(f"missing source: {relative}")
+        elif source.read_bytes() != target.read_bytes():
+            drift.append(f"changed: {relative}")
+    return drift
+
+
+def sync_selected_tree(
+    src: Path,
+    dst: Path,
+    relative_files: tuple[Path, ...],
+) -> None:
+    expected = {path.as_posix() for path in relative_files}
+    for relative, path in _file_map(dst, exclude=_exclude_housekeeping).items():
+        if relative not in expected:
+            path.unlink()
+    for relative in relative_files:
+        source = src / relative
+        if not source.is_file():
+            raise SystemExit(f"Missing retrieval helper source: {source}")
+        target = dst / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(source.read_bytes())
     if dst.is_dir():
         for directory in sorted(
             (path for path in dst.rglob("*") if path.is_dir()),
@@ -245,9 +329,14 @@ def extract_body(core_text: str) -> str:
     return core_text[idx + 1 :]  # drop the leading newline
 
 
-def build_adapter(header: str, body: str, header_path: str) -> str:
+def build_adapter(
+    header: str,
+    body: str,
+    header_path: str,
+    core_path: str = "core/OBSIDIAN_KB.md",
+) -> str:
     banner = (
-        "<!-- AUTO-GENERATED by build.py from core/OBSIDIAN_KB.md + "
+        f"<!-- AUTO-GENERATED by build.py from {core_path} + "
         f"{header_path}. DO NOT EDIT DIRECTLY. -->\n\n"
     )
     # If header has YAML frontmatter, put banner AFTER the closing ---.
@@ -271,16 +360,17 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    core_text = read_text(CORE_FILE)
-    body = extract_body(core_text)
-
     drift = []
     for target in TARGETS:
+        if not target.core.exists():
+            raise SystemExit(f"Missing core: {target.core}")
         if not target.header.exists():
             raise SystemExit(f"Missing header: {target.header}")
+        body = extract_body(read_text(target.core))
         header = read_text(target.header)
         header_path = target.header.relative_to(ROOT).as_posix()
-        adapter = build_adapter(header, body, header_path)
+        core_path = target.core.relative_to(ROOT).as_posix()
+        adapter = build_adapter(header, body, header_path, core_path)
 
         if args.check:
             if not target.output.exists() or read_text(target.output) != adapter:
@@ -294,13 +384,13 @@ def main() -> int:
         if args.check:
             _record_tree_drift(
                 drift,
-                src=REFERENCES_SRC,
+                src=target.references,
                 dst=references_dst,
                 exclude=_exclude_housekeeping,
             )
         else:
             sync_exact_tree(
-                REFERENCES_SRC,
+                target.references,
                 references_dst,
                 exclude=_exclude_housekeeping,
             )
@@ -319,18 +409,36 @@ def main() -> int:
             sync_exact_tree(src, dst, exclude=exclude)
             print(f"  synced {dst.relative_to(ROOT)}")
 
-    manifest_text = render_skill_manifest(
-        build_skill_manifest(STANDARD_SKILL_ROOT, project_version())
-    )
     if args.check:
-        if (
-            not STANDARD_MANIFEST.is_file()
-            or read_text(STANDARD_MANIFEST) != manifest_text
+        for item in selected_tree_drift(
+            STANDARD_HELPER_SRC,
+            RETRIEVAL_HELPER_DST,
+            RETRIEVAL_HELPER_FILES,
         ):
-            drift.append(STANDARD_MANIFEST.relative_to(ROOT).as_posix())
+            drift.append(
+                f"{RETRIEVAL_HELPER_DST.relative_to(ROOT).as_posix()}: {item}"
+            )
     else:
-        write_text(STANDARD_MANIFEST, manifest_text)
-        print(f"  wrote {STANDARD_MANIFEST.relative_to(ROOT)}")
+        sync_selected_tree(
+            STANDARD_HELPER_SRC,
+            RETRIEVAL_HELPER_DST,
+            RETRIEVAL_HELPER_FILES,
+        )
+        print(f"  synced {RETRIEVAL_HELPER_DST.relative_to(ROOT)}")
+
+    for skill_root, manifest in (
+        (STANDARD_SKILL_ROOT, STANDARD_MANIFEST),
+        (RETRIEVAL_SKILL_ROOT, RETRIEVAL_MANIFEST),
+    ):
+        manifest_text = render_skill_manifest(
+            build_skill_manifest(skill_root, project_version())
+        )
+        if args.check:
+            if not manifest.is_file() or read_text(manifest) != manifest_text:
+                drift.append(manifest.relative_to(ROOT).as_posix())
+        else:
+            write_text(manifest, manifest_text)
+            print(f"  wrote {manifest.relative_to(ROOT)}")
 
     if args.check:
         if drift:
@@ -342,7 +450,7 @@ def main() -> int:
         print("All generated artifacts are up to date.")
         return 0
 
-    print(f"\nBuilt {len(TARGETS)} artifacts from core/OBSIDIAN_KB.md.")
+    print(f"\nBuilt {len(TARGETS)} instruction artifacts.")
     return 0
 
 

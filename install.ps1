@@ -32,6 +32,7 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SupportRoot = Join-Path $env:USERPROFILE ".obsidian-kb-skill"
 $CanonicalSkill = Join-Path $SupportRoot "skill"
+$CanonicalRetrievalSkill = Join-Path $SupportRoot "retrieval-skill"
 $RuntimeFile = Join-Path $SupportRoot "runtime.json"
 $VendorDir = Join-Path $SupportRoot "vendor"
 $SettingsFile = Join-Path $env:USERPROFILE ".obsidian-kb-settings.json"
@@ -94,8 +95,11 @@ function Copy-SkillPayload {
 }
 
 function Install-StandardSkill {
-    param([string]$DestinationDirectory)
-    Copy-SkillPayload -SourceDirectory $CanonicalSkill -DestinationDirectory $DestinationDirectory
+    param(
+        [string]$SourceDirectory,
+        [string]$DestinationDirectory
+    )
+    Copy-SkillPayload -SourceDirectory $SourceDirectory -DestinationDirectory $DestinationDirectory
 }
 
 function Test-PythonCommand {
@@ -277,12 +281,22 @@ if ($Uninstall) {
         Remove-Item $skillDir -Recurse -Force
         Write-Host "-> Removed: QoderWork skill ($skillDir)" -ForegroundColor Green
     }
+    $retrievalDir = Join-Path $env:USERPROFILE ".qoderwork\skills\obsidian-knowledge-retrieval"
+    if (Test-Path $retrievalDir) {
+        Remove-OwnedPath -Path $retrievalDir
+        Write-Host "-> Removed: QoderWork retrieval skill ($retrievalDir)" -ForegroundColor Green
+    }
 
     # Remove Codex user-level skill without touching sibling skills.
     $codexSkillDir = Join-Path $env:USERPROFILE ".agents\skills\obsidian-knowledge-base"
     if (Test-Path $codexSkillDir) {
         Remove-Item $codexSkillDir -Recurse -Force
         Write-Host "-> Removed: Codex skill ($codexSkillDir)" -ForegroundColor Green
+    }
+    $codexRetrievalDir = Join-Path $env:USERPROFILE ".agents\skills\obsidian-knowledge-retrieval"
+    if (Test-Path $codexRetrievalDir) {
+        Remove-OwnedPath -Path $codexRetrievalDir
+        Write-Host "-> Removed: Codex retrieval skill ($codexRetrievalDir)" -ForegroundColor Green
     }
 
     # Remove only this WorkBuddy Skill; preserve siblings and link targets.
@@ -291,6 +305,11 @@ if ($Uninstall) {
     if ($null -ne $workBuddyItem) {
         Remove-OwnedPath -Path $workBuddySkillDir
         Write-Host "-> Removed: WorkBuddy skill ($workBuddySkillDir)" -ForegroundColor Green
+    }
+    $workBuddyRetrievalDir = Join-Path $env:USERPROFILE ".workbuddy\skills\obsidian-knowledge-retrieval"
+    if (Test-Path $workBuddyRetrievalDir) {
+        Remove-OwnedPath -Path $workBuddyRetrievalDir
+        Write-Host "-> Removed: WorkBuddy retrieval skill ($workBuddyRetrievalDir)" -ForegroundColor Green
     }
 
     if (Test-Path $SupportRoot) {
@@ -303,6 +322,16 @@ if ($Uninstall) {
     if (Test-Path $cursorFile) {
         Remove-Item $cursorFile -Force
         Write-Host "-> Removed: Cursor rule ($cursorFile)" -ForegroundColor Green
+    }
+    $cursorRetrievalDir = Join-Path $env:USERPROFILE ".cursor\skills\obsidian-knowledge-retrieval"
+    if (Test-Path $cursorRetrievalDir) {
+        Remove-OwnedPath -Path $cursorRetrievalDir
+        Write-Host "-> Removed: Cursor retrieval skill ($cursorRetrievalDir)" -ForegroundColor Green
+    }
+    $claudeRetrievalDir = Join-Path $env:USERPROFILE ".claude\skills\obsidian-knowledge-retrieval"
+    if (Test-Path $claudeRetrievalDir) {
+        Remove-OwnedPath -Path $claudeRetrievalDir
+        Write-Host "-> Removed: Claude Code retrieval skill ($claudeRetrievalDir)" -ForegroundColor Green
     }
 
     # Strip marker-wrapped block from Claude Code CLAUDE.md
@@ -443,7 +472,9 @@ Write-Utf8NoBom -Path $configFile -Content $VaultPath
 # Install one canonical support copy used by compatibility adapters and as the
 # source for identical Codex/QoderWork payloads.
 $standardSkillDir = Join-Path $ScriptDir "skills\obsidian-knowledge-base"
+$standardRetrievalSkillDir = Join-Path $ScriptDir "skills\obsidian-knowledge-retrieval"
 Copy-SkillPayload -SourceDirectory $standardSkillDir -DestinationDirectory $CanonicalSkill
+Copy-SkillPayload -SourceDirectory $standardRetrievalSkillDir -DestinationDirectory $CanonicalRetrievalSkill
 
 # Step 2: Initialize vault structure
 Write-Host "-> Checking vault structure..."
@@ -669,8 +700,11 @@ foreach ($platform in $platformList) {
     switch ($platform) {
         "qoderwork" {
             $skillDir = Join-Path $env:USERPROFILE ".qoderwork\skills\obsidian-knowledge-base"
-            Install-StandardSkill -DestinationDirectory $skillDir
+            $retrievalDir = Join-Path $env:USERPROFILE ".qoderwork\skills\obsidian-knowledge-retrieval"
+            Install-StandardSkill -SourceDirectory $CanonicalSkill -DestinationDirectory $skillDir
+            Install-StandardSkill -SourceDirectory $CanonicalRetrievalSkill -DestinationDirectory $retrievalDir
             Write-Host "-> Installed: QoderWork skill -> $skillDir\SKILL.md" -ForegroundColor Green
+            Write-Host "-> Installed: QoderWork retrieval -> $retrievalDir\SKILL.md" -ForegroundColor Green
         }
         "claude-code" {
             $claudeDir = Join-Path $env:USERPROFILE ".claude"
@@ -680,16 +714,25 @@ foreach ($platform in $platformList) {
             $body = Read-Text -Path $srcFile
             $result = Set-MarkerBlock -TargetFile $claudeFile -BlockBody $body
             Write-Host "-> Installed: Claude Code ($result) -> $claudeFile" -ForegroundColor Green
+            $retrievalDir = Join-Path $claudeDir "skills\obsidian-knowledge-retrieval"
+            Install-StandardSkill -SourceDirectory $CanonicalRetrievalSkill -DestinationDirectory $retrievalDir
+            Write-Host "-> Installed: Claude Code retrieval -> $retrievalDir\SKILL.md" -ForegroundColor Green
         }
         "codex" {
             $codexSkillDir = Join-Path $env:USERPROFILE ".agents\skills\obsidian-knowledge-base"
-            Install-StandardSkill -DestinationDirectory $codexSkillDir
+            $retrievalDir = Join-Path $env:USERPROFILE ".agents\skills\obsidian-knowledge-retrieval"
+            Install-StandardSkill -SourceDirectory $CanonicalSkill -DestinationDirectory $codexSkillDir
+            Install-StandardSkill -SourceDirectory $CanonicalRetrievalSkill -DestinationDirectory $retrievalDir
             Write-Host "-> Installed: Codex skill -> $codexSkillDir\SKILL.md" -ForegroundColor Green
+            Write-Host "-> Installed: Codex retrieval -> $retrievalDir\SKILL.md" -ForegroundColor Green
         }
         "workbuddy" {
             $workBuddySkillDir = Join-Path $env:USERPROFILE ".workbuddy\skills\obsidian-knowledge-base"
-            Install-StandardSkill -DestinationDirectory $workBuddySkillDir
+            $retrievalDir = Join-Path $env:USERPROFILE ".workbuddy\skills\obsidian-knowledge-retrieval"
+            Install-StandardSkill -SourceDirectory $CanonicalSkill -DestinationDirectory $workBuddySkillDir
+            Install-StandardSkill -SourceDirectory $CanonicalRetrievalSkill -DestinationDirectory $retrievalDir
             Write-Host "-> Installed: WorkBuddy skill -> $workBuddySkillDir\SKILL.md" -ForegroundColor Green
+            Write-Host "-> Installed: WorkBuddy retrieval -> $retrievalDir\SKILL.md" -ForegroundColor Green
         }
         "cursor" {
             $cursorDir = Join-Path $env:USERPROFILE ".cursor\rules"
@@ -697,6 +740,9 @@ foreach ($platform in $platformList) {
             Copy-Item (Join-Path $ScriptDir "platforms\cursor\obsidian-kb.mdc") (Join-Path $cursorDir "obsidian-kb.mdc") -Force
             Write-Host "-> Installed: Cursor -> $cursorDir\obsidian-kb.mdc" -ForegroundColor Green
             Write-Host "  (Copy to your project's .cursor\rules\ for project-level use)"
+            $retrievalDir = Join-Path $env:USERPROFILE ".cursor\skills\obsidian-knowledge-retrieval"
+            Install-StandardSkill -SourceDirectory $CanonicalRetrievalSkill -DestinationDirectory $retrievalDir
+            Write-Host "-> Installed: Cursor retrieval -> $retrievalDir\SKILL.md" -ForegroundColor Green
         }
         default {
             throw "Unknown platform: $platform"
@@ -708,6 +754,10 @@ foreach ($platform in $platformList) {
 $reference = Join-Path $CanonicalSkill "references\note-creation.md"
 if (-not (Test-Path $reference)) {
     throw "Post-install verification failed: missing bundled reference."
+}
+$retrievalReference = Join-Path $CanonicalRetrievalSkill "references\search.md"
+if (-not (Test-Path $retrievalReference)) {
+    throw "Post-install verification failed: missing bundled retrieval reference."
 }
 $verifyDir = Join-Path ([System.IO.Path]::GetTempPath()) ("obsidian-kb-verify-" + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $verifyDir -Force | Out-Null
@@ -724,6 +774,18 @@ try {
         if ($LASTEXITCODE -ne 0) {
             throw "Post-install verification failed: bundled vault-info helper is unusable."
         }
+        & $PythonExecutable (Join-Path $CanonicalRetrievalSkill "scripts\run_helper.py") doctor --json | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Post-install verification failed: bundled retrieval doctor reported an unhealthy install."
+        }
+        & $PythonExecutable (Join-Path $CanonicalRetrievalSkill "scripts\run_helper.py") vault-info $VaultPath --json | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Post-install verification failed: bundled retrieval vault-info helper is unusable."
+        }
+        & $PythonExecutable (Join-Path $CanonicalRetrievalSkill "scripts\run_helper.py") search-vault $VaultPath --query "__obsidian_kb_install_probe__" --json | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Post-install verification failed: bundled search-vault helper is unusable."
+        }
     } finally {
         Pop-Location
     }
@@ -731,14 +793,15 @@ try {
     $env:PYTHONPATH = $oldPythonPath
     Remove-Item $verifyDir -Recurse -Force
 }
-Write-Host "-> Installed Skill runtime verified." -ForegroundColor Green
+Write-Host "-> Installed write and retrieval Skill runtimes verified." -ForegroundColor Green
 
 Write-Host ""
 Write-Host "=== Installation complete! ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Your vault is at: $VaultPath"
 Write-Host "Open this folder in Obsidian to start using your knowledge base."
-Write-Host "Diagnose: $CanonicalSkill\scripts\run_helper.py doctor --json"
+Write-Host "Diagnose write Skill:     $CanonicalSkill\scripts\run_helper.py doctor --json"
+Write-Host "Diagnose retrieval Skill: $CanonicalRetrievalSkill\scripts\run_helper.py doctor --json"
 Write-Host ""
 Write-Host "To save notes, just tell your AI assistant:"
 Write-Host '  "Save this to my knowledge base"'

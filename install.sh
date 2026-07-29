@@ -16,8 +16,10 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 STANDARD_SKILL_DIR="$SCRIPT_DIR/skills/obsidian-knowledge-base"
+RETRIEVAL_SKILL_DIR="$SCRIPT_DIR/skills/obsidian-knowledge-retrieval"
 SUPPORT_ROOT="$HOME/.obsidian-kb-skill"
 CANONICAL_SKILL="$SUPPORT_ROOT/skill"
+CANONICAL_RETRIEVAL_SKILL="$SUPPORT_ROOT/retrieval-skill"
 RUNTIME_FILE="$SUPPORT_ROOT/runtime.json"
 VENDOR_DIR="$SUPPORT_ROOT/vendor"
 SETTINGS_FILE="$HOME/.obsidian-kb-settings.json"
@@ -47,7 +49,7 @@ copy_skill_payload() {
 }
 
 install_standard_skill() {
-  copy_skill_payload "$CANONICAL_SKILL" "$1"
+  copy_skill_payload "$1" "$2"
 }
 
 validate_platforms() {
@@ -268,17 +270,32 @@ if [ "$DO_UNINSTALL" = true ]; then
     rm -rf "$QODERWORK_SKILLS"
     echo "-> Removed: QoderWork skill ($QODERWORK_SKILLS)"
   fi
+  QODERWORK_RETRIEVAL="$HOME/.qoderwork/skills/obsidian-knowledge-retrieval"
+  if [ -d "$QODERWORK_RETRIEVAL" ] || [ -L "$QODERWORK_RETRIEVAL" ]; then
+    rm -rf "$QODERWORK_RETRIEVAL"
+    echo "-> Removed: QoderWork retrieval skill ($QODERWORK_RETRIEVAL)"
+  fi
   # Remove Codex user-level skill without touching sibling skills.
   CODEX_SKILLS="$HOME/.agents/skills/obsidian-knowledge-base"
   if [ -d "$CODEX_SKILLS" ] || [ -L "$CODEX_SKILLS" ]; then
     rm -rf "$CODEX_SKILLS"
     echo "-> Removed: Codex skill ($CODEX_SKILLS)"
   fi
+  CODEX_RETRIEVAL="$HOME/.agents/skills/obsidian-knowledge-retrieval"
+  if [ -d "$CODEX_RETRIEVAL" ] || [ -L "$CODEX_RETRIEVAL" ]; then
+    rm -rf "$CODEX_RETRIEVAL"
+    echo "-> Removed: Codex retrieval skill ($CODEX_RETRIEVAL)"
+  fi
   # Remove only this WorkBuddy Skill; preserve sibling Skills and symlink targets.
   WORKBUDDY_SKILLS="$HOME/.workbuddy/skills/obsidian-knowledge-base"
   if [ -d "$WORKBUDDY_SKILLS" ] || [ -L "$WORKBUDDY_SKILLS" ]; then
     rm -rf "$WORKBUDDY_SKILLS"
     echo "-> Removed: WorkBuddy skill ($WORKBUDDY_SKILLS)"
+  fi
+  WORKBUDDY_RETRIEVAL="$HOME/.workbuddy/skills/obsidian-knowledge-retrieval"
+  if [ -d "$WORKBUDDY_RETRIEVAL" ] || [ -L "$WORKBUDDY_RETRIEVAL" ]; then
+    rm -rf "$WORKBUDDY_RETRIEVAL"
+    echo "-> Removed: WorkBuddy retrieval skill ($WORKBUDDY_RETRIEVAL)"
   fi
   # Remove the canonical installed payload, private dependency, and runtime record.
   if [ -d "$SUPPORT_ROOT" ] || [ -L "$SUPPORT_ROOT" ]; then
@@ -290,6 +307,16 @@ if [ "$DO_UNINSTALL" = true ]; then
   if [ -f "$CURSOR_FILE" ]; then
     rm -f "$CURSOR_FILE"
     echo "-> Removed: Cursor rule ($CURSOR_FILE)"
+  fi
+  CURSOR_RETRIEVAL="$HOME/.cursor/skills/obsidian-knowledge-retrieval"
+  if [ -d "$CURSOR_RETRIEVAL" ] || [ -L "$CURSOR_RETRIEVAL" ]; then
+    rm -rf "$CURSOR_RETRIEVAL"
+    echo "-> Removed: Cursor retrieval skill ($CURSOR_RETRIEVAL)"
+  fi
+  CLAUDE_RETRIEVAL="$HOME/.claude/skills/obsidian-knowledge-retrieval"
+  if [ -d "$CLAUDE_RETRIEVAL" ] || [ -L "$CLAUDE_RETRIEVAL" ]; then
+    rm -rf "$CLAUDE_RETRIEVAL"
+    echo "-> Removed: Claude Code retrieval skill ($CLAUDE_RETRIEVAL)"
   fi
   # Strip marker-wrapped block from Claude Code CLAUDE.md
   if remove_marker_block "$HOME/.claude/CLAUDE.md"; then
@@ -408,6 +435,7 @@ echo "$VAULT_PATH" > "$HOME/.obsidian-kb-config"
 # Install one canonical support copy used by compatibility adapters and as the
 # source for identical Codex/QoderWork payloads.
 copy_skill_payload "$STANDARD_SKILL_DIR" "$CANONICAL_SKILL"
+copy_skill_payload "$RETRIEVAL_SKILL_DIR" "$CANONICAL_RETRIEVAL_SKILL"
 
 # Step 2: Initialize vault structure if not exists
 echo "-> Checking vault structure..."
@@ -594,8 +622,11 @@ for platform in "${PLATFORM_LIST[@]}"; do
   case $platform in
     qoderwork)
       QODERWORK_SKILLS="$HOME/.qoderwork/skills/obsidian-knowledge-base"
-      install_standard_skill "$QODERWORK_SKILLS"
+      QODERWORK_RETRIEVAL="$HOME/.qoderwork/skills/obsidian-knowledge-retrieval"
+      install_standard_skill "$CANONICAL_SKILL" "$QODERWORK_SKILLS"
+      install_standard_skill "$CANONICAL_RETRIEVAL_SKILL" "$QODERWORK_RETRIEVAL"
       echo "-> Installed: QoderWork skill -> $QODERWORK_SKILLS/SKILL.md"
+      echo "-> Installed: QoderWork retrieval -> $QODERWORK_RETRIEVAL/SKILL.md"
       ;;
     claude-code)
       CLAUDE_DIR="$HOME/.claude"
@@ -603,16 +634,25 @@ for platform in "${PLATFORM_LIST[@]}"; do
       CLAUDE_FILE="$CLAUDE_DIR/CLAUDE.md"
       result=$(set_marker_block "$CLAUDE_FILE" "$SCRIPT_DIR/platforms/claude-code/CLAUDE.md")
       echo "-> Installed: Claude Code ($result) -> $CLAUDE_FILE"
+      CLAUDE_RETRIEVAL="$CLAUDE_DIR/skills/obsidian-knowledge-retrieval"
+      install_standard_skill "$CANONICAL_RETRIEVAL_SKILL" "$CLAUDE_RETRIEVAL"
+      echo "-> Installed: Claude Code retrieval -> $CLAUDE_RETRIEVAL/SKILL.md"
       ;;
     codex)
       CODEX_SKILLS="$HOME/.agents/skills/obsidian-knowledge-base"
-      install_standard_skill "$CODEX_SKILLS"
+      CODEX_RETRIEVAL="$HOME/.agents/skills/obsidian-knowledge-retrieval"
+      install_standard_skill "$CANONICAL_SKILL" "$CODEX_SKILLS"
+      install_standard_skill "$CANONICAL_RETRIEVAL_SKILL" "$CODEX_RETRIEVAL"
       echo "-> Installed: Codex skill -> $CODEX_SKILLS/SKILL.md"
+      echo "-> Installed: Codex retrieval -> $CODEX_RETRIEVAL/SKILL.md"
       ;;
     workbuddy)
       WORKBUDDY_SKILLS="$HOME/.workbuddy/skills/obsidian-knowledge-base"
-      install_standard_skill "$WORKBUDDY_SKILLS"
+      WORKBUDDY_RETRIEVAL="$HOME/.workbuddy/skills/obsidian-knowledge-retrieval"
+      install_standard_skill "$CANONICAL_SKILL" "$WORKBUDDY_SKILLS"
+      install_standard_skill "$CANONICAL_RETRIEVAL_SKILL" "$WORKBUDDY_RETRIEVAL"
       echo "-> Installed: WorkBuddy skill -> $WORKBUDDY_SKILLS/SKILL.md"
+      echo "-> Installed: WorkBuddy retrieval -> $WORKBUDDY_RETRIEVAL/SKILL.md"
       ;;
     cursor)
       CURSOR_DIR="$HOME/.cursor/rules"
@@ -620,6 +660,9 @@ for platform in "${PLATFORM_LIST[@]}"; do
       cp "$SCRIPT_DIR/platforms/cursor/obsidian-kb.mdc" "$CURSOR_DIR/obsidian-kb.mdc"
       echo "-> Installed: Cursor -> $CURSOR_DIR/obsidian-kb.mdc"
       echo "  (Copy this to your project's .cursor/rules/ for project-level use)"
+      CURSOR_RETRIEVAL="$HOME/.cursor/skills/obsidian-knowledge-retrieval"
+      install_standard_skill "$CANONICAL_RETRIEVAL_SKILL" "$CURSOR_RETRIEVAL"
+      echo "-> Installed: Cursor retrieval -> $CURSOR_RETRIEVAL/SKILL.md"
       ;;
     *)
       echo "-> Unknown platform: $platform" >&2
@@ -633,27 +676,38 @@ if [ ! -f "$CANONICAL_SKILL/references/note-creation.md" ]; then
   echo "Post-install verification failed: missing bundled reference." >&2
   exit 1
 fi
+if [ ! -f "$CANONICAL_RETRIEVAL_SKILL/references/search.md" ]; then
+  echo "Post-install verification failed: missing bundled retrieval reference." >&2
+  exit 1
+fi
 VERIFY_DIR=$(mktemp -d)
 if ! (
   cd "$VERIFY_DIR"
   PYTHONPATH="" "$PYTHON_BIN" "$CANONICAL_SKILL/scripts/run_helper.py" \
     doctor --json >/dev/null &&
   PYTHONPATH="" "$PYTHON_BIN" "$CANONICAL_SKILL/scripts/run_helper.py" \
-    vault-info "$VAULT_PATH" --json >/dev/null
+    vault-info "$VAULT_PATH" --json >/dev/null &&
+  PYTHONPATH="" "$PYTHON_BIN" "$CANONICAL_RETRIEVAL_SKILL/scripts/run_helper.py" \
+    doctor --json >/dev/null &&
+  PYTHONPATH="" "$PYTHON_BIN" "$CANONICAL_RETRIEVAL_SKILL/scripts/run_helper.py" \
+    vault-info "$VAULT_PATH" --json >/dev/null &&
+  PYTHONPATH="" "$PYTHON_BIN" "$CANONICAL_RETRIEVAL_SKILL/scripts/run_helper.py" \
+    search-vault "$VAULT_PATH" --query "__obsidian_kb_install_probe__" --json >/dev/null
 ); then
   rm -rf "$VERIFY_DIR"
-  echo "Post-install verification failed: bundled vault-info helper is unusable." >&2
+  echo "Post-install verification failed: a bundled write or retrieval helper is unusable." >&2
   exit 1
 fi
 rm -rf "$VERIFY_DIR"
-echo "-> Installed Skill runtime verified."
+echo "-> Installed write and retrieval Skill runtimes verified."
 
 echo ""
 echo "=== Installation complete! ==="
 echo ""
 echo "Your vault is at: $VAULT_PATH"
 echo "Open this folder in Obsidian to start using your knowledge base."
-echo "Diagnose: $CANONICAL_SKILL/scripts/run_helper.py doctor --json"
+echo "Diagnose write Skill:     $CANONICAL_SKILL/scripts/run_helper.py doctor --json"
+echo "Diagnose retrieval Skill: $CANONICAL_RETRIEVAL_SKILL/scripts/run_helper.py doctor --json"
 echo ""
 echo "To save notes, just tell your AI assistant:"
 echo '  "Save this to my knowledge base"'

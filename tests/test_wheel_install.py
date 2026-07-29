@@ -124,6 +124,7 @@ def test_wheel_exposes_console_scripts(tmp_path):
         "obsidian-audit-vault",
         "obsidian-capture-receipt",
         "obsidian-process-inbox",
+        "obsidian-search-vault",
         "obsidian-suggest-links",
         "obsidian-vault-info",
         "obsidian-detect-index",
@@ -203,6 +204,7 @@ def test_installed_cli_works_without_repo(tmp_path):
         check=False,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     assert res.returncode == 0, (
         f"installed create-note failed ({res.returncode})\n"
@@ -211,6 +213,20 @@ def test_installed_cli_works_without_repo(tmp_path):
     assert (vault / "30-Insights").exists()
     created = sorted((vault / "30-Insights").glob("*.md"))
     assert created, "create_note produced no file"
+
+    search = scripts / "obsidian-search-vault"
+    search_result = subprocess.run(
+        [str(search), str(vault), "--query", "wheel-proven", "--json"],
+        cwd=work,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert search_result.returncode == 0, search_result.stderr
+    search_payload = json.loads(search_result.stdout)
+    assert search_payload["results"][0]["path"].startswith("30-Insights/")
 
     (home / ".obsidian-kb-settings.json").write_text(
         '{"schema_version":1,"backup":{"keep_per_note":2}}\n',

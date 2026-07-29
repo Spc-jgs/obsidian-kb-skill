@@ -1,0 +1,38 @@
+{
+  "notes": [
+    {
+      "path": "20-Learning/mcp.md",
+      "title": "Model Context Protocol",
+      "aliases": ["MCP 协议"],
+      "tags": ["agent", "protocol"],
+      "body": "## 传输方式\n\nMCP 可以通过 stdio 或 Streamable HTTP 连接工具服务。"
+    },
+    {
+      "path": "30-Insights/local-embedding.md",
+      "title": "本地 Embedding 取舍",
+      "aliases": ["向量检索决策"],
+      "tags": ["retrieval", "privacy"],
+      "body": "## 当前决定\n\n第一版只做词法检索。本地 embedding 是未来可选 provider，默认关闭。"
+    },
+    {
+      "path": "40-Projects/skill-architecture.md",
+      "title": "知识库 Skill 架构",
+      "aliases": ["双 Skill 方案"],
+      "tags": ["obsidian", "architecture"],
+      "body": "## 职责边界\n\n写入和只读检索拆成两个 Skill，共享一个仓库和版本。"
+    },
+    {
+      "path": "20-Learning/bm25.md",
+      "title": "BM25 词法排序",
+      "aliases": [],
+      "tags": ["retrieval", "ranking"],
+      "body": "## 排序解释\n\n标题、别名和标签权重高于正文，结果附带匹配信号。"
+    }
+  ],
+  "queries": [
+    {"query": "MCP transport stdio", "expected": "20-Learning/mcp.md"},
+    {"query": "为什么第一版不用本地 embedding", "expected": "30-Insights/local-embedding.md"},
+    {"query": "双 Skill 结构", "expected": "40-Projects/skill-architecture.md"},
+    {"query": "标题别名标签权重", "expected": "20-Learning/bm25.md"}
+  ]
+}

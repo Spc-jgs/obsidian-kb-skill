@@ -81,8 +81,12 @@ try {
     )
 
     $Codex = Join-Path $HomeDir ".agents\skills\obsidian-knowledge-base"
+    $CodexRetrieval = Join-Path $HomeDir ".agents\skills\obsidian-knowledge-retrieval"
     $Qoder = Join-Path $HomeDir ".qoderwork\skills\obsidian-knowledge-base"
+    $QoderRetrieval = Join-Path $HomeDir ".qoderwork\skills\obsidian-knowledge-retrieval"
+    $WorkBuddyRetrieval = Join-Path $HomeDir ".workbuddy\skills\obsidian-knowledge-retrieval"
     $Support = Join-Path $HomeDir ".obsidian-kb-skill\skill"
+    $RetrievalSupport = Join-Path $HomeDir ".obsidian-kb-skill\retrieval-skill"
     Assert-True (Test-Path (Join-Path $Codex "references\note-creation.md")) "Codex reference missing"
     Assert-True (Test-Path (Join-Path $Qoder "scripts\run_helper.py")) "Qoder runner missing"
     Assert-True (Test-Path (Join-Path $WorkBuddy "manifest.json")) "WorkBuddy manifest missing"
@@ -92,6 +96,10 @@ try {
     Assert-PayloadMatches (Join-Path $Release "skills\obsidian-knowledge-base") $Qoder "Qoder"
     Assert-PayloadMatches (Join-Path $Release "skills\obsidian-knowledge-base") $WorkBuddy "WorkBuddy"
     Assert-PayloadMatches (Join-Path $Release "skills\obsidian-knowledge-base") $Support "Support"
+    Assert-PayloadMatches (Join-Path $Release "skills\obsidian-knowledge-retrieval") $CodexRetrieval "Codex retrieval"
+    Assert-PayloadMatches (Join-Path $Release "skills\obsidian-knowledge-retrieval") $QoderRetrieval "Qoder retrieval"
+    Assert-PayloadMatches (Join-Path $Release "skills\obsidian-knowledge-retrieval") $WorkBuddyRetrieval "WorkBuddy retrieval"
+    Assert-PayloadMatches (Join-Path $Release "skills\obsidian-knowledge-retrieval") $RetrievalSupport "Retrieval support"
     if ($LinkTested) {
         Assert-True (([System.IO.File]::ReadAllText($OldSentinel)) -eq "untouched") "WorkBuddy symlink target was modified"
     }
@@ -127,6 +135,10 @@ try {
         Assert-True ($LASTEXITCODE -eq 0) "Installed WorkBuddy vault-info failed"
         $WorkBuddyInfo = $WorkBuddyInfoJson | ConvertFrom-Json
         Assert-True ($WorkBuddyInfo.valid -eq $true) "Installed WorkBuddy vault-info did not validate the Vault"
+        $RetrievalJson = & $env:OBSIDIAN_KB_PYTHON (Join-Path $WorkBuddyRetrieval "scripts\run_helper.py") search-vault $Vault --query "__windows_probe__" --json
+        Assert-True ($LASTEXITCODE -eq 0) "Installed retrieval search-vault failed"
+        $RetrievalResult = $RetrievalJson | ConvertFrom-Json
+        Assert-True ($RetrievalResult.mode -eq "lexical") "Installed retrieval returned an unexpected mode"
 
         $ShadowScripts = Join-Path $Hostile "obsidian_kb_skill\scripts"
         New-Item -ItemType Directory -Path $ShadowScripts -Force | Out-Null
@@ -144,6 +156,11 @@ try {
             Assert-True ($LASTEXITCODE -eq 0) "Installed WorkBuddy vault-info failed from hostile cwd"
             $HostileInfo = $HostileInfoJson | ConvertFrom-Json
             Assert-True ($HostileInfo.valid -eq $true) "Installed WorkBuddy vault-info was invalid from hostile cwd"
+            $HostileRetrievalJson = & $env:OBSIDIAN_KB_PYTHON `
+                (Join-Path $WorkBuddyRetrieval "scripts\run_helper.py") doctor --json
+            Assert-True ($LASTEXITCODE -eq 0) "Installed retrieval doctor failed from hostile cwd"
+            $HostileRetrieval = $HostileRetrievalJson | ConvertFrom-Json
+            Assert-True ($HostileRetrieval.ok -eq $true) "Installed retrieval doctor was unhealthy from hostile cwd"
         } finally {
             Pop-Location
         }
@@ -181,6 +198,7 @@ try {
     Assert-True ($UninstallSettings.backup.keep_per_note -eq 3) "Default uninstall changed backup retention"
     Assert-True (-not (Test-Path (Join-Path $HomeDir ".obsidian-kb-skill"))) "Support runtime survived uninstall"
     Assert-True (-not (Test-Path $WorkBuddy)) "WorkBuddy Skill survived uninstall"
+    Assert-True (-not (Test-Path $WorkBuddyRetrieval)) "WorkBuddy retrieval Skill survived uninstall"
     Assert-True (Test-Path $Sibling) "WorkBuddy sibling Skill was removed"
     Assert-True (Test-Path $Vault) "Uninstall removed Vault"
 

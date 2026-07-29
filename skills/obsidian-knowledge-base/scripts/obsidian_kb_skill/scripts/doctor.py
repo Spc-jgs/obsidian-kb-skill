@@ -14,27 +14,48 @@ from typing import Any
 
 
 HOUSEKEEPING = {".DS_Store", "__pycache__"}
-REQUIRED_RESOURCES = (
-    "SKILL.md",
-    "references/note-creation.md",
-    "references/rules-and-errors.md",
-    "assets/templates/daily-note.md",
-    "scripts/run_helper.py",
-)
-HELPER_MODULES = (
-    "audit_vault",
-    "capture_receipt",
-    "process_inbox",
-    "suggest_links",
-    "template_contract",
-    "create_category",
-    "create_note",
-    "update_note",
-    "vault_info",
-    "detect_index",
-    "scaffold_templates",
-    "doctor",
-)
+PROFILE_CONFIG = {
+    "obsidian-knowledge-base": {
+        "resources": (
+            "SKILL.md",
+            "references/note-creation.md",
+            "references/rules-and-errors.md",
+            "assets/templates/daily-note.md",
+            "scripts/run_helper.py",
+        ),
+        "modules": (
+            "audit_vault",
+            "capture_receipt",
+            "process_inbox",
+            "suggest_links",
+            "template_contract",
+            "create_category",
+            "create_note",
+            "update_note",
+            "vault_info",
+            "detect_index",
+            "scaffold_templates",
+            "doctor",
+        ),
+    },
+    "obsidian-knowledge-retrieval": {
+        "resources": (
+            "SKILL.md",
+            "references/search.md",
+            "scripts/run_helper.py",
+        ),
+        "modules": (
+            "console",
+            "frontmatter",
+            "vault_paths",
+            "search_vault",
+            "retrieval_vault_info",
+            "doctor",
+        ),
+    },
+}
+# Backward-compatible public constant for callers inspecting the write Skill.
+HELPER_MODULES = PROFILE_CONFIG["obsidian-knowledge-base"]["modules"]
 
 
 def _check(name: str, ok: bool, **details: Any) -> dict[str, Any]:
@@ -166,7 +187,10 @@ def _runtime(home: Path) -> tuple[list[str] | None, dict[str, Any]]:
 
 
 def _dependencies(
-    root: Path, home: Path, command: list[str] | None
+    root: Path,
+    home: Path,
+    command: list[str] | None,
+    modules: tuple[str, ...],
 ) -> dict[str, Any]:
     if command is None:
         return _check("dependencies", False, error="runtime check failed")
@@ -176,7 +200,7 @@ def _dependencies(
     )
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     code = "import yaml;" + ";".join(
-        f"import obsidian_kb_skill.scripts.{name}" for name in HELPER_MODULES
+        f"import obsidian_kb_skill.scripts.{name}" for name in modules
     )
     try:
         probe = subprocess.run(
@@ -203,6 +227,19 @@ def inspect_installation(
     """Inspect an installed Skill without writing, repairing, or deleting files."""
     root = skill_root.expanduser().resolve()
     resolved_home = (home or Path.home()).expanduser().resolve()
+    try:
+        skill_text = (root / "SKILL.md").read_text(encoding="utf-8")
+    except OSError:
+        skill_text = ""
+    profile = next(
+        (
+            name
+            for name in PROFILE_CONFIG
+            if re.search(rf"(?m)^name:\s*{re.escape(name)}\s*$", skill_text)
+        ),
+        "obsidian-knowledge-base",
+    )
+    profile_config = PROFILE_CONFIG[profile]
     manifest, files, manifest_check = _read_manifest(root)
     checks = [manifest_check]
 
@@ -239,10 +276,17 @@ def inspect_installation(
 
     command, runtime_check = _runtime(resolved_home)
     checks.append(runtime_check)
-    checks.append(_dependencies(root, resolved_home, command))
+    checks.append(
+        _dependencies(
+            root,
+            resolved_home,
+            command,
+            profile_config["modules"],
+        )
+    )
     missing_resources = [
         relative
-        for relative in REQUIRED_RESOURCES
+        for relative in profile_config["resources"]
         if not (root / relative).is_file() or (root / relative).is_symlink()
     ]
     checks.append(_check("resources", not missing_resources, missing=missing_resources))
@@ -250,6 +294,7 @@ def inspect_installation(
         "schema_version": "1.0",
         "ok": all(check["ok"] for check in checks),
         "version": manifest.get("version"),
+        "skill": profile,
         "skill_root": str(root),
         "checks": checks,
     }

@@ -18,6 +18,7 @@ from obsidian_kb_skill.scripts.resource_locator import locate_skill_resources
 
 ROOT = Path(__file__).resolve().parent.parent
 STANDARD_SKILL = ROOT / "skills" / "obsidian-knowledge-base"
+RETRIEVAL_SKILL = ROOT / "skills" / "obsidian-knowledge-retrieval"
 HELPERS = (
     "audit-vault",
     "capture-receipt",
@@ -32,6 +33,7 @@ HELPERS = (
     "update-note",
     "vault-info",
 )
+RETRIEVAL_HELPERS = ("doctor", "search-vault", "vault-info")
 
 
 def test_installed_runner_reads_one_custom_template_contract(tmp_path):
@@ -117,6 +119,78 @@ def load_runner(path: Path = STANDARD_SKILL / "scripts" / "run_helper.py"):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def test_retrieval_runner_exposes_only_read_only_helpers():
+    runner = load_runner(RETRIEVAL_SKILL / "scripts" / "run_helper.py")
+
+    assert tuple(sorted(runner.HELPERS)) == RETRIEVAL_HELPERS
+    assert not {
+        "create-note",
+        "update-note",
+        "process-inbox",
+        "scaffold-templates",
+    } & set(runner.HELPERS)
+
+
+def test_retrieval_runner_searches_from_hostile_cwd_without_mutation(tmp_path):
+    skill = tmp_path / "installed" / "obsidian-knowledge-retrieval"
+    shutil.copytree(RETRIEVAL_SKILL, skill)
+    home = tmp_path / "home"
+    work = tmp_path / "hostile-cwd"
+    vault = tmp_path / "vault"
+    home.mkdir()
+    support = home / ".obsidian-kb-skill"
+    support.mkdir()
+    (support / "runtime.json").write_text(
+        json.dumps({"schema_version": 1, "python": [sys.executable]}),
+        encoding="utf-8",
+    )
+    (work / "obsidian_kb_skill" / "scripts").mkdir(parents=True)
+    (work / "obsidian_kb_skill" / "__init__.py").write_text(
+        "raise RuntimeError('shadow package imported')\n",
+        encoding="utf-8",
+    )
+    (vault / ".obsidian").mkdir(parents=True)
+    note = vault / "retrieval.md"
+    note.write_text("# Retrieval\n\n只读检索证据。\n", encoding="utf-8")
+    before = note.read_bytes()
+    skill_before = {
+        path.relative_to(skill).as_posix(): path.read_bytes()
+        for path in skill.rglob("*")
+        if path.is_file()
+    }
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(skill / "scripts" / "run_helper.py"),
+            "search-vault",
+            str(vault),
+            "--query",
+            "只读检索",
+            "--json",
+        ],
+        cwd=work,
+        env={
+            **os.environ,
+            "HOME": str(home),
+            "USERPROFILE": str(home),
+            "PYTHONPATH": str(work),
+        },
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["results"][0]["path"] == "retrieval.md"
+    assert note.read_bytes() == before
+    assert {
+        path.relative_to(skill).as_posix(): path.read_bytes()
+        for path in skill.rglob("*")
+        if path.is_file()
+    } == skill_before
 
 
 def test_standard_skill_root_resolves_assets_and_references(tmp_path):
