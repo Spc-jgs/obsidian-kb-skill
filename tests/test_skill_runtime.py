@@ -180,6 +180,7 @@ def test_retrieval_runner_searches_from_hostile_cwd_without_mutation(tmp_path):
         },
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
 
     assert result.returncode == 0, result.stderr

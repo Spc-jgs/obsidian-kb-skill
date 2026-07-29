@@ -204,6 +204,7 @@ def test_installed_cli_works_without_repo(tmp_path):
         check=False,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     assert res.returncode == 0, (
         f"installed create-note failed ({res.returncode})\n"
@@ -221,6 +222,7 @@ def test_installed_cli_works_without_repo(tmp_path):
         check=False,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     assert search_result.returncode == 0, search_result.stderr
     search_payload = json.loads(search_result.stdout)
