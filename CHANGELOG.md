@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-07-29
+
+### Added
+
+- Added the independent `obsidian-knowledge-retrieval` Skill for read-only Vault search and source-grounded answers, while keeping all write authority in `obsidian-knowledge-base`.
+- Added deterministic in-memory lexical ranking across titles, aliases, tags, headings, visible wikilinks, and body text, with CJK bigrams, bounded snippets, line numbers, and explainable match signals.
+- Added native retrieval Skill installation for Codex, QoderWork, WorkBuddy, Claude Code, and Cursor, including isolated helper payloads, manifests, diagnostics, and hostile-working-directory verification.
+- Added a versioned design and backlog covering graph-aware retrieval, typed relation candidates, query expansion, and optional disabled-by-default local embedding providers.
+
+### Security
+
+- Retrieval excludes hidden/tool directories, templates, attachments, symlinked files and directories, and HTML comments; malformed or unreadable notes are isolated as bounded issues.
+- Retrieval performs no network calls, persistent indexing, caching, or Vault mutation, and the shipped retrieval payload contains no write helper.
+- Documentation now distinguishes local helper execution from cloud-model privacy: an Agent may send returned snippets to its model provider.
+
 ## [1.22.1] - 2026-07-28
 
 ### Changed

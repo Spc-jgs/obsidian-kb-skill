@@ -1,0 +1,4 @@
+interface:
+  display_name: "Obsidian Knowledge Retrieval"
+  short_description: "Search a local Obsidian vault with cited read-only evidence"
+  default_prompt: "Use $obsidian-knowledge-retrieval to find this in my Obsidian vault."

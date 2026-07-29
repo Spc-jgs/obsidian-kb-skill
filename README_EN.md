@@ -1,12 +1,12 @@
 # Obsidian Knowledge Base Skill
 
-**v1.22.1** | **Turn any AI coding agent into your personal knowledge management assistant.**
+**v1.23.0** | **Let any AI coding agent capture and retrieve your personal knowledge.**
 
-A cross-platform skill that teaches AI agents (QoderWork, Claude Code, OpenAI Codex, Cursor, WorkBuddy) how to create, organize, and interlink notes in your [Obsidian](https://obsidian.md) vault — automatically.
+One repository with two responsibility-separated cross-platform Skills: `obsidian-knowledge-base` creates and updates notes only after explicit authorization; `obsidian-knowledge-retrieval` searches and answers read-only.
 
 [中文版](README.md)
 
-The current stable release is **v1.22.1**. See [CHANGELOG.md](CHANGELOG.md) for release history and upgrade notes.
+The current stable release is **v1.23.0**. See [CHANGELOG.md](CHANGELOG.md) for release history and upgrade notes.
 
 ---
 
@@ -28,6 +28,8 @@ This skill eliminates that friction by teaching your AI agent a complete knowled
 
 Your knowledge accumulates automatically, in a structured format that scales from 10 notes to 10,000.
 
+To recall it, ask the agent to “find this in my Obsidian vault.” The independent retrieval Skill ranks notes deterministically in memory and returns paths, titles, line numbers, snippets, and match signals. It creates no index or cache and receives no permission to modify notes.
+
 ## Install with Your Agent (Recommended)
 
 Send the following prompt to the Codex, QoderWork, WorkBuddy, Claude Code, or another terminal-capable Agent you are currently using:
@@ -40,7 +42,7 @@ Installation requirements:
 2. Detect the current Agent platform and install only the applicable platform entry. Ask me first if the platform cannot be identified reliably.
 3. Detect the Obsidian Vault path from environment variables, existing configuration, and Obsidian directories. Ask me if it remains unknown; do not guess.
 4. Use the repository's official installer. Preserve user-modified templates, Vault content, and other platform configuration; do not use a force option that overwrites templates.
-5. After installation, run the installed Skill's `doctor --json` from outside the repository. Confirm that it reports ok and the latest stable version, then report the Vault path, installed platforms, installation paths, and diagnostic result.
+5. After installation, run `doctor --json` for both the write and retrieval Skills from outside the repository, then run one read-only retrieval smoke test. Confirm the latest stable version and report the Vault path, platforms, installation paths, and results.
 6. If any check fails, stop and explain the cause. Do not delete or rebuild my Vault.
 ```
 
@@ -70,12 +72,13 @@ If your Vault structure and templates already exist, you can copy only the instr
 
 | AI Tool | File Needed | Direct Link |
 |---------|-------------|-------------|
-| Agent Skills / Codex / QoderWork | complete `skills/obsidian-knowledge-base/` | [Skill entry](skills/obsidian-knowledge-base/SKILL.md) |
+| Agent Skills / Codex / QoderWork | complete write and retrieval Skill folders | [Write Skill](skills/obsidian-knowledge-base/SKILL.md) · [Read-only retrieval Skill](skills/obsidian-knowledge-retrieval/SKILL.md) |
+| Read-only retrieval on any native Skill platform | complete `skills/obsidian-knowledge-retrieval/` | [Retrieval Skill](skills/obsidian-knowledge-retrieval/SKILL.md) |
 | Claude Code | `platforms/claude-code/CLAUDE.md` | [CLAUDE.md](platforms/claude-code/CLAUDE.md) |
 | OpenAI Codex (compatibility entry) | `platforms/codex/AGENTS.md` | [AGENTS.md](platforms/codex/AGENTS.md) |
 | Cursor | `platforms/cursor/obsidian-kb.mdc` | [obsidian-kb.mdc](platforms/cursor/obsidian-kb.mdc) |
 
-Compatibility files provide only the entry rules; their references, assets, and helpers come from `~/.obsidian-kb-skill/skill/`, which the installer creates. **Copying one instruction file is neither a complete standard Skill nor a Vault setup.** Use the installer for first-time and compatibility installations.
+Write compatibility files provide only entry rules; their resources come from `~/.obsidian-kb-skill/skill/`. Retrieval requires the complete `obsidian-knowledge-retrieval/` folder. **Copying one instruction file is neither a complete standard Skill nor a Vault setup.** Use the installer for first-time and compatibility installations.
 
 ## Usage Scenarios
 
@@ -107,7 +110,7 @@ You use Cursor at work, QoderWork for research at home, and Claude Code for quic
 
 ### Core Idea: Teach AI with Markdown Instructions
 
-This project uses **Markdown behavior instructions** as its rule layer and bundles local Python helpers for deterministic, error-prone operations. It calls no cloud API and runs no daemon: the rules guide the agent, while helpers enforce path safety, scaffold templates, write notes, detect indexes, and audit results.
+This project uses **Markdown behavior instructions** as its rule layer and bundles local Python helpers for deterministic, error-prone operations. The helpers call no cloud API and run no daemon: the rules guide the agent, while helpers handle path safety, retrieval, template scaffolding, writes, index detection, and audits.
 
 1. Where your knowledge base is (path)
 2. What it looks like (folder structure)
@@ -118,24 +121,16 @@ This project uses **Markdown behavior instructions** as its rule layer and bundl
 
 After reading this instruction file, the AI agent has "learned" your knowledge management conventions. When you say "save to knowledge base," it follows the rules and directly reads/writes your Obsidian vault using standard file operations.
 
-### Architecture: One Core, Multiple Adapters
+### Architecture: One Product, Two Skills, Multiple Adapters
 
 ```
-                  ┌──────────────────────────┐
-                  │  core/OBSIDIAN_KB.md     │
-                  │  (universal instructions, │
-                  │   platform-agnostic)      │
-                  └────────┬─────────────────┘
-                           │
-            ┌──────────────┼──────────────────┐
-            │              │                  │
-    ┌───────▼──────┐ ┌────▼────────┐ ┌───────▼───────┐
-    │Standard Skill│ │ CLAUDE.md   │ │  AGENTS.md    │ ...
-    │Codex/QoderWork││(Claude Code)│ │(compatibility)│
-    └──────────────┘ └─────────────┘ └───────────────┘
+ core/OBSIDIAN_KB.md ──→ obsidian-knowledge-base (explicit write intent)
+ core/RETRIEVAL.md   ──→ obsidian-knowledge-retrieval (always read-only)
+                              │
+               Codex · QoderWork · WorkBuddy · Claude Code · Cursor
 ```
 
-The core instruction file `core/OBSIDIAN_KB.md` is the single source of truth. It is a tiny gatekeeper (source **21 lines**, generated `SKILL.md` **25 lines**) with a prominent **DO NOT auto-save** rule and pointers into `core/references/*`; the heavy workflows live in those reference files and are loaded by an agent **only when it is about to save**, so loading the skill costs almost no tokens. The platform-independent entry is `skills/obsidian-knowledge-base/SKILL.md`; `platforms/*` remains as compatibility output. All artifacts (including the shipped `references/` for each platform) are generated by `build.py`.
+Write and retrieval behavior have separate sources of truth, `core/OBSIDIAN_KB.md` and `core/RETRIEVAL.md`, and `build.py` produces two independent standard Skills. A search request therefore neither loads the write workflow nor silently acquires write authority. Retrieval v1 uses lexical ranking with no model or external service; local embeddings remain a future optional provider and are disabled by default.
 
 ### Why No Plugins or APIs Are Needed
 
@@ -146,7 +141,7 @@ An Obsidian vault is just a **folder full of .md files**. No database, no propri
 - **Cross-linking notes** = inserting `[[filename|display text]]` in the content
 - **Structured metadata** = writing YAML frontmatter at the top of the file
 
-Runtime actions are local file operations. The rule layer has no service dependency; helpers require Python 3.11+ and PyYAML, and the installer keeps a missing PyYAML dependency inside the Skill's private support directory. Vault contents are not sent to a cloud service.
+Helper runtime actions are local file operations. The rule layer has no service dependency; helpers require Python 3.11+ and PyYAML, and the installer keeps a missing PyYAML dependency inside the Skill's private support directory. If the hosting Agent uses a cloud model, snippets it reads to answer may still be sent to that model provider; local helpers do not imply a fully local model pipeline.
 
 ### Runtime Flow
 
@@ -168,13 +163,13 @@ AI Agent internally executes:
 
 | Platform | Config File | Install Location |
 |----------|------------|-----------------|
-| **QoderWork / Qoder CLI** | `SKILL.md` | `~/.qoderwork/skills/obsidian-knowledge-base/` |
-| **Claude Code** | `CLAUDE.md` | `~/.claude/CLAUDE.md` |
-| **OpenAI Codex** | standard `SKILL.md` | `~/.agents/skills/obsidian-knowledge-base/` |
-| **WorkBuddy** | standard `SKILL.md` | `~/.workbuddy/skills/obsidian-knowledge-base/` |
-| **Cursor** | `obsidian-kb.mdc` | `~/.cursor/rules/obsidian-kb.mdc` |
+| **QoderWork / Qoder CLI** | two standard Skills | `~/.qoderwork/skills/obsidian-knowledge-{base,retrieval}/` |
+| **Claude Code** | write compatibility block + retrieval Skill | `~/.claude/CLAUDE.md` + `~/.claude/skills/obsidian-knowledge-retrieval/` |
+| **OpenAI Codex** | two standard Skills | `~/.agents/skills/obsidian-knowledge-{base,retrieval}/` |
+| **WorkBuddy** | two standard Skills | `~/.workbuddy/skills/obsidian-knowledge-{base,retrieval}/` |
+| **Cursor** | write rule + retrieval Skill | `~/.cursor/rules/obsidian-kb.mdc` + `~/.cursor/skills/obsidian-knowledge-retrieval/` |
 
-The standard Skill and compatibility artifacts contain identical core instructions. `~/.agents/skills` is Codex's user-level discovery path; it is not a universal discovery path for every agent.
+Standard and compatibility artifacts for the same responsibility share one generated core; write and retrieval remain independent. `~/.agents/skills` is Codex's user-level discovery path, not a universal path for every agent.
 
 ## Run the Installer Manually (Advanced)
 
@@ -219,18 +214,18 @@ That's it. The installer will:
 - Create native folder-named indexes from Folder Index settings, or `INDEX.md` fallbacks without the plugin
 - Write your vault path to `~/.obsidian-kb-config` (runtime config)
 - Create global `~/.obsidian-kb-settings.json` once; `backup.keep_per_note` defaults to `1` and accepts 1–1000
-- Install the complete standard Skill payload at each selected platform location
-- Configure a private helper runtime and run `vault-info` from a neutral directory as post-install verification
+- Install both the write and read-only retrieval Skills at each selected platform location
+- Configure a private helper runtime and run both doctors, `vault-info`, and `search-vault` from a neutral directory
 
-By default, all platform entries are installed. Codex, QoderWork, and WorkBuddy
-receive complete copies of the same standard Skill. WorkBuddy discovers it at
-`~/.workbuddy/skills/obsidian-knowledge-base`. Claude Code and Cursor keep their
-compatibility files.
+By default, all platform entries are installed. Codex, QoderWork, and WorkBuddy receive both complete standard Skills. Claude Code and Cursor retain their write compatibility entries and also receive the native read-only retrieval Skill.
 
 Run the read-only diagnostic from any working directory:
 
 ```bash
 python ~/.workbuddy/skills/obsidian-knowledge-base/scripts/run_helper.py doctor --json
+python ~/.workbuddy/skills/obsidian-knowledge-retrieval/scripts/run_helper.py doctor --json
+python ~/.workbuddy/skills/obsidian-knowledge-retrieval/scripts/run_helper.py \
+  search-vault /your/vault/path --query "local embedding decision" --top-k 5 --json
 ```
 
 ### 4. Open in Obsidian
@@ -413,9 +408,11 @@ obsidian-kb-skill/
 ├── .env.example                Config template (commit to git)
 ├── .env                        Your local config (gitignored)
 ├── .gitignore
-├── build.py                    Generator (core + header → 5 artifacts)
+├── build.py                    Generator (two cores + headers → 6 instruction artifacts)
 ├── core/
 │   ├── OBSIDIAN_KB.md          Gatekeeper (source 21 lines / generated 25): DO NOT auto-save + pointers to references/
+│   ├── RETRIEVAL.md            Read-only retrieval source of truth
+│   ├── retrieval-references/   Search, evidence, and citation contract
 │   ├── references/             Full workflow specs (lazy-loaded: read only when about to save)
 │   │   ├── conversation-digest.md
 │   │   ├── git.md
@@ -426,16 +423,20 @@ obsidian-kb-skill/
 │   │   └── yaml-standards.md
 │   └── templates/              8 default Chinese templates (incl. conversation digest) + English templates in en/
 ├── obsidian_kb_skill/
-│   └── scripts/                8 packaged CLIs, path-safety layer, and wheel resources
+│   └── scripts/                Packaged CLIs, path-safety layer, and wheel resources
 ├── tests/                      Build, installer, path-safety, CLI, wheel, and runtime tests
 ├── skills/
-│   └── obsidian-knowledge-base/
+│   ├── obsidian-knowledge-base/
 │       ├── header.md           Standard Agent Skill header
 │       ├── agents/             Codex UI metadata
 │       ├── references/         Lazy-loaded references (copied by build.py)
 │       ├── scripts/            Launcher plus bundled helper package
 │       ├── assets/templates/   Chinese and English template assets
-│       └── SKILL.md            Platform-independent generated entry
+│       └── SKILL.md            Platform-independent write Skill entry
+│   └── obsidian-knowledge-retrieval/
+│       ├── references/search.md
+│       ├── scripts/            doctor, vault-info, and search-vault only
+│       └── SKILL.md            Platform-independent read-only entry
 ├── platforms/
 │   ├── qoderwork/
 │   │   ├── references/
@@ -476,7 +477,7 @@ $EDITOR core/OBSIDIAN_KB.md
 # 3. Or edit the standard Skill header (frontmatter / trigger description)
 $EDITOR skills/obsidian-knowledge-base/header.md
 
-# 4. Regenerate and verify all five artifacts
+# 4. Regenerate and verify all six instruction artifacts
 uv run --no-sync python build.py
 uv run --no-sync python build.py --check
 
@@ -498,15 +499,13 @@ python -m pytest
 CI consumes the same lockfile and runs build checks and tests on Python 3.11 and
 3.14.
 
-After installing `.[dev]` or a wheel, ten operational helpers are available as
-console commands, plus the installation `doctor`. Installer-deployed standard
-Skills use `<skill-root>/scripts/run_helper.py`; both entry styles invoke the
-same Python implementation:
+After installing `.[dev]` or a wheel, operational helpers are available as console commands, plus the installation `doctor`. The read-only retrieval Skill ships only `doctor`, `vault-info`, and `search-vault`; it contains no write helper:
 
 ```bash
 obsidian-audit-vault        /path/to/vault --strict
 obsidian-capture-receipt    /path/to/vault --content-file 20-Learning/candidate.md --receipt-json '{...}' --json
 obsidian-process-inbox      /path/to/vault --apply
+obsidian-search-vault       /path/to/vault --query "retrieval question" --top-k 5 --json
 obsidian-suggest-links      /path/to/vault --note 30-Insights/some-note.md
 obsidian-create-category   /path/to/vault --folder 20-Learning/Rust --preflight-json
 obsidian-create-note        /path/to/vault --type insight-note --title "Short Title" --content-file body.md --apply

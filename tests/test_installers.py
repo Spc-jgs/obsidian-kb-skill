@@ -132,6 +132,10 @@ def _workbuddy_skill(home: Path) -> Path:
     return home / ".workbuddy" / "skills" / "obsidian-knowledge-base"
 
 
+def _retrieval_skill(home: Path, platform_root: str = ".agents") -> Path:
+    return home / platform_root / "skills" / "obsidian-knowledge-retrieval"
+
+
 def _run_release_installer(
     release: Path,
     *,
@@ -189,6 +193,9 @@ def _run_installed_helper(
 def test_bash_install_is_complete_and_survives_release_removal(tmp_path):
     release = _copy_release_tree(tmp_path)
     expected = _payload_files(release / "skills" / "obsidian-knowledge-base")
+    retrieval_expected = _payload_files(
+        release / "skills" / "obsidian-knowledge-retrieval"
+    )
     home = tmp_path / "home"
     vault = tmp_path / "vault"
     (vault / ".obsidian").mkdir(parents=True)
@@ -205,10 +212,18 @@ def test_bash_install_is_complete_and_survives_release_removal(tmp_path):
     qoder = home / ".qoderwork" / "skills" / "obsidian-knowledge-base"
     workbuddy = _workbuddy_skill(home)
     canonical = home / ".obsidian-kb-skill" / "skill"
+    canonical_retrieval = home / ".obsidian-kb-skill" / "retrieval-skill"
     assert _payload_files(codex) == expected
     assert _payload_files(qoder) == expected
     assert _payload_files(workbuddy) == expected
     assert _payload_files(canonical) == expected
+    for retrieval in (
+        _retrieval_skill(home),
+        _retrieval_skill(home, ".qoderwork"),
+        _retrieval_skill(home, ".workbuddy"),
+        canonical_retrieval,
+    ):
+        assert _payload_files(retrieval) == retrieval_expected
     assert (codex / "references" / "note-creation.md").is_file()
     assert (vault / "Templates" / "Digest Note.md").is_file()
 
@@ -225,6 +240,18 @@ def test_bash_install_is_complete_and_survives_release_removal(tmp_path):
     )
     assert doctor_result.returncode == 0, doctor_result.stderr
     assert json.loads(doctor_result.stdout)["ok"] is True
+    retrieval_result = _run_installed_helper(
+        _retrieval_skill(home),
+        "search-vault",
+        str(vault),
+        "--query",
+        "__installer_test__",
+        "--json",
+        home=home,
+        cwd=neutral,
+    )
+    assert retrieval_result.returncode == 0, retrieval_result.stderr
+    assert json.loads(retrieval_result.stdout)["mode"] == "lexical"
     workbuddy_info = _run_installed_helper(
         workbuddy, "vault-info", str(vault), "--json", home=home, cwd=neutral
     )
@@ -562,6 +589,7 @@ def test_bash_uninstall_preserves_sibling_agent_skill(tmp_path):
     run_bash_uninstaller(vault, home)
 
     assert not (home / ".agents/skills/obsidian-knowledge-base").exists()
+    assert not _retrieval_skill(home).exists()
     assert sibling.is_file()
 
 
@@ -579,7 +607,7 @@ def test_bash_workbuddy_install_is_complete_and_manifested(tmp_path):
     installed = _workbuddy_skill(home)
     assert _payload_hashes(installed) == expected
     manifest = json.loads((installed / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == "1.22.1"
+    assert manifest["version"] == "1.23.0"
 
 
 def test_windows_smoke_exercises_installed_runner_from_hostile_cwd():
@@ -692,7 +720,8 @@ def test_powershell_installer_declares_workbuddy_parity():
     assert '"qoderwork,claude-code,codex,cursor,workbuddy"' in script
     assert '"workbuddy"' in script
     assert '.workbuddy\\skills\\obsidian-knowledge-base' in script
-    assert "Install-StandardSkill -DestinationDirectory $workBuddySkillDir" in script
+    assert "Install-StandardSkill -SourceDirectory $CanonicalSkill -DestinationDirectory $workBuddySkillDir" in script
+    assert ".workbuddy\\skills\\obsidian-knowledge-retrieval" in script
     assert "Remove-OwnedPath -Path $workBuddySkillDir" in script
 
 

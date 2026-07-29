@@ -1,12 +1,12 @@
 # Obsidian Knowledge Base Skill
 
-**v1.22.1** | **让任何 AI 编程助手变成你的个人知识管理助手。**
+**v1.23.0** | **让任何 AI 编程助手沉淀并检索你的个人知识库。**
 
-一个跨平台 Skill，教会 AI 智能体（QoderWork、Claude Code、OpenAI Codex、Cursor、WorkBuddy）自动在你的 [Obsidian](https://obsidian.md) 知识库中创建、组织和关联笔记。
+一个仓库、两个职责分离的跨平台 Skill：`obsidian-knowledge-base` 负责经用户明确授权后的创建、组织和更新；`obsidian-knowledge-retrieval` 负责只读搜索、引用和问答。
 
 [English Version](README_EN.md)
 
-当前稳定版本为 **v1.22.1**。版本变化与升级说明统一记录在 [CHANGELOG.md](CHANGELOG.md)。
+当前稳定版本为 **v1.23.0**。版本变化与升级说明统一记录在 [CHANGELOG.md](CHANGELOG.md)。
 
 ---
 
@@ -28,6 +28,8 @@
 
 你的知识以结构化的方式自动积累，从 10 条笔记到 10000 条都能轻松管理。
 
+需要找回知识时，只要说「在我的 Obsidian 里找一下……」。独立的只读检索 Skill 会在内存中执行确定性的关键词排序，返回笔记路径、标题、行号、片段和匹配原因；它不创建索引、不写缓存，也不会获得修改笔记的权限。
+
 ## 让 Agent 安装（推荐）
 
 把下面这段话直接发给你正在使用的 Codex、QoderWork、WorkBuddy、Claude Code 或其他具备终端和文件读写能力的 Agent：
@@ -40,7 +42,7 @@
 2. 识别当前 Agent 平台，只安装适用的平台入口；无法可靠判断时先问我。
 3. 从环境变量、现有配置和 Obsidian 目录检测 Vault 路径；无法确定时先询问我，不要猜路径。
 4. 使用仓库提供的官方安装器。保留用户已经修改的模板、Vault 内容和其他平台配置，不要使用会覆盖模板的强制选项。
-5. 安装后从非仓库目录运行已安装 Skill 的 `doctor --json`，确认结果为 ok、版本为最新稳定版，并向我报告 Vault 路径、安装平台、安装位置和诊断结果。
+5. 安装后从非仓库目录分别运行写入与检索 Skill 的 `doctor --json`，再执行一次只读检索 smoke test；确认结果为 ok、版本为最新稳定版，并向我报告 Vault 路径、安装平台、安装位置和诊断结果。
 6. 如果任何检查失败，停止并说明原因；不要删除或重建我的 Vault。
 ```
 
@@ -70,12 +72,13 @@ cd obsidian-kb-skill
 
 | 你用的 AI 工具 | 需要的文件 | 直接链接 |
 |--------------|-----------|---------|
-| Agent Skills / Codex / QoderWork | 完整的 `skills/obsidian-knowledge-base/` | [Skill 入口](skills/obsidian-knowledge-base/SKILL.md) |
+| Agent Skills / Codex / QoderWork | 完整的写入与检索 Skill 目录 | [写入 Skill](skills/obsidian-knowledge-base/SKILL.md) · [只读检索 Skill](skills/obsidian-knowledge-retrieval/SKILL.md) |
+| 只读检索（所有原生 Skill 平台） | 完整的 `skills/obsidian-knowledge-retrieval/` | [检索 Skill](skills/obsidian-knowledge-retrieval/SKILL.md) |
 | Claude Code | `platforms/claude-code/CLAUDE.md` | [CLAUDE.md](platforms/claude-code/CLAUDE.md) |
 | OpenAI Codex（兼容入口） | `platforms/codex/AGENTS.md` | [AGENTS.md](platforms/codex/AGENTS.md) |
 | Cursor | `platforms/cursor/obsidian-kb.mdc` | [obsidian-kb.mdc](platforms/cursor/obsidian-kb.mdc) |
 
-兼容文件只提供入口规则；references、assets 和 helpers 来自安装器创建的 `~/.obsidian-kb-skill/skill/`。**单独复制一个指令文件既不是完整标准 Skill，也不会初始化 Vault**。首次使用和跨平台兼容入口都建议运行安装脚本。
+写入兼容文件只提供入口规则；references、assets 和 helpers 来自安装器创建的 `~/.obsidian-kb-skill/skill/`。检索则必须复制完整的 `obsidian-knowledge-retrieval/` 目录。**单独复制一个指令文件既不是完整标准 Skill，也不会初始化 Vault**。首次使用和跨平台兼容入口都建议运行安装脚本。
 
 ## 使用场景
 
@@ -107,7 +110,7 @@ cd obsidian-kb-skill
 
 ### 核心思路：用 Markdown 指令教会 AI 做事
 
-这个项目以 **Markdown 行为指令**为规则层，并附带本地 Python helper 处理容易出错的确定性步骤。它不调用云 API、不运行常驻服务；规则告诉 AI 智能体如何工作，脚本负责路径校验、模板脚手架、写入、索引检测和审计：
+这个项目以 **Markdown 行为指令**为规则层，并附带本地 Python helper 处理容易出错的确定性步骤。helper 不调用云 API，也不运行常驻服务；规则告诉 AI 智能体如何工作，脚本负责路径校验、检索、模板脚手架、写入、索引检测和审计：
 
 1. 你的知识库在哪里（路径）
 2. 知识库长什么样（文件夹结构）
@@ -118,23 +121,16 @@ cd obsidian-kb-skill
 
 AI 智能体读完这个指令文件后，就「学会了」你的知识管理规范。当你说「沉淀到知识库」时，AI 按照指令文件中的规则，直接用文件系统读写你的 Obsidian 知识库。
 
-### 架构：一核多适配器
+### 架构：一个产品、两个 Skill、多平台适配
 
 ```
-                  ┌──────────────────────────┐
-                  │  core/OBSIDIAN_KB.md     │
-                  │  (通用指令，与平台无关)      │
-                  └────────┬─────────────────┘
-                           │
-            ┌──────────────┼──────────────────┐
-            │              │                  │
-    ┌───────▼──────┐ ┌────▼────────┐ ┌───────▼───────┐
-    │ 标准 SKILL.md │ │ CLAUDE.md   │ │  AGENTS.md    │ ...
-    │Codex/QoderWork│ │(Claude Code)│ │ (兼容入口)      │
-    └──────────────┘ └─────────────┘ └───────────────┘
+ core/OBSIDIAN_KB.md ──→ obsidian-knowledge-base（需要明确写入意图）
+ core/RETRIEVAL.md   ──→ obsidian-knowledge-retrieval（始终只读）
+                              │
+               Codex · QoderWork · WorkBuddy · Claude Code · Cursor
 ```
 
-核心指令文件 `core/OBSIDIAN_KB.md` 是「唯一真相来源」。它是一个极小的「门禁」（源文件 **21 行**，生成的 `SKILL.md` **25 行**），第一条规则是显眼的 **DO NOT auto-save**，并指向 `core/references/*` 里的完整工作流；agent 加载技能几乎零 token 成本，只有真正准备落盘时才会按指针去读对应 references。平台无关的标准入口是 `skills/obsidian-knowledge-base/SKILL.md`；`platforms/*` 保留各平台兼容产物。所有产物（含每个平台自带的 `references/`）都由 `build.py` 生成。
+写入和检索分别以 `core/OBSIDIAN_KB.md`、`core/RETRIEVAL.md` 为真相来源，由 `build.py` 生成两个独立标准 Skill。这样搜索请求不会加载写入工作流，也不会因为“先搜再答”隐式获得写权限。检索 v1 使用无需模型和外部服务的词法排序；本地 embedding 只作为未来可选 provider，默认关闭。
 
 ### 为什么不需要插件或 API
 
@@ -145,7 +141,7 @@ Obsidian 知识库的底层就是一个**装满 .md 文件的文件夹**。没�
 - **关联笔记** = 在内容里插入 `[[filename|显示文本]]`
 - **结构化元数据** = 在文件头部写 YAML frontmatter
 
-运行时只做本地文件操作。规则层没有服务依赖；helper 需要 Python 3.11+ 和 PyYAML，安装器会把缺失的 PyYAML 放进 Skill 私有目录。知识库内容不会发送到云端。
+helper 运行时只做本地文件操作。规则层没有服务依赖；helper 需要 Python 3.11+ 和 PyYAML，安装器会把缺失的 PyYAML 放进 Skill 私有目录。需要注意：如果承载 Agent 的模型来自云端，Agent 为回答问题而读取的片段仍可能发送给模型提供商；“helper 本地运行”不等于“整个问答链路使用本地模型”。
 
 ### 运行时流程
 
@@ -167,13 +163,13 @@ AI 智能体内部执行：
 
 | 平台 | 配置文件 | 安装位置 |
 |------|---------|---------|
-| **QoderWork / Qoder CLI** | `SKILL.md` | `~/.qoderwork/skills/obsidian-knowledge-base/` |
-| **Claude Code** | `CLAUDE.md` | `~/.claude/CLAUDE.md` |
-| **OpenAI Codex** | 标准 `SKILL.md` | `~/.agents/skills/obsidian-knowledge-base/` |
-| **WorkBuddy** | 标准 `SKILL.md` | `~/.workbuddy/skills/obsidian-knowledge-base/` |
-| **Cursor** | `obsidian-kb.mdc` | `~/.cursor/rules/obsidian-kb.mdc` |
+| **QoderWork / Qoder CLI** | 两个标准 `SKILL.md` | `~/.qoderwork/skills/obsidian-knowledge-{base,retrieval}/` |
+| **Claude Code** | 写入兼容块 + 检索标准 Skill | `~/.claude/CLAUDE.md` + `~/.claude/skills/obsidian-knowledge-retrieval/` |
+| **OpenAI Codex** | 两个标准 `SKILL.md` | `~/.agents/skills/obsidian-knowledge-{base,retrieval}/` |
+| **WorkBuddy** | 两个标准 `SKILL.md` | `~/.workbuddy/skills/obsidian-knowledge-{base,retrieval}/` |
+| **Cursor** | 写入规则 + 检索标准 Skill | `~/.cursor/rules/obsidian-kb.mdc` + `~/.cursor/skills/obsidian-knowledge-retrieval/` |
 
-标准 Skill 与平台兼容产物包含**完全一致的核心指令**。注意：`~/.agents/skills` 是 Codex 用户级发现路径，不代表所有 Agent 都会自动扫描该目录。
+同一职责的标准 Skill 与兼容产物由相同核心指令生成；写入和检索彼此独立。注意：`~/.agents/skills` 是 Codex 用户级发现路径，不代表所有 Agent 都会自动扫描该目录。
 
 ## 使用安装器手动安装（高级）
 
@@ -218,17 +214,18 @@ chmod +x install.sh
 - 根据 Folder Index 配置创建目录同名索引，未使用插件时创建 `INDEX.md` 导航文件
 - 将知识库路径写入 `~/.obsidian-kb-config`（运行时配置）
 - 首次创建全局 `~/.obsidian-kb-settings.json`；`backup.keep_per_note` 默认是 `1`，可配置为 1–1000
-- 将完整标准 Skill 载荷安装到对应 AI 平台的约定位置
-- 配置私有 helper runtime，并从中立目录运行 `vault-info` 做安装后验收
+- 将写入与只读检索两个 Skill 安装到对应 AI 平台的约定位置
+- 配置私有 helper runtime，并从中立目录运行两个 `doctor`、`vault-info` 和 `search-vault` 做安装后验收
 
-默认会安装所有平台入口。其中 Codex、QoderWork 和 WorkBuddy 使用同一
-标准 Skill 的完整副本；WorkBuddy 的位置是
-`~/.workbuddy/skills/obsidian-knowledge-base`。Claude Code 和 Cursor 使用各自兼容文件。
+默认会安装所有平台入口。Codex、QoderWork 和 WorkBuddy 各自获得两个完整标准 Skill；Claude Code 和 Cursor 保留既有写入兼容入口，同时安装原生只读检索 Skill。
 
 可随时从任意工作目录运行只读诊断：
 
 ```bash
 python ~/.workbuddy/skills/obsidian-knowledge-base/scripts/run_helper.py doctor --json
+python ~/.workbuddy/skills/obsidian-knowledge-retrieval/scripts/run_helper.py doctor --json
+python ~/.workbuddy/skills/obsidian-knowledge-retrieval/scripts/run_helper.py \
+  search-vault /你的知识库路径 --query "本地 embedding 的设计决定" --top-k 5 --json
 ```
 
 ### 4. 用 Obsidian 打开
@@ -411,9 +408,11 @@ obsidian-kb-skill/
 ├── .env.example                配置模板（提交到 git）
 ├── .env                        你的本地配置（gitignored）
 ├── .gitignore
-├── build.py                    生成脚本（核心 + header → 5 个产物）
+├── build.py                    生成脚本（两个核心 + header → 6 个指令产物）
 ├── core/
 │   ├── OBSIDIAN_KB.md          「门禁」（源 21 行 / 生成 25 行）：显眼的 DO NOT auto-save + references/ 指针
+│   ├── RETRIEVAL.md            只读检索真相来源
+│   ├── retrieval-references/   检索、证据与引用规范
 │   ├── references/             完整工作流规范（懒加载：agent 准备落盘时才读）
 │   │   ├── conversation-digest.md
 │   │   ├── git.md
@@ -424,16 +423,20 @@ obsidian-kb-skill/
 │   │   └── yaml-standards.md
 │   └── templates/              8 个默认中文模板（含对话摘要）+ en/ 英文模板
 ├── obsidian_kb_skill/
-│   └── scripts/                8 个可打包 CLI、路径安全层与 wheel resources
+│   └── scripts/                可打包 CLI、路径安全层与 wheel resources
 ├── tests/                      build、安装器、路径安全、CLI、wheel 与真实运行测试
 ├── skills/
-│   └── obsidian-knowledge-base/
+│   ├── obsidian-knowledge-base/
 │       ├── header.md           标准 Agent Skill 头部
 │       ├── agents/             Codex UI 元数据
 │       ├── references/         懒加载 references（由 build.py 复制）
 │       ├── scripts/            launcher + bundled helper package
 │       ├── assets/templates/   中英文模板 assets
-│       └── SKILL.md            平台无关的标准生成入口
+│       └── SKILL.md            平台无关的写入 Skill 入口
+│   └── obsidian-knowledge-retrieval/
+│       ├── references/search.md
+│       ├── scripts/            仅 doctor、vault-info、search-vault
+│       └── SKILL.md            平台无关的只读检索入口
 ├── platforms/
 │   ├── qoderwork/
 │   │   ├── references/
@@ -473,7 +476,7 @@ $EDITOR core/OBSIDIAN_KB.md
 # 3. 或修改标准 Skill 头部（YAML frontmatter / trigger 描述）
 $EDITOR skills/obsidian-knowledge-base/header.md
 
-# 4. 重新生成并校验五个产物
+# 4. 重新生成并校验六个指令产物
 uv run --no-sync python build.py
 uv run --no-sync python build.py --check
 
@@ -493,12 +496,13 @@ python -m pytest
 
 CI 使用同一 lockfile，分别在 Python 3.11 和 3.14 上运行构建检查与测试。
 
-安装 `.[dev]` 或 wheel 后，10 个业务 helper 以控制台命令形式提供，另有安装诊断 `doctor`。通过安装脚本部署的标准 Skill 则使用 `<skill-root>/scripts/run_helper.py`；两种入口调用同一套 Python 实现：
+安装 `.[dev]` 或 wheel 后，业务 helper 以控制台命令形式提供，另有安装诊断 `doctor`。只读检索 Skill 只打包 `doctor`、`vault-info` 和 `search-vault` 三个入口，不包含任何写 helper：
 
 ```bash
 obsidian-audit-vault        /你的知识库路径 --strict
 obsidian-capture-receipt    /你的知识库路径 --content-file 20-Learning/候选文章.md --receipt-json '{...}' --json
 obsidian-process-inbox      /你的知识库路径 --apply
+obsidian-search-vault       /你的知识库路径 --query "检索问题" --top-k 5 --json
 obsidian-suggest-links      /你的知识库路径 --note 30-Insights/某笔记.md
 obsidian-create-category   /你的知识库路径 --folder 20-Learning/Rust --preflight-json
 obsidian-create-note        /你的知识库路径 --type insight-note --title "短标题" --content-file 正文.md --apply

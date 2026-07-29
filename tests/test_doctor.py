@@ -13,6 +13,7 @@ from obsidian_kb_skill.scripts import doctor
 
 ROOT = Path(__file__).resolve().parents[1]
 STANDARD_SKILL = ROOT / "skills" / "obsidian-knowledge-base"
+RETRIEVAL_SKILL = ROOT / "skills" / "obsidian-knowledge-retrieval"
 
 
 def installed_tree(tmp_path: Path) -> tuple[Path, Path]:
@@ -47,7 +48,8 @@ def test_doctor_accepts_complete_installed_skill(tmp_path):
     result = doctor.inspect_installation(skill, home)
 
     assert result["ok"] is True
-    assert result["version"] == "1.22.1"
+    assert result["version"] == "1.23.0"
+    assert result["skill"] == "obsidian-knowledge-base"
     assert "create_category" in doctor.HELPER_MODULES
     assert "capture_receipt" in doctor.HELPER_MODULES
     assert {check["name"] for check in result["checks"]} == {
@@ -57,6 +59,26 @@ def test_doctor_accepts_complete_installed_skill(tmp_path):
         "dependencies",
         "resources",
     }
+
+
+def test_doctor_accepts_retrieval_profile_without_write_modules(tmp_path):
+    skill = tmp_path / "retrieval-skill"
+    home = tmp_path / "home"
+    shutil.copytree(RETRIEVAL_SKILL, skill)
+    support = home / ".obsidian-kb-skill"
+    support.mkdir(parents=True)
+    (support / "runtime.json").write_text(
+        json.dumps({"schema_version": 1, "python": [sys.executable]}),
+        encoding="utf-8",
+    )
+
+    result = doctor.inspect_installation(skill, home)
+
+    assert result["ok"] is True
+    assert result["version"] == "1.23.0"
+    assert result["skill"] == "obsidian-knowledge-retrieval"
+    assert "search_vault" in doctor.PROFILE_CONFIG[result["skill"]]["modules"]
+    assert "create_note" not in doctor.PROFILE_CONFIG[result["skill"]]["modules"]
 
 
 @pytest.mark.parametrize(

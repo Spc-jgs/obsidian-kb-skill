@@ -152,8 +152,12 @@ class TestBuildAdapter:
 # ---------- end-to-end against the real repo ----------
 
 class TestEndToEnd:
-    def test_skill_manifest_covers_every_installable_payload_file(self):
-        root = ROOT / "skills" / "obsidian-knowledge-base"
+    @pytest.mark.parametrize(
+        "skill_name",
+        ["obsidian-knowledge-base", "obsidian-knowledge-retrieval"],
+    )
+    def test_skill_manifest_covers_every_installable_payload_file(self, skill_name):
+        root = ROOT / "skills" / skill_name
         manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
         expected = {
             relative: hashlib.sha256(path.read_bytes()).hexdigest()
@@ -207,7 +211,7 @@ class TestEndToEnd:
         assert all(path.is_relative_to(root) for path in payload.values())
 
     def test_project_version_reads_pyproject(self):
-        assert build.project_version() == "1.22.1"
+        assert build.project_version() == "1.23.0"
 
     def test_standard_skill_has_required_resource_directories(self):
         root = ROOT / "skills" / "obsidian-knowledge-base"
@@ -231,6 +235,24 @@ class TestEndToEnd:
             / "create_category.py"
         ).is_file()
         assert (root / "assets" / "templates" / "digest-note.md").is_file()
+
+    def test_retrieval_skill_is_read_only_and_self_contained(self):
+        root = ROOT / "skills" / "obsidian-knowledge-retrieval"
+        helper_root = root / "scripts" / "obsidian_kb_skill" / "scripts"
+
+        assert (root / "SKILL.md").is_file()
+        assert (root / "agents" / "openai.yaml").is_file()
+        assert (root / "references" / "search.md").is_file()
+        assert (root / "scripts" / "run_helper.py").is_file()
+        assert (helper_root / "search_vault.py").is_file()
+        assert (helper_root / "retrieval_vault_info.py").is_file()
+        for forbidden in (
+            "create_note.py",
+            "update_note.py",
+            "process_inbox.py",
+            "scaffold_templates.py",
+        ):
+            assert not (helper_root / forbidden).exists()
 
     def test_generated_tree_drift_reports_missing_changed_and_extra(self, tmp_path):
         src = tmp_path / "src"
@@ -256,6 +278,7 @@ class TestEndToEnd:
             for target in build.TARGETS
         }
         assert "skills/obsidian-knowledge-base/SKILL.md" in outputs
+        assert "skills/obsidian-knowledge-retrieval/SKILL.md" in outputs
 
     def test_standard_agent_skill_has_valid_frontmatter(self):
         skill = ROOT / "skills" / "obsidian-knowledge-base" / "SKILL.md"
@@ -279,15 +302,15 @@ class TestEndToEnd:
         """Running build then build --check must succeed against the real repo state."""
         # Just call extract_body + build_adapter for each declared target and compare to the
         # on-disk file. This catches any uncommitted drift.
-        core_text = (ROOT / "core" / "OBSIDIAN_KB.md").read_text(encoding="utf-8")
-        body = build.extract_body(core_text)
-
         for target in build.TARGETS:
             assert target.header.exists(), f"missing header: {target.header}"
             assert target.output.exists(), f"missing generated adapter: {target.output}"
+            core_text = target.core.read_text(encoding="utf-8")
+            body = build.extract_body(core_text)
             header = target.header.read_text(encoding="utf-8")
             header_path = target.header.relative_to(ROOT).as_posix()
-            expected = build.build_adapter(header, body, header_path)
+            core_path = target.core.relative_to(ROOT).as_posix()
+            expected = build.build_adapter(header, body, header_path, core_path)
             actual = target.output.read_text(encoding="utf-8")
             assert actual == expected, (
                 f"{target.output.relative_to(ROOT)} is out of sync with source. "
@@ -358,6 +381,8 @@ def test_readme_documents_standard_skill_entry():
 
     assert "skills/obsidian-knowledge-base/SKILL.md" in readme
     assert "~/.agents/skills/obsidian-knowledge-base" in readme
+    assert "skills/obsidian-knowledge-retrieval/SKILL.md" in readme
+    assert "obsidian-knowledge-retrieval" in readme
 
 
 def test_readmes_do_not_tell_users_to_edit_generated_platform_files():
@@ -398,22 +423,20 @@ def test_readmes_use_agent_first_installation_and_changelog_owns_history():
     assert "## What's New in v1.12" not in readme_en
 
 
-def test_v1_22_1_release_contract_is_consistent():
+def test_v1_23_0_release_contract_is_consistent():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     core = (ROOT / "core" / "OBSIDIAN_KB.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     readme_en = (ROOT / "README_EN.md").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert 'version = "1.22.1"' in pyproject
-    assert "**Version**: 1.22.1" in core
-    assert "**v1.22.1**" in readme
-    assert "**v1.22.1**" in readme_en
-    assert "## [1.22.1] - 2026-07-28" in changelog
-    assert "structured semantic capture receipt" in changelog
-    assert "numerical-claim provenance" in changelog
-    assert "`crowded_folders`" in changelog
-    assert "lazy `folder-routing.md`" in changelog
+    assert 'version = "1.23.0"' in pyproject
+    assert "**Version**: 1.23.0" in core
+    assert "**v1.23.0**" in readme
+    assert "**v1.23.0**" in readme_en
+    assert "## [1.23.0] - 2026-07-29" in changelog
+    assert "`obsidian-knowledge-retrieval`" in changelog
+    assert "local embedding providers" in changelog
     assert "~/.workbuddy/skills/obsidian-knowledge-base" in readme
     assert "run_helper.py doctor" in readme
     assert "WorkBuddy" in readme_en

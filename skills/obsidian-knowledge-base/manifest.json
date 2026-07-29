@@ -39,7 +39,7 @@
     "scripts/obsidian_kb_skill/scripts/create_note.py": "151de22d224a0b4fb90c3e31601ad89ad5326b19e7ef0f4cc240c7a5d6c67bd5",
     "scripts/obsidian_kb_skill/scripts/deep_capture_contract.py": "da31c6c5bee9a3bff799c86a79cedd153c77167cf44a888da4b62cf362ef87ae",
     "scripts/obsidian_kb_skill/scripts/detect_index.py": "f5ba15b715e1e0045ff5184184f0f4e71fb2b83295067852e1c1ce3e57336368",
-    "scripts/obsidian_kb_skill/scripts/doctor.py": "6c082d00c046126788ee93ddbf7fafe92e9a61ebd2d28466d3588a98e21d552a",
+    "scripts/obsidian_kb_skill/scripts/doctor.py": "45fa782f62706ab75850f8a8d2ee7c067898a397593be45207a7091ce9f84a3a",
     "scripts/obsidian_kb_skill/scripts/folder_index_policy.py": "22d3c4c6bb3b8c2adbbba4b0a993dafefa2dc796e9909913dfd17c19e11e807f",
     "scripts/obsidian_kb_skill/scripts/frontmatter.py": "faf6e4b31bf12a2eec25191d6d6e4b8e047c4daba39ccbc1256352bd7a365b40",
     "scripts/obsidian_kb_skill/scripts/index_templates.py": "27171d2cd9acb06ef1749006c87a9899676849811e7612752db43abbbc52d28c",
@@ -48,7 +48,9 @@
     "scripts/obsidian_kb_skill/scripts/note_types.py": "ae5f477de22ee7032b3c5e133b9823afd159a4692eba3f721100a0266b08f4fa",
     "scripts/obsidian_kb_skill/scripts/process_inbox.py": "dd2a4bb95f04ebc61031c8560e2ababa3337464030eba864f847efaeaa7d2566",
     "scripts/obsidian_kb_skill/scripts/resource_locator.py": "31ac692b36ca0a7dd14747e651b9e29db1705c39706cd16f804951be8816baeb",
+    "scripts/obsidian_kb_skill/scripts/retrieval_vault_info.py": "af952ed626b49bbe84841302ace7796e777e68ad2c8f005998389395162164ec",
     "scripts/obsidian_kb_skill/scripts/scaffold_templates.py": "436ffdf56e9f8ff1b1ecdddb4224e4031a61884b66cc17a136f21d1edc6e19ff",
+    "scripts/obsidian_kb_skill/scripts/search_vault.py": "7073dcd4f25c3504c2e6cae843398808e88a36e0a6d43640bf307adfba71936e",
     "scripts/obsidian_kb_skill/scripts/suggest_links.py": "61338e62585c451525999d3d14f1c148a41b2f90edeee7c756bde31cc9f20457",
     "scripts/obsidian_kb_skill/scripts/template_contract.py": "80f81d5372d06a1873526c34580629e7127066b58de34b18a2fb21e21431f9ed",
     "scripts/obsidian_kb_skill/scripts/update_note.py": "866c116fd7030e12c8480b68df52fc49ae9937701479c0a61f31cec3ea070182",
@@ -58,5 +60,5 @@
   },
   "product": "obsidian-kb-skill",
   "schema_version": 1,
-  "version": "1.22.1"
+  "version": "1.23.0"
 }
