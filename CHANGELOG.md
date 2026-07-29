@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-07-29
+
 ### Added
 
 - Added the lazy `conversation-harvest` workflow to evaluate conversation-derived problems, reusable knowledge, reflection, and design with `verified`, `inferred`, `open`, and `skip` evidence states before any write.
