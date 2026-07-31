@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-07-31
+
 ### Added
 
 - Added a lazy, tool-neutral web acquisition contract that checks target and extraction quality, tries materially different safe access paths after an inadequate first result, inspects material body media, and keeps terminal failures at zero Vault writes.
