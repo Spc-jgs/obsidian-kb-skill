@@ -49,7 +49,7 @@
     "scripts/obsidian_kb_skill/scripts/metadata_quality.py": "2768d0de3cc1ee215d69515a30d67a5f6c1587e76a42110fbd9fb7880849e86b",
     "scripts/obsidian_kb_skill/scripts/note_catalog.py": "5d12cc25f71a5158e15f7fa138461cbaf0f2df201f77d69251c07d146b2fffbe",
     "scripts/obsidian_kb_skill/scripts/note_types.py": "ae5f477de22ee7032b3c5e133b9823afd159a4692eba3f721100a0266b08f4fa",
-    "scripts/obsidian_kb_skill/scripts/process_inbox.py": "dd2a4bb95f04ebc61031c8560e2ababa3337464030eba864f847efaeaa7d2566",
+    "scripts/obsidian_kb_skill/scripts/process_inbox.py": "fc0053eb8ae9e94f900f4e510c85da2e9ecc1ffd832689b785ec00b3fa3da52b",
     "scripts/obsidian_kb_skill/scripts/resource_locator.py": "31ac692b36ca0a7dd14747e651b9e29db1705c39706cd16f804951be8816baeb",
     "scripts/obsidian_kb_skill/scripts/retrieval_vault_info.py": "af952ed626b49bbe84841302ace7796e777e68ad2c8f005998389395162164ec",
     "scripts/obsidian_kb_skill/scripts/scaffold_templates.py": "436ffdf56e9f8ff1b1ecdddb4224e4031a61884b66cc17a136f21d1edc6e19ff",

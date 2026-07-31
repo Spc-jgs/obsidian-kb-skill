@@ -26,7 +26,7 @@ from obsidian_kb_skill.scripts.folder_index_policy import (
     StaticIndexEntry,
     append_static_index_entry,
 )
-from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
+from obsidian_kb_skill.scripts.frontmatter import FrontmatterIssue, parse_frontmatter
 from obsidian_kb_skill.scripts.note_catalog import (
     DEFAULT_TAG_BY_TYPE,
     FOLDER_TO_DEFAULT_TYPE,
@@ -58,6 +58,9 @@ DEFAULT_TAG_BY_FOLDER = {
 
 INDEX_BASENAME = "INDEX.md"
 
+# Skip code for a note whose frontmatter block exists but cannot be parsed.
+UNREADABLE_FRONTMATTER = "unreadable-frontmatter"
+
 
 def collect_inbox(inbox: Path) -> list[Path]:
     if not inbox.is_dir():
@@ -86,17 +89,38 @@ def destination_index_name(vault: Path, target: str) -> str | None:
     return None
 
 
+def _issue_payload(issue: FrontmatterIssue) -> dict[str, Any]:
+    return {
+        "code": issue.code,
+        "message": issue.message,
+        "line": issue.line,
+        "column": issue.column,
+    }
+
+
 def plan_note(path: Path, vault: Path) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8")
-    metadata = parse_frontmatter(text, source=path.as_posix()).metadata
-    target = infer_target(text, metadata)
+    parsed = parse_frontmatter(text, source=path.as_posix())
     result: dict[str, Any] = {
         "path": path,
-        "target": target,
+        "target": None,
         "title": _note_title(path, text),
     }
+    # Fail closed: a frontmatter block we cannot read is not an empty one.
+    # Filling defaults over it would discard the user's original keys, and the
+    # move then deletes the only copy. Refuse the note and keep it in place.
+    if parsed.issue is not None:
+        result["skip"] = f"unreadable frontmatter: {parsed.issue.message}"
+        result["skip_code"] = UNREADABLE_FRONTMATTER
+        result["frontmatter_issue"] = _issue_payload(parsed.issue)
+        return result
+
+    metadata = parsed.metadata
+    target = infer_target(text, metadata)
+    result["target"] = target
     if target is None:
         result["skip"] = "could not infer a target folder"
+        result["skip_code"] = "unknown-target"
         return result
     existing_tags = (metadata or {}).get("tags")
     if existing_tags:
@@ -129,20 +153,31 @@ def _fill_frontmatter(
     return f"---\n{dump}\n---\n{body}"
 
 
-def apply_plan(plan: dict[str, Any], vault: Path, silent: bool = False) -> None:
+def apply_plan(plan: dict[str, Any], vault: Path, silent: bool = False) -> bool:
+    """Move one planned note. Return True only when the move committed."""
     if plan.get("skip"):
         if not silent:
             print(f"  skip: {plan['path'].as_posix()} — {plan['skip']}")
-        return
+        return False
     source = plan["path"]
     dest_folder = vault / plan["target"]
     dest = dest_folder / source.name
     if dest.exists():
         print(f"  skip (target exists): {dest.as_posix()}", file=sys.stderr)
-        return
-    dest_folder.mkdir(parents=True, exist_ok=True)
+        return False
     text = source.read_text(encoding="utf-8")
-    metadata = parse_frontmatter(text, source=source.as_posix()).metadata
+    parsed = parse_frontmatter(text, source=source.as_posix())
+    # Re-check at write time: the file may have changed since it was planned.
+    if parsed.issue is not None:
+        print(
+            f"  skip (unreadable frontmatter): {source.as_posix()} — "
+            f"{parsed.issue.message}",
+            file=sys.stderr,
+        )
+        return False
+    metadata = parsed.metadata
+
+    dest_folder.mkdir(parents=True, exist_ok=True)
     today = datetime.date.today().isoformat()
     updates: dict[str, Any] = {}
     if not (metadata and metadata.get("date")):
@@ -152,7 +187,24 @@ def apply_plan(plan: dict[str, Any], vault: Path, silent: bool = False) -> None:
     if not (metadata and metadata.get("tags")):
         updates["tags"] = plan["tags"]
     dest.write_bytes(_fill_frontmatter(text, metadata, updates).encode("utf-8"))
-    source.unlink()
+    try:
+        source.unlink()
+    except OSError as exc:
+        # The copy is written but the original survives. Roll the copy back so
+        # the note never exists in two places with divergent frontmatter.
+        print(
+            f"  skip (cannot remove source): {source.as_posix()} — {exc}",
+            file=sys.stderr,
+        )
+        try:
+            dest.unlink()
+        except OSError as cleanup_exc:
+            print(
+                f"  warning: could not roll back {dest.as_posix()} — "
+                f"{cleanup_exc}; remove it manually",
+                file=sys.stderr,
+            )
+        return False
     append_static_index_entry(
         vault,
         StaticIndexEntry(
@@ -163,6 +215,7 @@ def apply_plan(plan: dict[str, Any], vault: Path, silent: bool = False) -> None:
     )
     if not silent:
         print(f"  moved: {source.as_posix()} -> {dest.as_posix()}")
+    return True
 
 
 def process_vault(
@@ -177,8 +230,15 @@ def process_vault(
     if apply:
         for plan in plans:
             if plan.get("skip"):
+                # Refusals must stay visible; --apply is where it matters most.
+                if not silent:
+                    print(
+                        f"  skip: {plan['path'].as_posix()} — {plan['skip']}",
+                        file=sys.stderr,
+                    )
+                plan["applied"] = False
                 continue
-            apply_plan(plan, vault, silent=silent)
+            plan["applied"] = apply_plan(plan, vault, silent=silent)
     return plans
 
 
@@ -241,8 +301,15 @@ def main(argv: list[str] | None = None) -> int:
     if not args.apply:
         for plan in plans:
             print(_format_plan(plan))
-    action = "applied" if args.apply else "planned"
-    print(f"{len(plans)} Inbox note(s) {action}.")
+        print(f"{len(plans)} Inbox note(s) planned.")
+        return 0
+
+    # Report what actually committed, not how many notes were examined.
+    applied = sum(1 for plan in plans if plan.get("applied"))
+    print(f"{applied} Inbox note(s) applied.")
+    refused = len(plans) - applied
+    if refused:
+        print(f"{refused} Inbox note(s) left in place; see the messages above.")
     return 0
 
 
