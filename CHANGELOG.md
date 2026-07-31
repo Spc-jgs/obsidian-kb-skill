@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.25.1] - 2026-08-01
+
+### Fixed
+
+- Inbox processing is now fail-closed on a frontmatter block it cannot parse. Such a note previously had its original keys replaced by inferred defaults before the source file was deleted, destroying user content with no backup, no warning, and a success exit code. Invalid YAML, an unclosed block, and a non-mapping block are all refused as `unreadable-frontmatter` and left byte-for-byte in place; a note with no frontmatter at all is unaffected and still filled normally.
+- A failed source removal during `--apply` now rolls back the already-written destination copy, so a note can no longer exist in two places with divergent frontmatter. When the rollback itself cannot run, the warning is reported instead of being swallowed.
+
+### Changed
+
+- `process_inbox --apply` reports how many notes actually committed rather than how many were examined, and names the notes left in place. Refusals are printed to stderr in both `--plan` and `--apply`.
+- The `--json` plan gains `skip_code`, `frontmatter_issue` (code, message, line, column), and `applied` fields. A refused note reports `target: null`.
+
+Inbox processing remains non-transactional; destination write, source removal, and index append are still separate steps. This release closes one data-loss path, not the broader transaction gap.
+
 ## [1.25.0] - 2026-07-31
 
 ### Added
