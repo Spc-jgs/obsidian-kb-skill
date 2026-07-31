@@ -21,9 +21,11 @@ Same as Create workflow.
 Always read the complete file before editing. Note the YAML frontmatter, section headings, and current content.
 
 If this is a material rewrite of a finished source-backed article, also read
-`deep-capture.md`, rebuild the source inventory, and validate the complete
-candidate with `capture-receipt` before replacing the original. A metadata-only
-edit does not trigger semantic revalidation.
+`web-capture.md` and choose an explicit current `capture_depth`. A standard
+rewrite follows its acquisition and self-check gate. A verified rewrite also
+loads `deep-capture.md`, rebuilds the source inventory, and validates the
+complete candidate with `capture-receipt` before replacing the original. A
+metadata-only edit does not trigger semantic revalidation.
 
 ### Step 4: Decide the Insertion Point
 
@@ -46,10 +48,11 @@ Match the new content to the most appropriate section:
 5. If the edit removes or rewrites more than a few lines, ask the user to confirm first
 6. **Tell the user** where the backup landed so they can roll back manually if needed
 
-For a material article rewrite, do not apply until the candidate's
+For a verified material article rewrite, do not apply until the candidate's
 content-bound receipt passes. Keep the validated candidate inside the Vault,
 then use the normal backup boundary above. The helper validates but does not
-perform or authorize the edit.
+perform or authorize the edit. For either depth, terminal acquisition failure
+means zero writes under `web-capture.md`.
 
 ### Step 6: Refresh a Static Index (Only If Needed)
 
@@ -65,5 +68,7 @@ Tell the user:
 - Which file was edited (full path)
 - Which section(s) received new content
 - A 1–2 sentence summary of what was added
-- For a material article rewrite: selected profile, receipt SHA-256, unresolved
-  item count, semantic acceptance, and mechanical audit separately
+- For a material article rewrite: capture depth, source coverage, fallback use,
+  media check, verification status, and mechanical audit
+- For a verified rewrite: selected profile, receipt SHA-256, unresolved item
+  count, and semantic acceptance separately

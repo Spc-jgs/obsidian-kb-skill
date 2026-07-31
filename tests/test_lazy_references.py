@@ -38,6 +38,7 @@ POINTER_MARKERS = [
     "off by default",              # task memory is off unless enabled
     "task-memory.md",              # where the full task-memory spec lives
     "note-creation.md",            # where the create workflow lives
+    "web-capture.md",              # conditional source-acquisition contract
     "deep-capture.md",             # conditional finished-article contract
     "folder-routing.md",            # conditional crowded-folder contract
     "conversation-harvest.md",      # conditional conversation value review
@@ -85,7 +86,7 @@ def test_core_selects_only_the_reference_for_the_requested_operation():
 
     for marker in (
         "New note: read only `note-creation.md`",
-        "also read `deep-capture.md`; quick/unread captures do not load it",
+        "also read `web-capture.md`; verified captures additionally load `deep-capture.md`",
         "also read `folder-routing.md`; uncrowded destinations do not load it",
         "Task Memory: read `task-memory.md` only after explicit opt-in",
         "YAML, rules, and Git references are troubleshooting or post-processing",
@@ -127,6 +128,7 @@ def test_all_reference_files_exist():
         "git.md",
         "missing-category.md",
         "custom-template.md",
+        "web-capture.md",
         "deep-capture.md",
         "folder-routing.md",
     }
@@ -144,8 +146,9 @@ def test_references_use_the_standard_skill_runner_not_removed_script_paths():
     assert not re.search(r"python\s+scripts/[a-z_]+\.py", text)
 
 
-def test_note_creation_routes_deep_articles_to_one_lazy_reference():
+def test_note_creation_routes_articles_to_progressive_capture_references():
     ordinary = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
+    web = (REFERENCES_DIR / "web-capture.md").read_text(encoding="utf-8")
     deep = (REFERENCES_DIR / "deep-capture.md").read_text(encoding="utf-8")
     normalized = " ".join(ordinary.split())
 
@@ -154,7 +157,9 @@ def test_note_creation_routes_deep_articles_to_one_lazy_reference():
         "type defaults < Vault template < input frontmatter < explicit CLI fields",
         "`web-clip` requires non-empty",
         "`--content-file` must resolve inside the Vault",
-        "read only `deep-capture.md`",
+        "read only `web-capture.md`",
+        "`capture_depth: standard`",
+        "`capture_depth: verified`",
         "saved article",
         "quick, bookmark, save-for-later, or unread",
         "materially rewriting",
@@ -170,7 +175,35 @@ def test_note_creation_routes_deep_articles_to_one_lazy_reference():
         "Semantic Hard Failures",
     ):
         assert heavy_marker not in ordinary
+        assert heavy_marker not in web
         assert heavy_marker in deep
+
+
+def test_web_capture_reference_defines_resilient_standard_contract():
+    text = (REFERENCES_DIR / "web-capture.md").read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+
+    for marker in (
+        "`standard`",
+        "`verified`",
+        "Comments are out of scope by default",
+        "main article body",
+        "material body image",
+        "first access path fails",
+        "materially different safe path",
+        "third-party reader",
+        "authenticated, private, intranet, signed",
+        "Never bypass login, CAPTCHA, paywalls, or access controls",
+        "`source-self-report`",
+        "1000 concurrent",
+        "local qualification",
+        "`retrieval_status`",
+        "`fallback_used`",
+        "`material_media_checked`",
+        "zero Vault writes",
+        "Never auto-downgrade",
+    ):
+        assert marker in normalized, f"web capture contract missing: {marker!r}"
 
 
 def test_deep_capture_reference_defines_intent_profiles_and_semantic_gate():

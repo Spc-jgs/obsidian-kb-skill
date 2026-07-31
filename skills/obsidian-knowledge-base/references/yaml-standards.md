@@ -21,13 +21,13 @@ Additional fields by type:
 | `daily-note` | `related: []` |
 | `meeting-note` | `participants: []`, `project: ""`, `related: []` |
 | `learning-note` | `source: ""`, `category: ""`, `related: []` |
-| `web-clip` | `source: ""`, `author: ""`, `published: ""`, `related: []` |
+| `web-clip` | `source: ""`, `author: ""`, `published: ""`, `capture_depth: standard`, `related: []` |
 | `project-note` | `status: active`, `updated: "YYYY-MM-DD"`, `related: []` |
 | `insight-note` | `source: ""`, `related: []` |
 | `person-note` | `role: ""`, `organization: ""`, `updated: "YYYY-MM-DD"`, `related: []` |
 | `conversation-digest` | `source: ""`, `project: ""`, `related: []` |
 
-For a `web-clip`, `source` stores the canonical source URL only. Keep the article title in the note heading and source-information section; use `author` and `published` for their respective values. For non-web notes, `source` may be a concise source description when no canonical URL exists.
+For a `web-clip`, `source` stores the canonical source URL only. Keep the article title in the note heading and source-information section; use `author` and `published` for their respective values. New Web Clips also persist `capture_depth: standard` for ordinary finished capture or `capture_depth: verified` for the receipt-bound evidence path. Historical Web Clips without the field remain unclassified rather than being silently upgraded. For non-web notes, `source` may be a concise source description when no canonical URL exists.
 
 Store semantic relationships in `related` as quoted Obsidian links, for example:
 

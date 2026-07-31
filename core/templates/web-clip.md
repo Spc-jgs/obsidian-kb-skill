@@ -5,6 +5,7 @@ tags: [web-clip]
 source: ""
 author: ""
 published: ""
+capture_depth: standard
 related: []
 ---
 

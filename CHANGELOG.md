@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Added a lazy, tool-neutral web acquisition contract that checks target and extraction quality, tries materially different safe access paths after an inadequate first result, inspects material body media, and keeps terminal failures at zero Vault writes.
+- Added reusable cross-Agent fixtures for public fallback, private-URL protection, material images, numerical source self-reports, verified escalation, and terminal failure.
+
+### Changed
+
+- Ordinary finished Web Clips now default to `capture_depth: standard`; explicit or evidence-sensitive research uses `capture_depth: verified` and retains the content-bound capture receipt.
+- Web Clip templates and helper fallback metadata share one section structure and persist capture depth without reclassifying historical notes.
+- Numerical empirical claims without inspectable measurement support are kept as locally qualified `source-self-report` claims rather than facts or generic author opinion.
+
+### Fixed
+
+- A failed first webpage access path no longer authorizes an incomplete placeholder note; safe fallback and acquisition self-check must establish adequate material coverage before preflight.
+- Capture receipts are rejected unless the candidate is a verified Web Clip outside Inbox, preventing receipt evidence and persisted depth from disagreeing.
+
 ## [1.24.0] - 2026-07-29
 
 ### Added

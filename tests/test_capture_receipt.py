@@ -28,6 +28,7 @@ def candidate() -> str:
         f"source: {SOURCE}\n"
         "author: 示例作者\n"
         "published: 2026-07-28\n"
+        "capture_depth: verified\n"
         "type: web-clip\n"
         "tags: [web-clip]\n"
         "---\n\n"
@@ -127,6 +128,7 @@ def resource_candidate() -> str:
         f"source: {SOURCE}\n"
         "author: 示例作者\n"
         "published: 2026-07-28\n"
+        "capture_depth: verified\n"
         "type: web-clip\n"
         "tags: [web-clip]\n"
         "---\n\n"
@@ -581,16 +583,29 @@ def test_receipt_does_not_treat_a_skill_directory_tree_as_copyable_frontmatter()
 
 
 @pytest.mark.parametrize(
-    ("note_type", "folder", "expected"),
+    ("note_type", "folder", "capture_depth", "expected"),
     [
-        ("web-clip", "20-Learning/AI-Agent", True),
-        ("web-clip", "00-Inbox", False),
-        ("web-clip", "00-Inbox/Unread", False),
-        ("learning-note", "20-Learning", False),
+        ("web-clip", "20-Learning/AI-Agent", "verified", True),
+        ("web-clip", "20-Learning/AI-Agent", "standard", False),
+        ("web-clip", "00-Inbox", "verified", False),
+        ("web-clip", "00-Inbox/Unread", "standard", False),
+        ("learning-note", "20-Learning", "verified", False),
     ],
 )
-def test_receipt_routing(note_type, folder, expected):
-    assert requires_capture_receipt(note_type, folder) is expected
+def test_receipt_routing(note_type, folder, capture_depth, expected):
+    assert requires_capture_receipt(note_type, folder, capture_depth) is expected
+
+
+def test_receipt_rejects_standard_candidate_even_with_valid_evidence():
+    rendered = candidate().replace(
+        "capture_depth: verified", "capture_depth: standard"
+    )
+    receipt = valid_receipt(rendered)
+
+    with pytest.raises(CaptureReceiptError) as caught:
+        validate_capture_receipt(receipt, rendered, candidate_source=SOURCE)
+
+    assert caught.value.code == "capture-receipt-depth-mismatch"
 
 
 def test_standalone_helper_validates_in_vault_candidate(tmp_path: Path):

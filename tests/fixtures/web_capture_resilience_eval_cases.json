@@ -1,0 +1,115 @@
+[
+  {
+    "id": "direct-public-standard",
+    "scenario": "A public article opens completely through the Agent's native web reader. The user says it is interesting and asks to save it.",
+    "url_class": "public",
+    "first_access": "adequate",
+    "material_media": "none",
+    "user_intent": "ordinary-save",
+    "expected_depth": "standard",
+    "expected_outcome": "write-after-preflight",
+    "contract_markers": [
+      "default finished capture",
+      "retrieval_status: adequate"
+    ]
+  },
+  {
+    "id": "public-fallback-complete",
+    "scenario": "The first public URL returns a challenge page. A materially different public reader representation preserves the complete article, code, table, and images.",
+    "url_class": "public",
+    "first_access": "blocked",
+    "material_media": "checked",
+    "user_intent": "ordinary-save",
+    "expected_depth": "standard",
+    "expected_outcome": "write-after-fallback-and-preflight",
+    "contract_markers": [
+      "first access path fails",
+      "materially different safe path",
+      "fallback_used: yes"
+    ]
+  },
+  {
+    "id": "private-url-no-third-party",
+    "scenario": "An authenticated intranet page is visible in the user's browser, but its URL and session must not be sent to a third-party reader.",
+    "url_class": "authenticated-private",
+    "first_access": "partial",
+    "material_media": "unknown",
+    "user_intent": "ordinary-save",
+    "expected_depth": "standard",
+    "expected_outcome": "stop-zero-write",
+    "contract_markers": [
+      "authenticated, private, intranet, signed",
+      "must not be sent to a third-party reader"
+    ]
+  },
+  {
+    "id": "material-image-required",
+    "scenario": "The prose references an architecture diagram that contains the only component ordering and failure boundary.",
+    "url_class": "public",
+    "first_access": "adequate-text-only",
+    "material_media": "material-unread",
+    "user_intent": "ordinary-save",
+    "expected_depth": "standard",
+    "expected_outcome": "stop-until-image-read",
+    "contract_markers": [
+      "material body image",
+      "URL or alt text alone does not count"
+    ]
+  },
+  {
+    "id": "all-safe-paths-incomplete",
+    "scenario": "The original page and safe public representations all omit a material code sample required to understand the article.",
+    "url_class": "public",
+    "first_access": "partial",
+    "material_media": "checked",
+    "user_intent": "ordinary-save",
+    "expected_depth": "standard",
+    "expected_outcome": "stop-zero-write",
+    "contract_markers": [
+      "zero Vault writes",
+      "Never auto-downgrade"
+    ]
+  },
+  {
+    "id": "numeric-source-self-report",
+    "scenario": "The article says that at 1000 concurrent requests one client is 40% faster, but gives no sample, environment, or benchmark method.",
+    "url_class": "public",
+    "first_access": "adequate",
+    "material_media": "none",
+    "user_intent": "ordinary-save",
+    "expected_depth": "standard",
+    "expected_outcome": "write-with-local-qualification",
+    "contract_markers": [
+      "source-self-report",
+      "local qualification"
+    ]
+  },
+  {
+    "id": "explicit-verified-research",
+    "scenario": "The user asks for a decision-grade comparison with current primary-source verification and reproducible evidence.",
+    "url_class": "public",
+    "first_access": "adequate",
+    "material_media": "checked",
+    "user_intent": "explicit-verify",
+    "expected_depth": "verified",
+    "expected_outcome": "receipt-required",
+    "contract_markers": [
+      "load `deep-capture.md`",
+      "content-bound capture receipt"
+    ]
+  },
+  {
+    "id": "standard-escalation-consent",
+    "scenario": "An ordinary save reveals an important claim that would require multi-source research or a fresh benchmark to verify.",
+    "url_class": "public",
+    "first_access": "adequate",
+    "material_media": "checked",
+    "user_intent": "ordinary-save",
+    "expected_depth": "standard",
+    "expected_outcome": "ask-before-expensive-escalation",
+    "contract_markers": [
+      "requires user consent",
+      "expensive multi-source research"
+    ]
+  }
+]

@@ -15,6 +15,7 @@ specifically needs troubleshooting, Git post-processing, or opted-in handoff.
 3. If governance requires Git, load `git.md` and complete its pre-write check
    before fetching or deeply reading source content.
 4. For a finished source-backed article or material rewrite, read only
+   `web-capture.md`; if it selects verified depth, additionally read
    `deep-capture.md` and complete its semantic gate before preflight.
 5. If discovery reports the selected destination in `crowded_folders`, read
    only `folder-routing.md` and resolve the route before writing.
@@ -90,16 +91,15 @@ article.
 
 ### Article capture depth
 
-A saved article is deep by default when the user asks to learn, summarize into
-the knowledge base, archive as knowledge, or “沉淀” it. Before drafting or
-materially rewriting a finished source-backed article, read only
-`deep-capture.md` and follow its intent routing, source access, profile,
-materiality, coverage, enrichment, and acceptance contract.
+Before drafting or materially rewriting a finished source-backed article, read
+only `web-capture.md`. An ordinary saved article, including “沉淀一下”, uses
+`capture_depth: standard`. An explicit or evidence-sensitive deep verification
+uses `capture_depth: verified` and additionally loads `deep-capture.md`.
 
 An explicitly quick, bookmark, save-for-later, or unread source belongs in
 `00-Inbox/` and must not be presented as finished knowledge. If required source
-material is inaccessible, follow `deep-capture.md` instead of silently reducing
-the result to a concept summary.
+material is inaccessible, follow the zero-write failure contract in
+`web-capture.md` instead of silently reducing the result to a concept summary.
 
 ### Missing category exception
 
@@ -140,7 +140,8 @@ related: ["[[Existing Note]]"]
 
 Merge precedence is `type defaults < Vault template < input frontmatter < explicit CLI fields`.
 Always use today's date and the routed type. `web-clip` requires non-empty
-`source`, `author`, and `published`; missing fields fail before any mutation.
+`source`, `author`, and `published`, plus `capture_depth: standard` or
+`capture_depth: verified`; invalid fields fail before any mutation.
 Do not use vague placeholders such as `unknown`, `未知`, `N/A`, `TODO`, or
 `待补充` to bypass this gate. When the complete source genuinely omits a fact,
 use an explicit provenance marker such as `author: "原文未署名"` or
@@ -160,10 +161,11 @@ body. A template-order finding includes the expected headings, actual headings,
 and first mismatch; repair the complete sequence in one edit before rerunning
 preflight. Use full `--json` only when the rendered body is explicitly needed.
 
-For a finished article outside `00-Inbox`, `deep-capture.md` adds a required
-content-bound `--capture-receipt-json`. The first preflight may intentionally
-return `missing-capture-receipt` together with the final content SHA-256; build
-the receipt against that hash and rerun preflight. This is not a successful
+For a verified article outside `00-Inbox`, `deep-capture.md` adds a required
+content-bound `--capture-receipt-json`. A standard article must not supply one.
+The first verified preflight may intentionally return
+`missing-capture-receipt` together with the final content SHA-256; build the
+receipt against that hash and rerun preflight. This is not a successful
 preflight and must not be followed by apply. Preserve the accepted
 `semantic_receipt.sha256` for apply.
 
@@ -211,8 +213,9 @@ customized contract. A full-vault audit additionally checks every historical
 an outdated `Templates/Web Clip.md`; preserving an old template must not lower
 that historical quality gate.
 
-Mechanical audit does not prove semantic depth. For deep article capture,
-completion additionally requires the semantic acceptance in
+Mechanical audit does not prove source fidelity. Standard completion also
+requires the acquisition and self-check acceptance in `web-capture.md`. For a
+verified article, completion additionally requires semantic acceptance in
 `deep-capture.md`. Do not report success when either gate fails.
 
 ## Write Boundary
@@ -224,8 +227,9 @@ for it or higher-priority runtime instructions explicitly require it.
 
 ### Step 10: Confirm to User
 
-Report the saved path, a brief capture summary, audit status, and only useful
-follow-up actions. For deep capture, separately report the selected profile,
-source coverage, semantic receipt SHA-256, unresolved item count, semantic
+Report the saved path, capture depth, source coverage, fallback use,
+material-media status, verification or qualification status, audit status, and
+only useful follow-up actions. For verified capture, separately report the
+selected profile, semantic receipt SHA-256, unresolved item count, semantic
 acceptance, and mechanical audit. Do not narrate redundant internal reads or
 checks.

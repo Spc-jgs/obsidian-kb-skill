@@ -26,6 +26,7 @@ from obsidian_kb_skill.scripts.deep_capture_contract import (
     matches_deep_capture_contract,
 )
 from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
+from obsidian_kb_skill.scripts.capture_receipt import CAPTURE_DEPTHS
 from obsidian_kb_skill.scripts.folder_index_policy import (
     FolderIndexConfig,
     FolderIndexConfigError,
@@ -473,6 +474,16 @@ def _audit_web_clip(
                 relative,
                 f"web-clip note must set a non-placeholder '{field}' field",
             )
+    capture_depth = metadata.get("capture_depth")
+    if capture_depth is not None and (
+        not isinstance(capture_depth, str) or capture_depth not in CAPTURE_DEPTHS
+    ):
+        _add(
+            findings,
+            "web-clip-invalid-capture-depth",
+            relative,
+            "web-clip capture_depth must be 'standard' or 'verified' when present",
+        )
 
 
 def _audit_empty_template(

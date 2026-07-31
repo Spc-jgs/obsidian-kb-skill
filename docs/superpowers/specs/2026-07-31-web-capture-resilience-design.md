@@ -180,7 +180,9 @@ Any other value fails preflight before mutation.
 
 Only `verified` Web Clips outside `00-Inbox` require the existing content-bound
 capture receipt. A standard Web Clip rejects a supplied receipt so receipt use
-cannot disagree with the persisted depth. Inbox routing remains receipt-free.
+cannot disagree with the persisted depth. Inbox routing remains receipt-free,
+and a candidate marked `verified` cannot target Inbox because verified is a
+finished knowledge outcome rather than a bookmark.
 
 Historical Web Clips without `capture_depth` are not retroactively classified
 or made invalid by full-Vault audit. A material rewrite must choose and persist
@@ -230,4 +232,3 @@ read-only and records the observed coverage. It must not edit the real Vault.
 - No automatic rewrite or reclassification of historical notes.
 - No persistent telemetry, lifecycle status engine, or model quality score.
 - No global rule that constrains browsing outside an explicit source capture.
-

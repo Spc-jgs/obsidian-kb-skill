@@ -18,7 +18,7 @@ This skill **never writes to the vault on its own**. Write only after **explicit
 3. **Read the smallest operation-specific reference set before writing**:
    - New note: read only `note-creation.md`.
    - Finished source-backed article: after `note-creation.md` routes it, also read
-     `deep-capture.md`; quick/unread captures do not load it.
+     `web-capture.md`; verified captures additionally load `deep-capture.md`.
    - Crowded selected destination: when compact discovery reports it, also read
      `folder-routing.md`; uncrowded destinations do not load it.
    - Existing note: read only `update-note.md`.
@@ -29,4 +29,4 @@ This skill **never writes to the vault on its own**. Write only after **explicit
    - YAML, rules, and Git references are troubleshooting or post-processing material: load `yaml-standards.md`, `rules-and-errors.md`, or `git.md` only when the current task requires it.
 4. **Prefer bundled helpers** (never a one-off script): run `python <skill-root>/scripts/run_helper.py <helper> ...`, where `<skill-root>` contains this `SKILL.md`. For new notes use `create-note --preflight-json`, inspect the structured validation, then repeat with `--apply --compact-json`; `update-note` is only for Task Memory, while ordinary existing-note edits follow `update-note.md` with native file tools.
 5. **Stay bounded**: ≤10 files scanned, ≤1 note written, ≤5 wikilinks. Never overwrite; add `-2` on name clash. Validate after.
-6. **Route**: daily→`15-Daily` · meeting→`10-Work` · learning/article→`20-Learning` · insight/digest→`30-Insights` · project→`40-Projects` · person→`50-People` · quick/unread source→`00-Inbox`. A saved article is deep by default; a bookmark or incompletely read source is not a finished knowledge note.
+6. **Route**: daily→`15-Daily` · meeting→`10-Work` · learning/article→`20-Learning` · insight/digest→`30-Insights` · project→`40-Projects` · person→`50-People` · quick/unread source→`00-Inbox`. An ordinary finished article uses standard capture; verified capture is explicit or evidence-sensitive.

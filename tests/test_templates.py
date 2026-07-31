@@ -96,6 +96,8 @@ def test_web_clip_locales_share_deep_capture_semantics():
         encoding="utf-8"
     )
 
+    assert "capture_depth: standard" in zh
+    assert "capture_depth: standard" in en
     for marker in ("版本", "代码", "验证", "限制", "启发", "真实存在"):
         assert marker in zh
     for marker in (
