@@ -148,10 +148,19 @@ class CaptureReceiptError(ValueError):
         }
 
 
-def requires_capture_receipt(note_type: str, folder: str) -> bool:
-    """Return whether a routed note is a finished source-backed article."""
+CAPTURE_DEPTHS = frozenset({"standard", "verified"})
+
+
+def requires_capture_receipt(
+    note_type: str, folder: str, capture_depth: object
+) -> bool:
+    """Return whether a routed note is a verified source-backed article."""
     parts = Path(folder).parts
-    return note_type == "web-clip" and (not parts or parts[0] != "00-Inbox")
+    return (
+        note_type == "web-clip"
+        and capture_depth == "verified"
+        and (not parts or parts[0] != "00-Inbox")
+    )
 
 
 def rendered_sha256(rendered: str) -> str:
@@ -523,6 +532,17 @@ def validate_capture_receipt(
     candidate_source: str,
 ) -> dict[str, Any]:
     """Validate and summarize one receipt bound to ``rendered``."""
+    candidate = parse_frontmatter(rendered, source="candidate")
+    if (
+        candidate.issue is not None
+        or not candidate.present
+        or candidate.metadata is None
+        or candidate.metadata.get("capture_depth") != "verified"
+    ):
+        raise CaptureReceiptError(
+            "capture-receipt-depth-mismatch",
+            "capture receipt requires candidate capture_depth: verified",
+        )
     if receipt.get("schema_version") != SCHEMA_VERSION:
         raise CaptureReceiptError(
             "invalid-capture-receipt",

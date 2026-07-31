@@ -777,6 +777,32 @@ def test_accepts_complete_web_clip(tmp_path):
     assert "web-clip-missing-published" not in found
 
 
+def test_historical_web_clip_without_capture_depth_remains_compatible(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Clip.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: web-clip\n'
+        'tags: [web-clip]\nsource: "https://example.com/a"\n'
+        'author: "Jane"\npublished: "2026-01-01"\n---\n# Clip\n',
+        encoding="utf-8",
+    )
+
+    assert "web-clip-invalid-capture-depth" not in codes(tmp_path)
+
+
+@pytest.mark.parametrize("capture_depth", ["deep", "VERIFIED", 1])
+def test_audit_reports_invalid_present_capture_depth(tmp_path, capture_depth):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Clip.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: web-clip\n'
+        'tags: [web-clip]\nsource: "https://example.com/a"\n'
+        f'author: "Jane"\npublished: "2026-01-01"\n'
+        f"capture_depth: {capture_depth}\n---\n# Clip\n",
+        encoding="utf-8",
+    )
+
+    assert "web-clip-invalid-capture-depth" in codes(tmp_path)
+
+
 @pytest.mark.parametrize(
     "placeholder",
     [

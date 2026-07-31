@@ -24,6 +24,7 @@ import yaml
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.capture_receipt import (
+    CAPTURE_DEPTHS,
     CaptureReceiptError,
     load_receipt_file,
     parse_receipt_json,
@@ -80,7 +81,13 @@ EXTRA_FIELDS: dict[str, dict[str, Any]] = {
     "daily-note": {"related": []},
     "meeting-note": {"participants": [], "project": "", "related": []},
     "learning-note": {"source": "", "category": "", "related": []},
-    "web-clip": {"source": "", "author": "", "published": "", "related": []},
+    "web-clip": {
+        "source": "",
+        "author": "",
+        "published": "",
+        "capture_depth": "standard",
+        "related": [],
+    },
     "insight-note": {"source": "", "related": []},
     "conversation-digest": {"source": "", "project": "", "related": []},
     "project-note": {"status": "active", "related": []},
@@ -662,6 +669,24 @@ def main(argv: list[str] | None = None) -> int:
             )
         return 2
 
+    capture_depth = rendered_meta.get("capture_depth")
+    if args.type == "web-clip" and (
+        not isinstance(capture_depth, str) or capture_depth not in CAPTURE_DEPTHS
+    ):
+        error = {
+            "code": "invalid-capture-depth",
+            "message": "web-clip capture_depth must be 'standard' or 'verified'",
+            "actual": capture_depth,
+        }
+        if json_mode:
+            payload = {**result, "error": error} if not args.apply else {"error": error}
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            if not args.apply:
+                print_preview(vault, folder, dest, rendered)
+            print(f"error: {error['message']}", file=sys.stderr)
+        return 2
+
     task_memory_initialization = False
     try:
         destination_folder = resolve_existing_within_vault(
@@ -713,7 +738,28 @@ def main(argv: list[str] | None = None) -> int:
     result["folder"] = folder
     result["path"] = str(dest)
 
-    receipt_required = requires_capture_receipt(args.type, folder)
+    canonical_parts = Path(folder).parts
+    if (
+        args.type == "web-clip"
+        and capture_depth == "verified"
+        and canonical_parts
+        and canonical_parts[0] == "00-Inbox"
+    ):
+        error = {
+            "code": "capture-depth-route-mismatch",
+            "message": (
+                "verified capture is a finished knowledge path and cannot target "
+                "00-Inbox"
+            ),
+            "folder": folder,
+        }
+        if json_mode:
+            print(json.dumps({"error": error}, ensure_ascii=False, indent=2))
+        else:
+            print(f"error: {error['message']}", file=sys.stderr)
+        return 2
+
+    receipt_required = requires_capture_receipt(args.type, folder, capture_depth)
     receipt_error: CaptureReceiptError | None = None
     semantic_receipt: dict[str, Any] | None = None
     receipt_provided = bool(
@@ -723,6 +769,11 @@ def main(argv: list[str] | None = None) -> int:
         receipt_error = CaptureReceiptError(
             "unexpected-capture-receipt",
             "capture receipts apply only to source-backed web clips",
+        )
+    elif receipt_provided and not receipt_required:
+        receipt_error = CaptureReceiptError(
+            "unexpected-capture-receipt",
+            "capture receipts apply only to verified web clips outside 00-Inbox",
         )
     elif receipt_required and not receipt_provided:
         receipt_error = CaptureReceiptError(

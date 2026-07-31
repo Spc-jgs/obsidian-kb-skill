@@ -75,7 +75,7 @@ def test_build_note_web_clip_has_required_fields():
     _, rendered = build_note(
         note_type="web-clip", title="C", date="2026-07-09", body="x"
     )
-    for field in ("source:", "author:", "published:"):
+    for field in ("source:", "author:", "published:", "capture_depth: standard"):
         assert field in rendered
 
 
@@ -439,6 +439,7 @@ def test_complete_web_clip_from_stdin_is_normalized_and_audited(tmp_path):
         "source: https://example.com/article\n"
         "author: 张三\n"
         "published: 2026-07-13\n"
+        "capture_depth: verified\n"
         "---\n"
         "# 中文文章\n\n"
         "## 来源与结论\n\n来源结论。\n\n"
@@ -623,7 +624,105 @@ def test_complete_web_clip_from_stdin_is_normalized_and_audited(tmp_path):
     assert metadata["published"] == "2026-07-13"
     assert isinstance(metadata["published"], str)
     assert metadata["author"] == "张三"
+    assert metadata["capture_depth"] == "verified"
     assert "多智能体通过明确分工协作" in body
+
+
+def test_standard_web_clip_applies_without_capture_receipt(tmp_path):
+    vault = make_vault(tmp_path)
+    (vault / "20-Learning").mkdir()
+    markdown = (
+        "---\n"
+        "source: https://example.com/article\n"
+        "author: 示例作者\n"
+        "published: 2026-07-31\n"
+        "capture_depth: standard\n"
+        "---\n"
+        "# 普通沉淀\n\n"
+        "## 来源与结论\n\n保留文章的核心结论。\n\n"
+        "## 问题、前提与适用边界\n\n适用于普通阅读记录。\n\n"
+        "## 核心知识与原理\n\n重构核心知识。\n\n"
+        "## 具体做法与示例\n\n保留有价值的示例。\n\n"
+        "## 验证、风险与限制\n\n作者主张尚未独立验证。\n\n"
+        "## 理解与启发\n\n可迁移的启发。\n\n"
+        "## 关联笔记\n"
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--title",
+            "普通沉淀",
+            "--stdin",
+            "--date",
+            "2026-07-31",
+            "--apply",
+            "--compact-json",
+        ],
+        input=markdown,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=ROOT,
+        env=ENV,
+    )
+
+    assert result.returncode == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert "semantic_receipt" not in payload
+    created = vault / "20-Learning" / "2026-07-31 普通沉淀.md"
+    metadata, _ = split_frontmatter(created.read_text(encoding="utf-8"))
+    assert metadata["capture_depth"] == "standard"
+
+
+@pytest.mark.parametrize("capture_depth", ["deep", "research", "", "VERIFIED"])
+def test_web_clip_rejects_invalid_capture_depth_before_write(
+    tmp_path, capture_depth
+):
+    vault = make_vault(tmp_path)
+    (vault / "20-Learning").mkdir()
+    markdown = (
+        "---\n"
+        "source: https://example.com/article\n"
+        "author: 示例作者\n"
+        "published: 2026-07-31\n"
+        f'capture_depth: "{capture_depth}"\n'
+        "---\n"
+        "# Invalid depth\n"
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--title",
+            "Invalid depth",
+            "--stdin",
+            "--date",
+            "2026-07-31",
+            "--apply",
+            "--compact-json",
+        ],
+        input=markdown,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=ROOT,
+        env=ENV,
+    )
+
+    assert result.returncode == 2
+    assert json.loads(result.stdout)["error"]["code"] == "invalid-capture-depth"
+    assert not list((vault / "20-Learning").glob("*Invalid depth.md"))
 
 
 def test_quick_inbox_web_clip_does_not_require_capture_receipt(tmp_path):
@@ -668,6 +767,99 @@ def test_quick_inbox_web_clip_does_not_require_capture_receipt(tmp_path):
     assert "semantic_receipt" not in json.loads(result.stdout)
 
 
+def test_verified_web_clip_cannot_target_inbox(tmp_path):
+    vault = make_vault(tmp_path)
+    (vault / "00-Inbox").mkdir()
+    markdown = (
+        "---\n"
+        "source: https://example.com/article\n"
+        "author: 示例作者\n"
+        "published: 2026-07-31\n"
+        "capture_depth: verified\n"
+        "---\n"
+        "# Wrong route\n"
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--folder",
+            "00-Inbox",
+            "--title",
+            "Wrong route",
+            "--stdin",
+            "--date",
+            "2026-07-31",
+            "--apply",
+            "--compact-json",
+        ],
+        input=markdown,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=ROOT,
+        env=ENV,
+    )
+
+    assert result.returncode == 2
+    assert (
+        json.loads(result.stdout)["error"]["code"]
+        == "capture-depth-route-mismatch"
+    )
+    assert not list((vault / "00-Inbox").glob("*Wrong route.md"))
+
+
+def test_standard_web_clip_rejects_capture_receipt(tmp_path):
+    vault = make_vault(tmp_path)
+    (vault / "20-Learning").mkdir()
+    markdown = (
+        "---\n"
+        "source: https://example.com/article\n"
+        "author: 示例作者\n"
+        "published: 2026-07-31\n"
+        "capture_depth: standard\n"
+        "---\n"
+        "# Standard cannot carry verified evidence\n"
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "obsidian_kb_skill.scripts.create_note",
+            str(vault),
+            "--type",
+            "web-clip",
+            "--title",
+            "Standard receipt mismatch",
+            "--stdin",
+            "--date",
+            "2026-07-31",
+            "--capture-receipt-json",
+            "{}",
+            "--preflight-json",
+        ],
+        input=markdown,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=ROOT,
+        env=ENV,
+    )
+
+    assert result.returncode == 2
+    assert (
+        json.loads(result.stdout)["semantic_receipt"]["error"]["code"]
+        == "unexpected-capture-receipt"
+    )
+    assert not list((vault / "20-Learning").glob("*Standard receipt mismatch.md"))
+
+
 @pytest.mark.parametrize("folder", ["00-Inbox/../20-Learning", "00-Inbox/Alias"])
 def test_canonical_destination_cannot_bypass_capture_receipt(tmp_path, folder):
     vault = make_vault(tmp_path)
@@ -685,6 +877,7 @@ def test_canonical_destination_cannot_bypass_capture_receipt(tmp_path, folder):
         "source: https://example.com/article\n"
         "author: 示例作者\n"
         "published: 2026-07-28\n"
+        "capture_depth: verified\n"
         "---\n"
         "# Finished article\n"
     )

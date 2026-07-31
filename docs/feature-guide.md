@@ -8,7 +8,7 @@
 | 带引用回答 | 返回相对路径、标题、行号、片段和匹配原因 | 否 | `search-vault` |
 | Vault 发现 | 识别 Vault、目录、模板、索引策略和自定义治理 | 否 | `vault-info` |
 | 笔记创建 | 路由类型、合并 frontmatter、套用模板、避免覆盖 | 仅 `--apply` | `create-note` |
-| 深度文章沉淀 | 保留原理、步骤、配置、验证、限制与来源证据 | 需明确保存意图 | 写入 Skill |
+| 韧性网页沉淀 | 普通文章快速沉淀；需要时升级为可求证的深度捕获 | 需明确保存意图 | 写入 Skill |
 | 对话上下文恢复 | 用分层 Digest 保存目标、状态、决定、证据和下一步 | 需明确保存意图 | `conversation-digest` |
 | 对话知识萃取 | 识别问题、知识、反思和设计候选并判断长期价值 | 分析默认不写 | `conversation-harvest` |
 | 会议/学习/洞察/项目/人物 | 使用八种预置模板和 Vault 自定义模板 | 需明确保存意图 | 写入 Skill |
@@ -93,7 +93,8 @@ python <skill-root>/scripts/run_helper.py <helper> ...
 - 不因普通问答自动保存。
 - 只在配置的 Vault 根目录内解析路径，并在解析 symlink 后再次校验边界。
 - 创建不覆盖同名文件；更新只修改受约束区域。
-- 外部来源不完整时不冒充完成的深度文章。
+- 网页首次获取失败会尝试安全的不同表示；关键内容仍不完整时保持零写入。
+- 普通 Web Clip 使用 `capture_depth: standard`，显式求证使用 `verified` 和 capture receipt。
 - Folder Index 或 Dataview 拥有目录成员列表时，不由 Agent 重复维护。
 - Git 分歧或冲突会停止，不自动解决索引冲突。
 - 检索不联网、不创建持久索引或缓存、不包含写 helper。

@@ -1,15 +1,16 @@
 # Deep Knowledge Capture (conditional reference)
 
-Load this reference only for a finished source-backed article capture or a
-material rewrite of one. Do not load it for ordinary notes or an explicitly
-quick, bookmark, save-for-later, link-only, or unread-source capture.
+Load this reference only after `web-capture.md` selects `capture_depth:
+verified` for a finished source-backed capture or material rewrite. Do not load
+it for standard captures, ordinary notes, or an explicitly quick, bookmark,
+save-for-later, link-only, or unread-source capture.
 
-## Intent and Source Gate
+## Verified Source Gate
 
-Treat "沉淀", learning, summarizing into the knowledge base, and saving an
-article without a quick/unread qualifier as a **deep knowledge capture**. Route
-an explicitly quick or unread source to `00-Inbox`; never present it as finished
-knowledge.
+This is the **deep knowledge capture** path selected for explicit or
+evidence-sensitive verification. Persist `capture_depth: verified`; the
+ordinary “save” or “沉淀” path remains standard unless the stronger intent or
+risk is present.
 
 Read the complete accessible primary source and every material attachment,
 image, table, code sample, or linked artifact needed to understand it. If access
@@ -96,7 +97,7 @@ implementation details. Keep the capture incomplete if a critical gap remains.
 
 ## Content-Bound Capture Receipt
 
-A finished `web-clip` outside `00-Inbox` requires a structured receipt. It makes
+A verified `web-clip` outside `00-Inbox` requires a structured receipt. It makes
 the coverage review inspectable and binds it to the exact candidate; it does not
 turn agent self-review into proof that a claim is true.
 
