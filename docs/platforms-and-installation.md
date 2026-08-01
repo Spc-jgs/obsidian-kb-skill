@@ -22,10 +22,12 @@ flowchart TD
 | QoderWork / Qoder CLI | `~/.qoderwork/skills/obsidian-knowledge-base/` | `~/.qoderwork/skills/obsidian-knowledge-retrieval/` |
 | OpenAI Codex | `~/.agents/skills/obsidian-knowledge-base/` | `~/.agents/skills/obsidian-knowledge-retrieval/` |
 | WorkBuddy | `~/.workbuddy/skills/obsidian-knowledge-base/` | `~/.workbuddy/skills/obsidian-knowledge-retrieval/` |
-| Claude Code | `~/.claude/CLAUDE.md` marker block | `~/.claude/skills/obsidian-knowledge-retrieval/` |
+| Claude Code | `~/.claude/skills/obsidian-knowledge-base/` | `~/.claude/skills/obsidian-knowledge-retrieval/` |
 | Cursor | `~/.cursor/rules/obsidian-kb.mdc` | `~/.cursor/skills/obsidian-knowledge-retrieval/` |
 
-Claude Code 和 Cursor 保留兼容写入入口；只读检索使用原生标准 Skill。
+除 Cursor 外，所有平台的写入与检索都使用原生标准 Skill 目录，按需加载。Cursor 的写入入口仍是常驻规则文件（`.mdc`），因为它没有等价的 Skill 发现机制。
+
+Claude Code 自 v1.26.0 起改为原生 Skill 交付。此前写入 Skill 是 `~/.claude/CLAUDE.md` 里的标记块，会在**每一次对话**中无条件加载完整指令，与惰性加载的设计目标相悖。升级安装会自动移除该遗留块，并保留你自己在该文件中的其他内容；若标记块残缺不全，安装会中止且不修改文件。
 
 ## Vault 路径查找顺序
 
