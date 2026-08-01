@@ -50,7 +50,23 @@ on the message text. Two envelope shapes are in use:
 ```
 
 `SCREAMING_SNAKE` codes use the first shape; `kebab-case` codes use the second.
-Read `error.code` defensively from either envelope.
+Both nest the code at `error.code`, so reading that path works for either
+envelope. Read it there rather than matching on the code's spelling.
+
+### Convention For New Codes
+
+Every new code is `kebab-case` and uses the second envelope. Four codes predate
+this convention and are grandfathered exactly as they are:
+
+`PATH_OUTSIDE_VAULT`, `PATH_NOT_FOUND`, `INVALID_VAULT_ROOT`, `BACKUP_FAILED`
+
+They are not renamed. Three of them are the Vault containment boundary, which
+is the most safety-sensitive code in the project, and their spelling is pinned
+by existing output tests. Renaming them would buy nothing that reading
+`error.code` does not already provide.
+
+`tests/test_error_code_contract.py` enforces this: a new code outside the
+grandfathered set must be `kebab-case`, so the split cannot grow.
 
 ### Refusal Codes
 

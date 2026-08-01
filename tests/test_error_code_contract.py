@@ -8,6 +8,7 @@ being to bypass the helper and write the file directly.
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -145,3 +146,44 @@ def test_refusal_codes_carry_an_action_column():
         assert len(documented_rows[code]) > 15, (
             f"{code} has no usable action; write what the Agent should do next"
         )
+
+
+# Codes that predate the kebab-case convention. Three are the Vault containment
+# boundary and one is the update-note backup failure. They are pinned by
+# existing output tests and are deliberately not renamed; reading `error.code`
+# works regardless of spelling.
+GRANDFATHERED_CODES = frozenset(
+    {"PATH_OUTSIDE_VAULT", "PATH_NOT_FOUND", "INVALID_VAULT_ROOT", "BACKUP_FAILED"}
+)
+
+KEBAB = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+
+
+def test_new_codes_follow_the_kebab_case_convention():
+    """Stop the naming split from growing past the grandfathered four."""
+    refusal, audit = emitted_codes()
+
+    offenders = sorted(
+        code
+        for code in (refusal | audit) - GRANDFATHERED_CODES
+        if not KEBAB.fullmatch(code)
+    )
+
+    assert not offenders, (
+        f"these codes are not kebab-case: {offenders}. New codes use kebab-case "
+        "and the bare {'error': {...}} envelope; see the convention in "
+        "core/references/rules-and-errors.md."
+    )
+
+
+def test_grandfathered_codes_are_all_still_emitted():
+    """Shrink the exemption list when a legacy code disappears."""
+    refusal, audit = emitted_codes()
+    emitted = refusal | audit
+
+    unused = sorted(GRANDFATHERED_CODES - emitted)
+
+    assert not unused, (
+        f"no longer emitted, so the exemption is stale: {unused}. Remove them "
+        "from GRANDFATHERED_CODES and from the reference."
+    )
