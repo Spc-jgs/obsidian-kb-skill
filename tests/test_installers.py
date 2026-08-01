@@ -775,7 +775,7 @@ LEGACY_CLAUDE_BLOCK = (
 )
 
 
-def test_claude_code_installs_the_knowledge_base_as_a_native_skill(tmp_path):
+def test_bash_claude_code_installs_the_knowledge_base_as_a_native_skill(tmp_path):
     """Claude Code discovers skills natively, like Codex and WorkBuddy.
 
     Delivering the write Skill as an always-loaded CLAUDE.md block charged its
@@ -800,7 +800,7 @@ def test_claude_code_installs_the_knowledge_base_as_a_native_skill(tmp_path):
     )
 
 
-def test_claude_code_no_longer_writes_an_always_loaded_block(tmp_path):
+def test_bash_claude_code_no_longer_writes_an_always_loaded_block(tmp_path):
     release = _copy_release_tree(tmp_path)
     home = tmp_path / "home"
     vault = tmp_path / "vault"
@@ -815,7 +815,7 @@ def test_claude_code_no_longer_writes_an_always_loaded_block(tmp_path):
         assert "BEGIN obsidian-kb-skill" not in shared.read_text(encoding="utf-8")
 
 
-def test_claude_code_install_migrates_away_from_a_legacy_block(tmp_path):
+def test_bash_claude_code_install_migrates_away_from_a_legacy_block(tmp_path):
     """An upgrade must not leave the instructions loaded from two places."""
     release = _copy_release_tree(tmp_path)
     home = tmp_path / "home"
@@ -838,7 +838,7 @@ def test_claude_code_install_migrates_away_from_a_legacy_block(tmp_path):
     assert _claude_skill(home).is_dir()
 
 
-def test_claude_code_uninstall_removes_the_native_skill(tmp_path):
+def test_bash_claude_code_uninstall_removes_the_native_skill(tmp_path):
     release = _copy_release_tree(tmp_path)
     home = tmp_path / "home"
     vault = tmp_path / "vault"
@@ -869,3 +869,25 @@ def test_both_installers_deliver_claude_code_as_a_native_skill():
     # Neither installer may write the write Skill as an always-loaded block.
     assert "platforms/claude-code/CLAUDE.md" not in bash
     assert "platforms\\claude-code\\CLAUDE.md" not in powershell
+
+
+def test_bash_claude_code_malformed_marker_leaves_no_partial_install(tmp_path):
+    """Migration runs before installation, so a bad marker installs nothing."""
+    release = _copy_release_tree(tmp_path)
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    shared = home / ".claude" / "CLAUDE.md"
+    shared.parent.mkdir(parents=True)
+    malformed = "user content\n<!-- BEGIN obsidian-kb-skill -->\norphaned\n"
+    shared.write_text(malformed, encoding="utf-8")
+
+    result = _run_release_installer(
+        release, home=home, vault=vault, platforms="claude-code", check=False
+    )
+
+    assert result.returncode != 0
+    assert shared.read_text(encoding="utf-8") == malformed
+    assert not _claude_skill(home).exists(), (
+        "a refused migration must not leave the platform half-installed"
+    )

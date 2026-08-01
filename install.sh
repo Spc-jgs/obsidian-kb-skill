@@ -639,20 +639,21 @@ for platform in "${PLATFORM_LIST[@]}"; do
       # Claude Code discovers skills natively, like Codex and WorkBuddy. An
       # always-loaded CLAUDE.md block charged the full instruction cost to every
       # conversation, which is exactly what the lazy entry file avoids.
+      # Migrate first: drop the legacy always-loaded block so the instructions
+      # are not delivered from two places at once. A malformed marker aborts
+      # before anything is installed, leaving the user's file untouched and the
+      # platform in its previous state rather than half-migrated.
+      if remove_marker_block "$CLAUDE_DIR/CLAUDE.md"; then
+        echo "-> Migrated: removed legacy Claude Code block from $CLAUDE_DIR/CLAUDE.md"
+      elif [ "$?" -eq 2 ]; then
+        exit 1
+      fi
       CLAUDE_SKILLS="$CLAUDE_DIR/skills/obsidian-knowledge-base"
       install_standard_skill "$CANONICAL_SKILL" "$CLAUDE_SKILLS"
       echo "-> Installed: Claude Code skill -> $CLAUDE_SKILLS/SKILL.md"
       CLAUDE_RETRIEVAL="$CLAUDE_DIR/skills/obsidian-knowledge-retrieval"
       install_standard_skill "$CANONICAL_RETRIEVAL_SKILL" "$CLAUDE_RETRIEVAL"
       echo "-> Installed: Claude Code retrieval -> $CLAUDE_RETRIEVAL/SKILL.md"
-      # Upgrade path: drop the legacy always-loaded block so the instructions
-      # are not delivered from two places at once. Malformed markers abort
-      # without touching the user's own content.
-      if remove_marker_block "$CLAUDE_DIR/CLAUDE.md"; then
-        echo "-> Migrated: removed legacy Claude Code block from $CLAUDE_DIR/CLAUDE.md"
-      elif [ "$?" -eq 2 ]; then
-        exit 1
-      fi
       ;;
     codex)
       CODEX_SKILLS="$HOME/.agents/skills/obsidian-knowledge-base"

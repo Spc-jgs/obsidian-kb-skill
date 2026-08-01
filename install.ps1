@@ -717,18 +717,19 @@ foreach ($platform in $platformList) {
             # Claude Code discovers skills natively, like Codex and WorkBuddy. An
             # always-loaded CLAUDE.md block charged the full instruction cost to
             # every conversation, which is what the lazy entry file avoids.
+            # Migrate first: drop the legacy always-loaded block so the
+            # instructions are not delivered from two places at once. A
+            # malformed marker aborts before anything is installed.
+            $claudeFile = Join-Path $claudeDir "CLAUDE.md"
+            if (Remove-MarkerBlock -TargetFile $claudeFile) {
+                Write-Host "-> Migrated: removed legacy Claude Code block from $claudeFile" -ForegroundColor Green
+            }
             $claudeSkillDir = Join-Path $claudeDir "skills\obsidian-knowledge-base"
             Install-StandardSkill -SourceDirectory $CanonicalSkill -DestinationDirectory $claudeSkillDir
             Write-Host "-> Installed: Claude Code skill -> $claudeSkillDir\SKILL.md" -ForegroundColor Green
             $retrievalDir = Join-Path $claudeDir "skills\obsidian-knowledge-retrieval"
             Install-StandardSkill -SourceDirectory $CanonicalRetrievalSkill -DestinationDirectory $retrievalDir
             Write-Host "-> Installed: Claude Code retrieval -> $retrievalDir\SKILL.md" -ForegroundColor Green
-            # Upgrade path: drop the legacy always-loaded block so the
-            # instructions are not delivered from two places at once.
-            $claudeFile = Join-Path $claudeDir "CLAUDE.md"
-            if (Remove-MarkerBlock -TargetFile $claudeFile) {
-                Write-Host "-> Migrated: removed legacy Claude Code block from $claudeFile" -ForegroundColor Green
-            }
         }
         "codex" {
             $codexSkillDir = Join-Path $env:USERPROFILE ".agents\skills\obsidian-knowledge-base"
