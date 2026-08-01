@@ -435,3 +435,36 @@ def test_build_check_still_passes():
     assert result.returncode == 0, (
         f"build --check failed:\n{result.stdout}\n{result.stderr}"
     )
+
+
+def test_retrieval_doc_lists_only_directories_the_scanner_skips():
+    """The doc claimed "virtual environments"; the scanner only skips `.venv`."""
+    from obsidian_kb_skill.scripts.search_vault import IGNORED_DIRECTORY_NAMES
+
+    text = (ROOT / "docs" / "retrieval.md").read_text(encoding="utf-8")
+    assert "虚拟环境" not in text, (
+        "plain `venv/` and `env/` are not skipped; name the real entries"
+    )
+    for name in ("node_modules", "__pycache__", ".venv"):
+        assert name in IGNORED_DIRECTORY_NAMES, f"{name} left the ignore set"
+        assert name in text, f"{name} is skipped but undocumented"
+
+
+def test_feature_guide_separates_vault_info_from_governance_reading():
+    text = (ROOT / "docs" / "feature-guide.md").read_text(encoding="utf-8")
+    assert "Vault 治理读取" in text
+    assert "Agent 自行读取，非 helper" in text
+
+
+def test_feature_guide_uses_registered_note_type_slugs():
+    from obsidian_kb_skill.scripts.note_catalog import VALID_NOTE_TYPES
+
+    text = (ROOT / "docs" / "feature-guide.md").read_text(encoding="utf-8")
+    assert "digest-note" not in text, "digest-note.md is a template asset, not a --type"
+    assert "conversation-digest" in VALID_NOTE_TYPES
+
+
+def test_write_state_machine_marks_git_precheck_conditional():
+    text = (ROOT / "docs" / "capture-and-governance.md").read_text(encoding="utf-8")
+    assert "Discover --> GitCheck: " in text, "Git precheck must be a guarded edge"
+    assert "Discover --> Route: " in text, "the non-Git path must exist"

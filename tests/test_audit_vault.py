@@ -1223,3 +1223,119 @@ def test_reports_missing_resume_fields_and_overlong_resume_card(tmp_path):
 
     assert "conversation-digest-missing-resume-field" in found_codes
     assert "conversation-digest-resume-card-too-long" in found_codes
+
+
+def test_resume_card_field_value_may_be_inline_code(tmp_path):
+    """Inline code is a legitimate field value, not an empty one.
+
+    `_without_code_examples` stripped fenced *and* inline code before the field
+    regex ran, so `- **Key artifacts**: `src/app.py`` was reported missing.
+    """
+    (tmp_path / ".obsidian").mkdir()
+    _write_digest_template(tmp_path)
+    digest = _valid_digest().replace(
+        "- **Key artifacts**: Design spec and focused tests.",
+        "- **Key artifacts**: `src/app.py`",
+    )
+
+    findings = audit_note_text(tmp_path, tmp_path / "Digest.md", digest)
+
+    assert not [
+        finding
+        for finding in findings
+        if finding.code == "conversation-digest-missing-resume-field"
+    ]
+
+
+def test_resume_card_still_reports_a_genuinely_empty_field(tmp_path):
+    """Guard: the fix must not make every field look populated."""
+    (tmp_path / ".obsidian").mkdir()
+    _write_digest_template(tmp_path)
+    digest = _valid_digest().replace(
+        "- **Key artifacts**: Design spec and focused tests.",
+        "- **Key artifacts**:",
+    )
+
+    findings = audit_note_text(tmp_path, tmp_path / "Digest.md", digest)
+
+    assert any(
+        finding.code == "conversation-digest-missing-resume-field"
+        and "Key artifacts" in finding.message
+        for finding in findings
+    )
+
+
+def test_html_commented_structure_is_not_visible_structure(tmp_path):
+    """A v2 structure the reader cannot see must not satisfy the baseline."""
+    (tmp_path / ".obsidian").mkdir()
+    _write_digest_template(tmp_path)
+    hidden = (
+        '---\ndate: "2026-07-29"\ntype: conversation-digest\n'
+        'tags: [insight]\nsource: "Codex"\nrelated: []\n---\n'
+        "# Digest\n\n"
+        "<!--\n"
+        "## Resume Card\n\n"
+        "- **Goal**: hidden\n"
+        "- **State**: hidden\n"
+        "- **Current conclusion**: hidden\n"
+        "- **Next step**: hidden\n"
+        "- **Key artifacts**: hidden\n\n"
+        "## Scope and Constraints\n\n"
+        "## Decisions and Rationale\n\n"
+        "## Evidence and Artifacts\n\n"
+        "## Open Questions and Next Actions\n"
+        "-->\n\n"
+        "Nothing the reader can actually see.\n"
+    )
+
+    findings = audit_note_text(tmp_path, tmp_path / "Digest.md", hidden)
+
+    assert any(
+        finding.code == "missing-conversation-digest-heading"
+        for finding in findings
+    ), "hidden headings must not satisfy the v2 baseline"
+
+
+def test_digest_template_missing_resume_labels_is_reported(tmp_path):
+    """A template that passes audit but makes every note fail preflight.
+
+    The template contract only checked the five headings, so dropping the
+    Resume Card labels was accepted here and then rejected on every note
+    created from it.
+    """
+    (tmp_path / ".obsidian").mkdir()
+    templates = tmp_path / "Templates"
+    templates.mkdir()
+    (templates / "Digest Note.md").write_text(
+        '---\ndate: "{{date}}"\ntype: conversation-digest\ntags: [insight]\n---\n'
+        "# Template\n\n"
+        "## Resume Card\n\n"
+        "- **Goal**:\n\n"
+        "## Scope and Constraints\n\n"
+        "## Decisions and Rationale\n\n"
+        "## Evidence and Artifacts\n\n"
+        "## Open Questions and Next Actions\n",
+        encoding="utf-8",
+    )
+
+    findings = audit_vault(tmp_path)
+
+    assert any(
+        finding.code == "outdated-conversation-digest-template"
+        and finding.path == "Templates/Digest Note.md"
+        for finding in findings
+    )
+
+
+def test_complete_digest_template_with_all_labels_is_accepted(tmp_path):
+    """Guard: the label check must not reject the shipped template shape."""
+    (tmp_path / ".obsidian").mkdir()
+    _write_digest_template(tmp_path)
+
+    findings = audit_vault(tmp_path)
+
+    assert not [
+        finding
+        for finding in findings
+        if finding.code == "outdated-conversation-digest-template"
+    ]

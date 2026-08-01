@@ -140,16 +140,18 @@ macOS / Linux：
 
 ```bash
 chmod +x install.sh
-./install.sh
+./install.sh --vault "/你的/Vault"
 ```
 
 Windows PowerShell：
 
 ```powershell
-.\install.ps1
+.\install.ps1 -VaultPath "C:\你的\Vault"
 ```
 
-安装器会发现或询问 Vault，初始化缺失的目录与模板，安装平台入口和私有 helper runtime，并从中立目录验证两个 Skill。
+首次安装必须显式给出 Vault 路径。再次运行时会复用 `~/.obsidian-kb-config` 里保存的路径，此时可以省略该参数。
+
+安装器会初始化缺失的目录与模板，安装平台入口和私有 helper runtime，并从中立目录验证两个 Skill。
 
 如果只想检查选项：
 

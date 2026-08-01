@@ -19,7 +19,8 @@ stateDiagram-v2
 
     [*] --> Intent
     Intent --> Discover
-    Discover --> GitCheck
+    Discover --> GitCheck: 用户或 Vault 治理要求版本控制
+    Discover --> Route: 其他情况
     GitCheck --> Stop: 分歧或冲突
     GitCheck --> Route: 可安全继续
     Route --> Confirm: 需要新分类或多笔记

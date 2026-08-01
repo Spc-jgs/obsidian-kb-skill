@@ -141,16 +141,18 @@ macOS / Linux:
 
 ```bash
 chmod +x install.sh
-./install.sh
+./install.sh --vault "/path/to/your/Vault"
 ```
 
 Windows PowerShell:
 
 ```powershell
-.\install.ps1
+.\install.ps1 -VaultPath "C:\path\to\your\Vault"
 ```
 
-The installer discovers or asks for the Vault, initializes missing folders and templates, installs platform entrypoints and the private helper runtime, and verifies both skills from a neutral directory.
+A first install must name the Vault explicitly. Later runs reuse the path saved in `~/.obsidian-kb-config`, so the argument can be omitted then.
+
+The installer initializes missing folders and templates, installs platform entrypoints and the private helper runtime, and verifies both skills from a neutral directory.
 
 To inspect installer options:
 

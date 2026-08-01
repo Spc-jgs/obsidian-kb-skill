@@ -68,7 +68,7 @@ Agent 应优先用这些有界证据回答。片段不足时，最多继续读�
 - 隐藏目录，如 `.git`、`.obsidian`、`.claude`、`.cursor`；
 - `Templates/` 和 `Attachments/`；
 - `.obsidian-kb-backups/`；
-- `node_modules/`、虚拟环境和工具缓存；
+- `node_modules/`、`__pycache__/`、`.venv/`；
 - symlink 文件与 symlink 目录；
 - HTML 注释中的隐藏文本；
 - 超过单文件大小上限、无法解码或 frontmatter 损坏的笔记。
