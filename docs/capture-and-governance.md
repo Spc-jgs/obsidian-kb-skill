@@ -202,3 +202,17 @@ Task Memory 用于多 Agent 长任务交接，默认关闭。开启后使用 `Ta
 - Log 保留有界条数。
 
 全局备份策略位于 `~/.obsidian-kb-settings.json`，`backup.keep_per_note` 默认是 `1`，支持 1–1000。清理由 helper 执行，Agent 不自行遍历或删除备份。
+
+### 备份的适用边界
+
+备份**只服务 Task Memory**，这是刻意的设计，不是覆盖不全。
+
+普通笔记的恢复机制是 **Git**：Vault 预期是一个 Git 仓库，每次沉淀对应一次提交，历史、diff、提交信息、远端一应俱全。`.obsidian-kb-backups/` 默认被 `.gitignore` 排除，是本地快照而非版本历史。给普通笔记再加一层 helper 备份，等于用一个更弱的机制重复 Git 已经做得更好的事——没有 diff、没有信息、历史深度受 `keep_per_note` 限制，而且因为该目录被搜索、审计和索引一并排除，没人看得见。
+
+Task Memory 是例外：它一天可能改动多次，每次都进 Git 会污染「一次提交 = 一次有意义的沉淀」的历史，所以用有界的本地快照更合适。
+
+其余写入路径不需要备份：`create-note` 永不覆盖（重名追加数字后缀）；`process-inbox` 是移动，内容先落到目标位置再删源，且 `dest.exists()` 会挡住覆盖，自 v1.25.1 起无法解析的 frontmatter 会被直接拒绝而不是改写。
+
+如果你的备份目录里存在旧版本遗留的条目（例如脚手架文件或 `LATEST`），清理时会看到 `retained unknown backup item` 警告。该警告是正确的，这些是历史残留，可以手动删除。
+
+设计依据见 `docs/superpowers/specs/2026-08-01-backup-boundary-decision.md`。
