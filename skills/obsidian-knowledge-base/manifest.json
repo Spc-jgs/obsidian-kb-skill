@@ -43,7 +43,7 @@
     "scripts/obsidian_kb_skill/scripts/deep_capture_contract.py": "da31c6c5bee9a3bff799c86a79cedd153c77167cf44a888da4b62cf362ef87ae",
     "scripts/obsidian_kb_skill/scripts/detect_index.py": "f5ba15b715e1e0045ff5184184f0f4e71fb2b83295067852e1c1ce3e57336368",
     "scripts/obsidian_kb_skill/scripts/doctor.py": "45fa782f62706ab75850f8a8d2ee7c067898a397593be45207a7091ce9f84a3a",
-    "scripts/obsidian_kb_skill/scripts/folder_index_policy.py": "22d3c4c6bb3b8c2adbbba4b0a993dafefa2dc796e9909913dfd17c19e11e807f",
+    "scripts/obsidian_kb_skill/scripts/folder_index_policy.py": "2fd58741d8cbb96c762ef905dcc89eef1901cfbeaa4d777f36ffcf44fa549dfe",
     "scripts/obsidian_kb_skill/scripts/frontmatter.py": "faf6e4b31bf12a2eec25191d6d6e4b8e047c4daba39ccbc1256352bd7a365b40",
     "scripts/obsidian_kb_skill/scripts/index_templates.py": "27171d2cd9acb06ef1749006c87a9899676849811e7612752db43abbbc52d28c",
     "scripts/obsidian_kb_skill/scripts/metadata_quality.py": "2768d0de3cc1ee215d69515a30d67a5f6c1587e76a42110fbd9fb7880849e86b",
