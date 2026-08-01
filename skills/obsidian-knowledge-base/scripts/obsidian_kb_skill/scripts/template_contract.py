@@ -31,6 +31,9 @@ PLACEHOLDER_RE = re.compile(r"\{\{([^}]+)\}\}")
 ATX_HEADING_RE = re.compile(r"^(#{2,6})[ \t]+(.+?)[ \t]*$")
 ATX_CLOSING_RE = re.compile(r"[ \t]+#+[ \t]*$")
 FENCE_LINE_RE = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
+# Content a reader never sees. Shared so every structural check agrees on what
+# counts as visible; audit_vault imports this rather than keeping its own copy.
+HTML_COMMENT_RE = re.compile(r"<!--([\s\S]*?)-->")
 
 
 class TemplateFrontmatterError(ValueError):
@@ -99,8 +102,13 @@ def template_path(vault: Path, note_type: str) -> Path | None:
 def markdown_section_headings(
     text: str, *, levels: tuple[int, ...] = (2, 3, 4, 5, 6)
 ) -> list[str]:
-    """Return ATX section headings outside frontmatter and fenced code."""
-    normalized = normalize_template_text(text)
+    """Return ATX section headings outside frontmatter, code, and comments.
+
+    HTML comments are removed first: a heading the reader cannot see is not
+    structure, and leaving it in let a fully commented-out document satisfy a
+    structural baseline.
+    """
+    normalized = HTML_COMMENT_RE.sub("", normalize_template_text(text))
     if normalized.startswith("---\n"):
         end = normalized.find("\n---\n", 4)
         if end != -1:

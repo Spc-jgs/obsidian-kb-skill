@@ -37,7 +37,10 @@ from obsidian_kb_skill.scripts.folder_index_policy import (
 from obsidian_kb_skill.scripts.note_catalog import VALID_NOTE_TYPES
 from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
 from obsidian_kb_skill.scripts.metadata_quality import is_meaningful_metadata
-from obsidian_kb_skill.scripts.template_contract import markdown_section_headings
+from obsidian_kb_skill.scripts.template_contract import (
+    HTML_COMMENT_RE,
+    markdown_section_headings,
+)
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
     VaultPathError,
@@ -94,7 +97,6 @@ FOLDER_INDEX_CONTENT_RE = re.compile(
 )
 
 PLACEHOLDER_RE = re.compile(r"\{\{[^}]+\}\}")
-HTML_COMMENT_RE = re.compile(r"<!--([\s\S]*?)-->")
 TEMPLATE_INSTRUCTION_MARKERS = (
     "用 2–4 句话",
     "用 2-4 句话",
@@ -365,6 +367,27 @@ def _audit_deep_capture_template(
     )
 
 
+def _resume_field_match(resume: str, field: str) -> re.Match[str] | None:
+    """Locate one Resume Card field line. Shared by note and template audits."""
+    return re.search(
+        rf"^[ \t]*[-*][ \t]+\*\*{re.escape(field)}\*\*"
+        rf"[ \t]*[:：][ \t]*(?P<value>.*?)[ \t]*$",
+        resume,
+        re.MULTILINE | re.IGNORECASE,
+    )
+
+
+def _missing_resume_labels(text: str, locale: str) -> list[str]:
+    """Resume Card labels absent entirely. A template may leave values blank."""
+    resume_heading = dict(CONVERSATION_DIGEST_HEADING_VARIANTS)[locale][0]
+    resume = _h2_sections(text).get(resume_heading, "")
+    return [
+        field
+        for field in CONVERSATION_DIGEST_RESUME_FIELD_VARIANTS[locale]
+        if _resume_field_match(resume, field) is None
+    ]
+
+
 def _audit_conversation_digest_template(
     findings: list[Finding],
     vault: Path,
@@ -372,11 +395,24 @@ def _audit_conversation_digest_template(
     template = vault / "Templates" / "Digest Note.md"
     if not template.is_file():
         return
-    actual = markdown_section_headings(
-        template.read_text(encoding="utf-8"),
-        levels=(2,),
-    )
-    if conversation_digest_locale(actual) is not None:
+    text = template.read_text(encoding="utf-8")
+    actual = markdown_section_headings(text, levels=(2,))
+    locale = conversation_digest_locale(actual)
+    if locale is not None:
+        # The headings alone are not the contract. A template missing a Resume
+        # Card label passed here and then failed preflight on every note made
+        # from it, which reads as a defect in each note rather than the
+        # template. Values may be blank; the labels must exist.
+        missing = _missing_resume_labels(text, locale)
+        if not missing:
+            return
+        _add(
+            findings,
+            "outdated-conversation-digest-template",
+            template.relative_to(vault),
+            "Digest Note template is missing required Resume Card labels: "
+            + ", ".join(missing),
+        )
         return
     observed = " -> ".join(actual) or "(none)"
     _add(
@@ -572,8 +608,14 @@ def _without_code_examples(text: str) -> str:
 
 
 def _h2_sections(text: str) -> dict[str, str]:
-    """Return visible level-two section bodies outside frontmatter and code."""
-    visible = _without_code_examples(text)
+    """Return visible level-two section bodies outside frontmatter and code.
+
+    Fenced blocks and HTML comments are removed because neither is reader-facing
+    structure. Inline code is kept: a field value such as `src/app.py` is a real
+    value, and stripping it made the field look empty.
+    """
+    outside_fences, _ = _without_fenced_code(text)
+    visible = HTML_COMMENT_RE.sub("", outside_fences)
     if visible.startswith("---\n"):
         end = visible.find("\n---\n", 4)
         if end != -1:
@@ -642,12 +684,7 @@ def _audit_conversation_digest(
 
     missing: list[str] = []
     for field in CONVERSATION_DIGEST_RESUME_FIELD_VARIANTS[locale]:
-        pattern = re.compile(
-            rf"^[ \t]*[-*][ \t]+\*\*{re.escape(field)}\*\*"
-            rf"[ \t]*[:：][ \t]*(?P<value>.+?)?[ \t]*$",
-            re.MULTILINE | re.IGNORECASE,
-        )
-        match = pattern.search(visible_resume)
+        match = _resume_field_match(visible_resume, field)
         if match is None or not (match.group("value") or "").strip():
             missing.append(field)
     if missing:

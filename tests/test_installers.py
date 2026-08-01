@@ -891,3 +891,22 @@ def test_bash_claude_code_malformed_marker_leaves_no_partial_install(tmp_path):
     assert not _claude_skill(home).exists(), (
         "a refused migration must not leave the platform half-installed"
     )
+
+
+def test_readme_install_examples_name_the_vault_explicitly():
+    """A first install with no saved config fails without an explicit path.
+
+    Both READMEs previously showed a bare `./install.sh`, so a new user's very
+    first command exited with "No vault path configured."
+    """
+    for name in ("README.md", "README_EN.md"):
+        text = (ROOT / name).read_text(encoding="utf-8")
+        assert "./install.sh --vault" in text, f"{name} bash example"
+        assert ".\\install.ps1 -VaultPath" in text, f"{name} PowerShell example"
+
+
+def test_readme_does_not_claim_the_installer_asks_for_the_vault():
+    for name in ("README.md", "README_EN.md"):
+        text = (ROOT / name).read_text(encoding="utf-8")
+        assert "安装器会发现或询问 Vault" not in text, name
+        assert "installer discovers or asks for the Vault" not in text, name
