@@ -318,6 +318,11 @@ if [ "$DO_UNINSTALL" = true ]; then
     rm -rf "$CLAUDE_RETRIEVAL"
     echo "-> Removed: Claude Code retrieval skill ($CLAUDE_RETRIEVAL)"
   fi
+  CLAUDE_SKILLS="$HOME/.claude/skills/obsidian-knowledge-base"
+  if [ -d "$CLAUDE_SKILLS" ] || [ -L "$CLAUDE_SKILLS" ]; then
+    rm -rf "$CLAUDE_SKILLS"
+    echo "-> Removed: Claude Code skill ($CLAUDE_SKILLS)"
+  fi
   # Strip marker-wrapped block from Claude Code CLAUDE.md
   if remove_marker_block "$HOME/.claude/CLAUDE.md"; then
     echo "-> Cleaned: Claude Code skill block removed from $HOME/.claude/CLAUDE.md"
@@ -631,12 +636,23 @@ for platform in "${PLATFORM_LIST[@]}"; do
     claude-code)
       CLAUDE_DIR="$HOME/.claude"
       mkdir -p "$CLAUDE_DIR"
-      CLAUDE_FILE="$CLAUDE_DIR/CLAUDE.md"
-      result=$(set_marker_block "$CLAUDE_FILE" "$SCRIPT_DIR/platforms/claude-code/CLAUDE.md")
-      echo "-> Installed: Claude Code ($result) -> $CLAUDE_FILE"
+      # Claude Code discovers skills natively, like Codex and WorkBuddy. An
+      # always-loaded CLAUDE.md block charged the full instruction cost to every
+      # conversation, which is exactly what the lazy entry file avoids.
+      CLAUDE_SKILLS="$CLAUDE_DIR/skills/obsidian-knowledge-base"
+      install_standard_skill "$CANONICAL_SKILL" "$CLAUDE_SKILLS"
+      echo "-> Installed: Claude Code skill -> $CLAUDE_SKILLS/SKILL.md"
       CLAUDE_RETRIEVAL="$CLAUDE_DIR/skills/obsidian-knowledge-retrieval"
       install_standard_skill "$CANONICAL_RETRIEVAL_SKILL" "$CLAUDE_RETRIEVAL"
       echo "-> Installed: Claude Code retrieval -> $CLAUDE_RETRIEVAL/SKILL.md"
+      # Upgrade path: drop the legacy always-loaded block so the instructions
+      # are not delivered from two places at once. Malformed markers abort
+      # without touching the user's own content.
+      if remove_marker_block "$CLAUDE_DIR/CLAUDE.md"; then
+        echo "-> Migrated: removed legacy Claude Code block from $CLAUDE_DIR/CLAUDE.md"
+      elif [ "$?" -eq 2 ]; then
+        exit 1
+      fi
       ;;
     codex)
       CODEX_SKILLS="$HOME/.agents/skills/obsidian-knowledge-base"

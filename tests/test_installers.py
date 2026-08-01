@@ -757,3 +757,115 @@ def test_ci_executes_windows_installer_smoke():
 
     assert "windows-latest" in workflow
     assert "tests/windows_installer_smoke.ps1" in workflow
+
+
+def _claude_skill(home: Path) -> Path:
+    return home / ".claude" / "skills" / "obsidian-knowledge-base"
+
+
+LEGACY_CLAUDE_BLOCK = (
+    "# My own notes\n"
+    "\n"
+    "<!-- BEGIN obsidian-kb-skill -->\n"
+    "# Obsidian Personal Knowledge Base\n"
+    "stale instructions from an earlier release\n"
+    "<!-- END obsidian-kb-skill -->\n"
+    "\n"
+    "# More of my own notes\n"
+)
+
+
+def test_claude_code_installs_the_knowledge_base_as_a_native_skill(tmp_path):
+    """Claude Code discovers skills natively, like Codex and WorkBuddy.
+
+    Delivering the write Skill as an always-loaded CLAUDE.md block charged its
+    full instruction cost to every conversation and defeated the lazy-loading
+    design that the tiny entry file exists for.
+    """
+    release = _copy_release_tree(tmp_path)
+    expected = _payload_files(release / "skills" / "obsidian-knowledge-base")
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+
+    _run_release_installer(
+        release, home=home, vault=vault, platforms="claude-code"
+    )
+
+    assert _payload_files(_claude_skill(home)) == expected
+    assert (_claude_skill(home) / "references" / "note-creation.md").is_file()
+    # The retrieval Skill already used this mechanism and must keep working.
+    assert _payload_files(_retrieval_skill(home, ".claude")) == _payload_files(
+        release / "skills" / "obsidian-knowledge-retrieval"
+    )
+
+
+def test_claude_code_no_longer_writes_an_always_loaded_block(tmp_path):
+    release = _copy_release_tree(tmp_path)
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+
+    _run_release_installer(
+        release, home=home, vault=vault, platforms="claude-code"
+    )
+
+    shared = home / ".claude" / "CLAUDE.md"
+    if shared.exists():
+        assert "BEGIN obsidian-kb-skill" not in shared.read_text(encoding="utf-8")
+
+
+def test_claude_code_install_migrates_away_from_a_legacy_block(tmp_path):
+    """An upgrade must not leave the instructions loaded from two places."""
+    release = _copy_release_tree(tmp_path)
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    shared = home / ".claude" / "CLAUDE.md"
+    shared.parent.mkdir(parents=True)
+    shared.write_text(LEGACY_CLAUDE_BLOCK, encoding="utf-8")
+
+    _run_release_installer(
+        release, home=home, vault=vault, platforms="claude-code"
+    )
+
+    text = shared.read_text(encoding="utf-8")
+    assert "BEGIN obsidian-kb-skill" not in text
+    assert "stale instructions from an earlier release" not in text
+    # The user's own content around the block is preserved.
+    assert "# My own notes" in text
+    assert "# More of my own notes" in text
+    assert _claude_skill(home).is_dir()
+
+
+def test_claude_code_uninstall_removes_the_native_skill(tmp_path):
+    release = _copy_release_tree(tmp_path)
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    _run_release_installer(
+        release, home=home, vault=vault, platforms="claude-code"
+    )
+    assert _claude_skill(home).is_dir()
+
+    _run_release_installer(
+        release,
+        home=home,
+        vault=vault,
+        platforms="claude-code",
+        extra_args=("--uninstall",),
+    )
+
+    assert not _claude_skill(home).exists()
+
+
+def test_both_installers_deliver_claude_code_as_a_native_skill():
+    """Keep the bash and PowerShell installers in step on delivery shape."""
+    bash = (ROOT / "install.sh").read_text(encoding="utf-8")
+    powershell = (ROOT / "install.ps1").read_text(encoding="utf-8")
+
+    assert ".claude/skills/obsidian-knowledge-base" in bash
+    assert "skills\\obsidian-knowledge-base" in powershell
+    # Neither installer may write the write Skill as an always-loaded block.
+    assert "platforms/claude-code/CLAUDE.md" not in bash
+    assert "platforms\\claude-code\\CLAUDE.md" not in powershell

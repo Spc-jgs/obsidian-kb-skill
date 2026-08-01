@@ -175,7 +175,7 @@ Windows PowerShell：
 | Codex / Agent Skills | `~/.agents/skills/obsidian-knowledge-base/` | `~/.agents/skills/obsidian-knowledge-retrieval/` |
 | QoderWork / Qoder CLI | `~/.qoderwork/skills/obsidian-knowledge-base/` | `~/.qoderwork/skills/obsidian-knowledge-retrieval/` |
 | WorkBuddy | `~/.workbuddy/skills/obsidian-knowledge-base/` | `~/.workbuddy/skills/obsidian-knowledge-retrieval/` |
-| Claude Code | `~/.claude/CLAUDE.md` 兼容块 | `~/.claude/skills/obsidian-knowledge-retrieval/` |
+| Claude Code | `~/.claude/skills/obsidian-knowledge-base/` | `~/.claude/skills/obsidian-knowledge-retrieval/` |
 | Cursor | `~/.cursor/rules/obsidian-kb.mdc` | `~/.cursor/skills/obsidian-knowledge-retrieval/` |
 
 同一产品可以安装到多个平台并共用一个 Vault。平台选择、区域选择、配置优先级和卸载边界见[平台与安装](docs/platforms-and-installation.md)。

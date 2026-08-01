@@ -176,7 +176,7 @@ A standard skill requires its complete directory:
 | Codex / Agent Skills | `~/.agents/skills/obsidian-knowledge-base/` | `~/.agents/skills/obsidian-knowledge-retrieval/` |
 | QoderWork / Qoder CLI | `~/.qoderwork/skills/obsidian-knowledge-base/` | `~/.qoderwork/skills/obsidian-knowledge-retrieval/` |
 | WorkBuddy | `~/.workbuddy/skills/obsidian-knowledge-base/` | `~/.workbuddy/skills/obsidian-knowledge-retrieval/` |
-| Claude Code | compatibility block in `~/.claude/CLAUDE.md` | `~/.claude/skills/obsidian-knowledge-retrieval/` |
+| Claude Code | `~/.claude/skills/obsidian-knowledge-base/` | `~/.claude/skills/obsidian-knowledge-retrieval/` |
 | Cursor | `~/.cursor/rules/obsidian-kb.mdc` | `~/.cursor/skills/obsidian-knowledge-retrieval/` |
 
 One product can be installed for multiple platforms while sharing one Vault. On uninstall, only the product-owned WorkBuddy Skill directory is removed; unrelated WorkBuddy content is preserved. Platform selection, locale selection, config precedence, and uninstall boundaries are documented in [Platforms and installation](docs/platforms-and-installation.md).

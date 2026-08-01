@@ -328,6 +328,11 @@ if ($Uninstall) {
         Remove-OwnedPath -Path $cursorRetrievalDir
         Write-Host "-> Removed: Cursor retrieval skill ($cursorRetrievalDir)" -ForegroundColor Green
     }
+    $claudeSkillDir = Join-Path $env:USERPROFILE ".claude\skills\obsidian-knowledge-base"
+    if (Test-Path $claudeSkillDir) {
+        Remove-OwnedPath -Path $claudeSkillDir
+        Write-Host "-> Removed: Claude Code skill ($claudeSkillDir)" -ForegroundColor Green
+    }
     $claudeRetrievalDir = Join-Path $env:USERPROFILE ".claude\skills\obsidian-knowledge-retrieval"
     if (Test-Path $claudeRetrievalDir) {
         Remove-OwnedPath -Path $claudeRetrievalDir
@@ -709,14 +714,21 @@ foreach ($platform in $platformList) {
         "claude-code" {
             $claudeDir = Join-Path $env:USERPROFILE ".claude"
             New-Item -ItemType Directory -Path $claudeDir -Force | Out-Null
-            $claudeFile = Join-Path $claudeDir "CLAUDE.md"
-            $srcFile = Join-Path $ScriptDir "platforms\claude-code\CLAUDE.md"
-            $body = Read-Text -Path $srcFile
-            $result = Set-MarkerBlock -TargetFile $claudeFile -BlockBody $body
-            Write-Host "-> Installed: Claude Code ($result) -> $claudeFile" -ForegroundColor Green
+            # Claude Code discovers skills natively, like Codex and WorkBuddy. An
+            # always-loaded CLAUDE.md block charged the full instruction cost to
+            # every conversation, which is what the lazy entry file avoids.
+            $claudeSkillDir = Join-Path $claudeDir "skills\obsidian-knowledge-base"
+            Install-StandardSkill -SourceDirectory $CanonicalSkill -DestinationDirectory $claudeSkillDir
+            Write-Host "-> Installed: Claude Code skill -> $claudeSkillDir\SKILL.md" -ForegroundColor Green
             $retrievalDir = Join-Path $claudeDir "skills\obsidian-knowledge-retrieval"
             Install-StandardSkill -SourceDirectory $CanonicalRetrievalSkill -DestinationDirectory $retrievalDir
             Write-Host "-> Installed: Claude Code retrieval -> $retrievalDir\SKILL.md" -ForegroundColor Green
+            # Upgrade path: drop the legacy always-loaded block so the
+            # instructions are not delivered from two places at once.
+            $claudeFile = Join-Path $claudeDir "CLAUDE.md"
+            if (Remove-MarkerBlock -TargetFile $claudeFile) {
+                Write-Host "-> Migrated: removed legacy Claude Code block from $claudeFile" -ForegroundColor Green
+            }
         }
         "codex" {
             $codexSkillDir = Join-Path $env:USERPROFILE ".agents\skills\obsidian-knowledge-base"
