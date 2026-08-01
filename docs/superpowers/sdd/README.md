@@ -28,6 +28,23 @@ records three deterministic probes showing that the prepared-path model cannot
 be repaired by another local patch, which is why a fourth wave is forbidden
 without a new design.
 
+### Errata: the probe tests it cites do not exist
+
+That document gives three commands of the form
+`pytest tests/test_inbox_transaction.py::test_probe_... -q`. **None of those
+tests were ever committed.** Searching every branch and every working directory
+for `probe` in `tests/test_inbox_transaction.py` returns nothing, so the
+commands cannot be run as written. The probes were evidently written, executed,
+and discarded before the WIP commit.
+
+This does not weaken the conclusion. The document describes each race in enough
+prose detail to be re-derived, and three independent reviews reached the same
+verdict from separate evidence. But anyone resuming this work should expect to
+**rewrite the probes** rather than run them, and should treat the reproduction
+commands as a description of what to build, not as a working recipe.
+
+The original text is archived unmodified; this note is the correction.
+
 ## Status of the work these describe
 
 None of it is merged. As of this archive:
