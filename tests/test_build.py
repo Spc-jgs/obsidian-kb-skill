@@ -212,7 +212,7 @@ class TestEndToEnd:
         assert all(path.is_relative_to(root) for path in payload.values())
 
     def test_project_version_reads_pyproject(self):
-        assert build.project_version() == "1.26.0"
+        assert build.project_version() == "1.26.1"
 
     def test_standard_skill_has_required_resource_directories(self):
         root = ROOT / "skills" / "obsidian-knowledge-base"
@@ -487,17 +487,19 @@ def test_readmes_use_agent_first_installation_and_changelog_owns_history():
     assert "## What's New in v1.12" not in readme_en
 
 
-def test_v1_26_0_release_contract_is_consistent():
+def test_v1_26_1_release_contract_is_consistent():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     core = (ROOT / "core" / "OBSIDIAN_KB.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     readme_en = (ROOT / "README_EN.md").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert 'version = "1.26.0"' in pyproject
-    assert "**Version**: 1.26.0" in core
-    assert "**v1.26.0**" in readme
-    assert "**v1.26.0**" in readme_en
+    assert 'version = "1.26.1"' in pyproject
+    assert "**Version**: 1.26.1" in core
+    assert "**v1.26.1**" in readme
+    assert "**v1.26.1**" in readme_en
+    assert "## [1.26.1] - 2026-08-01" in changelog
+    assert "invalid-folder-index-config" in changelog
     assert "## [1.26.0] - 2026-08-01" in changelog
     assert "obsidian-knowledge-base" in changelog
     # Earlier history stays intact under the new section.
