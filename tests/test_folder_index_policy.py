@@ -6,6 +6,7 @@ import pytest
 
 from obsidian_kb_skill.scripts.folder_index_policy import (
     FolderIndexConfig,
+    FolderIndexConfigError,
     StaticIndexEntry,
     append_static_index_entry,
     expected_folder_index,
@@ -300,3 +301,53 @@ def test_production_modules_do_not_import_audit_or_inbox_private_policy():
                 continue
             imported = {alias.name for alias in node.names}
             assert imported.isdisjoint(private_policy), path.name
+
+
+@pytest.mark.parametrize(
+    ("settings", "field"),
+    [
+        ({"rootIndexFile": "\ud800"}, "root_index_file"),
+        (
+            {"indexFileUserSpecified": True, "indexFilename": "\ud800"},
+            "index_filename",
+        ),
+    ],
+    ids=["root-index-file", "index-filename"],
+)
+def test_unencodable_plugin_filename_raises_the_typed_config_error(
+    tmp_path: Path, settings: dict, field: str
+) -> None:
+    """A name that cannot be UTF-8 encoded is a config error, not a crash.
+
+    The length guard called `value.encode("utf-8")` inline, so an unpaired
+    surrogate from the plugin's data.json escaped as an untyped
+    UnicodeEncodeError instead of the documented
+    `invalid-folder-index-config` refusal.
+    """
+    vault = make_vault(tmp_path)
+    enable_folder_index(vault, settings)
+    config = read_folder_index_config(vault)
+    folder = vault if field == "root_index_file" else vault / "30-Insights"
+
+    with pytest.raises(FolderIndexConfigError) as error:
+        expected_folder_index(folder, vault, config)
+
+    assert error.value.code == "invalid-folder-index-config"
+    assert error.value.field == field
+
+
+def test_unencodable_plugin_filename_leaves_the_static_index_untouched(
+    tmp_path: Path,
+) -> None:
+    vault = make_vault(tmp_path)
+    index = vault / "30-Insights" / "INDEX.md"
+    before = b"# Plugin owned\n"
+    index.write_bytes(before)
+    enable_folder_index(vault, {"rootIndexFile": "\ud800"})
+
+    append_static_index_entry(
+        vault,
+        StaticIndexEntry(Path("30-Insights/Idea.md"), "Idea", "2042-03-04"),
+    )
+
+    assert index.read_bytes() == before

@@ -123,6 +123,13 @@ def is_folder_index_excluded(relative: Path, config: FolderIndexConfig) -> bool:
 
 def _validate_index_basename(value: str, *, field: str) -> str:
     windows_stem = value.split(".", 1)[0].upper()
+    # A name the filesystem cannot even encode is a config error like any
+    # other. Encoding inline in the length guard let it escape as an untyped
+    # UnicodeEncodeError instead of the documented refusal.
+    try:
+        encoded = value.encode("utf-8")
+    except UnicodeEncodeError:
+        raise FolderIndexConfigError(field) from None
     if (
         not value
         or value != value.strip()
@@ -130,7 +137,7 @@ def _validate_index_basename(value: str, *, field: str) -> str:
         or value.startswith(".")
         or value.endswith(".")
         or windows_stem in WINDOWS_RESERVED_FILENAMES
-        or len(value.encode("utf-8")) > 255
+        or len(encoded) > 255
         or any(
             ord(character) < 32 or character in INVALID_FILENAME_CHARS
             for character in value
