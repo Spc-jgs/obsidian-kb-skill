@@ -4,7 +4,9 @@
 > decision for Inbox transactions. It supersedes the Task 4/5 boundary in
 > `2026-07-16-inbox-data-safety-design.md`.
 >
-> Implementation reached Task 2 of 10 and stopped. Do not resume the old
+> Implementation reached Task 2 of 10 and stopped, and was formally closed on
+> 2026-08-02 — see `2026-08-02-inbox-transaction-closure.md` for why, and for
+> the four premises that would reopen it. Do not resume the old
 > pathname-based approach; see
 > `docs/superpowers/sdd/inbox-task4-hardening/task-4-wave-3-architecture-blocker.md`
 > for the three deterministic probes that closed it.
