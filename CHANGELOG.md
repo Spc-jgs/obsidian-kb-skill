@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-08-01
+
+### Changed
+
+- Claude Code now receives `obsidian-knowledge-base` as a native Skill at `~/.claude/skills/obsidian-knowledge-base/`, matching Codex and WorkBuddy and matching how the retrieval Skill was already delivered on that platform. It was previously written as a marker block in `~/.claude/CLAUDE.md`, which loaded the full instruction set into every conversation and defeated the lazy-loading design that the small entry file exists for.
+- Installing over an earlier release removes the legacy `~/.claude/CLAUDE.md` block so the instructions are not delivered from two places at once. Surrounding user content is preserved. Migration runs before installation, so a malformed marker aborts without installing anything and without modifying the file.
+
+### Added
+
+- `core/references/rules-and-errors.md` documents every structured code the helpers emit: 24 refusal codes with the action to take for each, and 35 audit findings grouped by category with their shared response. It also records that two payload envelopes and two naming styles are currently in use, and how to read `error.code` from either.
+- `tests/test_error_code_contract.py` locks the reference against drift in both directions: a helper code with no documented entry fails, and a documented code no longer emitted fails. Extraction is AST-based, so codes reaching their payload through a constant or a conditional expression are not missed.
+
+### Documentation
+
+- Recorded the backup and recovery boundary as an accepted decision: Git is the recovery mechanism for notes, and the in-Vault backup tree deliberately serves only high-churn Task Memory. A rejected restore design and plan are retained as process evidence, marked as such.
+
 ## [1.25.1] - 2026-08-01
 
 ### Fixed
