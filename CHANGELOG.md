@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.26.1] - 2026-08-01
+
+### Fixed
+
+- An index filename that cannot be encoded as UTF-8 now returns the documented `invalid-folder-index-config` refusal instead of escaping as an untyped `UnicodeEncodeError`. The length guard encoded the value inline, so an unpaired surrogate supplied by the Folder Index plugin's `data.json` crashed the helper rather than being refused. The fix was written in July alongside the paused Inbox transaction work and had never reached the main line.
+
+### Added
+
+- New codes must be `kebab-case` and use the bare `{"error": {...}}` envelope. `PATH_OUTSIDE_VAULT`, `PATH_NOT_FOUND`, `INVALID_VAULT_ROOT`, and `BACKUP_FAILED` predate the convention and are grandfathered unchanged; both envelopes expose the code at `error.code`, so renaming them would buy nothing. `tests/test_error_code_contract.py` fails on a new code that breaks the convention, and on a grandfathered code that is no longer emitted.
+
+### Documentation
+
+- Archived 31 SDD documents from the paused Inbox transaction effort under `docs/superpowers/sdd/`. `.superpowers/` is excluded by a machine-local rule, so every task report, review package, handoff, and the architecture blocker existed only in three working directories, in no commit and on no remote.
+
 ## [1.26.0] - 2026-08-01
 
 ### Changed
