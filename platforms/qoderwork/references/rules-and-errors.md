@@ -36,9 +36,86 @@ If a task genuinely needs to exceed these caps (e.g. bulk import of 20 notes), *
 13. **Use the provided write helper** — if your environment lacks a native file-write tool, call `python <skill-root>/scripts/run_helper.py create-note` instead of writing your own ad-hoc script to save the note.
 
 
+## Structured Error Codes
+
+Every helper refusal carries a machine-readable `code`. Match on the code, not
+on the message text. Two envelope shapes are in use:
+
+```jsonc
+// path and security refusals, plus update-note backup failures — exit 3 (path) / 2
+{"schema_version": "1.0", "ok": false, "command": "...", "error": {"code": "...", "message": "...", "details": {}}}
+
+// all other helper refusals — exit 2
+{"error": {"code": "...", "message": "...", ...}}
+```
+
+`SCREAMING_SNAKE` codes use the first shape; `kebab-case` codes use the second.
+Read `error.code` defensively from either envelope.
+
+### Refusal Codes
+
+Every refusal leaves the Vault unchanged. Never work around one by writing the
+file yourself with a native tool — the refusal is the contract, not an obstacle.
+
+| Code | Meaning | Do this |
+|---|---|---|
+| `PATH_OUTSIDE_VAULT` | The resolved path escapes the Vault, after following symlinks | Stop. Report the offending parameter. Never retry with a different spelling of the same path |
+| `PATH_NOT_FOUND` | An existing-path argument does not exist | Re-resolve the target from the Vault; ask the user if still ambiguous |
+| `INVALID_VAULT_ROOT` | The Vault root is not a usable, in-bounds directory | Stop and re-confirm the Vault path with the user |
+| `invalid-vault` | The path is not a real Obsidian vault (`.obsidian/` missing) | Stop. Offer to re-prompt, or to initialize a vault only on explicit confirmation |
+| `BACKUP_FAILED` | The pre-write backup could not be created | Stop. The note was not modified. Report the cause; do not retry the write without a backup |
+| `invalid-frontmatter` | The frontmatter block exists but the YAML does not parse | Do not fill defaults over it. Show the user the reported line/column and let them fix it |
+| `unclosed-frontmatter` | The opening fence has no closing fence | Do not treat the note as having no frontmatter. Report the unterminated block and let the user close it |
+| `frontmatter-not-mapping` | Frontmatter parses but is not a YAML mapping (e.g. a list) | Report the actual shape found. Do not coerce it into a mapping or overwrite it with defaults |
+| `unreadable-frontmatter` | Inbox processing refused a note whose frontmatter cannot be read | Leave the note in the Inbox untouched. Report the reported line and let the user repair the YAML |
+| `unreadable-note` | The note bytes could not be decoded | Report the path; do not guess an encoding and rewrite it |
+| `invalid-utf8-input` | Supplied content is not valid UTF-8 | Re-encode the content as UTF-8 without BOM and retry |
+| `missing-required-metadata` | Required frontmatter fields are absent for this note type | Add the listed fields and re-run preflight; do not write a partial note |
+| `template-changed` | The Vault template changed after its contract was read | Re-read the template contract, re-render, then retry |
+| `unsupported-template-type` | No template exists for the requested note type | Pick a supported type, or create the category first |
+| `missing-destination-folder` | The routed folder does not exist | Do not create it implicitly; route elsewhere or use `create-category` |
+| `invalid-destination-folder` | The destination is not an acceptable note folder | Re-route using the standard folder map |
+| `invalid-task-memory-folder` | The Task Memory path is not the allowed `Tasks/<slug>` shape | Use the exact allowed shape; Task Memory cannot create arbitrary folders |
+| `task-memory-initialization-failed` | Task Memory scaffolding could not be created | Report it; do not fall back to an ordinary note in that location |
+| `invalid-capture-depth` | The requested `capture_depth` is not a known value | Use `standard` or `verified` |
+| `capture-depth-route-mismatch` | The capture depth and the destination disagree | Re-read `web-capture.md` and pick a consistent depth and route |
+| `invalid-content-file` | The supplied content file is missing or unreadable | Re-supply the content; do not fall back to inline guesses |
+| `invalid-folder-index-config` | The Folder Index plugin config cannot be interpreted | Do not touch listings. Report the config problem |
+| `invalid-output-mode` | Conflicting output flags were passed | Fix the invocation; `--preflight-json` cannot combine with `--apply` |
+| `compact-json-requires-apply` | `--compact-json` was passed without `--apply` | Add `--apply`, or use `--preflight-json` for a dry run |
+
+### Audit Findings
+
+The vault auditor reports findings rather than refusing. The response is uniform:
+fix only files from the current invocation, re-run the audit, and report
+anything that cannot be fixed safely. Never bulk-rewrite historical notes to
+clear a finding.
+
+Frontmatter and content: `missing-frontmatter`, `invalid-frontmatter`,
+`missing-date`, `missing-type`, `invalid-type`, `missing-tags`, `invalid-tag`,
+`too-many-tags`, `near-duplicate-tags`, `invalid-related`,
+`invalid-related-entry`, `duplicate-related-entry`, `unclosed-fence`.
+
+Links and duplication: `broken-wikilink`, `ambiguous-wikilink`, `orphan-note`,
+`duplicate-title`, `similar-title`.
+
+Templates: `missing-template-heading`, `empty-template-note`,
+`residual-template-instruction`, `unresolved-template-placeholder`,
+`missing-deep-capture-heading`, `outdated-deep-capture-template`,
+`web-clip-invalid-capture-depth`, `missing-conversation-digest-heading`,
+`outdated-conversation-digest-template`,
+`conversation-digest-missing-resume-field`,
+`conversation-digest-resume-card-too-long`.
+
+Folder index: `missing-folder-index`, `duplicate-folder-index`,
+`misnamed-folder-index`, `missing-folder-index-content`,
+`duplicate-folder-index-content`, `graph-incompatible-index-config`,
+`broken-folder-graph-chain`.
+
+
 ## Error Handling
 
-When things go wrong, follow these guidelines:
+Situations without a structured code:
 
 - **Vault not found / not an Obsidian vault**: Stop and report. Offer to (a) re-prompt for the correct path, or (b) initialize a new vault structure (folders + templates + INDEX) at the given location with explicit user confirmation.
 - **Template missing**: Create the note using the base YAML frontmatter and standard sections. Warn the user that the template was missing and suggest re-running the installer.
