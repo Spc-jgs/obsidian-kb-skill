@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.26.2] - 2026-08-02
+
+### Fixed
+
+- Filing an Inbox note no longer rewrites frontmatter it did not need to touch. The renderer re-serialised the whole mapping through `yaml.safe_dump`, silently discarding YAML comments and rewriting indentation and quoting; only the missing `date`, `type`, and `tags` entries are now inserted before the closing delimiter, leaving every other byte alone. An empty frontmatter block is filled in place rather than having a second block prepended.
+- Inbox discovery no longer follows symlinks. `glob()` and `is_file()` both resolve them, so a link placed in the Inbox let a file outside the Vault be read and imported — the opposite of the containment this command states it enforces. Entries that are not regular files are reported as `unsafe-inbox-entry` and left in place, in both `--plan` and `--apply`.
+
+### Documentation
+
+- Closed the Inbox transaction effort with a decision record. Task 1 of 10 is accepted and Task 2 is implemented without review; Tasks 3–10 will not start. The data-loss paths it targeted are closed by other means, its own threat model excludes the adversary it would defend against, the Vault is version controlled, and Inbox processing is never unattended. The record states the four premises that would reopen it, and the branch is retained on the remote.
+
 ## [1.26.1] - 2026-08-01
 
 ### Fixed
