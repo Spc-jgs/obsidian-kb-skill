@@ -84,6 +84,7 @@ file yourself with a native tool — the refusal is the contract, not an obstacl
 | `unclosed-frontmatter` | The opening fence has no closing fence | Do not treat the note as having no frontmatter. Report the unterminated block and let the user close it |
 | `frontmatter-not-mapping` | Frontmatter parses but is not a YAML mapping (e.g. a list) | Report the actual shape found. Do not coerce it into a mapping or overwrite it with defaults |
 | `unreadable-frontmatter` | Inbox processing refused a note whose frontmatter cannot be read | Leave the note in the Inbox untouched. Report the reported line and let the user repair the YAML |
+| `unsafe-inbox-entry` | An Inbox entry is a symlink, a directory, or otherwise not a regular file | Leave it in place. Never resolve it: following the link would import content from outside the Vault. Tell the user what the entry is |
 | `unreadable-note` | The note bytes could not be decoded | Report the path; do not guess an encoding and rewrite it |
 | `invalid-utf8-input` | Supplied content is not valid UTF-8 | Re-encode the content as UTF-8 without BOM and retry |
 | `missing-required-metadata` | Required frontmatter fields are absent for this note type | Add the listed fields and re-run preflight; do not write a partial note |

@@ -289,3 +289,100 @@ def test_unreadable_frontmatter_is_reported_in_json(tmp_path, capsys):
     assert payload[0]["skip_code"] == "unreadable-frontmatter"
     assert payload[0]["frontmatter_issue"]["code"] == "invalid-frontmatter"
     assert payload[0]["frontmatter_issue"]["line"] == 4
+
+
+def test_apply_preserves_existing_frontmatter_bytes(tmp_path):
+    """Only the missing keys are inserted; the rest of the block is untouched.
+
+    The old renderer re-dumped the whole mapping through yaml.safe_dump, which
+    silently discarded comments and rewrote indentation and quoting.
+    """
+    vault = make_vault(tmp_path)
+    (vault / "00-Inbox" / "Note.md").write_text(
+        "---\n"
+        "title: 我的笔记  # 保留我\n"
+        "aliases:\n"
+        "  - 别名一\n"
+        "  - 别名二\n"
+        'custom: "带引号"\n'
+        "type: insight-note\n"
+        "---\n"
+        "\n# 正文\n",
+        encoding="utf-8",
+    )
+
+    process_vault(vault, apply=True)
+
+    text = (vault / "30-Insights" / "Note.md").read_text(encoding="utf-8")
+    assert "# 保留我" in text, "YAML comments must survive"
+    assert "  - 别名一" in text, "indentation style must survive"
+    assert 'custom: "带引号"' in text, "quoting style must survive"
+    # the missing keys are still filled in
+    assert "date:" in text and "tags:" in text
+
+
+def test_apply_still_prepends_a_block_when_frontmatter_is_absent(tmp_path):
+    vault = make_vault(tmp_path)
+    (vault / "00-Inbox" / "Note.md").write_text(
+        "# Some Insight\nidea\n", encoding="utf-8"
+    )
+
+    process_vault(vault, apply=True)
+
+    text = (vault / "30-Insights" / "Note.md").read_text(encoding="utf-8")
+    assert text.startswith("---\n")
+    assert text.count("---\n") == 2, "exactly one frontmatter block"
+    assert text.rstrip().endswith("idea")
+
+
+def test_apply_fills_an_empty_frontmatter_block_without_duplicating_it(tmp_path):
+    vault = make_vault(tmp_path)
+    (vault / "00-Inbox" / "Note.md").write_text(
+        "---\n---\n\n# Some Insight\nidea\n", encoding="utf-8"
+    )
+
+    process_vault(vault, apply=True)
+
+    text = (vault / "30-Insights" / "Note.md").read_text(encoding="utf-8")
+    assert text.count("---\n") == 2
+    assert "type: insight-note" in text
+
+
+def test_inbox_discovery_refuses_symlinked_entries(tmp_path):
+    """A symlink in the Inbox must not import content from outside the Vault.
+
+    process_inbox states that reading from an external directory is rejected
+    so that outside files are never silently imported, but discovery used
+    glob() and is_file(), both of which follow symlinks.
+    """
+    vault = make_vault(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    secret = outside / "secret.md"
+    secret.write_text("# A stray analysis idea\n\nsecret\n", encoding="utf-8")
+    link = vault / "00-Inbox" / "link.md"
+    try:
+        link.symlink_to(secret)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+
+    plans = process_vault(vault, apply=True)
+
+    assert plans[0]["skip_code"] == "unsafe-inbox-entry"
+    assert not (vault / "30-Insights" / "link.md").exists()
+    assert link.is_symlink(), "the entry is left in place, not consumed"
+    assert secret.read_text(encoding="utf-8").endswith("secret\n")
+
+
+def test_inbox_discovery_reports_unsafe_entries_in_plan_mode(tmp_path):
+    vault = make_vault(tmp_path)
+    target = vault / "30-Insights"
+    link = vault / "00-Inbox" / "dir-link.md"
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+
+    plans = process_vault(vault, apply=False)
+
+    assert [p["skip_code"] for p in plans] == ["unsafe-inbox-entry"]
