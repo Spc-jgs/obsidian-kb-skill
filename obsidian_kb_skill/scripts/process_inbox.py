@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -61,11 +62,40 @@ INDEX_BASENAME = "INDEX.md"
 # Skip code for a note whose frontmatter block exists but cannot be parsed.
 UNREADABLE_FRONTMATTER = "unreadable-frontmatter"
 
+# Skip code for an Inbox entry that is not a regular file (symlink, directory).
+UNSAFE_INBOX_ENTRY = "unsafe-inbox-entry"
+
+
+def scan_inbox(inbox: Path) -> tuple[list[Path], list[Path]]:
+    """Return (regular notes, unsafe entries) without following symlinks.
+
+    `glob()` and `is_file()` both resolve symlinks, so a link placed in the
+    Inbox let an outside file be read and imported — exactly what this command
+    states it refuses to do. Unsafe entries are reported rather than skipped
+    silently, so the user learns why a file stayed put.
+    """
+    if not inbox.is_dir():
+        return [], []
+    safe: list[Path] = []
+    unsafe: list[Path] = []
+    with os.scandir(inbox) as entries:
+        for entry in entries:
+            if not entry.name.endswith(".md"):
+                continue
+            path = Path(entry.path)
+            try:
+                if entry.is_symlink() or not entry.is_file(follow_symlinks=False):
+                    unsafe.append(path)
+                else:
+                    safe.append(path)
+            except OSError:
+                unsafe.append(path)
+    return sorted(safe), sorted(unsafe)
+
 
 def collect_inbox(inbox: Path) -> list[Path]:
-    if not inbox.is_dir():
-        return []
-    return sorted(p for p in inbox.glob("*.md") if p.is_file())
+    """Regular Inbox notes only. Kept for callers that ignore unsafe entries."""
+    return scan_inbox(inbox)[0]
 
 
 def infer_target(text: str, metadata: dict[str, Any] | None) -> str | None:
@@ -134,23 +164,38 @@ def plan_note(path: Path, vault: Path) -> dict[str, Any]:
     return result
 
 
-def _fill_frontmatter(
-    text: str, metadata: dict[str, Any] | None, updates: dict[str, Any]
-) -> str:
+def _closing_fence_start(text: str) -> int | None:
+    """Index where the closing `---` line of a frontmatter block starts."""
+    if not text.startswith("---\n"):
+        return None
+    position = 4
+    while position <= len(text):
+        newline = text.find("\n", position)
+        line_end = len(text) if newline == -1 else newline
+        if text[position:line_end] == "---":
+            return position
+        if newline == -1:
+            return None
+        position = newline + 1
+    return None
+
+
+def _fill_frontmatter(text: str, updates: dict[str, Any]) -> str:
+    """Insert the missing keys without rewriting the existing block.
+
+    Re-dumping the whole mapping through yaml.safe_dump silently discarded
+    comments and rewrote indentation and quoting, so a note lost content the
+    user had written even when nothing was wrong with it.
+    """
     if not updates:
         return text
-    meta = dict(metadata) if isinstance(metadata, dict) else {}
-    for key, value in updates.items():
-        meta.setdefault(key, value)
-    body = text
-    if text.startswith("---\n"):
-        end = text.find("\n---\n", 4)
-        if end != -1:
-            body = text[end + 5:]
-    dump = yaml.safe_dump(
-        meta, sort_keys=False, allow_unicode=True, default_flow_style=False
+    rendered = yaml.safe_dump(
+        updates, sort_keys=False, allow_unicode=True, default_flow_style=False
     ).strip()
-    return f"---\n{dump}\n---\n{body}"
+    fence = _closing_fence_start(text)
+    if fence is None:
+        return f"---\n{rendered}\n---\n{text}"
+    return f"{text[:fence]}{rendered}\n{text[fence:]}"
 
 
 def apply_plan(plan: dict[str, Any], vault: Path, silent: bool = False) -> bool:
@@ -186,7 +231,7 @@ def apply_plan(plan: dict[str, Any], vault: Path, silent: bool = False) -> bool:
         updates["type"] = plan["type"]
     if not (metadata and metadata.get("tags")):
         updates["tags"] = plan["tags"]
-    dest.write_bytes(_fill_frontmatter(text, metadata, updates).encode("utf-8"))
+    dest.write_bytes(_fill_frontmatter(text, updates).encode("utf-8"))
     try:
         source.unlink()
     except OSError as exc:
@@ -226,7 +271,19 @@ def process_vault(
 ) -> list[dict[str, Any]]:
     vault = vault.resolve()
     inbox = vault / inbox_name
-    plans = [plan_note(path, vault) for path in collect_inbox(inbox)]
+    sources, unsafe = scan_inbox(inbox)
+    plans = [plan_note(path, vault) for path in sources]
+    plans.extend(
+        {
+            "path": path,
+            "target": None,
+            "title": path.stem,
+            "skip": "unsafe Inbox entry: not a regular file",
+            "skip_code": UNSAFE_INBOX_ENTRY,
+        }
+        for path in unsafe
+    )
+    plans.sort(key=lambda plan: plan["path"].as_posix())
     if apply:
         for plan in plans:
             if plan.get("skip"):
