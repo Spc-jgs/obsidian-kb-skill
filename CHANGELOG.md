@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.26.3] - 2026-08-02
+
+### Fixed
+
+- A Resume Card field whose value is inline code is no longer reported as empty. Section extraction stripped fenced *and* inline code before the field pattern ran, so `` - **Key artifacts**: `src/app.py` `` produced a false `conversation-digest-missing-resume-field`. Fenced blocks and HTML comments are still removed; inline code is kept.
+- Headings inside an HTML comment no longer count as visible structure. A document with its entire v2 layout commented out satisfied the heading baseline, because comments were removed only after heading matching. `HTML_COMMENT_RE` now lives in `template_contract` and is shared, rather than each module keeping its own idea of what a reader can see.
+- The Digest template contract now checks the five Resume Card labels, not only the five headings. A template missing a label passed the template audit and then failed preflight on every note created from it, which presented as a defect in each note rather than in the template. Values may be blank; labels must exist. Note and template audits share one field matcher so they cannot drift apart again.
+
+### Documentation
+
+- Both READMEs name the Vault explicitly in the first-install examples (`--vault` / `-VaultPath`), and no longer claim the installer asks for it. A first run with no saved configuration exits with `No vault path configured`.
+- The write state machine marks the Git precheck as a guarded step rather than an unconditional one, matching the contract in `core/references/git.md`.
+- `feature-guide.md` separates Vault structure discovery (`vault-info`) from Vault-local governance reading, which the Agent performs itself and no helper returns.
+- `retrieval.md` lists the directories the scanner actually skips — `node_modules`, `__pycache__`, `.venv` — instead of claiming "virtual environments" generally. Plain `venv/` and `env/` are not skipped.
+- Six documentation contract tests cover the install commands, note-type slugs, responsibility boundaries, and the skip list, so these cannot drift silently again.
+
 ## [1.26.2] - 2026-08-02
 
 ### Fixed
