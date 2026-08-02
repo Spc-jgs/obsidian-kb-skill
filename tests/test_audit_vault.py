@@ -239,7 +239,9 @@ def test_audit_vault_checks_versioned_deep_capture_heading_order(tmp_path):
         encoding="utf-8",
     )
     (tmp_path / "Candidate.md").write_text(
-        '---\ndate: "2026-07-14"\ntype: web-clip\n'
+        # Dated after the deep-capture contract shipped, so the historical
+        # exemption does not apply and the ordering rule is still enforced.
+        '---\ndate: "2026-08-01"\ntype: web-clip\n'
         'tags: [web-clip]\nsource: "https://example.com"\n'
         'author: "Jane"\npublished: "2026-01-01"\n---\n'
         "# Candidate\n\n"
@@ -1368,3 +1370,104 @@ def test_a_genuinely_unclosed_fence_is_still_reported(tmp_path):
     )
 
     assert [f for f in findings if f.code == "unclosed-fence"]
+
+
+def _pre_contract_web_clip(date: str) -> str:
+    """A finished Web Clip in the shape that predated the deep-capture contract."""
+    return (
+        f'---\ndate: "{date}"\ntype: web-clip\ntags: [web-clip]\n'
+        'source: "https://example.com/a"\nauthor: "A"\npublished: "2026-01-01"\n'
+        "---\n"
+        "# Article\n\n## Summary\n\nOld shape, still a good note.\n"
+    )
+
+
+def test_note_predating_the_deep_capture_contract_is_not_invalid(tmp_path):
+    """A later contract does not retroactively invalidate existing notes.
+
+    The roadmap states that new templates apply to new notes and that existing
+    notes "do not become invalid merely because a later template adds
+    sections". The audit reported them anyway — 31 of them on the reference
+    Vault, every one written before the contract shipped.
+    """
+    (tmp_path / ".obsidian").mkdir()
+
+    (tmp_path / "20-Learning").mkdir()
+    (tmp_path / "20-Learning" / "Old.md").write_text(
+        _pre_contract_web_clip("2026-07-01"), encoding="utf-8"
+    )
+
+    findings = audit_vault(tmp_path)
+
+    assert not [
+        f for f in findings if f.code == "missing-deep-capture-heading"
+    ]
+
+
+def test_note_written_after_the_contract_is_still_checked(tmp_path):
+    """Guard: the exemption must not disable the contract for new notes."""
+    (tmp_path / ".obsidian").mkdir()
+
+    (tmp_path / "20-Learning").mkdir()
+    (tmp_path / "20-Learning" / "New.md").write_text(
+        _pre_contract_web_clip("2026-08-02"), encoding="utf-8"
+    )
+
+    findings = audit_vault(tmp_path)
+
+    assert [f for f in findings if f.code == "missing-deep-capture-heading"]
+
+
+def test_note_without_a_usable_date_is_still_checked(tmp_path):
+    """Guard: an undated note cannot claim the exemption."""
+    (tmp_path / ".obsidian").mkdir()
+    undated = _pre_contract_web_clip("2026-07-01").replace(
+        'date: "2026-07-01"\n', ""
+    )
+
+    (tmp_path / "20-Learning").mkdir()
+    (tmp_path / "20-Learning" / "X.md").write_text(undated, encoding="utf-8")
+
+    findings = audit_vault(tmp_path)
+
+    assert [f for f in findings if f.code == "missing-deep-capture-heading"]
+
+
+def test_digest_predating_the_v2_contract_is_not_invalid(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    _write_digest_template(tmp_path)
+    old = (
+        '---\ndate: "2026-07-10"\ntype: conversation-digest\ntags: [insight]\n'
+        'source: "x"\nrelated: []\n---\n'
+        "# Digest\n\n## Context\n\nOld v1 shape.\n\n## Confirmed Conclusions\n\nA.\n"
+    )
+
+    (tmp_path / "Old.md").write_text(old, encoding="utf-8")
+
+    findings = audit_vault(tmp_path)
+
+    assert not [
+        f
+        for f in findings
+        if f.code
+        in {
+            "missing-conversation-digest-heading",
+            "conversation-digest-missing-resume-field",
+        }
+    ]
+
+
+def test_template_residue_is_reported_regardless_of_age(tmp_path):
+    """Guard: age exempts structure, never leftover template scaffolding."""
+    (tmp_path / ".obsidian").mkdir()
+    residue = _pre_contract_web_clip("2026-01-01").replace(
+        "Old shape, still a good note.",
+        "Body {{date}} left unresolved.",
+    )
+
+    (tmp_path / "20-Learning").mkdir()
+    (tmp_path / "20-Learning" / "R.md").write_text(residue, encoding="utf-8")
+
+    findings = audit_vault(tmp_path)
+
+    assert [f for f in findings if f.code == "unresolved-template-placeholder"]
