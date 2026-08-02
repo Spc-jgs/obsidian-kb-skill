@@ -192,6 +192,18 @@ obsidian-audit-vault "/你的/Vault" --strict
 
 审计覆盖 frontmatter、模板结构、代码围栏、wikilink、目录索引、文章完整性和泄漏的模板指令等；审计器自身只读。
 
+每条 finding 带严重度，可用 `--min-severity` 过滤：
+
+| 级别 | 含义 | 处理 |
+|---|---|---|
+| `defect` | 导航、渲染或工具链已经坏了，或未完成的模板脚手架进了正文 | 该修 |
+| `hygiene` | 一致性与完整性问题，不影响使用 | 有空再修 |
+| `informational` | 往往本来就没问题——独立笔记、两个相似标题 | 用户问起再报 |
+
+```bash
+obsidian-audit-vault "/你的/Vault" --min-severity defect
+```
+
 ## Task Memory 与备份
 
 Task Memory 用于多 Agent 长任务交接，默认关闭。开启后使用 `Tasks/<slug>/TASK.md` 保存受约束状态：

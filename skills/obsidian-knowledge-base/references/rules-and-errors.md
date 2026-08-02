@@ -103,10 +103,9 @@ file yourself with a native tool — the refusal is the contract, not an obstacl
 
 ### Audit Findings
 
-The vault auditor reports findings rather than refusing. The response is uniform:
-fix only files from the current invocation, re-run the audit, and report
-anything that cannot be fixed safely. Never bulk-rewrite historical notes to
-clear a finding.
+The vault auditor reports findings rather than refusing. Fix only files from
+the current invocation, re-run the audit, and report anything that cannot be
+fixed safely. Never bulk-rewrite historical notes to clear a finding.
 
 Frontmatter and content: `missing-frontmatter`, `invalid-frontmatter`,
 `missing-date`, `missing-type`, `invalid-type`, `missing-tags`, `invalid-tag`,
@@ -129,6 +128,19 @@ Folder index: `missing-folder-index`, `duplicate-folder-index`,
 `duplicate-folder-index-content`, `graph-incompatible-index-config`,
 `broken-folder-graph-chain`.
 
+
+### Finding Severity
+
+Each finding carries a severity, and `--min-severity` filters by it:
+
+| Severity | Meaning | Response |
+|---|---|---|
+| `defect` | Navigation, rendering, or tooling is already broken, or unfinished scaffolding shipped | Fix it |
+| `hygiene` | Consistency or completeness worth improving | Fix when convenient |
+| `informational` | Often perfectly fine — a standalone note, two similar titles | Report only if the user asks |
+
+Report `defect` counts first. A long undifferentiated list is a list the user
+will not read.
 
 ## Error Handling
 
