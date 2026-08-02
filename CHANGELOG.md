@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.26.4] - 2026-08-02
+
+### Added
+
+- Every audit finding now carries a severity, and `--min-severity` filters by it. `defect` means navigation, rendering, or tooling is already broken, or unfinished scaffolding shipped; `hygiene` is worth fixing when convenient; `informational` is often perfectly fine — a standalone note need not be linked, and two notes may legitimately share a similar title. Text output leads with the most severe and reports per-tier counts; JSON gains `severity` per finding and a `by_severity` summary. `--strict` is unchanged: it is the post-write safety gate and still fails on any finding.
+
+### Fixed
+
+- A structural contract no longer retroactively invalidates notes written before it shipped. The roadmap states that existing notes "do not become invalid merely because a later template adds sections", but the audit applied the current baseline to every note. On the reference Vault all 31 `missing-deep-capture-heading` findings came from notes predating the contract, and none from after it. Each contract now declares its effective date; a note whose date is missing or unparseable cannot claim the exemption, and template residue, missing metadata, and broken links are reported regardless of age.
+- A fence marker inside an HTML comment no longer opens a block that is then reported as unclosed. Inside a fence, `<!--` remains literal.
+- The reader-facing projection keeps comment literals that appear inside inline code, so `` `<!-- BEGIN block -->` `` can still anchor a capture receipt instead of being masked away.
+- Copyable `SKILL.md` detection recognises pipeline forms. The pattern was anchored to the start of a line, so `printf ... | tee`, a PowerShell here-string piped to `Set-Content`, and `| Out-File` all wrote a `SKILL.md` whose frontmatter was never validated.
+- Task Memory validates the resolved destination, not only the requested string. A symlink named `Tasks` filed operational notes outside the Tasks tree while still passing the shape rule.
+
 ## [1.26.3] - 2026-08-02
 
 ### Fixed
