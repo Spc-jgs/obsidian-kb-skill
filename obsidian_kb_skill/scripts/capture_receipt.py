@@ -118,9 +118,16 @@ _MARKDOWN_HEADING_RE = re.compile(
 )
 _RESOURCE_INVENTORY_HEADINGS = frozenset({"resource inventory", "资源清单"})
 _HTTP_URL_RE = re.compile(r"https?://[^\s<>()\[\]{}\"']+")
+# One inline-code span. A reader sees its contents verbatim, so nothing inside
+# may be treated as a hidden comment.
+_INLINE_CODE_SPAN_RE = re.compile(r"`[^`\n]*`")
+# A writing command may start the line or follow a pipe, so anchor on the
+# command boundary rather than on the line start. Anchoring on `^` meant every
+# pipeline form — `printf ... | tee`, a PowerShell here-string piped to
+# Set-Content — wrote a SKILL.md whose frontmatter was never validated.
 _COPYABLE_SKILL_COMMAND_RE = re.compile(
-    r"^[ \t]*(?:"
-    r"cat\b[^\r\n]*?>{1,2}[^\r\n]*SKILL\.md"
+    r"(?:^|\|)[ \t]*(?:"
+    r"(?:cat|echo|printf|type)\b[^\r\n|]*?>{1,2}[^\r\n]*SKILL\.md"
     r"|tee\b[^\r\n]*SKILL\.md"
     r"|set-content\b[^\r\n]*SKILL\.md"
     r"|out-file\b[^\r\n]*SKILL\.md"
@@ -333,7 +340,8 @@ def _mask_text(value: str) -> str:
     )
 
 
-def _mask_html_comments(line: str, inside: bool) -> tuple[str, bool]:
+def _mask_comment_spans(line: str, inside: bool) -> tuple[str, bool]:
+    """Mask every HTML comment span in one line, tracking multi-line state."""
     output: list[str] = []
     position = 0
     while position < len(line):
@@ -353,6 +361,35 @@ def _mask_html_comments(line: str, inside: bool) -> tuple[str, bool]:
         output.append(line[position:start])
         position = start
         inside = True
+    return "".join(output), inside
+
+
+def _mask_html_comments(line: str, inside: bool) -> tuple[str, bool]:
+    """Mask hidden comments, leaving comment-looking text inside inline code.
+
+    A reader sees `` `<!-- x -->` `` literally, so masking it removed content
+    that is genuinely reader-facing and could legitimately anchor a receipt.
+    An inline-code span is copied through untouched; a comment can neither open
+    nor close inside one. While already inside a comment the whole line is
+    hidden, backticks included.
+    """
+    if inside:
+        return _mask_comment_spans(line, inside)
+
+    output: list[str] = []
+    last = 0
+    for span in _INLINE_CODE_SPAN_RE.finditer(line):
+        masked, inside = _mask_comment_spans(line[last : span.start()], inside)
+        output.append(masked)
+        if inside:
+            # A comment opened before this span, so it hides the rest as well.
+            masked, inside = _mask_comment_spans(line[span.start() :], inside)
+            output.append(masked)
+            return "".join(output), inside
+        output.append(span.group(0))
+        last = span.end()
+    masked, inside = _mask_comment_spans(line[last:], inside)
+    output.append(masked)
     return "".join(output), inside
 
 

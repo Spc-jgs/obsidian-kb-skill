@@ -1241,3 +1241,39 @@ def test_rejects_invalid_expected_template_sha256(tmp_path):
 
     assert result.returncode == 2
     assert "64 lowercase hexadecimal" in result.stderr
+
+
+def test_task_memory_refuses_a_symlinked_tasks_alias(tmp_path):
+    """`Tasks/<slug>` must also be the resolved destination, not just the input.
+
+    The shape rule was checked against the requested string only, so a symlink
+    named `Tasks` filed operational notes outside the Tasks tree while still
+    passing validation.
+    """
+    from obsidian_kb_skill.scripts.create_note import initialize_task_memory_folder
+
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    (vault / "RealTasks").mkdir()
+    try:
+        (vault / "Tasks").symlink_to(vault / "RealTasks", target_is_directory=True)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+
+    with pytest.raises(ValueError) as error:
+        initialize_task_memory_folder(vault, "Tasks/demo")
+
+    assert "Tasks" in str(error.value)
+    assert not (vault / "RealTasks" / "demo").exists()
+
+
+def test_task_memory_still_initializes_a_real_tasks_folder(tmp_path):
+    """Guard: the ordinary path must keep working."""
+    from obsidian_kb_skill.scripts.create_note import initialize_task_memory_folder
+
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+
+    initialize_task_memory_folder(vault, "Tasks/demo")
+
+    assert (vault / "Tasks" / "demo").is_dir()

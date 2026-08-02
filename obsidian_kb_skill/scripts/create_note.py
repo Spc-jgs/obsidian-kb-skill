@@ -99,6 +99,19 @@ EXTRA_FIELDS: dict[str, dict[str, Any]] = {
 }
 
 
+class InvalidTaskMemoryFolderError(ValueError):
+    """A task-memory destination that is not a real `Tasks/<slug>` path."""
+
+    code = "invalid-task-memory-folder"
+
+    def __init__(self, folder: str) -> None:
+        self.folder = folder
+        super().__init__(
+            "task-memory requires a normalized lowercase Tasks/<slug> "
+            f"operational path; resolved to {folder}"
+        )
+
+
 class InvalidFrontmatterError(ValueError):
     """Malformed YAML in a closed Markdown frontmatter block."""
 
@@ -191,6 +204,12 @@ def initialize_task_memory_folder(vault: Path, folder: str) -> tuple[Path, ...]:
         )
         if verified != target or not verified.is_dir():
             raise OSError("task-memory destination changed during initialization")
+        # The shape rule is checked against the requested string, so a symlink
+        # named `Tasks` filed operational notes outside the Tasks tree while
+        # still passing validation. Require the resolved path to satisfy it too.
+        resolved_relative = verified.relative_to(validate_vault_root(vault))
+        if not is_task_memory_folder("task-memory", resolved_relative.as_posix()):
+            raise InvalidTaskMemoryFolderError(resolved_relative.as_posix())
     except Exception:
         for directory in reversed(created):
             try:

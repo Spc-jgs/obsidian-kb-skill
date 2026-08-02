@@ -661,3 +661,70 @@ def test_standalone_helper_rejects_outside_candidate(tmp_path: Path):
 
     assert result.returncode == 3
     assert "outside the vault" in result.stdout.lower()
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        'printf "%s" "$body" | tee ~/.claude/skills/x/SKILL.md',
+        "$body | Set-Content -Path .\\skills\\x\\SKILL.md",
+        "$body | Out-File skills/x/SKILL.md",
+        'echo "$body" > skills/x/SKILL.md',
+    ],
+    ids=["printf-tee", "powershell-set-content", "out-file", "echo-redirect"],
+)
+def test_copyable_skill_detection_recognises_pipeline_forms(command):
+    """The writing command need not start the line.
+
+    The pattern was anchored with `^[ \\t]*`, so only a command in leading
+    position matched. Every pipeline form wrote a SKILL.md without its
+    frontmatter ever being validated.
+    """
+    from obsidian_kb_skill.scripts.capture_receipt import (
+        _COPYABLE_SKILL_COMMAND_RE,
+    )
+
+    assert _COPYABLE_SKILL_COMMAND_RE.search(command) is not None
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "The tee command writes to SKILL.md conceptually.",
+        "See skills/x/SKILL.md for the contract.",
+    ],
+    ids=["prose-mentioning-tee", "plain-reference"],
+)
+def test_copyable_skill_detection_ignores_prose(line):
+    """Guard: prose that merely names SKILL.md is not a copyable example."""
+    from obsidian_kb_skill.scripts.capture_receipt import (
+        _COPYABLE_SKILL_COMMAND_RE,
+    )
+
+    assert _COPYABLE_SKILL_COMMAND_RE.search(line) is None
+
+
+def test_reader_facing_body_keeps_comment_literals_inside_inline_code():
+    """Inline code is visible; a comment literal in it is not a hidden comment."""
+    from obsidian_kb_skill.scripts.capture_receipt import _reader_facing_body
+
+    body = (
+        "---\ntype: web-clip\n---\n\n"
+        "The template uses `<!-- BEGIN block -->` as a marker.\n"
+    )
+
+    out = _reader_facing_body(body)
+
+    assert "`<!-- BEGIN block -->`" in out
+
+
+def test_reader_facing_body_still_masks_a_real_hidden_comment():
+    """Guard: an actual comment outside code must still be masked."""
+    from obsidian_kb_skill.scripts.capture_receipt import _reader_facing_body
+
+    body = "---\ntype: web-clip\n---\n\nVisible. <!-- hidden claim --> More.\n"
+
+    out = _reader_facing_body(body)
+
+    assert "hidden claim" not in out
+    assert "Visible." in out

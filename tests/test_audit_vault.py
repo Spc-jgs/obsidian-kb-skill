@@ -1339,3 +1339,32 @@ def test_complete_digest_template_with_all_labels_is_accepted(tmp_path):
         for finding in findings
         if finding.code == "outdated-conversation-digest-template"
     ]
+
+
+def test_fence_looking_line_inside_an_html_comment_is_not_an_open_fence(tmp_path):
+    """A commented-out fence is invisible, so it cannot be unclosed."""
+    (tmp_path / ".obsidian").mkdir()
+
+    findings = audit_note_text(
+        tmp_path,
+        tmp_path / "Note.md",
+        "---\ntitle: T\ntype: insight-note\ndate: 2026-08-02\n"
+        "tags: [insight]\n---\n\n# Body\n\n"
+        "<!--\n```python\nx = 1\n-->\n\nStill fine.\n",
+    )
+
+    assert not [f for f in findings if f.code == "unclosed-fence"]
+
+
+def test_a_genuinely_unclosed_fence_is_still_reported(tmp_path):
+    """Guard: the comment rule must not silence real unclosed fences."""
+    (tmp_path / ".obsidian").mkdir()
+
+    findings = audit_note_text(
+        tmp_path,
+        tmp_path / "Note.md",
+        "---\ntitle: T\ntype: insight-note\ndate: 2026-08-02\n"
+        "tags: [insight]\n---\n\n# Body\n\n```python\nx = 1\n",
+    )
+
+    assert [f for f in findings if f.code == "unclosed-fence"]
