@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import re
 import difflib
@@ -14,6 +15,7 @@ from typing import Any, Iterable
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.conversation_digest_contract import (
+    CONVERSATION_DIGEST_CONTRACT_EFFECTIVE_DATE,
     CONVERSATION_DIGEST_CONTRACT_VERSION,
     CONVERSATION_DIGEST_HEADING_VARIANTS,
     CONVERSATION_DIGEST_RESUME_FIELD_VARIANTS,
@@ -21,6 +23,7 @@ from obsidian_kb_skill.scripts.conversation_digest_contract import (
     formatted_conversation_digest_variants,
 )
 from obsidian_kb_skill.scripts.deep_capture_contract import (
+    DEEP_CAPTURE_CONTRACT_EFFECTIVE_DATE,
     DEEP_CAPTURE_CONTRACT_VERSION,
     formatted_deep_capture_variants,
     matches_deep_capture_contract,
@@ -315,6 +318,32 @@ def _audit_required_template_headings(
     )
 
 
+def _predates_contract(metadata: dict[str, Any] | None, effective: str) -> bool:
+    """Return whether the note was written before a structural contract shipped.
+
+    The roadmap's template-upgrade boundary states that new templates apply to
+    new notes and that existing notes do not become invalid merely because a
+    later template adds sections. Reporting them anyway made the audit's own
+    output disagree with that rule — 31 findings on the reference Vault, all of
+    them predating the contract.
+
+    A note whose date is missing or unparseable cannot claim the exemption.
+    """
+    if not metadata:
+        return False
+    raw = metadata.get("date")
+    if isinstance(raw, (datetime.date, datetime.datetime)):
+        return raw.isoformat()[:10] < effective
+    if not isinstance(raw, str):
+        return False
+    candidate = raw.strip()[:10]
+    try:
+        datetime.date.fromisoformat(candidate)
+    except ValueError:
+        return False
+    return candidate < effective
+
+
 def _audit_deep_capture_headings(
     findings: list[Finding],
     relative: Path,
@@ -325,6 +354,7 @@ def _audit_deep_capture_headings(
         not metadata
         or metadata.get("type") != "web-clip"
         or (relative.parts and relative.parts[0] == "Templates")
+        or _predates_contract(metadata, DEEP_CAPTURE_CONTRACT_EFFECTIVE_DATE)
     ):
         return
     actual = markdown_section_headings(text, levels=(2,))
@@ -662,6 +692,9 @@ def _audit_conversation_digest(
         not metadata
         or metadata.get("type") != "conversation-digest"
         or (relative.parts and relative.parts[0] == "Templates")
+        or _predates_contract(
+            metadata, CONVERSATION_DIGEST_CONTRACT_EFFECTIVE_DATE
+        )
     ):
         return
     actual = markdown_section_headings(text, levels=(2,))

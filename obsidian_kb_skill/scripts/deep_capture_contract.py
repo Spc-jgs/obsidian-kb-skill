@@ -5,6 +5,10 @@ from collections.abc import Sequence
 
 
 DEEP_CAPTURE_CONTRACT_VERSION = "1.20"
+# The release that introduced this structural baseline (v1.20.1). A note
+# written before it is not invalid merely because a later contract added
+# sections; see the roadmap's template-upgrade boundary.
+DEEP_CAPTURE_CONTRACT_EFFECTIVE_DATE = "2026-07-27"
 DEEP_CAPTURE_HEADING_VARIANTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "zh-CN",

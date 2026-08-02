@@ -5,6 +5,9 @@ from collections.abc import Sequence
 
 
 CONVERSATION_DIGEST_CONTRACT_VERSION = "2"
+# The release that introduced the v2 layered structure (v1.24.0). Digests
+# written before it keep their original shape without becoming invalid.
+CONVERSATION_DIGEST_CONTRACT_EFFECTIVE_DATE = "2026-07-29"
 CONVERSATION_DIGEST_HEADING_VARIANTS: tuple[
     tuple[str, tuple[str, ...]], ...
 ] = (
