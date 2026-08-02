@@ -574,13 +574,29 @@ def _clean_link_target(raw: str) -> str:
 
 
 def _without_fenced_code(text: str) -> tuple[str, bool]:
-    """Return Markdown outside fenced code and whether one fence is unclosed."""
+    """Return Markdown outside fenced code and whether one fence is unclosed.
+
+    A fence marker inside an HTML comment is invisible to the reader and opens
+    nothing, so it must not be reported as unclosed. Inside a fence the reverse
+    holds: `<!--` is literal code and changes no state.
+    """
     output: list[str] = []
     fence_character: str | None = None
     fence_length = 0
+    inside_comment = False
     for line in text.splitlines(keepends=True):
         candidate = line.rstrip("\r\n")
         if fence_character is None:
+            if inside_comment:
+                output.append(line)
+                if "-->" in candidate:
+                    inside_comment = False
+                continue
+            opening = candidate.find("<!--")
+            if opening >= 0 and "-->" not in candidate[opening:]:
+                inside_comment = True
+                output.append(line)
+                continue
             match = FENCE_OPEN_RE.fullmatch(candidate)
             if match is None:
                 output.append(line)
