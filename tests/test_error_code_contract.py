@@ -80,9 +80,15 @@ def emitted_codes() -> tuple[set[str], set[str]]:
 
 
 def _refusal_rows(reference: str) -> dict[str, str]:
-    """Map each refusal-table code to its documented action."""
+    """Map each refusal-table code to its documented action.
+
+    Scoped to its own subsection: other tables in this file (finding severity,
+    for one) share the row shape without listing error codes.
+    """
+    start = reference.index("### Refusal Codes")
+    section = reference[start : reference.index("### ", start + 1)]
     rows = {}
-    for line in reference.splitlines():
+    for line in section.splitlines():
         if line.startswith("| `") and line.count("|") >= 4:
             cells = line.split("|")
             rows[cells[1].strip().strip("`")] = cells[3].strip()
@@ -93,7 +99,8 @@ def _documented_codes(reference: str) -> set[str]:
     """Codes the reference actually enumerates, ignoring prose vocabulary."""
     documented = set(_refusal_rows(reference))
     start = reference.index("### Audit Findings")
-    end = reference.index("## Error Handling", start)
+    # Stop at the next subsection: only the grouped lists enumerate codes.
+    end = reference.index("### ", start + 1)
     for token in reference[start:end].replace(",", " ").replace(".", " ").split():
         if token.startswith("`") and token.endswith("`"):
             documented.add(token.strip("`"))

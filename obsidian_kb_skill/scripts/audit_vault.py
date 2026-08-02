@@ -61,6 +61,72 @@ class Finding:
     message: str
 
 
+# How much a finding actually costs the reader. The audit reported 39 kinds of
+# problem flatly, so a real broken link sat beside a stylistic near-duplicate
+# title and the whole list read as noise — 180 findings on the reference Vault.
+#
+#   defect        the note or the Vault is damaged; navigation, rendering, or
+#                 tooling is already broken, or unfinished scaffolding shipped
+#   hygiene       consistency and completeness worth fixing when convenient
+#   informational an observation that is often perfectly fine
+SEVERITY_ORDER = ("informational", "hygiene", "defect")
+DEFAULT_SEVERITY = "hygiene"
+FINDING_SEVERITY: dict[str, str] = {
+    # Damaged content or metadata the tooling relies on.
+    "missing-frontmatter": "defect",
+    "invalid-frontmatter": "defect",
+    "missing-type": "defect",
+    "invalid-type": "defect",
+    "missing-date": "defect",
+    "unclosed-fence": "defect",
+    "empty-template-note": "defect",
+    # Unfinished scaffolding that reached a saved note.
+    "residual-template-instruction": "defect",
+    "unresolved-template-placeholder": "defect",
+    # A broken template keeps failing every note created from it.
+    "outdated-deep-capture-template": "defect",
+    "outdated-conversation-digest-template": "defect",
+    # Navigation is the point of a knowledge base.
+    "broken-wikilink": "defect",
+    "invalid-related": "defect",
+    "invalid-related-entry": "defect",
+    # Index ownership that is ambiguous or actively wrong.
+    "duplicate-folder-index": "defect",
+    "duplicate-folder-index-content": "defect",
+    "graph-incompatible-index-config": "defect",
+    "broken-folder-graph-chain": "defect",
+    "web-clip-invalid-capture-depth": "defect",
+    # Worth fixing, nothing is broken meanwhile.
+    "missing-tags": "hygiene",
+    "invalid-tag": "hygiene",
+    "too-many-tags": "hygiene",
+    "near-duplicate-tags": "hygiene",
+    "duplicate-related-entry": "hygiene",
+    "ambiguous-wikilink": "hygiene",
+    "duplicate-title": "hygiene",
+    "missing-template-heading": "hygiene",
+    "missing-deep-capture-heading": "hygiene",
+    "missing-conversation-digest-heading": "hygiene",
+    "conversation-digest-missing-resume-field": "hygiene",
+    "conversation-digest-resume-card-too-long": "hygiene",
+    "missing-folder-index": "hygiene",
+    "misnamed-folder-index": "hygiene",
+    "missing-folder-index-content": "hygiene",
+    "web-clip-missing-source": "hygiene",
+    "web-clip-missing-author": "hygiene",
+    "web-clip-missing-published": "hygiene",
+    # Often correct as-is. A standalone note need not be linked, and two notes
+    # may legitimately share a similar title.
+    "orphan-note": "informational",
+    "similar-title": "informational",
+}
+
+
+def finding_severity(code: str) -> str:
+    """Severity for one finding code, defaulting to the middle tier."""
+    return FINDING_SEVERITY.get(code, DEFAULT_SEVERITY)
+
+
 EXEMPT_NAMES = {"README.md", "AGENTS.md", "CLAUDE.md"}
 INDEX_TYPES = {"folder-index", "moc"}
 # Findings that describe vault-wide consistency (not a defect of any single note).
@@ -1169,6 +1235,15 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("vault", type=Path, help="Path to the Obsidian vault")
     parser.add_argument("--strict", action="store_true", help="Return non-zero when findings exist")
     parser.add_argument(
+        "--min-severity",
+        choices=SEVERITY_ORDER,
+        default="informational",
+        help=(
+            "Only report findings at least this severe "
+            "(informational < hygiene < defect); default reports everything"
+        ),
+    )
+    parser.add_argument(
         "--json", action="store_true", help="Emit findings as JSON instead of tab-separated text"
     )
     return parser
@@ -1196,16 +1271,43 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"error: {exc.code}: {exc.message}", file=sys.stderr)
         return 2
+    threshold = SEVERITY_ORDER.index(args.min_severity)
+    findings = [
+        finding
+        for finding in findings
+        if SEVERITY_ORDER.index(finding_severity(finding.code)) >= threshold
+    ]
     if args.json:
         out = [
-            {"code": f.code, "path": f.path, "message": f.message} for f in findings
+            {
+                "code": f.code,
+                "severity": finding_severity(f.code),
+                "path": f.path,
+                "message": f.message,
+            }
+            for f in findings
         ]
-        print(json.dumps({"count": len(findings), "findings": out},
-                         ensure_ascii=False, indent=2))
-    else:
+        counts = {tier: 0 for tier in SEVERITY_ORDER}
         for finding in findings:
-            print(f"{finding.code}\t{finding.path}\t{finding.message}")
-        print(f"{len(findings)} finding(s)")
+            counts[finding_severity(finding.code)] += 1
+        print(json.dumps(
+            {"count": len(findings), "by_severity": counts, "findings": out},
+            ensure_ascii=False, indent=2))
+    else:
+        # Most severe first, so the list is useful even when it is long.
+        for finding in sorted(
+            findings,
+            key=lambda f: -SEVERITY_ORDER.index(finding_severity(f.code)),
+        ):
+            severity = finding_severity(finding.code)
+            print(
+                f"{severity}\t{finding.code}\t{finding.path}\t{finding.message}"
+            )
+        summary = ", ".join(
+            f"{sum(1 for f in findings if finding_severity(f.code) == tier)} {tier}"
+            for tier in reversed(SEVERITY_ORDER)
+        )
+        print(f"{len(findings)} finding(s): {summary}")
     return 1 if findings and args.strict else 0
 
 
