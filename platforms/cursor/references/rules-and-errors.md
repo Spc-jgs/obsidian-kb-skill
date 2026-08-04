@@ -85,11 +85,13 @@ file yourself with a native tool — the refusal is the contract, not an obstacl
 | `frontmatter-not-mapping` | Frontmatter parses but is not a YAML mapping (e.g. a list) | Report the actual shape found. Do not coerce it into a mapping or overwrite it with defaults |
 | `unreadable-frontmatter` | Inbox processing refused a note whose frontmatter cannot be read | Leave the note in the Inbox untouched. Report the reported line and let the user repair the YAML |
 | `unsafe-inbox-entry` | An Inbox entry is a symlink, a directory, or otherwise not a regular file | Leave it in place. Never resolve it: following the link would import content from outside the Vault. Tell the user what the entry is |
-| `unreadable-note` | The note bytes could not be decoded | Report the path; do not guess an encoding and rewrite it |
 | `invalid-utf8-input` | Supplied content is not valid UTF-8 | Re-encode the content as UTF-8 without BOM and retry |
 | `missing-required-metadata` | Required frontmatter fields are absent for this note type | Add the listed fields and re-run preflight; do not write a partial note |
 | `template-changed` | The Vault template changed after its contract was read | Re-read the template contract, re-render, then retry |
 | `unsupported-template-type` | No template exists for the requested note type | Pick a supported type, or create the category first |
+| `missing-template` | The Vault has no template file for this type | Ask before bootstrapping with `scaffold-templates`; do not invent the structure |
+| `invalid-template-frontmatter` | The Vault template's own YAML does not parse | Report the reported line/column. One broken template fails every note of that type |
+| `unknown-template-placeholder` | The template uses a placeholder the helper cannot fill | Only `{{date}}` and `{{title}}` are supported. Ask the user to fix the template |
 | `missing-destination-folder` | The routed folder does not exist | Do not create it implicitly; route elsewhere or use `create-category` |
 | `invalid-destination-folder` | The destination is not an acceptable note folder | Re-route using the standard folder map |
 | `invalid-task-memory-folder` | The Task Memory path is not the allowed `Tasks/<slug>` shape | Use the exact allowed shape; Task Memory cannot create arbitrary folders |
@@ -98,6 +100,14 @@ file yourself with a native tool — the refusal is the contract, not an obstacl
 | `capture-depth-route-mismatch` | The capture depth and the destination disagree | Re-read `web-capture.md` and pick a consistent depth and route |
 | `invalid-content-file` | The supplied content file is missing or unreadable | Re-supply the content; do not fall back to inline guesses |
 | `invalid-folder-index-config` | The Folder Index plugin config cannot be interpreted | Do not touch listings. Report the config problem |
+| `confirmation-required` | `create-category` was applied without `--confirmed` | Show the proposed path, get the user's answer, then apply with `--confirmed` |
+| `invalid-category-name` | The category name is not a portable visible directory name | Propose a plain durable subject name; no dots, separators, or hidden prefixes |
+| `invalid-category-path` | The category path is not a normalized Vault-relative path | Pass one forward-slash path with no `.`, `..`, or absolute prefix |
+| `reserved-category-path` | The target is a Vault control or resource directory | Never file notes under `Templates`, `Attachments`, or `.obsidian`. Re-route |
+| `category-collision` | A file or symlink already occupies the destination | Stop and report what is there; do not remove or rename the existing entry |
+| `missing-category-parent` | The parent folder does not exist, or is not a directory | Create or choose an existing governed parent first; nesting is at most two levels |
+| `ungoverned-category-parent` | The parent is neither a standard note folder nor indexed | Pick a governed parent, or govern the current one with the user before filing under it |
+| `category-apply-failed` | Category creation failed partway and was rolled back | Read the reported `created` and `cleaned` paths, report them, and do not retry blindly |
 | `invalid-output-mode` | Conflicting output flags were passed | Fix the invocation; `--preflight-json` cannot combine with `--apply` |
 | `compact-json-requires-apply` | `--compact-json` was passed without `--apply` | Add `--apply`, or use `--preflight-json` for a dry run |
 | `conflicting-content-source` | `--from-preflight` was combined with `--stdin` or `--content-file` | Keep one content source; the staged reference already carries the body |
@@ -108,6 +118,46 @@ file yourself with a native tool — the refusal is the contract, not an obstacl
 | `preflight-vault-mismatch` | The staged content belongs to another Vault | Rerun preflight against this Vault |
 | `preflight-context-mismatch` | The staged content was preflighted for another type or title | Rerun preflight for the note you are actually writing |
 | `preflight-content-changed` | The staged content no longer renders to its hash | Something changed after preflight (date, tags, template); rerun preflight and apply the new hash |
+
+#### Capture receipt handshake
+
+Verified capture only. These govern the receipt itself, not the article's
+quality — see the next group for that.
+
+| Code | Meaning | Do this |
+|---|---|---|
+| `missing-capture-receipt` | A finished verified clip arrived without a receipt | Expected on the first verified preflight: build the receipt against the returned content SHA-256 and rerun preflight. This is not a successful preflight; do not apply |
+| `missing-capture-receipt-sha256` | Apply omitted the receipt hash preflight accepted | Pass `--expect-capture-receipt-sha256` with the `semantic_receipt.sha256` from preflight |
+| `unexpected-capture-receipt` | A receipt was supplied where none applies | Receipts are only for verified web clips outside `00-Inbox`. Drop the receipt, or fix the depth and route |
+| `capture-receipt-changed` | The receipt differs from the one preflight accepted | Re-run semantic preflight; never apply a receipt the gate has not seen |
+| `capture-receipt-content-mismatch` | The receipt is not bound to the rendered candidate | Rebuild it against the current content SHA-256. A receipt for older bytes proves nothing |
+| `capture-receipt-depth-mismatch` | The candidate is not `capture_depth: verified` | Either set verified depth deliberately, or drop to standard capture without a receipt |
+| `invalid-capture-receipt-json` | The inline receipt is not valid JSON | Use `--capture-receipt-file` instead of fighting shell quoting |
+| `invalid-capture-receipt-file` | The receipt file is missing, a symlink, or not a regular file | Supply a real readable file; the helper never follows a link for evidence |
+| `capture-receipt-too-large` | The receipt file exceeds the 1 MiB limit | Cite material evidence, not the whole source. Trim to what the claims need |
+| `missing-candidate-source` | The candidate frontmatter has no usable `source` | Fill real source metadata; a receipt cannot be validated against an unknown origin |
+| `source-receipt-mismatch` | The candidate `source` is absent from `primary_sources` | List the article's own source as primary; do not reclassify it as supplemental |
+| `invalid-capture-receipt` | A receipt field is missing, mistyped, or internally inconsistent | Read `message`: this one code covers every shape violation, so the message is the contract, not the code |
+
+#### Semantic gate
+
+Verified capture only. Each of these maps to a bullet in the "Semantic Hard
+Failures" list in `deep-capture.md`; the fix is always to complete the reading
+or the writing, never to weaken the receipt.
+
+| Code | Meaning | Do this |
+|---|---|---|
+| `incomplete-source-access` | `source_access` is not `complete` | Finish acquiring the material sources, or fall back to the zero-write contract in `web-capture.md` |
+| `unresolved-material-items` | A material inventory item is unresolved | Read the outstanding item and cover it, or state the limitation and drop the verified claim |
+| `missing-receipt-anchor` | A cited anchor does not exist in reader-facing content | Quote text that is actually in the note; an anchor inside a comment or fence does not count |
+| `incomplete-resource-evidence` | A resource survey lacks its inventory or per-resource evidence | Every declared resource needs a canonical link, compatibility, and limitation. Match the inventory to the declared set exactly |
+| `incomplete-profile-evidence` | The selected profile is missing a required evidence kind | Supply the listed `missing_kinds`, or select the profile that matches what the source supports |
+| `missing-practical-artifact` | The profile promises a usable path but the note has none | Add the command, procedure, decision rule, or comparison the profile requires, and match its kind |
+| `missing-numeric-provenance` | A numeric claim has no supported provenance | Attribute each number to the source that states it; do not carry an unattributed figure |
+| `uncovered-numeric-claim` | A measurement-shaped value is not declared in `numeric_claims` | Declare every measurement, or remove figures the source does not support |
+| `missing-measurement-context` | A result is claimed without its measurement context | Report the conditions the source measured under; state honestly when the source omits them |
+| `unlabeled-inference` | Source facts and your interpretation are not distinguishable | Label the inference inside the excerpt it belongs to, so a reader can tell claim from reading |
+| `invalid-copyable-skill-frontmatter` | An embedded copyable `SKILL.md` has broken or empty frontmatter | Close the YAML block and give a meaningful name and description, or drop the example. A reader will paste this |
 
 ### Audit Findings
 
@@ -135,6 +185,14 @@ Folder index: `missing-folder-index`, `duplicate-folder-index`,
 `misnamed-folder-index`, `missing-folder-index-content`,
 `duplicate-folder-index-content`, `graph-incompatible-index-config`,
 `broken-folder-graph-chain`.
+
+New category, reported by the create-category helper after it applies:
+`missing-category-directory`, `missing-category-index`,
+`unreadable-category-index`, `invalid-category-index`,
+`invalid-folder-index-content`, `invalid-dataview-index`. These describe the
+category the helper just created, so report them before filing the first note
+into it — an index with the wrong declared type, or a missing query block, will
+not list anything.
 
 
 ### Finding Severity

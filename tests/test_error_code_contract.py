@@ -14,7 +14,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "obsidian_kb_skill" / "scripts"
 REFERENCE = ROOT / "core" / "references" / "rules-and-errors.md"
-AUDIT_MODULE = "audit_vault.py"
+# Helpers only the retrieval Skill can call. Its bundle never ships
+# `core/references/`, so documenting its refusals there would put the answer
+# where that Agent cannot read it. Kept in step with build.py's
+# RETRIEVAL_HELPER_FILES and the retrieval run_helper's HELPERS by a test below.
+RETRIEVAL_MODULES = frozenset({"search_vault.py", "retrieval_vault_info.py"})
+RETRIEVAL_REFERENCE = ROOT / "core" / "retrieval-references" / "search.md"
+# Findings are reported, not refused, wherever they are constructed.
+FINDING_FACTORIES = frozenset({"Finding", "_add"})
 
 
 def _const_str(node: ast.AST) -> str | None:
@@ -23,14 +30,65 @@ def _const_str(node: ast.AST) -> str | None:
     return None
 
 
-def _codes_in(path: Path) -> set[str]:
-    """Collect structured codes from one helper module.
+def _dataclass_fields(node: ast.ClassDef) -> list[str]:
+    return [
+        item.target.id
+        for item in node.body
+        if isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name)
+    ]
+
+
+def _code_parameters() -> dict[str, int]:
+    """Map every callable that takes a `code` to the position it takes it at.
+
+    Derived from the source rather than listed by hand. Three named exceptions
+    used to be hardcoded here, and the two error classes nobody thought to add
+    (`CaptureReceiptError`, `CategoryValidationError`) stayed invisible — 29
+    codes' worth. Anything the helpers call a `code` is now a code, including
+    classes added later.
+    """
+    positions: dict[str, int] = {}
+    for path in sorted(SCRIPTS.glob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.FunctionDef):
+                # `__init__` is reached through its class, where `self` is not
+                # part of the call signature.
+                if node.name == "__init__":
+                    continue
+                names = [argument.arg for argument in node.args.args]
+                if "code" in names:
+                    positions.setdefault(node.name, names.index("code"))
+            elif isinstance(node, ast.ClassDef):
+                initializer = next(
+                    (
+                        item
+                        for item in node.body
+                        if isinstance(item, ast.FunctionDef) and item.name == "__init__"
+                    ),
+                    None,
+                )
+                fields = (
+                    [argument.arg for argument in initializer.args.args][1:]
+                    if initializer is not None
+                    else _dataclass_fields(node)
+                )
+                if "code" in fields:
+                    positions.setdefault(node.name, fields.index("code"))
+    return positions
+
+
+CODE_PARAMETERS = _code_parameters()
+
+
+def _codes_in(path: Path) -> tuple[set[str], set[str]]:
+    """Collect one module's (refusal, finding) codes.
 
     Deliberately AST-based: an earlier regex sweep missed
     `UNREADABLE_FRONTMATTER = "unreadable-frontmatter"` because the code reached
     its payload through a constant rather than a literal.
     """
     found: set[str] = set()
+    findings: set[str] = set()
     for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
         if isinstance(node, ast.Dict):
             for key, value in zip(node.keys, node.values):
@@ -60,33 +118,59 @@ def _codes_in(path: Path) -> set[str]:
                     found.add(value)
         elif isinstance(node, ast.Call):
             name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
-            if name in ("FrontmatterIssue", "PreflightCacheError") and node.args:
-                if code := _const_str(node.args[0]):
-                    found.add(code)
-            elif name == "_add" and len(node.args) >= 2:
-                if code := _const_str(node.args[1]):
-                    found.add(code)
-    return found
+            position = CODE_PARAMETERS.get(name)
+            if position is None:
+                continue
+            argument: ast.AST | None = None
+            if len(node.args) > position:
+                argument = node.args[position]
+            else:
+                argument = next(
+                    (kw.value for kw in node.keywords if kw.arg == "code"), None
+                )
+            if argument is not None and (code := _const_str(argument)):
+                (findings if name in FINDING_FACTORIES else found).add(code)
+    return found, findings
 
 
 def emitted_codes() -> tuple[set[str], set[str]]:
-    """Return (refusal codes, audit finding codes) emitted by the helpers."""
+    """Return the write Skill's (refusal codes, audit finding codes).
+
+    Split by how a code reaches the Agent, not by which module holds it. The
+    module heuristic filed `create-category`'s six post-apply findings as
+    refusals, which would have demanded a "what to do next" row for something
+    that is reported rather than refused.
+    """
     refusal: set[str] = set()
     audit: set[str] = set()
     for path in sorted(SCRIPTS.glob("*.py")):
-        target = audit if path.name == AUDIT_MODULE else refusal
-        target.update(_codes_in(path))
+        if path.name in RETRIEVAL_MODULES:
+            continue
+        module_refusal, module_findings = _codes_in(path)
+        refusal.update(module_refusal)
+        audit.update(module_findings)
     return refusal, audit - refusal
+
+
+def retrieval_codes() -> set[str]:
+    """Return codes only a retrieval-Skill Agent can receive."""
+    codes: set[str] = set()
+    for name in sorted(RETRIEVAL_MODULES):
+        module_refusal, module_findings = _codes_in(SCRIPTS / name)
+        codes |= module_refusal | module_findings
+    return codes
 
 
 def _refusal_rows(reference: str) -> dict[str, str]:
     """Map each refusal-table code to its documented action.
 
-    Scoped to its own subsection: other tables in this file (finding severity,
-    for one) share the row shape without listing error codes.
+    Bounded by the two headings that delimit the refusals, not by "the next
+    heading of any depth": the refusals are grouped into `####` subsections, and
+    other tables in this file (finding severity, for one) share the row shape
+    without listing error codes.
     """
     start = reference.index("### Refusal Codes")
-    section = reference[start : reference.index("### ", start + 1)]
+    section = reference[start : reference.index("### Audit Findings", start)]
     rows = {}
     for line in section.splitlines():
         if line.startswith("| `") and line.count("|") >= 4:
@@ -120,6 +204,35 @@ def test_every_emitted_code_is_documented():
         f"core/references/rules-and-errors.md: {undocumented}. "
         "An Agent that receives one has no documented next step."
     )
+
+
+def test_retrieval_codes_are_documented_where_that_agent_can_read_them():
+    """A retrieval Agent never receives `core/references/`."""
+    reference = RETRIEVAL_REFERENCE.read_text(encoding="utf-8")
+
+    undocumented = sorted(
+        code for code in retrieval_codes() if f"`{code}`" not in reference
+    )
+
+    assert not undocumented, (
+        "these codes are emitted by retrieval-only helpers but absent from "
+        f"core/retrieval-references/search.md: {undocumented}. Documenting them "
+        "in the write Skill's reference does not help — that file is not in the "
+        "retrieval bundle."
+    )
+
+
+def test_retrieval_module_list_matches_the_shipped_bundle():
+    """Keep the module split honest against build.py, not against memory."""
+    build = (ROOT / "build.py").read_text(encoding="utf-8")
+    bundle = build[build.index("RETRIEVAL_HELPER_FILES") :]
+    bundle = bundle[: bundle.index("\n)")]
+
+    for name in RETRIEVAL_MODULES:
+        assert f'Path("scripts/{name}")' in bundle, (
+            f"{name} is no longer in the retrieval bundle; move its codes back "
+            "into the write Skill's reference"
+        )
 
 
 def test_reference_documents_no_codes_the_helpers_never_emit():
@@ -172,7 +285,7 @@ def test_new_codes_follow_the_kebab_case_convention():
 
     offenders = sorted(
         code
-        for code in (refusal | audit) - GRANDFATHERED_CODES
+        for code in (refusal | audit | retrieval_codes()) - GRANDFATHERED_CODES
         if not KEBAB.fullmatch(code)
     )
 
