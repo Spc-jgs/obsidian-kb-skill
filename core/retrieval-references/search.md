@@ -33,6 +33,24 @@ five result files and keep the user's requested scope.
 Malformed or unreadable notes appear in the bounded `issues` list. Report a
 material skipped file without exposing unrelated absolute paths.
 
+## Refusal Codes
+
+With `--json` the helper refuses through `{"error": {"code", "message"}}` and
+returns nothing else. A refusal is an answer about the request, not a reason to
+start reading the Vault by hand.
+
+| Code | Meaning | Do this |
+|---|---|---|
+| `invalid-query` | The query is empty or longer than the accepted limit | Ask the user for the actual search terms; do not pad or truncate silently |
+| `invalid-top-k` | `--top-k` is outside the accepted range | Choose a bounded value; a whole-Vault dump is not a search result |
+| `invalid-scope` | `--scope` is not a directory inside the Vault | Re-resolve the folder the user named, or search the whole Vault |
+| `invalid-vault` | The path is not a real Obsidian Vault (`.obsidian/` missing) | Stop and re-confirm the Vault path with the user. This Skill never creates one |
+| `unreadable-note` | A note's bytes could not be decoded | Report the path. Never guess an encoding, and never rewrite the file — this Skill is read-only |
+
+The path and frontmatter guards are shared with the write Skill and have their
+own table in `shared-errors.md`. Read that file when a code above is not the one
+you received.
+
 ## Citation and trust
 
 Use clickable local path citations when the host supports them. Otherwise cite
