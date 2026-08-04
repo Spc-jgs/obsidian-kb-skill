@@ -73,16 +73,26 @@ grandfathered set must be `kebab-case`, so the split cannot grow.
 Every refusal leaves the Vault unchanged. Never work around one by writing the
 file yourself with a native tool — the refusal is the contract, not an obstacle.
 
+<!-- BEGIN shared-refusals: also shipped to the retrieval Skill as
+core/retrieval-references/shared-errors.md by build.py. Only codes that
+`vault_paths` and `frontmatter` emit belong here — both Skills bundle those two
+modules, so both Agents can receive these. -->
+
 | Code | Meaning | Do this |
 |---|---|---|
 | `PATH_OUTSIDE_VAULT` | The resolved path escapes the Vault, after following symlinks | Stop. Report the offending parameter. Never retry with a different spelling of the same path |
 | `PATH_NOT_FOUND` | An existing-path argument does not exist | Re-resolve the target from the Vault; ask the user if still ambiguous |
 | `INVALID_VAULT_ROOT` | The Vault root is not a usable, in-bounds directory | Stop and re-confirm the Vault path with the user |
-| `invalid-vault` | The path is not a real Obsidian vault (`.obsidian/` missing) | Stop. Offer to re-prompt, or to initialize a vault only on explicit confirmation |
-| `BACKUP_FAILED` | The pre-write backup could not be created | Stop. The note was not modified. Report the cause; do not retry the write without a backup |
 | `invalid-frontmatter` | The frontmatter block exists but the YAML does not parse | Do not fill defaults over it. Show the user the reported line/column and let them fix it |
 | `unclosed-frontmatter` | The opening fence has no closing fence | Do not treat the note as having no frontmatter. Report the unterminated block and let the user close it |
 | `frontmatter-not-mapping` | Frontmatter parses but is not a YAML mapping (e.g. a list) | Report the actual shape found. Do not coerce it into a mapping or overwrite it with defaults |
+
+<!-- END shared-refusals -->
+
+| Code | Meaning | Do this |
+|---|---|---|
+| `invalid-vault` | The path is not a real Obsidian vault (`.obsidian/` missing) | Stop. Offer to re-prompt, or to initialize a vault only on explicit confirmation |
+| `BACKUP_FAILED` | The pre-write backup could not be created | Stop. The note was not modified. Report the cause; do not retry the write without a backup |
 | `unreadable-frontmatter` | Inbox processing refused a note whose frontmatter cannot be read | Leave the note in the Inbox untouched. Report the reported line and let the user repair the YAML |
 | `unsafe-inbox-entry` | An Inbox entry is a symlink, a directory, or otherwise not a regular file | Leave it in place. Never resolve it: following the link would import content from outside the Vault. Tell the user what the entry is |
 | `invalid-utf8-input` | Supplied content is not valid UTF-8 | Re-encode the content as UTF-8 without BOM and retry |

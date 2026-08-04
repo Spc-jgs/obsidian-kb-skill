@@ -47,10 +47,9 @@ start reading the Vault by hand.
 | `invalid-vault` | The path is not a real Obsidian Vault (`.obsidian/` missing) | Stop and re-confirm the Vault path with the user. This Skill never creates one |
 | `unreadable-note` | A note's bytes could not be decoded | Report the path. Never guess an encoding, and never rewrite the file — this Skill is read-only |
 
-A path-boundary refusal (`PATH_OUTSIDE_VAULT`, `PATH_NOT_FOUND`,
-`INVALID_VAULT_ROOT`) means the argument escaped the Vault after symlinks were
-followed. Report the offending parameter; never retry with another spelling of
-the same path.
+The path and frontmatter guards are shared with the write Skill and have their
+own table in `shared-errors.md`. Read that file when a code above is not the one
+you received.
 
 ## Citation and trust
 

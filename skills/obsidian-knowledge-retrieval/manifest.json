@@ -2,7 +2,8 @@
   "files": {
     "SKILL.md": "2bd8c794713586389ae791560f780cefcbe90b02848f781e54ad698f9f2309bd",
     "agents/openai.yaml": "a8cc92153803b94afcfecf55ff57c846d76c9707793decc1a37b66b96fb2f8d6",
-    "references/search.md": "05a55ed849101545f0f11489fdccd85c9dc025ecfe8b721407268410d40ad613",
+    "references/search.md": "0cbd2c17454dec205695c485ff65a04ccc41d5c46bd7302e6bebf77fcfd77462",
+    "references/shared-errors.md": "6534c5b22b7f96c87f88dd1a79bdf03dfb3586c865ec7c9ab9ce995267ff32d2",
     "scripts/obsidian_kb_skill/__init__.py": "b6f9cfd724f0d4944bcc4f8d2d04e70c33ff378503cb21498a6d306362901763",
     "scripts/obsidian_kb_skill/scripts/__init__.py": "ea3771d4d955569ada4adce0855760a4ba997fc8b7ab87e3d871f68b9def9ee7",
     "scripts/obsidian_kb_skill/scripts/console.py": "6d6eea164e78b50a0126a6cac68dc9ddcec08d2df2b4a9e9a7a8e62ff35ad0af",

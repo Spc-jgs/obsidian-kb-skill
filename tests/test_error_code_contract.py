@@ -20,6 +20,10 @@ REFERENCE = ROOT / "core" / "references" / "rules-and-errors.md"
 # RETRIEVAL_HELPER_FILES and the retrieval run_helper's HELPERS by a test below.
 RETRIEVAL_MODULES = frozenset({"search_vault.py", "retrieval_vault_info.py"})
 RETRIEVAL_REFERENCE = ROOT / "core" / "retrieval-references" / "search.md"
+# Modules both bundles ship, so both Agents can receive their codes. The write
+# reference owns the rows; build.py fans the marked block out to this file.
+SHARED_MODULES = frozenset({"vault_paths.py", "frontmatter.py"})
+SHARED_REFERENCE = ROOT / "core" / "retrieval-references" / "shared-errors.md"
 # Findings are reported, not refused, wherever they are constructed.
 FINDING_FACTORIES = frozenset({"Finding", "_add"})
 
@@ -220,6 +224,41 @@ def test_retrieval_codes_are_documented_where_that_agent_can_read_them():
         "in the write Skill's reference does not help — that file is not in the "
         "retrieval bundle."
     )
+
+
+def test_codes_from_shared_modules_reach_both_bundles():
+    """Both Agents can receive these, so both references must carry them."""
+    shared: set[str] = set()
+    for name in sorted(SHARED_MODULES):
+        module_refusal, module_findings = _codes_in(SCRIPTS / name)
+        shared |= module_refusal | module_findings
+    write_rows = set(_refusal_rows(REFERENCE.read_text(encoding="utf-8")))
+    fanned_out = SHARED_REFERENCE.read_text(encoding="utf-8")
+
+    assert not sorted(shared - write_rows), (
+        f"shared codes missing from the write reference: {sorted(shared - write_rows)}"
+    )
+    missing = sorted(code for code in shared if f"`{code}`" not in fanned_out)
+    assert not missing, (
+        f"shared codes missing from {SHARED_REFERENCE.name}: {missing}. Move the "
+        "rows inside the shared-refusals markers in rules-and-errors.md, then run "
+        "python build.py — do not maintain a second copy by hand."
+    )
+
+
+def test_shared_reference_is_generated_not_hand_written():
+    """The fanned-out copy must stay derived from the write reference."""
+    import build  # noqa: PLC0415 — the builder is the contract under test
+
+    expected = build.build_shared_errors(
+        REFERENCE.read_text(encoding="utf-8")
+    )
+
+    assert SHARED_REFERENCE.read_text(encoding="utf-8") == expected, (
+        "core/retrieval-references/shared-errors.md is out of sync; run "
+        "python build.py"
+    )
+    assert "DO NOT EDIT DIRECTLY" in expected
 
 
 def test_retrieval_module_list_matches_the_shipped_bundle():
