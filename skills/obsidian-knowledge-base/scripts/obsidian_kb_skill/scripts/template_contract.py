@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,9 @@ from obsidian_kb_skill.scripts.vault_paths import (
 SUPPORTED_PLACEHOLDERS = ("date", "title")
 PLACEHOLDER_RE = re.compile(r"\{\{([^}]+)\}\}")
 ATX_HEADING_RE = re.compile(r"^(#{2,6})[ \t]+(.+?)[ \t]*$")
+# Section headings start at level two, but a level-one line still has to be
+# recognised to explain why a section the author clearly wrote is "missing".
+ANY_ATX_HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.+?)[ \t]*$")
 ATX_CLOSING_RE = re.compile(r"[ \t]+#+[ \t]*$")
 FENCE_LINE_RE = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
 # Content a reader never sees. Shared so every structural check agrees on what
@@ -137,6 +141,109 @@ def markdown_section_headings(
             if text:
                 headings.append(text)
     return headings
+
+
+def first_heading_mismatch(
+    required: Sequence[str], actual: Sequence[str]
+) -> str | None:
+    """Return the first required heading the document fails to supply in order.
+
+    Shared so the audit, the preflight repair suggestion, and any future caller
+    cannot drift into three slightly different ideas of "in order".
+    """
+    index = 0
+    for heading in required:
+        while index < len(actual) and actual[index] != heading:
+            index += 1
+        if index == len(actual):
+            return heading
+        index += 1
+    return None
+
+
+def _mask_html_comments(text: str) -> str:
+    """Blank out comment content while preserving every line break."""
+    return HTML_COMMENT_RE.sub(
+        lambda match: re.sub(r"[^\n]", " ", match.group(0)), text
+    )
+
+
+def _heading_lines(text: str) -> list[tuple[int, int, str]]:
+    """Return (1-based line, ATX level, text) for every visible heading."""
+    masked = _mask_html_comments(text.replace("\r\n", "\n").replace("\r", "\n"))
+    lines = masked.split("\n")
+    start = 0
+    if lines and lines[0].strip() == "---":
+        for index in range(1, len(lines)):
+            if lines[index].strip() == "---":
+                start = index + 1
+                break
+    found: list[tuple[int, int, str]] = []
+    open_fence: tuple[str, int] | None = None
+    for number, line in enumerate(lines[start:], start=start + 1):
+        fence = FENCE_LINE_RE.match(line)
+        if fence:
+            marker = fence.group(1)
+            if open_fence is None:
+                open_fence = (marker[0], len(marker))
+            elif (
+                marker[0] == open_fence[0]
+                and len(marker) >= open_fence[1]
+                and not line[fence.end() :].strip()
+            ):
+                open_fence = None
+            continue
+        if open_fence is not None:
+            continue
+        heading = ANY_ATX_HEADING_RE.fullmatch(line)
+        if heading is None:
+            continue
+        text = ATX_CLOSING_RE.sub("", heading.group(2)).strip()
+        if text:
+            found.append((number, len(heading.group(1)), text))
+    return found
+
+
+def heading_level_repair(
+    body: str, template_text: str
+) -> tuple[str, list[dict[str, Any]]] | None:
+    """Return the repaired body and its edits when only heading depth is wrong.
+
+    A section whose title already matches the contract but sits at the wrong ATX
+    level is the one structural mismatch that can be repaired without inventing
+    content: the author wrote the section, only its depth is off. A missing,
+    renamed, or reordered section is content, so this returns None rather than
+    guess — as it also does when the level-only rewrite would still not satisfy
+    the contract.
+    """
+    required = markdown_section_headings(template_text)
+    if not required:
+        return None
+    wanted: dict[str, int] = {}
+    for _, level, text in _heading_lines(template_text):
+        wanted.setdefault(text, level)
+    lines = body.split("\n")
+    edits: list[dict[str, Any]] = []
+    for number, level, text in _heading_lines(body):
+        expected_level = wanted.get(text)
+        if expected_level is None or expected_level == level:
+            continue
+        original = lines[number - 1]
+        repaired = "#" * expected_level + original.lstrip("#")
+        lines[number - 1] = repaired
+        edits.append(
+            {
+                "line": number,
+                "actual": original.strip(),
+                "expected": repaired.strip(),
+            }
+        )
+    if not edits:
+        return None
+    candidate = "\n".join(lines)
+    if first_heading_mismatch(required, markdown_section_headings(candidate)):
+        return None
+    return candidate, edits
 
 
 def template_shape(vault: Path, note_type: str) -> dict[str, Any] | None:

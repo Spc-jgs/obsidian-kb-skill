@@ -26,20 +26,34 @@ Output schema (JSON):
       "enabled": false, "graph_overwrite": false,
       "user_specified": false, "root_index_file": "INDEX.md"
     },
+    "crowded_folders": [
+      {"path": "20-Learning/AI-Agent", "direct_notes": 24, "threshold": 20,
+       "child_folders": ["Skills"], "cluster_min_notes": 5,
+       "clusters": [{"term": "mcp", "kind": "tag", "notes": 8}]}
+    ],
+    "required_references": [{"file": "note-creation.md", "reason": "..."}],
     "warnings": ["..."]
   }
+
+`clusters` answers whether a crowded folder holds a subject stable enough to
+split off, and `required_references` answers which reference files the selected
+type, template, and destination require — both so the agent gets one answer per
+call instead of discovering the same facts through its own reads.
 """
 from __future__ import annotations
 
 import argparse
 import copy
 import json
+import re
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.detect_index import detect
+from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
 from obsidian_kb_skill.scripts.folder_index_policy import (
     FolderIndexConfig,
     FolderIndexConfigError,
@@ -47,8 +61,16 @@ from obsidian_kb_skill.scripts.folder_index_policy import (
     is_folder_index_excluded,
     read_folder_index_config,
 )
-from obsidian_kb_skill.scripts.note_catalog import MANAGED_NOTE_FOLDERS
+from obsidian_kb_skill.scripts.note_catalog import (
+    MANAGED_NOTE_FOLDERS,
+    TYPE_TO_FOLDER,
+)
 from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
+from obsidian_kb_skill.scripts.suggest_links import (
+    GENERIC_TAGS,
+    _tags,
+    _title_tokens,
+)
 from obsidian_kb_skill.scripts.template_contract import (
     custom_template_types,
     template_shape,
@@ -65,6 +87,32 @@ NOTE_FOLDERS: list[str] = list(MANAGED_NOTE_FOLDERS)
 STANDARD_FOLDERS = NOTE_FOLDERS + ["Templates", "Attachments"]
 CROWDED_FOLDER_THRESHOLD = 20
 MAX_CROWDED_FOLDERS = 20
+# A crowded folder may only be split when a stable subject cluster exists, and
+# folder-routing.md puts that bar at five notes. Reporting the clusters here is
+# what makes the rule checkable: reading thirty notes to find out is not a
+# bounded operation, so the rule was previously unenforceable in practice.
+CLUSTER_MIN_NOTES = 5
+MAX_CLUSTER_TERMS = 6
+MAX_CLUSTER_SCAN = 200
+# Discovery used to be pure directory stats. Clustering reads note heads, so it
+# runs under a whole-call budget: the selected destination is always analyzed,
+# the most crowded folders fill the rest, and anything past it reports its count
+# without a cluster list rather than turning one call into thousands of opens.
+MAX_CLUSTER_SCAN_TOTAL = 1000
+MAX_CHILD_FOLDERS = 12
+FRONTMATTER_HEAD_BYTES = 4096
+CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]+")
+# Reference files the agent must load next, keyed by what it already told us.
+TYPE_REFERENCES: dict[str, tuple[str, str]] = {
+    "web-clip": (
+        "web-capture.md",
+        "source acquisition contract for a finished article",
+    ),
+    "conversation-digest": (
+        "conversation-digest.md",
+        "conversation context archive contract",
+    ),
+}
 
 
 def _templates(vault: Path) -> list[str]:
@@ -84,15 +132,92 @@ def _index_names(vault: Path, folder: Path, config: FolderIndexConfig) -> set[st
     return names
 
 
+def _head_metadata(path: Path) -> dict[str, Any] | None:
+    """Parse frontmatter from the head of a note without reading the body."""
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            head = handle.read(FRONTMATTER_HEAD_BYTES)
+    except OSError:
+        return None
+    return parse_frontmatter(head, source=path.name).metadata
+
+
+def _merge_overlapping_runs(counts: Counter[str]) -> Counter[str]:
+    """Rejoin the bigrams a CJK title was split into, so labels stay readable.
+
+    Tokenizing `服务器实践` yields four overlapping bigrams that all appear in the
+    same notes; reported separately they read as four clusters and push real
+    ones out of the list. Equal counts plus a shared boundary character is
+    strong evidence they came from one phrase, so chain them back together.
+    """
+    merged: Counter[str] = Counter()
+    by_count: dict[int, set[str]] = {}
+    for term, total in counts.items():
+        if len(term) == 2 and CJK_RE.fullmatch(term):
+            by_count.setdefault(total, set()).add(term)
+        else:
+            merged[term] = total
+    for total, group in by_count.items():
+        tails = {term[1] for term in group}
+        consumed: set[str] = set()
+        for head in sorted(group):
+            if head in consumed or head[0] in tails:
+                continue
+            chain = head
+            consumed.add(head)
+            while True:
+                successor = next(
+                    (
+                        term
+                        for term in sorted(group)
+                        if term not in consumed and term[0] == chain[-1]
+                    ),
+                    None,
+                )
+                if successor is None:
+                    break
+                chain += successor[1]
+                consumed.add(successor)
+            merged[chain] = total
+        for term in sorted(group - consumed):
+            merged[term] = total
+    return merged
+
+
+def subject_clusters(notes: list[Path]) -> list[dict[str, Any]]:
+    """Return the subject terms shared by enough notes to justify a child folder.
+
+    Tags and title tokens are counted together because a Vault governs subjects
+    through both. Type-default tags carry no subject information and are
+    dropped, or every note in `20-Learning` would look like one big cluster.
+    """
+    tags: Counter[str] = Counter()
+    titles: Counter[str] = Counter()
+    for path in notes[:MAX_CLUSTER_SCAN]:
+        tags.update(_tags(_head_metadata(path)) - GENERIC_TAGS)
+        titles.update(_title_tokens(path.stem))
+    counted = [("tag", tags), ("title", _merge_overlapping_runs(titles))]
+    clusters = [
+        {"term": term, "kind": kind, "notes": total}
+        for kind, group in counted
+        for term, total in group.items()
+        if total >= CLUSTER_MIN_NOTES and not (kind == "title" and term in tags)
+    ]
+    clusters.sort(key=lambda item: (-item["notes"], item["kind"], item["term"]))
+    return clusters[:MAX_CLUSTER_TERMS]
+
+
 def crowded_folders(
     vault: Path,
     config: FolderIndexConfig,
     *,
     threshold: int = CROWDED_FOLDER_THRESHOLD,
     limit: int = MAX_CROWDED_FOLDERS,
+    destination: str | None = None,
 ) -> list[dict[str, Any]]:
     """Return bounded navigation-pressure signals under managed note roots."""
     findings: list[dict[str, Any]] = []
+    direct: dict[str, list[Path]] = {}
     stack = [
         vault / name
         for name in MANAGED_NOTE_FOLDERS
@@ -101,7 +226,8 @@ def crowded_folders(
     while stack:
         folder = stack.pop()
         index_names = _index_names(vault, folder, config)
-        direct_notes = 0
+        notes: list[Path] = []
+        child_folders: list[str] = []
         try:
             children = sorted(folder.iterdir(), key=lambda path: path.name)
         except OSError:
@@ -111,25 +237,86 @@ def crowded_folders(
                 continue
             if child.is_dir():
                 stack.append(child)
+                child_folders.append(child.name)
             elif (
                 child.suffix.lower() == ".md"
                 and child.name not in index_names
                 and child.is_file()
             ):
-                direct_notes += 1
-        if direct_notes >= threshold:
+                notes.append(child)
+        if len(notes) >= threshold:
+            relative = folder.relative_to(vault).as_posix()
+            direct[relative] = notes
             findings.append(
                 {
-                    "path": folder.relative_to(vault).as_posix(),
-                    "direct_notes": direct_notes,
+                    "path": relative,
+                    "direct_notes": len(notes),
                     "threshold": threshold,
+                    "child_folders": child_folders[:MAX_CHILD_FOLDERS],
                 }
             )
     findings.sort(key=lambda item: (-item["direct_notes"], item["path"]))
-    return findings[:limit]
+    reported = findings[:limit]
+
+    # The destination is what the routing decision is actually about, so it is
+    # analyzed even when more crowded folders would have exhausted the budget.
+    budget = MAX_CLUSTER_SCAN_TOTAL
+    for finding in sorted(reported, key=lambda item: item["path"] != destination):
+        notes = direct[finding["path"]]
+        cost = min(len(notes), MAX_CLUSTER_SCAN)
+        if finding["path"] != destination and cost > budget:
+            continue
+        budget -= cost
+        finding["clusters"] = subject_clusters(notes)
+        finding["cluster_min_notes"] = CLUSTER_MIN_NOTES
+    return reported
 
 
-def collect(vault: Path, note_type: str | None = None) -> dict[str, Any]:
+def selected_destination(note_type: str | None, folder: str | None) -> str | None:
+    """Return the folder this operation will write to, as far as it is known."""
+    return (folder or "").strip("/") or TYPE_TO_FOLDER.get(note_type or "")
+
+
+def required_references(
+    note_type: str | None,
+    custom_templates: list[str],
+    crowded: list[dict[str, Any]],
+    folder: str | None,
+) -> list[dict[str, str]]:
+    """Name every reference this operation needs, from what discovery knows.
+
+    The conditional references were previously discovered one failure at a time:
+    the agent read the create workflow, started work, hit a crowded destination
+    or a customized template, and went back for another file. Discovery already
+    holds every fact those conditions test, so it can answer once.
+    """
+    references = [
+        {"file": "note-creation.md", "reason": "the new-note workflow"},
+    ]
+    if note_type in TYPE_REFERENCES:
+        name, reason = TYPE_REFERENCES[note_type]
+        references.append({"file": name, "reason": reason})
+    if note_type is not None and note_type in custom_templates:
+        references.append(
+            {
+                "file": "custom-template.md",
+                "reason": f"the Vault template for {note_type} is customized",
+            }
+        )
+    destination = selected_destination(note_type, folder)
+    if destination and any(item["path"] == destination for item in crowded):
+        references.append(
+            {
+                "file": "folder-routing.md",
+                "reason": f"the selected destination {destination} is crowded",
+            }
+        )
+    return references
+
+
+def collect(
+    vault: Path, note_type: str | None = None, folder: str | None = None
+) -> dict[str, Any]:
     vault = vault.resolve()
     warnings: list[str] = []
     exists = vault.is_dir()
@@ -146,8 +333,8 @@ def collect(vault: Path, note_type: str | None = None) -> dict[str, Any]:
     config = read_folder_index_config(vault)
     standard_folders: dict[str, Any] = {}
     for name in STANDARD_FOLDERS:
-        folder = vault / name
-        entry: dict[str, Any] = {"exists": folder.is_dir()}
+        directory = vault / name
+        entry: dict[str, Any] = {"exists": directory.is_dir()}
         if name in NOTE_FOLDERS:
             entry["index"] = detect(vault, name) if exists else None
         else:
@@ -171,11 +358,24 @@ def collect(vault: Path, note_type: str | None = None) -> dict[str, Any]:
             "root_index_file": config.root_index_file,
         },
         "custom_templates": custom_template_types(vault) if exists else [],
-        "crowded_folders": crowded_folders(vault, config) if exists else [],
+        "crowded_folders": (
+            crowded_folders(
+                vault, config, destination=selected_destination(note_type, folder)
+            )
+            if exists
+            else []
+        ),
         "warnings": warnings,
     }
     if note_type is not None:
         result["template_shape"] = template_shape(vault, note_type)
+    if valid:
+        result["required_references"] = required_references(
+            note_type,
+            result["custom_templates"],
+            result["crowded_folders"],
+            folder,
+        )
     return result
 
 
@@ -208,6 +408,11 @@ def main(argv: list[str] | None = None) -> int:
         dest="note_type",
         help="Include only this conventional note type's ordered template headings",
     )
+    p.add_argument(
+        "--folder",
+        help="Vault-relative destination, when it is more specific than the "
+             "type default; makes the crowded-destination reference precise",
+    )
     args = p.parse_args(argv)
     try:
         vault = validate_vault_root(args.vault)
@@ -224,7 +429,7 @@ def main(argv: list[str] | None = None) -> int:
         }, ensure_ascii=False))
         return 2
     try:
-        info = collect(vault, note_type=args.note_type)
+        info = collect(vault, note_type=args.note_type, folder=args.folder)
     except FolderIndexConfigError as exc:
         print(json.dumps({"error": {
             "code": exc.code,

@@ -8,8 +8,11 @@ specifically needs troubleshooting, Git post-processing, or opted-in handoff.
 ## Minimal Ordinary Path
 
 1. Infer the type when confidence is high, then run one discovery call:
-   `vault-info --json --compact --type <slug>`. Use `--type` only for
-   template-backed types; omit `--type` for opted-in `task-memory` or uncertainty.
+   `vault-info --json --compact --type <slug> [--folder <route>]`. Use `--type`
+   only for template-backed types; omit `--type` for opted-in `task-memory` or
+   uncertainty. Pass `--folder` whenever a governed route is more specific than
+   the type default, so the crowded-destination answer is about the folder you
+   will actually write to.
 2. Read Vault-local governance at the root and target path; choose type, folder,
    naming, metadata, README, and Git actions from those rules.
 3. If governance requires Git, load `git.md` and complete its pre-write check
@@ -21,7 +24,8 @@ specifically needs troubleshooting, Git post-processing, or opted-in handoff.
    only `folder-routing.md` and resolve the route before writing.
 6. Supply complete Markdown to `create-note --preflight-json` and inspect the
    structured validation.
-7. Repeat the same input with `--apply --compact-json`; keep automatic audit on.
+7. Apply with `--from-preflight <content.sha256> --apply --compact-json`; keep
+   automatic audit on.
 8. Optionally use bounded link suggestions, then report the saved path.
 
 The helper handles template loading, index strategy, exclusive creation, and
@@ -49,7 +53,13 @@ python <skill-root>/scripts/run_helper.py vault-info <vault> \
   --json --compact --type <slug>
 ```
 
-Stop if invalid. Apply rules in this order: user request → Vault-local
+Stop if invalid. The response's `required_references` lists every reference this
+operation needs — the workflow file plus whichever of `web-capture.md`,
+`conversation-digest.md`, `custom-template.md`, and `folder-routing.md` the
+selected type, template, and destination actually require. Read that set; do not
+rediscover it one reference at a time.
+
+Apply rules in this order: user request → Vault-local
 governance files (`AGENTS.md`, `CLAUDE.md`, etc.) at the root and target path →
 generic skill defaults. Do not scan the whole Vault. Follow governed subfolders
 with `--folder` when their route is more specific than the type default. If governance requires Git, load
@@ -157,9 +167,19 @@ python <skill-root>/scripts/run_helper.py create-note <vault> \
 
 `--preflight-json` returns final frontmatter, destination, SHA-256, byte/line
 counts, and the same note-level validation used after write without echoing the
-body. A template-order finding includes the expected headings, actual headings,
-and first mismatch; repair the complete sequence in one edit before rerunning
-preflight. Use full `--json` only when the rendered body is explicitly needed.
+body. Use full `--json` only when the rendered body is explicitly needed.
+
+Preflight also stages the exact input it validated under that SHA-256, reported
+as `content.reusable`. Every later step references it with
+`--from-preflight <sha256>` rather than resending the document; the helper
+rerenders and rehashes, and refuses if the result would differ.
+
+A template-order finding includes the expected headings, actual headings, and
+first mismatch. When every required section is present but at the wrong ATX
+level, `validation.suggested_fix` lists the exact line edits; rerun preflight
+with `--from-preflight <sha256> --fix-heading-levels` to apply them and receive
+the repaired hash. Any other mismatch — a missing, renamed, or reordered
+section — is content: repair the complete sequence yourself before rerunning.
 
 For a verified article outside `00-Inbox`, `deep-capture.md` adds a required
 content-bound `--capture-receipt-json`. A standard article must not supply one.
@@ -183,15 +203,20 @@ most five useful links or skip them; never force weak links.
 
 ## Steps 7–8: Apply Once
 
-Repeat the exact validated content:
+Reference the validated content instead of resending it:
 
 ```bash
 python <skill-root>/scripts/run_helper.py create-note <vault> \
-  --type <slug> --title "<title>" --stdin [--expect-template-sha256 <sha256>] \
+  --type <slug> --title "<title>" --from-preflight <content-sha256> \
+  [--expect-template-sha256 <sha256>] \
   [--capture-receipt-json '<compact-json>' \
    --expect-capture-receipt-sha256 <preflight-receipt-sha256>] \
   --apply --compact-json
 ```
+
+The type and title must match the preflight; the rerendered content must hash to
+the same value. Resend the full body on `--stdin` only when the staged entry is
+gone — `unknown-preflight-content` says so explicitly.
 
 `--content-file` must resolve inside the Vault; external content belongs on
 `--stdin`. The helper merges the template, writes exclusively with a numeric

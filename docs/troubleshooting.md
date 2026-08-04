@@ -104,6 +104,21 @@ bash install.sh --vault "/你的/Vault"
 
 优先读取结构化错误，不要绕过预检临时写脚本。
 
+## `--from-preflight` 被拒绝
+
+预检暂存的内容按渲染结果的哈希索引，正式写入前会重新渲染并重新校验，因此拒绝
+说明确实发生了变化，而不是校验过严：
+
+- `unknown-preflight-content`：条目已过期（默认 24 小时）或不在本机，按提示重传
+  正文即可；
+- `preflight-vault-mismatch` / `preflight-context-mismatch`：这份内容是为另一个
+  Vault、另一种笔记类型或另一个标题预检的；
+- `preflight-content-changed`：预检之后日期、标签或 Vault 模板变了，重跑预检并
+  使用新哈希。
+
+暂存目录默认是 `~/.obsidian-kb-preflight`，可用 `OBSIDIAN_KB_PREFLIGHT_CACHE`
+指向别处；删除它是安全的，只会让下一次写入回到重传正文。
+
 ## 模板没有更新
 
 这是默认安全行为。普通升级保留已有模板。确认要覆盖后：

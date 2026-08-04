@@ -60,7 +60,7 @@ def _codes_in(path: Path) -> set[str]:
                     found.add(value)
         elif isinstance(node, ast.Call):
             name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
-            if name == "FrontmatterIssue" and node.args:
+            if name in ("FrontmatterIssue", "PreflightCacheError") and node.args:
                 if code := _const_str(node.args[0]):
                     found.add(code)
             elif name == "_add" and len(node.args) >= 2:

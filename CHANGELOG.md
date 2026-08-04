@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Apply can reference the content preflight already validated: `--preflight-json` stages the exact input under the `content.sha256` it reports (`content.reusable` says whether it did), and `create-note --from-preflight <sha256>` writes it without the document crossing the process boundary a second time. This is stricter than resending, not looser — resending proved nothing, while a reference is rerendered, rehashed, and bound to the Vault, note type, and title, so a mismatch refuses with `preflight-content-changed`, `preflight-vault-mismatch`, or `preflight-context-mismatch` instead of writing. Entries live outside the Vault (`~/.obsidian-kb-preflight`, overridable with `OBSIDIAN_KB_PREFLIGHT_CACHE`) and expire after 24 hours, so a dry run still leaves the Vault untouched.
+- A heading at the wrong depth no longer costs a full resend. When every section the template requires is present but at the wrong ATX level, preflight returns `validation.suggested_fix` with the exact line edits, and `--from-preflight <sha256> --fix-heading-levels` applies them and reports the repaired hash. The repair is narrow on purpose: only the level moves, only for headings whose text already matches the contract, and only when the result satisfies it. A missing, renamed, or reordered section is content, and the tool will not guess at it.
+- `vault-info` returns `required_references`: the complete set of reference files the selected type, template, and destination require. The conditional references were previously discovered one interruption at a time — read the workflow, start work, hit a crowded folder or a customized template, go back for another file — although discovery already held every fact those conditions test. Pass `--folder` when a governed route is more specific than the type default so the crowded-destination answer is about the folder that will actually be written to.
+
+### Fixed
+
+- The crowded-folder contract asked for something the tooling did not supply. `folder-routing.md` requires five notes forming a stable subject cluster before proposing a child category, and told the agent to judge from "the bounded filenames already returned by the index helper" — but the recommended `--compact` discovery strips exactly those filenames, and `crowded_folders` carried only a count. The rule was unenforceable at bounded cost, so the practical outcome was to keep piling notes into the crowded folder. Each crowded entry now reports `child_folders`, `clusters` (subject terms from tags and title tokens, with the notes carrying each, type-default tags excluded), and `cluster_min_notes`. An empty cluster list is a real answer: crowded, with nothing stable to split off.
+- CJK title tokens are rejoined before they are reported, so a Chinese subject reads as `记忆压缩` rather than as the three overlapping bigrams it was tokenized into, which had crowded genuine clusters out of the list.
+- Clustering reads note heads, which discovery never did before, so it runs under a whole-call budget: the selected destination is always analyzed, the most crowded folders fill the remainder, and the rest report their count with no `clusters` key. On a 5,000-note Vault with twenty crowded folders that holds one discovery call to roughly 200ms instead of 700ms, and an analyzed folder is always counted in full — the five-note rule is never applied to a sample.
+- The required-heading order check lived in the audit as inline logic. It is now one shared function, so the audit and the preflight repair cannot drift into different ideas of "in order".
+
 ## [1.26.4] - 2026-08-02
 
 ### Added

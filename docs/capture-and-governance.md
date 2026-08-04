@@ -57,15 +57,26 @@ obsidian-create-note "/你的/Vault" \
   --preflight-json
 ```
 
-正式应用：
+预检会把校验过的输入按返回的 `content.sha256` 暂存下来，正式应用时直接引用，
+不必把同一篇正文再传一遍：
 
 ```bash
 obsidian-create-note "/你的/Vault" \
   --type insight-note \
   --title "缓存一致性取舍" \
-  --content-file body.md \
+  --from-preflight <content.sha256> \
   --apply --compact-json
 ```
+
+helper 会重新渲染并重新哈希，结果不一致就拒绝写入，因此这条捷径比重传更严格，
+而不是更宽松。暂存目录在 Vault 之外（`~/.obsidian-kb-preflight`，可用
+`OBSIDIAN_KB_PREFLIGHT_CACHE` 覆盖），dry-run 不会碰 Vault 一个字节；条目 24
+小时后过期，届时按 `unknown-preflight-content` 的提示重传正文即可。
+
+如果预检报的是 `missing-template-heading`，而每个必需小节其实都写了、只是 ATX
+层级不对，`validation.suggested_fix` 会给出逐行修改；用
+`--from-preflight <sha256> --fix-heading-levels` 重跑预检即可应用，同样不必重传。
+小节缺失、改名或乱序属于内容问题，工具不会替你猜。
 
 它不会覆盖同名文件；冲突时使用稳定后缀或停止。
 
@@ -150,6 +161,12 @@ Vault 的 `Templates/` 是实际模板来源。helper 会识别模板与项目�
 5. 首篇笔记与新分类索引按治理规则一起验收。
 
 这避免分类树被一次临时对话随意扩张。
+
+目标目录已经拥挤时，判断“该不该拆子分类”不需要把目录里的笔记读一遍：
+`vault-info` 会在 `crowded_folders` 里一并给出 `child_folders`（可复用的既有
+子分类）和 `clusters`（由标签与标题词统计出的主题及其笔记数，已剔除每篇都带的
+类型默认标签）。规则要求的“五篇以上稳定主题”就对着 `cluster_min_notes` 判断；
+`clusters` 为空本身就是答案：这个目录拥挤，但没有可拆的稳定主题。
 
 ## 索引所有权
 

@@ -100,6 +100,14 @@ file yourself with a native tool — the refusal is the contract, not an obstacl
 | `invalid-folder-index-config` | The Folder Index plugin config cannot be interpreted | Do not touch listings. Report the config problem |
 | `invalid-output-mode` | Conflicting output flags were passed | Fix the invocation; `--preflight-json` cannot combine with `--apply` |
 | `compact-json-requires-apply` | `--compact-json` was passed without `--apply` | Add `--apply`, or use `--preflight-json` for a dry run |
+| `conflicting-content-source` | `--from-preflight` was combined with `--stdin` or `--content-file` | Keep one content source; the staged reference already carries the body |
+| `fix-requires-preflight` | `--fix-heading-levels` was passed outside a preflight | Add `--preflight-json`; a repair is reviewed before it is applied |
+| `invalid-preflight-reference` | `--from-preflight` was not a content SHA-256 | Pass the `content.sha256` value the preflight returned |
+| `unknown-preflight-content` | Nothing is staged under that hash | The entry expired or was preflighted elsewhere; rerun preflight with the full body |
+| `unreadable-preflight-content` | The staged entry could not be read | Rerun preflight with the full body; do not write from a partial copy |
+| `preflight-vault-mismatch` | The staged content belongs to another Vault | Rerun preflight against this Vault |
+| `preflight-context-mismatch` | The staged content was preflighted for another type or title | Rerun preflight for the note you are actually writing |
+| `preflight-content-changed` | The staged content no longer renders to its hash | Something changed after preflight (date, tags, template); rerun preflight and apply the new hash |
 
 ### Audit Findings
 
