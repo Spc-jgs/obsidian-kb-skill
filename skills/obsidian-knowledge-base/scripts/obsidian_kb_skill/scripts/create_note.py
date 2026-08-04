@@ -48,7 +48,10 @@ from obsidian_kb_skill.scripts.folder_index_policy import (
 )
 from obsidian_kb_skill.scripts.audit_vault import Finding, audit_note, audit_note_text
 from obsidian_kb_skill.scripts.suggest_links import suggest_links
+from obsidian_kb_skill.scripts import preflight_cache
+from obsidian_kb_skill.scripts.preflight_cache import PreflightCacheError
 from obsidian_kb_skill.scripts.template_contract import (
+    heading_level_repair,
     template_path,
     template_sha256,
 )
@@ -275,6 +278,76 @@ def finding_payload(findings: list[Finding]) -> dict[str, Any]:
     }
 
 
+def stage_preflight_content(
+    vault: Path,
+    sha256: str,
+    rendered: str,
+    rendered_bytes: bytes,
+    *,
+    raw_input: str | None,
+    note_type: str,
+    title: str,
+) -> dict[str, Any]:
+    """Report content identity, staging the input so apply can reference it."""
+    reusable = raw_input is not None and preflight_cache.stage(
+        vault, sha256, raw_input, note_type=note_type, title=title
+    )
+    return {
+        "sha256": sha256,
+        "utf8_bytes": len(rendered_bytes),
+        "line_count": len(rendered.splitlines()),
+        "reusable": reusable,
+    }
+
+
+def heading_fix_proposal(
+    vault: Path,
+    note_type: str,
+    raw_input: str | None,
+    findings: list[Finding],
+    sha256: str,
+) -> dict[str, Any] | None:
+    """Describe the level-only repair that would clear a heading finding.
+
+    Reported, never applied: the agent asks for the rewrite explicitly. Without
+    this the only remedy for one wrong `#` was to resend the whole document.
+    """
+    if raw_input is None or not any(
+        finding.code == "missing-template-heading" for finding in findings
+    ):
+        return None
+    contract = template_path(vault, note_type)
+    if contract is None or not contract.is_file():
+        return None
+    repair = heading_level_repair(raw_input, contract.read_text(encoding="utf-8"))
+    if repair is None:
+        return None
+    return {
+        "kind": "heading-level-mismatch",
+        "message": (
+            "every required section exists at the wrong ATX level; rerun "
+            f"preflight with --from-preflight {sha256} --fix-heading-levels "
+            "to apply these edits without resending the body"
+        ),
+        "edits": repair[1],
+    }
+
+
+def preflight_validation(
+    vault: Path,
+    note_type: str,
+    raw_input: str | None,
+    findings: list[Finding],
+    sha256: str,
+) -> dict[str, Any]:
+    """Return note-level findings plus a repair the agent can ask for."""
+    payload = finding_payload(findings)
+    proposal = heading_fix_proposal(vault, note_type, raw_input, findings, sha256)
+    if proposal is not None:
+        payload["suggested_fix"] = proposal
+    return payload
+
+
 def print_preview(vault: Path, folder: str, dest: Path, rendered: str) -> None:
     """Print the human-readable dry-run preview."""
     print(f"vault : {vault}")
@@ -456,6 +529,18 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Read complete UTF-8 Markdown from standard input; optional frontmatter is merged",
     )
+    parser.add_argument(
+        "--from-preflight",
+        type=sha256_argument,
+        help="Reuse the content a previous preflight staged under this SHA-256 "
+             "instead of resending the body; the rerender must hash identically",
+    )
+    parser.add_argument(
+        "--fix-heading-levels",
+        action="store_true",
+        help="Preflight only: rewrite the ATX level of headings whose text "
+             "already matches the Vault template, and report every edit",
+    )
     parser.add_argument("--tags", help="Comma-separated tags overriding the type default")
     parser.add_argument("--date", help="Date (YYYY-MM-DD); defaults to today")
     parser.add_argument(
@@ -530,6 +615,30 @@ def main(argv: list[str] | None = None) -> int:
         }, ensure_ascii=False, indent=2))
         return 2
 
+    if args.from_preflight and (args.stdin or args.content_file):
+        print(json.dumps({
+            "error": {
+                "code": "conflicting-content-source",
+                "message": (
+                    "--from-preflight replaces the body; do not combine it with "
+                    "--stdin or --content-file"
+                ),
+            }
+        }, ensure_ascii=False, indent=2))
+        return 2
+
+    # A repair is a dry-run proposal. Restricting it to preflight means content
+    # is never silently rewritten on the way to disk: the agent sees the edits
+    # and the new hash first, then applies that hash deliberately.
+    if args.fix_heading_levels and not args.preflight_json:
+        print(json.dumps({
+            "error": {
+                "code": "fix-requires-preflight",
+                "message": "--fix-heading-levels requires --preflight-json",
+            }
+        }, ensure_ascii=False, indent=2))
+        return 2
+
     try:
         vault = validate_vault_root(args.vault)
     except InvalidVaultRootError as exc:
@@ -594,20 +703,52 @@ def main(argv: list[str] | None = None) -> int:
 
     body_text = ""
     given_meta: dict[str, Any] = {}
+    raw_input: str | None = None
+    content_source = (
+        "--content-file" if args.content_file
+        else "stdin" if args.stdin
+        else "--from-preflight"
+    )
     try:
         if content_path is not None:
-            raw = content_path.read_text(encoding="utf-8")
+            raw_input = content_path.read_text(encoding="utf-8")
             given_meta, body_text = split_frontmatter(
-                raw, source=content_path.relative_to(vault).as_posix()
+                raw_input, source=content_path.relative_to(vault).as_posix()
             )
         elif args.stdin:
-            raw = sys.stdin.read()
-            given_meta, body_text = split_frontmatter(raw, source="stdin")
+            raw_input = sys.stdin.read()
+            given_meta, body_text = split_frontmatter(raw_input, source="stdin")
+        elif args.from_preflight:
+            raw_input = preflight_cache.load(
+                vault, args.from_preflight, note_type=args.type, title=args.title
+            )
+            given_meta, body_text = split_frontmatter(
+                raw_input, source="--from-preflight"
+            )
     except InvalidFrontmatterError as exc:
         return report_invalid_frontmatter(exc, json_mode=json_mode)
     except UnicodeError:
-        source = "stdin" if args.stdin else "--content-file"
-        return report_invalid_utf8_input(source, json_mode=json_mode)
+        return report_invalid_utf8_input(content_source, json_mode=json_mode)
+    except PreflightCacheError as exc:
+        if json_mode:
+            print(json.dumps({"error": exc.payload()}, ensure_ascii=False, indent=2))
+        else:
+            print(f"error: {exc.code}: {exc.message}", file=sys.stderr)
+        return 2
+
+    heading_edits: list[dict[str, Any]] | None = None
+    if args.fix_heading_levels and raw_input is not None:
+        contract = template_path(vault, args.type)
+        repair = (
+            heading_level_repair(raw_input, contract.read_text(encoding="utf-8"))
+            if contract is not None and contract.is_file()
+            else None
+        )
+        if repair is not None:
+            raw_input, heading_edits = repair
+            given_meta, body_text = split_frontmatter(
+                raw_input, source="--fix-heading-levels"
+            )
 
     try:
         folder, rendered = build_note(
@@ -664,8 +805,28 @@ def main(argv: list[str] | None = None) -> int:
     try:
         rendered_bytes = rendered.encode("utf-8")
     except UnicodeError:
-        source = "stdin" if args.stdin else "--content-file"
-        return report_invalid_utf8_input(source, json_mode=json_mode)
+        return report_invalid_utf8_input(content_source, json_mode=json_mode)
+
+    content_sha256 = hashlib.sha256(rendered_bytes).hexdigest()
+    # Staged content is only a transport shortcut if it still renders to what
+    # preflight accepted. A repair changes the content on purpose and mints a
+    # new hash instead of failing this check.
+    reused_unchanged = bool(args.from_preflight) and not heading_edits
+    if reused_unchanged and content_sha256 != args.from_preflight:
+        error = {
+            "code": "preflight-content-changed",
+            "message": (
+                "staged content no longer renders to the preflighted hash; the "
+                "date, tags, or Vault template changed since preflight"
+            ),
+            "expected_sha256": args.from_preflight,
+            "actual_sha256": content_sha256,
+        }
+        if json_mode:
+            print(json.dumps({"error": error}, ensure_ascii=False, indent=2))
+        else:
+            print(f"error: {error['message']}", file=sys.stderr)
+        return 2
 
     rendered_meta, rendered_body = split_frontmatter(rendered)
     missing_fields = missing_required_metadata(args.type, rendered_meta)
@@ -844,11 +1005,6 @@ def main(argv: list[str] | None = None) -> int:
         result["semantic_receipt"] = semantic_receipt
 
     if receipt_error is not None:
-        content = {
-            "sha256": hashlib.sha256(rendered_bytes).hexdigest(),
-            "utf8_bytes": len(rendered_bytes),
-            "line_count": len(rendered.splitlines()),
-        }
         if args.preflight_json:
             findings = audit_note_text(vault, dest, rendered)
             payload = {
@@ -858,14 +1014,29 @@ def main(argv: list[str] | None = None) -> int:
                 "applied": False,
                 "dry_run": True,
                 "frontmatter": rendered_meta,
-                "content": content,
-                "validation": finding_payload(findings),
+                "content": stage_preflight_content(
+                    vault,
+                    content_sha256,
+                    rendered,
+                    rendered_bytes,
+                    raw_input=raw_input,
+                    note_type=args.type,
+                    title=args.title,
+                ),
+                "validation": preflight_validation(
+                    vault, args.type, raw_input, findings, content_sha256
+                ),
                 "semantic_receipt": {
                     "ok": False,
                     "error": receipt_error.payload(),
                 },
                 "suggested_links": None,
             }
+            if heading_edits:
+                payload["applied_fix"] = {
+                    "kind": "heading-level-mismatch",
+                    "edits": heading_edits,
+                }
         else:
             payload = {"error": receipt_error.payload()}
         if json_mode:
@@ -886,14 +1057,25 @@ def main(argv: list[str] | None = None) -> int:
             "applied": False,
             "dry_run": True,
             "frontmatter": rendered_meta,
-            "content": {
-                "sha256": hashlib.sha256(rendered_bytes).hexdigest(),
-                "utf8_bytes": len(rendered_bytes),
-                "line_count": len(rendered.splitlines()),
-            },
-            "validation": finding_payload(findings),
+            "content": stage_preflight_content(
+                vault,
+                content_sha256,
+                rendered,
+                rendered_bytes,
+                raw_input=raw_input,
+                note_type=args.type,
+                title=args.title,
+            ),
+            "validation": preflight_validation(
+                vault, args.type, raw_input, findings, content_sha256
+            ),
             "suggested_links": None,
         }
+        if heading_edits:
+            payload["applied_fix"] = {
+                "kind": "heading-level-mismatch",
+                "edits": heading_edits,
+            }
         if receipt_required or receipt_provided:
             payload["semantic_receipt"] = semantic_receipt
         print(json.dumps(payload, ensure_ascii=False, indent=2))

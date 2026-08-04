@@ -405,6 +405,7 @@ def test_create_note_preflight_json_returns_identity_without_body_or_mutation(tm
             "sha256": hashlib.sha256(rendered_bytes).hexdigest(),
             "utf8_bytes": len(rendered_bytes),
             "line_count": len(full["rendered"].splitlines()),
+            "reusable": True,
         },
         "validation": {"ok": True, "count": 0, "findings": []},
         "suggested_links": None,

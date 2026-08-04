@@ -42,6 +42,7 @@ from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
 from obsidian_kb_skill.scripts.metadata_quality import is_meaningful_metadata
 from obsidian_kb_skill.scripts.template_contract import (
     HTML_COMMENT_RE,
+    first_heading_mismatch,
     markdown_section_headings,
 )
 from obsidian_kb_skill.scripts.vault_paths import (
@@ -361,15 +362,7 @@ def _audit_required_template_headings(
     template_text = template_path.read_text(encoding="utf-8")
     required = markdown_section_headings(template_text)
     actual = markdown_section_headings(text)
-    actual_index = 0
-    first_mismatch: str | None = None
-    for heading in required:
-        while actual_index < len(actual) and actual[actual_index] != heading:
-            actual_index += 1
-        if actual_index == len(actual):
-            first_mismatch = heading
-            break
-        actual_index += 1
+    first_mismatch = first_heading_mismatch(required, actual)
     if first_mismatch is None:
         return
     expected = " -> ".join(required) or "(none)"

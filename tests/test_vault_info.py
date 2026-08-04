@@ -152,6 +152,9 @@ def test_crowded_folders_count_direct_notes_and_exclude_indexes(tmp_path: Path):
             "path": "20-Learning/AI-Agent",
             "direct_notes": 22,
             "threshold": 20,
+            "child_folders": ["Skills"],
+            "clusters": [{"term": "note", "kind": "title", "notes": 22}],
+            "cluster_min_notes": 5,
         }
     ]
 
@@ -175,6 +178,9 @@ def test_crowded_folders_are_bounded_and_sorted(tmp_path: Path):
         "path": "20-Learning/Topic-24",
         "direct_notes": 44,
         "threshold": 20,
+        "child_folders": [],
+        "clusters": [{"term": "note", "kind": "title", "notes": 44}],
+        "cluster_min_notes": 5,
     }
     assert crowded[-1]["direct_notes"] == 25
 
@@ -196,3 +202,135 @@ def test_crowded_folders_skip_directory_symlinks(tmp_path: Path):
     info = collect(vault)
 
     assert all(item["path"] != "20-Learning/External" for item in info["crowded_folders"])
+
+
+def _crowd(folder: Path, count: int, *, prefix: str, tags: str) -> None:
+    for number in range(count):
+        (folder / f"2026-07-{number + 1:02} {prefix} {number}.md").write_text(
+            f"---\ntype: learning-note\ndate: 2026-07-01\ntags: {tags}\n---\n\n# t\n",
+            encoding="utf-8",
+        )
+
+
+def test_clusters_answer_whether_a_child_category_is_justified(tmp_path: Path):
+    """folder-routing.md needs five notes on one subject; report that directly.
+
+    The rule was previously uncheckable at bounded cost: nothing in discovery
+    said what the crowded folder was about, so the only way to apply it was to
+    read every note.
+    """
+    vault = _make_vault(tmp_path)
+    topic = vault / "20-Learning" / "AI-Agent"
+    topic.mkdir()
+    _crowd(topic, 8, prefix="server", tags="[learning, mcp]")
+    _crowd(topic, 4, prefix="rag pipeline", tags="[learning, rag]")
+    for number in range(9):
+        (topic / f"2026-06-{number + 1:02} misc {number}.md").write_text(
+            "---\ntype: learning-note\ndate: 2026-06-01\ntags: [learning]\n---\n",
+            encoding="utf-8",
+        )
+
+    crowded = collect(vault)["crowded_folders"][0]
+
+    assert crowded["cluster_min_notes"] == 5
+    clusters = {item["term"]: item for item in crowded["clusters"]}
+    # A subject tag on enough notes is a cluster; four notes is not, and the
+    # type-default tag every note carries is not a subject at all.
+    assert clusters["mcp"] == {"term": "mcp", "kind": "tag", "notes": 8}
+    assert "rag" not in clusters
+    assert "learning" not in clusters
+
+
+def test_clusters_report_a_readable_cjk_subject(tmp_path: Path):
+    """Bigram tokens are rejoined so a Chinese subject reads as one term."""
+    vault = _make_vault(tmp_path)
+    topic = vault / "20-Learning" / "AI-Agent"
+    topic.mkdir()
+    _crowd(topic, 21, prefix="记忆压缩", tags="[learning]")
+
+    clusters = collect(vault)["crowded_folders"][0]["clusters"]
+
+    assert {"term": "记忆压缩", "kind": "title", "notes": 21} in clusters
+
+
+def test_crowded_entry_lists_reusable_children(tmp_path: Path):
+    vault = _make_vault(tmp_path)
+    topic = vault / "20-Learning" / "AI-Agent"
+    topic.mkdir()
+    (topic / "Skills").mkdir()
+    (topic / "Protocols").mkdir()
+    _crowd(topic, 21, prefix="note", tags="[learning]")
+
+    crowded = collect(vault)["crowded_folders"][0]
+
+    assert crowded["child_folders"] == ["Protocols", "Skills"]
+
+
+def test_required_references_name_the_whole_set_in_one_call(tmp_path: Path):
+    vault = _make_vault(tmp_path)
+    topic = vault / "20-Learning" / "AI-Agent"
+    topic.mkdir()
+    _crowd(topic, 21, prefix="note", tags="[learning]")
+
+    info = collect(vault, note_type="web-clip", folder="20-Learning/AI-Agent")
+
+    assert [item["file"] for item in info["required_references"]] == [
+        "note-creation.md",
+        "web-capture.md",
+        "custom-template.md",
+        "folder-routing.md",
+    ]
+    reasons = {item["file"]: item["reason"] for item in info["required_references"]}
+    assert "20-Learning/AI-Agent" in reasons["folder-routing.md"]
+
+
+def test_required_references_stay_quiet_about_conditions_that_do_not_apply(
+    tmp_path: Path,
+):
+    vault = _make_vault(tmp_path)
+
+    info = collect(vault, note_type="web-clip")
+
+    # The Web Clip template here is a stub rather than the shipped starter, so
+    # it counts as customized; only the crowded-folder reference drops out.
+    assert [item["file"] for item in info["required_references"]] == [
+        "note-creation.md",
+        "web-capture.md",
+        "custom-template.md",
+    ]
+
+
+def test_an_invalid_vault_gets_no_reference_list(tmp_path: Path):
+    info = collect(tmp_path / "missing")
+
+    assert "required_references" not in info
+
+
+def test_cluster_analysis_prefers_the_destination_over_the_crowd(tmp_path: Path):
+    """Reading note heads is real I/O, so it runs under a whole-call budget.
+
+    The folder the note is going into is the one the routing decision is about,
+    so it is analyzed even when more crowded folders would have used the budget
+    up first. Folders left unanalyzed omit `clusters` rather than reporting a
+    sampled count that the five-note rule could not be applied to.
+    """
+    vault = _make_vault(tmp_path)
+    for index in range(8):
+        topic = vault / "20-Learning" / f"Topic-{index:02}"
+        topic.mkdir()
+        _crowd(topic, 190 - index, prefix=f"subject{index}", tags="[learning]")
+    quiet = vault / "20-Learning" / "Chosen"
+    quiet.mkdir()
+    _crowd(quiet, 21, prefix="chosen subject", tags="[learning]")
+
+    crowded = collect(
+        vault, note_type="learning-note", folder="20-Learning/Chosen"
+    )["crowded_folders"]
+
+    analyzed = {item["path"] for item in crowded if "clusters" in item}
+    assert "20-Learning/Chosen" in analyzed
+    assert len(analyzed) < len(crowded)
+    # Nothing is reported from a partial scan: an analyzed folder counted every
+    # note it holds.
+    chosen = next(item for item in crowded if item["path"] == "20-Learning/Chosen")
+    assert {"term": "chosen", "kind": "title", "notes": 21} in chosen["clusters"]
