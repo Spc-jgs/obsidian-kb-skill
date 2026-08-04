@@ -31,6 +31,8 @@ def _run(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess:
         input=stdin,
         capture_output=True,
         text=True,
+        # Windows would otherwise encode CJK stdin with the locale codec.
+        encoding="utf-8",
     )
 
 
