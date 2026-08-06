@@ -346,3 +346,26 @@ def test_grandfathered_codes_are_all_still_emitted():
         f"no longer emitted, so the exemption is stale: {unused}. Remove them "
         "from GRANDFATHERED_CODES and from the reference."
     )
+
+
+def test_shared_note_judgements_have_exactly_one_definition():
+    """Both Skills judge the same Vault; two definitions would drift apart.
+
+    `EXEMPT_NAMES` says what is not a note and `normalize_tag_key` says when two
+    tags are the same tag. The audit and retrieval must answer both identically,
+    so each is defined once in the shared note domain and imported everywhere
+    else.
+    """
+    definitions: dict[str, list[str]] = {"EXEMPT_NAMES": [], "normalize_tag_key": []}
+    for path in sorted(SCRIPTS.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name in definitions:
+                definitions[node.name].append(path.name)
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id in definitions:
+                        definitions[target.id].append(path.name)
+
+    assert definitions["EXEMPT_NAMES"] == ["note_catalog.py"]
+    assert definitions["normalize_tag_key"] == ["note_catalog.py"]

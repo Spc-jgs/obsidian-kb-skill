@@ -70,3 +70,24 @@ MANAGED_NOTE_FOLDERS = (
 STANDARD_NOTE_FOLDERS = set(TYPE_TO_FOLDER.values()) | {
     "00-Inbox", "90-Archive",
 }
+
+# Files a Vault keeps for humans and agents rather than as knowledge. Both
+# Skills need this judgement over the same Vault: the audit exempts them from
+# note contracts, and retrieval must not rank them as notes. It lives here so
+# there is one definition rather than two that can drift apart.
+EXEMPT_NAMES = {"README.md", "AGENTS.md", "CLAUDE.md"}
+
+
+def normalize_tag_key(tag: str) -> str:
+    """Return the identity of a tag, ignoring how it happens to be spelled.
+
+    Case, separators, and a trailing plural are spelling choices, not
+    distinctions: `yaml-standards.md` names `frontend`, `front_end`, and
+    `frontEnd` as one tag. The audit uses this to report near-duplicates and
+    retrieval uses it to match a `--tag` filter, so a Vault carrying
+    `spring-boot` answers a query for `springboot`.
+    """
+    key = tag.lower().replace("_", "").replace("-", "").replace(" ", "")
+    if len(key) > 1 and key.endswith("s"):
+        key = key[:-1]
+    return key

@@ -132,6 +132,9 @@ RETRIEVAL_HELPER_FILES = (
     Path("scripts/console.py"),
     Path("scripts/doctor.py"),
     Path("scripts/frontmatter.py"),
+    # Shared note domain: retrieval needs the same judgement about what is
+    # a note as the write Skill, and the same tag identity rules.
+    Path("scripts/note_catalog.py"),
     Path("scripts/retrieval_vault_info.py"),
     Path("scripts/search_vault.py"),
     Path("scripts/vault_paths.py"),

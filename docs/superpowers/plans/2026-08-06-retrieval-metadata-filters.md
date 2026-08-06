@@ -20,8 +20,16 @@ The narrowest change and the one that stands alone; it ships even if the rest
 is deferred.
 
 - Move `EXEMPT_NAMES` out of `audit_vault` into the shared note domain
-  (`note_catalog`, which both Skills already import) and re-export it from
-  `audit_vault` so no existing caller changes.
+  (`note_catalog`) and import it back into `audit_vault` under the same name so
+  no existing caller changes.
+- `note_catalog` is **not** in the retrieval bundle today — `build.py`'s
+  `RETRIEVAL_HELPER_FILES` is an explicit whitelist of seven modules and
+  `audit_vault` is deliberately not among them. Add `note_catalog` to it. The
+  module imports only `dataclasses`, and Task 4 needs `VALID_NOTE_TYPES` from it
+  anyway to validate `--type`.
+- `normalize_tag_key` moves the same way, for the same reason: Task 2 matches
+  tags with it, and two definitions of "same tag" across the two Skills would
+  drift.
 - `search_vault._markdown_files` skips any file whose *name* is in the set, at
   any depth — `20-Learning/Python/AGENTS.md` counts.
 - Skipped scaffolding is not an `issues` entry: it is not a malformed note, and
@@ -43,18 +51,19 @@ subprocesses.
 - Extend `SearchDocument` with `note_type: str | None` and `note_date: str |
   None`, both read from the frontmatter `_document` already parses. No extra
   I/O, no extra read of the file.
-- `parse_date(value)` accepts a `datetime.date`, or a string whose first ten
-  characters are ISO `YYYY-MM-DD` (PyYAML returns a `date` for an unquoted
+- `parse_note_date(value)` accepts a `datetime.date`, or a string whose first
+  ten characters are ISO `YYYY-MM-DD` (PyYAML returns a `date` for an unquoted
   value and a `str` for a quoted one — both occur in the reference Vault).
   Anything else is "no date", never an exception.
 - `Filters` dataclass with `types`, `tags`, `after`, `before`, and a
   `select(documents)` returning the surviving documents plus an exclusion
   tally keyed by dimension, with `missing-date` counted separately from a date
-  that simply falls outside the range.
+  that simply falls outside the range. A note is counted against the first
+  dimension that rejects it, so the tally sums rather than double-counting.
 - Repeats within one dimension are OR; dimensions combine with AND.
-- Tag matching reuses the audit's `_normalize_tag_key`, so `--tag spring-boot`
-  finds `springboot`. Filtering must not reproduce the separator bug the audit
-  was just fixed for.
+- Tag matching reuses `normalize_tag_key`, so `--tag springboot` finds
+  `spring-boot`. Filtering must not reproduce the separator bug the audit was
+  just fixed for.
 
 RED first: one test per dimension, one for two dimensions combined, one for
 `missing-date` being counted apart from an out-of-range date, and one asserting

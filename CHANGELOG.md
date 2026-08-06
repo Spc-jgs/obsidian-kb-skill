@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Retrieval can filter on the metadata the write Skill already enforces: `search-vault` gains `--type`, `--tag` (both repeatable, OR within a flag and AND across flags), and inclusive `--after` / `--before` on the note's frontmatter `date`, and every result now carries its `type` and `date`. Lexical ranking cannot answer a question about *when* or *what kind*, and CJK tokenisation splits `7月` into unrelated tokens — so on the reference Vault "7月的日报" ranked a note written in June above the July dailies, and "最近的周报" ranked a design document above the weeklies. The failure mode that mattered was not returning nothing, it was returning something wrong with no signal that it was wrong. Filters are hard constraints applied before ranking, so `score` keeps meaning what it meant. Relative time stays with the caller: the helper takes ISO calendar dates and refuses anything else with `invalid-date`, rather than shipping a bilingual date grammar plus a week-start policy into a helper whose value is being deterministic. `--tag` matches through the same normalization the audit uses, so `--tag springboot` finds `spring-boot`. New refusals: `invalid-date`, `invalid-date-range`, `invalid-type`, `invalid-tag`.
+- A filtered search reports what its filters did. The response gains `filters` with `applied`, `candidates`, `matched`, and `excluded` broken down per dimension, counting notes that have no `date` at all separately from notes whose date fell outside the range. Without it an over-narrow filter is indistinguishable from an empty Vault, and "nothing matched this filter" would be reported to the user as "you have no notes about this".
+
+### Fixed
+
+- Retrieval ranked scaffolding as knowledge. `EXEMPT_NAMES` has always declared `README.md`, `AGENTS.md`, and `CLAUDE.md` to be governance files rather than notes, but only the write Skill knew it — and a Vault README is long and mentions every subject, which makes it a lexical magnet. Across twelve realistic questions on the reference Vault, 11 of 60 top-five slots (18%) went to non-knowledge files and `README.md` alone took one in half of them; asking for insights returned `README.md`, `AGENTS.md`, and `INDEX.md` in the top three while all 13 notes in `30-Insights` were pushed out. The judgement now has one definition that both Skills import, and the measured noise drops to 4 slots (7%) — the remainder being `INDEX.md`, which is navigational knowledge and belongs there. Excluded files are counted in `scanned.excluded` and never reported as `issues`: scaffolding is not a malformed note.
+
 ## [1.28.0] - 2026-08-06
 
 ### Added
