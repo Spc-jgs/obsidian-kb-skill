@@ -1,150 +1,200 @@
-# Relatedness Scoring — Design
+# 关联度评分 — 设计
 
-Target: `obsidian-knowledge-base`, on top of v1.28.0.
+目标：`obsidian-knowledge-base`，基于 v1.28.0。
 
-This document defines when two notes are related enough to link. It exists to be
-tuned: the weights and the threshold are stated as data, in one table, so
-changing the policy is an edit here rather than an argument about a number
-buried in `score_pair`.
+这份文档定义「两篇笔记关联到什么程度才该建链接」。它就是拿来调的：权重和阈值
+集中在一张表里，改政策是改这里，不是在 `score_pair` 里争论某个数字。
 
-## Why a scale at all
+## 为什么要有标尺
 
-Four unrelated notes — a streaming storage engine, an SQL optimizer rewrite, a
-RAG latency guide, and a Zig coding agent — all linked the same note, which was
-merely the alphabetically first file in `20-Learning/Backend/`. The Agent
-invented every one of those links; `suggest-links` had proposed none of them.
-The instruction fix (never fill a required `关联笔记` section with an invented
-link) landed in v1.28.0+. This document is the other half: saying out loud what
-"related enough" means, so the judgement is checkable.
+四篇毫不相干的笔记 —— 一个流式存储引擎、一次 SQL 优化器改写、一份 RAG 延迟
+指南、一个 Zig Coding Agent —— 全都链到了同一篇，就因为它是
+`20-Learning/Backend/` 里排序第一的文件。这些链接全是 Agent 自己加的，
+`suggest-links` 一个都没推荐过。指令侧的修复（不许往必填的 `关联笔记` 段落里
+编链接）已经在 v1.28.0+ 落地。这份文档是另一半：把「关联到什么程度」说出来，
+让判断可核查。
 
-## The problem with the current score
+## 现状的问题
 
-`score_pair` returns an unbounded integer:
+`score_pair` 返回无上界整数：
 
-| Signal | Points today |
+| 信号 | 现在的分值 |
 |---|---|
-| Each shared non-generic tag | +3, no cap |
-| Same `type` | +1 |
-| Title token overlap | +min(6, 2 × tokens) |
+| 每个共享的非通用标签 | +3，无上限 |
+| 类型相同 | +1 |
+| 标题 token 重叠 | +min(6, 2 × token 数) |
 
-`MIN_SCORE = 3` is the bar. Two consequences, both measured on the reference
-Vault (169 notes):
+阈值 `MIN_SCORE = 3`。参考 Vault（169 篇）实测两个后果：
 
-- **The bar is the mode.** Of the candidate pairs the helper surfaces, the
-  single most common score is exactly 3 — the minimum. A pair clears it on two
-  shared title tokens and nothing else. `AI-Agent` (a folder index) paired with
-  four different notes on `title overlap: agent, ai`.
-- **"60分" has nowhere to land.** Scores observed range 3–30, with 30 meaning
-  "these two notes are near-duplicates of each other". There is no scale a
-  percentage could refer to.
+- **阈值就是众数。** helper 给出的候选对里，最常见的分数正好是 3 —— 最低分。
+  两个标题 token 就能过关：`AI-Agent`（一个目录索引）靠「agent, ai」配上了
+  四篇不同的笔记。
+- **「60 分」无处可依。** 实测分数 3–30，30 的含义是「这俩基本是同一篇」。
+  没有任何标尺能让百分比有意义。
 
-A second defect feeds the first: CJK titles are tokenised into overlapping
-bigrams, so the single word `企业级落地` becomes four tokens (`企业`, `业级`,
-`级落`, `落地`) and reads as four independent pieces of evidence. Today
-`min(6, …)` hides it; on any 0–100 scale it would not stay hidden.
+还有个会放大的缺陷：CJK 标题切成重叠 bigram，单词 `企业级落地` 变成四个 token
+（`企业` `业级` `级落` `落地`），读起来像四条独立证据。现在被 `min(6, …)` 盖住，
+换成任何 0–100 标尺都藏不住。
 
-## The scale
+## 业界怎么做
 
-Relatedness is an integer 0–100. Three components, capped independently, summed,
-then clamped:
+调研了两个成熟实现和链接预测的学术做法，架构高度一致。
 
-| Component | Rule | Max |
+**Smart Relations（Obsidian 插件，明确不用 embedding）**
+
+| 信号 | 权重 | 方法 |
 |---|---|---|
-| **Shared specific tags** | 30 for the first, 20 for the second, 10 for each after | 60 |
-| **Title concept overlap** | 15 per shared concept, after re-joining CJK bigrams into words and dropping generic tokens | 30 |
-| **Same note type** | 10, flat | 10 |
+| BM25 | 0.40 | Okapi BM25，k1=1.5 b=0.75，跑在正文倒排索引上 |
+| 标签相似度 | 0.20 | Jaccard |
+| 词汇重叠 | 0.20 | 去重词表的 Jaccard |
+| 图邻近度 | 0.20 | 关系图 BFS，`1/(距离+1)` |
 
-Diminishing returns on tags is deliberate: the second shared tag confirms the
-first, the fifth adds almost nothing. Generic tags (`web-clip`, `learning`, …)
-and tags carried by half the candidate set are excluded before counting, exactly
-as they are today.
+每个信号 min-max 归一化到 [0,1]，加权求和，阈值 0.10，展示分带
+绿 >0.7 / 黄 >0.4 / 灰 <0.4。
 
-**Type alone is 10.** Two `web-clip` notes about unrelated subjects score 10 and
-must never look like a relationship. This is the numeric statement of "proximity
-is not a relationship".
+**thymer-related-notes**
 
-### The bands
-
-| Band | Meaning | What the Agent does |
+| 信号 | 权重 | 方法 |
 |---|---|---|
-| **80–100** | Same subject, often the same series | Link, and say which |
-| **60–79** | Genuinely related; a reader following the link learns something | Link |
-| **40–59** | One weak signal, usually a single shared tag plus the same type | Do **not** link on the score alone |
-| **0–39** | Proximity at most | Never link |
+| 标题提及 | 30% | 双向检查「A 的标题是否出现在 B 正文里」 |
+| 内容相似度 | 25% | TF-IDF 余弦 |
+| 引用 | 20% | 直接链接 + 共享引用的 Jaccard |
+| 标签 | 15% | Jaccard |
+| 标题相似度 | 10% | 标题词集 Jaccard |
 
-**The threshold is 60.** Sixty is not arbitrary: it is exactly "two shared
-specific tags" (30+20), or "one shared tag plus two title concepts" (30+30). One
-piece of evidence is never enough; the bar is two independent ones.
+**学术侧**：共同邻居（Common Neighbors）、余弦、Adamic-Adar、资源分配指数
+（Resource Allocation）是链接预测的标准家族。Adamic-Adar 的核心是
+`Σ 1/log(deg(z))` —— **稀有的共享邻居权重高，高频的几乎不算数**。
 
-## Measured against the reference Vault
+### 四条可直接搬的结论
 
-2,046 candidate pairs, scored under the table above:
+1. **多信号归一化后加权求和**，不是自创的分值累加。每个信号天然落在 [0,1]，
+   权重是明确的政策旋钮。
+2. **集合型信号一律用 Jaccard**（`|A∩B| / |A∪B|`）。有界、对称、无需手调衰减 ——
+   我上一版自创的 30/20/10 递减是在重新发明一个更差的 Jaccard。
+3. **正文必须参与**。两个实现都算正文，而且是最重或次重的信号。
+4. **图信号我们完全没有**。共享引用、共同邻居 —— 这是现成的、便宜的、而且我们
+   已经有链接图了（`audit_vault.build_link_index`）。
 
-| Band | Pairs | Share |
+### 一条重要的自我修正
+
+上一版设计我写了「不读正文，因为会让开销随 Vault 规模增长」。**这个理由站不住**：
+`search_vault` 已经有完整的 BM25 实现（同样的 k1=1.5、b=0.75），倒排索引本来
+就要建。正文不是读不起，是我上一版没想到可以复用。
+
+这直接解决了上一版承认的失败案例（见下）。
+
+## 设计
+
+关联度是 0–100 的整数。**每个信号先归一化到 [0,1]，再加权求和 ×100。**
+
+| 信号 | 权重 | 方法 | 为什么 |
+|---|---|---|---|
+| **正文相关性** | 0.35 | 用现有 BM25 把源笔记的高权重 term 当查询打分，结果 min-max 归一化 | 唯一能看见「这篇笔记真的在讲那件事」的信号 |
+| **标签 Jaccard** | 0.25 | `|A∩B| / |A∪B|`，用 IDF 给稀有标签加权 | 有界、对称；IDF 是 Adamic-Adar 那条思路的直接应用 |
+| **图邻近度** | 0.20 | 共享出链的 Jaccard，加上直接互链得满分 | 引用同一批笔记 = 在讨论同一件事 |
+| **标题概念重叠** | 0.15 | 标题词集 Jaccard，CJK bigram 先合回词 | 弱信号，权重要低 |
+| **类型相同** | 0.05 | 相同为 1，否则 0 | **单独绝对不够** —— 这是「邻近不是关系」的数值表述 |
+
+**阈值 60。** 类型相同满分只有 5 分，两个 `web-clip` 讲完全不同的东西永远
+到不了 60。要过线必须有两个以上实质信号同时成立。
+
+分带（对齐业界惯例）：
+
+| 分带 | 含义 | Agent 怎么做 |
+|---|---|---|
+| **80–100** | 同一主题，常常是同一个系列 | 建链，并说明是什么关系 |
+| **60–79** | 确实相关，顺着链接过去能学到东西 | 建链 |
+| **40–59** | 只有一个弱信号 | **不能只凭分数建链** |
+| **0–39** | 顶多是邻近 | 永远不链 |
+
+### 标签的 IDF 加权
+
+现在的做法是二元剔除：`GENERIC_TAGS` 硬编码列表，加上「被一半以上候选携带」的
+动态剔除。IDF 是它的连续版本，也更准：
+
+```
+tag_weight(t) = log(N / (1 + df(t)))
+```
+
+`java`（12 篇）和 `architecture`（覆盖面广）会自动降权，不需要维护一份写死的
+通用词列表 —— 那份列表本来就已经错了（含 `java` 这个真实主题，缺 `people` 这个
+类型默认标签）。
+
+## 在参考 Vault 上验证
+
+上一版（自创 30/20/10 分值）在 2046 对候选上的结果：
+
+| 分带 | 对数 | 占比 |
 |---|---|---|
 | 80–100 | 20 | 1.0% |
 | 60–79 | 26 | 1.3% |
 | 40–59 | 110 | 5.4% |
-| 0–39 | 1,890 | 92.4% |
+| 0–39 | 1890 | 92.4% |
 
-**46 pairs (2.2%) clear 60.** Spot-checks at the boundary:
+边界抽查（上一版评分）：
 
-- `Harness企业级落地-让AI读懂项目` ←→ `Harness 企业级落地系列专题` → **100**
-  (4 shared tags, same type, `harness` + `企业级落地`). Correct.
-- `LEFT JOIN 何时被优化器改写` ←→ `外连接消除的关系代数与 KES 优化器实现` →
-  **75** (`database`, `sql`, same type, `优化器`). Correct — this is the link the
-  Agent should have made instead of the one it invented.
-- `解剖Claude-Code逆向工程视角` ←→ `MCP运行原理与API Key需求分析` → **55**
-  (`architecture` alone, plus `分析`). Correctly rejected: one abstract tag two
-  backend notes happen to share.
-- `Violin Coding Agent` ←→ `SSE vs WebSocket 选型` → **10**. Correctly rejected;
-  this was one of the four invented links.
+- `Harness企业级落地-让AI读懂项目` ↔ `Harness 企业级落地系列专题` → **100** ✓
+- `LEFT JOIN 何时被优化器改写` ↔ `外连接消除的关系代数与 KES 优化器实现` →
+  **75** ✓ 这正是 Agent 本该建、却没建的那条链接
+- `解剖Claude-Code逆向工程视角` ↔ `MCP运行原理与API Key需求分析` → **55**，
+  正确挡掉：只共享一个抽象标签 `architecture`
+- `Violin Coding Agent` ↔ `SSE vs WebSocket 选型` → **10**，正确挡掉
 
-## The case that does not fit
+**新方案的分布必须重新实测**，这是实施计划的第一个任务，不能靠推演。
 
-`RAG系统流式输出与首字延迟（TTFT）` ←→ `SSE vs WebSocket 选型` scores **40** and
-is rejected — but the link is real. The RAG note carries an `sse` tag, an entire
-section `### 4. 基于 SSE 的检索进度流式反馈`, and the Nginx configuration for
-disabling SSE buffering. A reader following that link learns exactly why SSE was
-the right transport.
+### 上一版承认的失败案例，新方案能解
 
-The scorer misses it because **it never reads the body.** It sees frontmatter
-tags and the title, and the RAG note shares only one tag with the SSE note.
-Nothing in the weights table can fix this without also admitting the 110 pairs
-in the 40–59 band, which are genuinely weak.
+`RAG系统流式输出与首字延迟（TTFT）` ↔ `SSE vs WebSocket 选型` 在上一版只有
+**40 分**被挡掉 —— 但这条链接是真的：RAG 那篇有 `sse` 标签、整节
+`### 4. 基于 SSE 的检索进度流式反馈`、以及关掉 Nginx SSE 缓冲的配置。
 
-So the rule is asymmetric, and this is the most important sentence in this
-document:
+上一版挡掉它，是因为**评分器不读正文**。新方案里正文相关性占 0.35，而 RAG 那篇
+正文里 SSE 出现在标题、结论、整节和配置块中 —— BM25 会给很高的分。这是把
+「读正文」这个信号加回来的最直接理由。
 
-> **60 is the bar for a link proposed by the score. It is not a ceiling on
-> judgement.** An Agent may link below 60 only when it can cite specific
-> evidence from the note's body — a section, a configuration, a decision that
-> depends on the other note — and it must state that evidence in the link's own
-> line. "Same domain", "same folder", "also mentions X" are not evidence.
+## 兜底规则仍然保留
 
-Above 60 the score justifies the link. Below 60 the body must, in writing.
+即便加了正文信号，评分也不可能覆盖所有真关系。所以规则依然不对称：
 
-## What changes
+> **60 是「分数提议链接」的门槛，不是判断的上限。** Agent 可以在 60 分以下建链，
+> 但**必须**引用笔记正文里的具体证据 —— 某一节、某个配置、某个依赖对方的决定 ——
+> 并把这条证据写在链接那一行上。「同领域」「同目录」「也提到了 X」都不算证据。
 
-- `score_pair` returns 0–100 under the table above; `MIN_SCORE` becomes
-  `RELATEDNESS_THRESHOLD = 60`.
-- CJK title bigrams are re-joined into words before counting, reusing the
-  chaining `vault_info._merge_overlapping_runs` already does for cluster labels.
-  One shared Chinese word must count once.
-- Each suggestion reports its `score` and a per-component breakdown, so a reader
-  can see *why* it scored what it did rather than trusting a number.
-- `note-creation.md` Step 6 gains the bands and the below-60 evidence rule.
+60 分以上，分数负责证明；60 分以下，正文必须以文字负责证明。
 
-## Deliberately not doing
+## 分期
 
-- **Reading note bodies to score.** It would make suggestion cost scale with
-  Vault size, and the helper's whole value is being bounded and deterministic.
-  The below-60 evidence rule covers the gap with the Agent's own reading, which
-  has already happened by the time it is writing the note.
-- **Embeddings or semantic similarity.** Same reason the retrieval Skill stays
-  lexical: no network, no index, no model.
-- **Auto-inserting links.** The helper proposes; a human or an Agent with stated
-  evidence decides. Unchanged.
-- **Retroactively rescoring existing links.** An audit finding for "this link
-  would score below 60" is plausible future work, deliberately out of scope
-  until the scale has been used for a while.
+用户的要求是「先简单一点，后续再接向量和 embedding」。分两期，第一期就能独立
+交付并解决当前问题：
+
+**第一期（本设计）—— 全部基于已有能力，不引入任何新依赖**
+- 标签 Jaccard + IDF
+- 标题概念 Jaccard（CJK bigram 合词）
+- 图邻近度（共享出链 Jaccard + 直接互链）
+- 类型相同
+- 正文 BM25（复用 `search_vault`）
+- 0–100 标尺、阈值 60、分带、逐信号明细
+
+**第二期（不在本设计内）—— 语义层**
+- 本地 embedding 作为**第六个信号**加进同一张权重表，权重从小起步
+- 前提是它能在真实 Vault 上跑赢第一期的基线，且不破坏「无网络、无索引、
+  确定性」这三条 —— 达不到就不加
+- 两个业界实现都明确不用 embedding，所以这不是必经之路，是可选增强
+
+## 明确不做
+
+- **自动插入链接。** helper 只提议，人或有明确证据的 Agent 才决定。不变。
+- **回溯重评已有链接。** 「这条链接按新标尺不到 60」这种审计信号是合理的后续
+  工作，但要等标尺用一段时间再说。
+- **可配置权重文件。** 先把权重钉死在代码里、由这份文档说明；等真的需要按
+  Vault 调再说。过早做配置只是把问题推给用户。
+
+## 实施要点
+
+- `score_pair` 返回 0–100，`MIN_SCORE` 变成 `RELATEDNESS_THRESHOLD = 60`
+- 每条建议报出总分和**逐信号明细**，读的人能看见为什么是这个分，而不是只能
+  信一个数字
+- CJK bigram 合词复用 `vault_info._merge_overlapping_runs`，一个中文词只能算一次
+- `note-creation.md` Step 6 补上分带和 60 分以下的证据规则
+- 新方案的分布和边界样本必须在参考 Vault 上重新实测后写回本文档
