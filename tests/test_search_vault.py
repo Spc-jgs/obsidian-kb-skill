@@ -527,3 +527,28 @@ def test_scaffolding_does_not_crowd_out_real_notes(tmp_path: Path):
 
     assert slots > 0
     assert scaffolding == 0
+
+
+def test_archives_are_invisible_by_default_but_reachable_with_scope(tmp_path: Path):
+    """Both halves of the requirement, pinned together so they cannot drift.
+
+    Default exclusion comes from the walk applying the ignored set to child
+    directories and never to the scope root — inherited behaviour this feature
+    now depends on, so it is asserted rather than assumed.
+    """
+    vault = _vault(tmp_path)
+    archive = vault / "95-Sources" / "2026-08"
+    archive.mkdir(parents=True)
+    (archive / "source.md").write_text(
+        "---\ntype: source-archive\n---\n# 原文\n\nEventBus 回调 needle\n",
+        encoding="utf-8",
+    )
+    _note(vault / "20-Learning" / "digest.md", title="摘要", body="unrelated text")
+
+    everywhere = search_vault(vault, "EventBus 回调 needle", top_k=5)
+    scoped = search_vault(
+        vault, "EventBus 回调 needle", top_k=5, scope=vault / "95-Sources"
+    )
+
+    assert [r["path"] for r in everywhere["results"]] == []
+    assert [r["path"] for r in scoped["results"]] == ["95-Sources/2026-08/source.md"]

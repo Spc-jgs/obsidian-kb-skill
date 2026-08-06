@@ -328,3 +328,9 @@ semantically upgrades historical notes. Re-run this workflow only for an
 explicit quality review, a bounded migration batch, or a material content
 rewrite. Treat an unreviewed legacy note as unknown under the current semantic
 contract, not automatically passed or failed.
+
+## Keeping the Original
+
+A verified capture is the case most likely to need the source retained as
+evidence. Archive it with `archive-source`; see "Keeping the Original" in
+`web-capture.md`. Appending the source to the note is never the answer.

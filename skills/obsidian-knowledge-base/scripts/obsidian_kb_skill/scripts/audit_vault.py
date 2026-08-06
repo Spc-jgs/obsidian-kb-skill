@@ -42,6 +42,7 @@ from obsidian_kb_skill.scripts.folder_index_policy import (
 )
 from obsidian_kb_skill.scripts.note_catalog import (
     EXEMPT_NAMES,
+    SOURCE_ARCHIVE_FOLDER,
     VALID_NOTE_TYPES,
     normalize_tag_key as _normalize_tag_key,
 )
@@ -1006,6 +1007,9 @@ def _audit_folder_index_graph(
         for path in sorted(vault.rglob("*"))
         if path.is_dir()
         and not is_folder_index_excluded(path.relative_to(vault), config)
+        # Archived sources are reached from the note that cites them, never by
+        # browsing, so a folder index there is scaffolding nobody reads.
+        and path.relative_to(vault).parts[:1] != (SOURCE_ARCHIVE_FOLDER,)
     ]
     root_index = expected_folder_index(vault, vault, config)
     if not root_index.is_file():
@@ -1093,6 +1097,13 @@ def audit_vault(vault: Path) -> list[Finding]:
     markdown = _markdown_files(vault)
     for path in markdown:
         relative = path.relative_to(vault)
+        # An archived source is evidence, not a note. Its headings, tags, and
+        # placeholders belong to whoever wrote it, so running note contracts
+        # over it would fill the findings list with things the user cannot fix
+        # and must not change. It stays in the link index, so a note's link to
+        # its archive resolves and a deleted archive still breaks loudly.
+        if relative.parts and relative.parts[0] == SOURCE_ARCHIVE_FOLDER:
+            continue
         text = path.read_text(encoding="utf-8")
         metadata, yaml_error = _frontmatter(text)
         if yaml_error:
@@ -1153,6 +1164,10 @@ def audit_vault(vault: Path) -> list[Finding]:
     for folder in sorted(path for path in vault.rglob("*") if path.is_dir()):
         relative_folder = folder.relative_to(vault)
         if _is_ignored(relative_folder) or folder == vault:
+            continue
+        # Archived sources are not navigated the way notes are, so requiring a
+        # folder index there would report a missing index nobody wants.
+        if relative_folder.parts[0] == SOURCE_ARCHIVE_FOLDER:
             continue
         conventional = folder / "INDEX.md"
         named = folder / f"{folder.name}.md"

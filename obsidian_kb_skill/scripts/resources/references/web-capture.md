@@ -182,3 +182,30 @@ Report the selected depth, source coverage, whether a fallback was used,
 material-media status, verification or qualification status, and mechanical
 audit. Verified completion additionally reports receipt identity and unresolved
 item count under the deep contract.
+
+## Keeping the Original
+
+When the user wants the source itself kept — an official post, a spec, anything
+they may need to quote later — archive it. **Never append the source's full text
+to the note.**
+
+```bash
+python <skill-root>/scripts/run_helper.py archive-source <vault> \
+  --note <vault-relative-note> --source-url <url> \
+  [--author <name>] [--published YYYY-MM-DD] \
+  --stdin --preflight-json          # then rerun with --apply --compact-json
+```
+
+The archive lands in `95-Sources/<YYYY-MM>/`, keeps the source bytes exactly as
+captured, records their SHA-256, and links back to the note. The note gains a
+`source_archive` field and one clickable line under its first section.
+
+The reason is measurable, not stylistic. A note that carried its source inline
+was 82% source text, and a quarter of the searches that found it cited the
+reader to the author's prose instead of the reader's own digest — while the
+oversized document cost that digest 20-30% of its score. Retrieval skips
+`95-Sources/` by default for the same reason, and reaches it with `--scope` when
+the user explicitly asks what the source said.
+
+A source archive is evidence: it is not edited, not summarized, and not held to
+any note contract.

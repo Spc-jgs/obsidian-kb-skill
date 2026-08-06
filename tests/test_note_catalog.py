@@ -86,7 +86,13 @@ def test_audit_preserves_legacy_types_without_making_them_creatable():
 def test_audit_and_folder_sets_are_derived_from_explicit_contracts():
     assert VALID_NOTE_TYPES == (
         frozenset(NOTE_TYPES)
-        | {"daily-report", "weekly-report", "archive-note", "folder-index", "moc"}
+        | {
+            "daily-report", "weekly-report", "archive-note",
+            "folder-index", "moc",
+            # Archived sources carry a type so the audit does not call it
+            # invalid, but they are never a note anyone creates.
+            "source-archive",
+        }
     )
     assert MANAGED_NOTE_FOLDERS == (
         "00-Inbox", "10-Work", "15-Daily", "20-Learning",
