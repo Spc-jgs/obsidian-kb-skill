@@ -365,7 +365,13 @@ class TestGovernanceContract:
     def test_native_folder_index_graph_contract(self):
         assert "Folder Index 1.0.30" in self.skill
         assert "folder-named indexes" in self.skill
-        assert "list the target folder's filenames" in self.skill
+        # Link suggestion used to be described as listing the target folder's
+        # filenames, which handed the Agent raw material for a link the helper
+        # never proposed. What the contract must guarantee is the bound and the
+        # empty answer, not a filename dump.
+        assert "name-relevant sibling" in self.skill
+        assert "Zero candidates is an answer" in self.skill
+        assert "Proximity is not a relationship" in self.skill
         assert "required template headings" in self.skill
 
     def test_metadata_relationship_contract(self):

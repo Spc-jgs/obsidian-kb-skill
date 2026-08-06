@@ -19,6 +19,7 @@ from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.frontmatter import FrontmatterResult, parse_frontmatter
 from obsidian_kb_skill.scripts.note_catalog import (
     EXEMPT_NAMES,
+    SOURCE_ARCHIVE_FOLDER,
     VALID_NOTE_TYPES,
     normalize_tag_key,
 )
@@ -49,6 +50,13 @@ FIELD_WEIGHTS = {
 IGNORED_DIRECTORY_NAMES = {
     "Attachments",
     "Templates",
+    # Archived sources are evidence, not knowledge: a 35 KB blog post buried a
+    # 7.6 KB digest and a quarter of that note's citations landed in the
+    # author's prose. Excluded here rather than de-ranked, because the walk
+    # applies this set to child directories and never to the scope root, so
+    # `--scope 95-Sources` still reaches it when the user asks what the source
+    # actually said.
+    SOURCE_ARCHIVE_FOLDER,
     "__pycache__",
     "node_modules",
     ".git",

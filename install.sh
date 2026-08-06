@@ -444,7 +444,7 @@ copy_skill_payload "$RETRIEVAL_SKILL_DIR" "$CANONICAL_RETRIEVAL_SKILL"
 
 # Step 2: Initialize vault structure if not exists
 echo "-> Checking vault structure..."
-FOLDERS=("00-Inbox" "10-Work" "15-Daily" "20-Learning" "30-Insights" "40-Projects" "50-People" "90-Archive" "Templates" "Attachments")
+FOLDERS=("00-Inbox" "10-Work" "15-Daily" "20-Learning" "30-Insights" "40-Projects" "50-People" "90-Archive" "95-Sources" "Templates" "Attachments")
 for folder in "${FOLDERS[@]}"; do
   mkdir -p "$VAULT_PATH/$folder"
 done

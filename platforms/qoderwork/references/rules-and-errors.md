@@ -169,6 +169,20 @@ or the writing, never to weaken the receipt.
 | `unlabeled-inference` | Source facts and your interpretation are not distinguishable | Label the inference inside the excerpt it belongs to, so a reader can tell claim from reading |
 | `invalid-copyable-skill-frontmatter` | An embedded copyable `SKILL.md` has broken or empty frontmatter | Close the YAML block and give a meaningful name and description, or drop the example. A reader will paste this |
 
+#### Source archive
+
+`archive-source` keeps a captured source verbatim in `95-Sources/` and links it
+from the note. Never append the source's full text to the note itself: it buries
+the digest, and search then cites the reader to the author's prose instead of
+their own knowledge.
+
+| Code | Meaning | Do this |
+|---|---|---|
+| `invalid-note` | `--note` does not name an existing note, or that note's frontmatter cannot be read | Create or repair the note first. An archive exists to support a note; it is not a place to park orphaned text |
+| `note-already-archived` | The note already links a source archive | Confirm with the user before adding a second. Pass `--replace` only when they said to keep both |
+| `empty-source-content` | There is no source text to archive | Acquire the source first, following `web-capture.md`. Never archive a placeholder |
+| `invalid-date` | `--captured` is not an ISO calendar date | Pass `YYYY-MM-DD`, or omit it and let the helper use today |
+
 ### Audit Findings
 
 The vault auditor reports findings rather than refusing. Fix only files from

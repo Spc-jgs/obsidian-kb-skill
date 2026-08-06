@@ -1609,3 +1609,52 @@ def test_a_dot_in_the_title_does_not_break_link_resolution(tmp_path: Path):
     ]
 
     assert not broken, broken
+
+
+def test_source_archives_are_not_held_to_note_contracts(tmp_path):
+    """An archive is someone else's writing kept as evidence, not a note.
+
+    Holding it to note contracts would flood the findings list with violations
+    that describe the source's author rather than anything the user can fix.
+    """
+    (tmp_path / ".obsidian").mkdir()
+    archive = tmp_path / "95-Sources" / "2026-08"
+    archive.mkdir(parents=True)
+    (archive / "violin.md").write_text(
+        "---\ntype: source-archive\nsource: https://example.com/a\n---\n"
+        "### 原文的三级标题\n\n{{这看起来像占位符}}\n\n```zig\nunclosed\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "20-Learning").mkdir()
+    (tmp_path / "20-Learning" / "note.md").write_text(
+        "# Ordinary\n", encoding="utf-8"
+    )
+
+    findings = audit_vault(tmp_path)
+
+    assert not [f for f in findings if f.path.startswith("95-Sources/")]
+    # The ordinary note still gets its contract enforced.
+    assert any(f.path == "20-Learning/note.md" for f in findings)
+
+
+def test_a_note_can_link_to_its_source_archive(tmp_path):
+    """The link must resolve, and must break loudly if the archive is deleted."""
+    (tmp_path / ".obsidian").mkdir()
+    archive = tmp_path / "95-Sources" / "2026-08"
+    archive.mkdir(parents=True)
+    (archive / "violin-source.md").write_text(
+        "---\ntype: source-archive\n---\n原文\n", encoding="utf-8"
+    )
+    (tmp_path / "20-Learning").mkdir()
+    note = tmp_path / "20-Learning" / "violin.md"
+    note.write_text(
+        '---\ndate: "2026-08-06"\ntype: learning-note\ntags: [learning]\n---\n'
+        "# Violin\n\n原文存档：[[violin-source]]\n",
+        encoding="utf-8",
+    )
+
+    assert "broken-wikilink" not in codes(tmp_path)
+
+    (archive / "violin-source.md").unlink()
+
+    assert "broken-wikilink" in codes(tmp_path)

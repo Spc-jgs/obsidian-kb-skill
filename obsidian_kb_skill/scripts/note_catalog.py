@@ -57,11 +57,19 @@ FOLDER_TO_DEFAULT_TYPE = {
     for slug, spec in NOTE_TYPES.items()
     if spec.default_for_folder
 }
+# Verbatim copies of sources a note was built from. Deliberately not a managed
+# note folder: an archive is someone else's writing kept as evidence, so it has
+# no note contract to satisfy, contributes no subject tags, and never counts
+# towards crowding. Retrieval hides it by default; see the design doc.
+SOURCE_ARCHIVE_FOLDER = "95-Sources"
+SOURCE_ARCHIVE_TYPE = "source-archive"
 AUDIT_COMPATIBILITY_TYPES = frozenset({
     "daily-report", "weekly-report", "archive-note",
 })
 VALID_NOTE_TYPES = (
-    frozenset(NOTE_TYPES) | AUDIT_COMPATIBILITY_TYPES | {"folder-index", "moc"}
+    frozenset(NOTE_TYPES)
+    | AUDIT_COMPATIBILITY_TYPES
+    | {"folder-index", "moc", SOURCE_ARCHIVE_TYPE}
 )
 MANAGED_NOTE_FOLDERS = (
     "00-Inbox", "10-Work", "15-Daily", "20-Learning",
