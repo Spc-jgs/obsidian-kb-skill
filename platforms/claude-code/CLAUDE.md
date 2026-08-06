@@ -18,7 +18,7 @@ This skill **never writes to the vault on its own**. Write only after **explicit
 
 1. **Route analysis before Vault discovery**: for an analysis-only conversation review, read `conversation-harvest.md`, return the candidate proposal, and stop without locating or scanning a Vault. Otherwise continue.
 2. **Find vault for a write**: env `OBSIDIAN_KB_VAULT` → `~/.obsidian-kb-config` → ask. Refuse unless a real vault (`.obsidian/` + `Templates/`).
-3. **Read the smallest operation-specific reference set before writing**. Compact discovery answers this in one call: `required_references` already names every file the selected type, template, and destination require, so read that set instead of discovering it one failure at a time. The full map:
+3. **Read the smallest operation-specific reference set before writing**. Read Vault governance first, then let one compact discovery call answer this: `required_references` names every file the selected type, template, and destination require, so read that set instead of discovering it one failure at a time. Pass the governed route as `--folder` — a crowded child folder does not make its parent look crowded. The full map:
    - New note: read only `note-creation.md`.
    - Finished source-backed article: after `note-creation.md` routes it, also read
      `web-capture.md`; verified captures additionally load `deep-capture.md`.

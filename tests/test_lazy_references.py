@@ -360,7 +360,12 @@ def test_note_creation_selected_type_discovery_is_one_call_and_optional():
     assert "--json --compact --type <slug>" in normalized
     assert "omit `--type`" in normalized
     assert "omit `--type` for opted-in `task-memory`" in normalized
-    assert "Do not run a second discovery call" in normalized
+    # One call, because governance was read first and the call was told which
+    # destination to answer about. A reroute after the fact is the one case that
+    # earns a second call — a blanket ban would leave the Agent with an answer
+    # about a folder it is no longer writing to.
+    assert "One discovery call is enough when governance was read first" in normalized
+    assert "rerun it only if the route changes" in normalized
 
 
 def test_missing_category_exception_does_not_expand_the_ordinary_path():
@@ -468,3 +473,47 @@ def test_write_state_machine_marks_git_precheck_conditional():
     text = (ROOT / "docs" / "capture-and-governance.md").read_text(encoding="utf-8")
     assert "Discover --> GitCheck: " in text, "Git precheck must be a guarded edge"
     assert "Discover --> Route: " in text, "the non-Git path must exist"
+
+
+def test_governance_is_read_before_the_discovery_call():
+    """Discovery can only answer about a destination it was given.
+
+    A crowded child folder does not make its parent look crowded, and the route
+    to that child lives in the Vault's own governance. With discovery first, an
+    Agent asks about `20-Learning`, gets no `folder-routing.md`, reads the
+    governance that routes to `20-Learning/AI-Agent`, and files into the crowded
+    folder the contract exists to catch. Governance costs one read and needs
+    nothing from the helper, so it goes first.
+    """
+    text = (REFERENCES_DIR / "note-creation.md").read_text(encoding="utf-8")
+    ordinary = text.split("## Minimal Ordinary Path", 1)[1].split(
+        "## Bundled Helper Runner", 1
+    )[0]
+
+    governance = ordinary.index("governance")
+    discovery = ordinary.index("vault-info")
+    assert governance < discovery, (
+        "the minimal path runs discovery before reading governance, so the "
+        "crowded-destination answer is about the type default rather than the "
+        "folder the note will reach"
+    )
+
+    normalized = " ".join(text.split())
+    assert "--folder <governed-route>" in normalized, (
+        "the discovery call must show the governed route being passed"
+    )
+    assert "crowded child" in normalized, (
+        "explain why the parent folder is the wrong thing to ask about"
+    )
+
+
+def test_git_precheck_reports_something_the_user_can_act_on():
+    """A bare 'the worktree is dirty' makes the user go run git status."""
+    text = " ".join((REFERENCES_DIR / "git.md").read_text(encoding="utf-8").split())
+
+    for marker in (
+        "untracked or modified",
+        "waive the Git requirement",
+        "Never stage, stash, discard, commit",
+    ):
+        assert marker in text, f"git reference missing: {marker!r}"
