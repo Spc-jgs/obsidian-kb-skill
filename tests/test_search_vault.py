@@ -68,6 +68,10 @@ def _run(*args: str) -> subprocess.CompletedProcess:
         env={**os.environ, "PYTHONPATH": str(ROOT)},
         capture_output=True,
         text=True,
+        # The helper forces UTF-8 on stdout, so the reader must use it too.
+        # Windows would otherwise decode with the locale codec, where several
+        # bytes of a CJK note title are simply undefined.
+        encoding="utf-8",
     )
 
 
@@ -456,8 +460,8 @@ def test_cli_filters_narrow_the_result_set(tmp_path: Path):
         "--type", "daily-note", "--after", "2026-07-10",
     )
 
+    assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
-    assert result.returncode == 0
     assert [r["path"] for r in payload["results"]] == ["15-Daily/d2.md"]
     assert payload["filters"]["applied"]["after"] == "2026-07-10"
 
