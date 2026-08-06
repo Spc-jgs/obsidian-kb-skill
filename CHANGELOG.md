@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- `required_references` asked about the wrong folder in the case it exists for. A crowded child folder does not make its parent look crowded, and the route to that child lives in the Vault's own governance — which `note-creation.md` had the Agent read *after* the discovery call, while also forbidding a second one. Capturing an article that governance routes to `20-Learning/AI-Agent` therefore asked discovery about `20-Learning`, got no `folder-routing.md`, and filed into the crowded folder the contract exists to catch. Governance now comes first: it costs one read, needs nothing from the helper, and lets the single discovery call be told which destination to answer about. A reroute after the fact is the one case that earns a second call.
+- The Git pre-write gate now has to report something the user can act on. It stops on any change the invocation did not make — right for a Vault that several agents share — but "the worktree is dirty" left the user to go run `git status` themselves. It now reports every blocking path, whether each is untracked or modified, and the ways forward, and it states that clearing the gate by staging, stashing, discarding, or ignoring someone else's change is never one of them.
+
 ## [1.27.0] - 2026-08-04
 
 ### Added

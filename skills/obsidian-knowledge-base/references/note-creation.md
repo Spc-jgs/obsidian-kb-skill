@@ -7,14 +7,19 @@ specifically needs troubleshooting, Git post-processing, or opted-in handoff.
 
 ## Minimal Ordinary Path
 
-1. Infer the type when confidence is high, then run one discovery call:
-   `vault-info --json --compact --type <slug> [--folder <route>]`. Use `--type`
-   only for template-backed types; omit `--type` for opted-in `task-memory` or
-   uncertainty. Pass `--folder` whenever a governed route is more specific than
-   the type default, so the crowded-destination answer is about the folder you
-   will actually write to.
-2. Read Vault-local governance at the root and target path; choose type, folder,
-   naming, metadata, README, and Git actions from those rules.
+1. Read Vault-local governance at the Vault root (`AGENTS.md`, `CLAUDE.md`, and
+   the like) and infer the type. Governance is what names the route, and reading
+   it needs only the Vault path — so it comes first, and the single discovery
+   call can then be asked about the folder this note will actually reach.
+2. Run one discovery call:
+   `vault-info --json --compact --type <slug> [--folder <governed-route>]`. Use
+   `--type` only for template-backed types; omit `--type` for opted-in
+   `task-memory` or uncertainty. Pass `--folder` whenever governance routes more
+   specifically than the type default: a crowded child such as
+   `20-Learning/AI-Agent` is invisible to a call that only names `20-Learning`,
+   and the answer would then omit `folder-routing.md` for the one destination
+   that needs it. Read the target path's own governance once discovery confirms
+   the folder exists, then choose naming, metadata, README, and Git actions.
 3. If governance requires Git, load `git.md` and complete its pre-write check
    before fetching or deeply reading source content.
 4. For a finished source-backed article or material rewrite, read only
@@ -41,16 +46,23 @@ helpers through:
 python <skill-root>/scripts/run_helper.py <helper-name> ...
 ```
 
-## Step 1: Vault Discovery and Governance
+## Step 1: Vault Governance, Then Discovery
 
 Resolve the Vault in order: `OBSIDIAN_KB_VAULT` → `~/.obsidian-kb-config` → ask.
-A valid Vault contains `.obsidian/` and `Templates/`. Get its folders, index
-strategies, custom templates, crowded-folder signals, and selected standard
-headings in one call:
+A valid Vault contains `.obsidian/` and `Templates/`.
+
+Read the root governance files (`AGENTS.md`, `CLAUDE.md`, etc.) before
+discovery. They cost one read, they need nothing from the helper, and they are
+where a Vault states that "AI Agent 文章" belongs in `20-Learning/AI-Agent`
+rather than in the type's default `20-Learning`. Discovery answers questions
+about a specific destination, so it has to be told which one.
+
+Then get folders, index strategies, custom templates, crowded-folder signals,
+and the selected standard headings in one call:
 
 ```bash
 python <skill-root>/scripts/run_helper.py vault-info <vault> \
-  --json --compact --type <slug>
+  --json --compact --type <slug> [--folder <governed-route>]
 ```
 
 Stop if invalid. The response's `required_references` lists every reference this
@@ -59,13 +71,17 @@ operation needs — the workflow file plus whichever of `web-capture.md`,
 selected type, template, and destination actually require. Read that set; do not
 rediscover it one reference at a time.
 
-Apply rules in this order: user request → Vault-local
-governance files (`AGENTS.md`, `CLAUDE.md`, etc.) at the root and target path →
-generic skill defaults. Do not scan the whole Vault. Follow governed subfolders
-with `--folder` when their route is more specific than the type default. If governance requires Git, load
-`git.md` and finish its pre-write synchronization now, before fetching or deeply
-reading source content. Preflight heading diagnostics remain the fallback. Do
-not run a second discovery call.
+That list is only as precise as the destination it was given. A crowded child
+folder is not crowding its parent: asking about `20-Learning` when the note is
+bound for `20-Learning/AI-Agent` returns no `folder-routing.md`, and the note
+lands in the crowded folder the contract exists to catch.
+
+Apply rules in this order: user request → Vault-local governance files at the
+root and target path → generic skill defaults. Do not scan the whole Vault. If
+governance requires Git, load `git.md` and finish its pre-write synchronization
+now, before fetching or deeply reading source content. Preflight heading
+diagnostics remain the fallback. One discovery call is enough when governance
+was read first; rerun it only if the route changes after the fact.
 
 ## Index Strategy Detection (diagnostic only)
 

@@ -1,6 +1,6 @@
 {
   "files": {
-    "SKILL.md": "2c1a4f1566be92280a28cd378aa1fca9a969972e8ce9d3ffd706deba377fd0f8",
+    "SKILL.md": "88fb64757c0878a79d1aacb20f6ab80a0f0c43ec1c17c4a6fa7fac776244d169",
     "agents/openai.yaml": "ef2093cf1b5deacc9a170a3c39e26add0f0bfd528864454be91e5893a68ed795",
     "assets/templates/daily-note.md": "0a13e43e068e10531234941609190ec02f01f7a35e8c77a58a036d29ca02757c",
     "assets/templates/digest-note.md": "9dc4aa0156d9c6c120949ce31e455b07e20521229ca0e2cf4e7842c5ab341a94",
@@ -23,9 +23,9 @@
     "references/custom-template.md": "de98b2fbb06bfd7f1c3caf7593f54f49fccb5548a42c9e0575180271119483ac",
     "references/deep-capture.md": "e10df381e10dda6388191ed63255aff9e91d5d04eb0c065bd2477569a7483d1d",
     "references/folder-routing.md": "700f94c616518b960db120af6b172ade81b3304eab930735e0b07f12b3bd3296",
-    "references/git.md": "d1e7d9976967f99b9be5818ad09c1e8a29ccda717f1a3e4272e5214b438a7252",
+    "references/git.md": "88eaa8094378504f7df4f97f8475c6d94614a051ca25cb13085bd1b5d3240d29",
     "references/missing-category.md": "98da98f566a2f57bcbfbd5f17df6318ac8eb85ccd9727ca0a04936ee075a7462",
-    "references/note-creation.md": "4196a26bd18c3a41c5e90fc5103a74156eab2f78463bccdae344a592b7fb0ed4",
+    "references/note-creation.md": "dcf49296bca683da7f24afce78a8e752b4d25ba124837fba9bd9bec0de5a65aa",
     "references/rules-and-errors.md": "24a675216b028a558e11dd5e37ca0d4a38c8dee86ffe17f10e2c6baaf2093396",
     "references/task-memory.md": "e2d601aa34bb84236bc046ec2ef2b6e3b41470e010fe790b897cb91d0bb8648d",
     "references/update-note.md": "be805d048cc780093236716ff137387d33c32bcfbb33a1eb721c873468b5ae6d",

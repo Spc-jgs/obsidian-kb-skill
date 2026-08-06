@@ -10,7 +10,16 @@ Git is not a default part of note capture. Run it only when the user explicitly 
 
 When Git is required, perform this before Create Step 1 or Update Step 1:
 
-1. Inspect the worktree. If unrelated changes exist, stop and report them.
+1. Inspect the worktree. Stop if it holds any change this invocation did not
+   make. Never stage, stash, discard, commit, or `.gitignore` someone else's
+   change to clear the gate — a Vault is one shared history, and several agents
+   may be working in it.
+
+   The stop is only useful if the user can act on it in one step, so report:
+   every blocking path, whether each is untracked or modified, and the ways
+   forward — they commit or set the change aside, they hand it to you to commit
+   with an explicit message, or they waive the Git requirement for this note.
+   A bare "the worktree is dirty" makes the user go run `git status` themselves.
 2. Fetch the tracked remote branch without modifying files.
 3. If the worktree is clean and local is only behind, run `git merge --ff-only <remote>/<branch>`.
 4. If local is already current or only ahead, continue.
