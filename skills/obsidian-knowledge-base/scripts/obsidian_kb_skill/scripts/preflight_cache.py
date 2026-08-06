@@ -27,6 +27,10 @@ CACHE_DIR_ENV = "OBSIDIAN_KB_PREFLIGHT_CACHE"
 CACHE_DIR_NAME = ".obsidian-kb-preflight"
 ENTRY_TTL_SECONDS = 24 * 60 * 60
 MAX_ENTRIES = 64
+# Entry count alone does not bound anything: a note has no size limit, so 64 of
+# them do not either. Capture receipts are capped at 1 MiB for the same reason;
+# this is scratch in the user's home and gets a budget rather than a promise.
+MAX_TOTAL_BYTES = 32 * 1024 * 1024
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
@@ -66,10 +70,11 @@ def prune(directory: Path, *, now: float | None = None) -> None:
         ]
     except OSError:
         return
-    survivors: list[tuple[float, Path]] = []
+    survivors: list[tuple[float, Path, int]] = []
     for path in entries:
         try:
-            modified = path.stat().st_mtime
+            stat = path.stat()
+            modified = stat.st_mtime
         except OSError:
             continue
         if moment - modified > ENTRY_TTL_SECONDS:
@@ -81,10 +86,13 @@ def prune(directory: Path, *, now: float | None = None) -> None:
         # never occupy a retention slot because it is not a readable entry.
         if path.suffix == ".tmp" or SHA256_RE.fullmatch(path.stem) is None:
             continue
-        survivors.append((modified, path))
+        survivors.append((modified, path, stat.st_size))
     survivors.sort(reverse=True)
-    for _, path in survivors[MAX_ENTRIES:]:
-        path.unlink(missing_ok=True)
+    budget = MAX_TOTAL_BYTES
+    for index, (_, path, size) in enumerate(survivors):
+        budget -= size
+        if index >= MAX_ENTRIES or budget < 0:
+            path.unlink(missing_ok=True)
 
 
 def stage(

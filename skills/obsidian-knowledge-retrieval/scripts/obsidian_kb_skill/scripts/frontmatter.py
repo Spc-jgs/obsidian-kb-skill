@@ -3,9 +3,19 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import yaml
+
+# A note's whole body is far more than a metadata reader needs, but a fixed
+# character budget is the wrong bound: two callers used 4096 and silently
+# returned "no frontmatter" for any note whose block ran longer — dropping its
+# tags from cluster counts, and its aliases from link resolution, with no error
+# anywhere. Read until the block closes instead, and cap only to stay bounded on
+# a file that has no closing delimiter at all.
+FRONTMATTER_SCAN_LIMIT = 256 * 1024
+_SCAN_CHUNK = 8192
 
 
 @dataclass(frozen=True)
@@ -25,6 +35,37 @@ class FrontmatterResult:
     body: str
     normalized_text: str
     issue: FrontmatterIssue | None
+
+
+def read_frontmatter_head(
+    path: Path, *, limit: int = FRONTMATTER_SCAN_LIMIT
+) -> str:
+    """Return enough of a note's head to hold its complete frontmatter block.
+
+    Returns an empty string when the file cannot be read, which every caller
+    already treats as "no metadata".
+    """
+    collected: list[str] = []
+    size = 0
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            while size < limit:
+                chunk = handle.read(_SCAN_CHUNK)
+                if not chunk:
+                    break
+                collected.append(chunk)
+                size += len(chunk)
+                head = "".join(collected)
+                normalized = _normalize_text(head)
+                if not normalized.startswith("---\n"):
+                    return head
+                # Require the delimiter to be a complete line. A chunk boundary
+                # can end mid-line, and `---` there is not a closing fence.
+                if normalized.find("\n---\n", 4) != -1:
+                    return head
+    except OSError:
+        return ""
+    return "".join(collected)
 
 
 def _normalize_text(text: str) -> str:

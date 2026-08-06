@@ -28,7 +28,10 @@ from obsidian_kb_skill.scripts.deep_capture_contract import (
     formatted_deep_capture_variants,
     matches_deep_capture_contract,
 )
-from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
+from obsidian_kb_skill.scripts.frontmatter import (
+    parse_frontmatter,
+    read_frontmatter_head,
+)
 from obsidian_kb_skill.scripts.capture_receipt import CAPTURE_DEPTHS
 from obsidian_kb_skill.scripts.folder_index_policy import (
     FolderIndexConfig,
@@ -226,6 +229,83 @@ def _all_linkable_files(vault: Path) -> list[Path]:
         for path in vault.rglob("*")
         if path.is_file() and not _is_ignored(path.relative_to(vault))
     )
+
+
+def _declared_aliases(path: Path) -> tuple[str, ...]:
+    """Return the aliases a note declares, reading only its head."""
+    metadata = parse_frontmatter(
+        read_frontmatter_head(path), source=path.name
+    ).metadata
+    if not metadata:
+        return ()
+    raw = metadata.get("aliases")
+    if raw is None:
+        raw = metadata.get("alias")
+    values = raw if isinstance(raw, list) else [raw]
+    return tuple(
+        str(value).strip()
+        for value in values
+        if isinstance(value, (str, int, float)) and str(value).strip()
+    )
+
+
+@dataclass
+class LinkIndex:
+    """Resolve a wikilink target to files the way Obsidian does.
+
+    Obsidian resolves `[[alias]]` through the target note's frontmatter
+    `aliases`, so an index that only knows filenames calls a working link broken
+    — and calls the note it points at an orphan, because the inbound link was
+    never counted. `search_vault` already scores aliases; only the audit did not
+    know about them.
+
+    The alias map costs one pass over the Vault, so it is built on first need. A
+    Vault whose links all resolve by filename never pays for it, which keeps the
+    per-note audit that runs on every write as cheap as it was.
+    """
+
+    by_name: dict[str, list[Path]]
+    by_stem: dict[str, list[Path]]
+    linkable: list[Path]
+    _aliases: dict[str, list[Path]] | None = None
+
+    def _alias_map(self) -> dict[str, list[Path]]:
+        if self._aliases is None:
+            found: dict[str, list[Path]] = defaultdict(list)
+            for path in self.linkable:
+                if path.suffix.lower() != ".md":
+                    continue
+                for alias in _declared_aliases(path):
+                    found[alias].append(path)
+            self._aliases = dict(found)
+        return self._aliases
+
+    def matches(self, target: str) -> list[Path]:
+        """Return every file a bare (non-path) wikilink target could mean.
+
+        The stem lookup is not gated on the target "looking extensionless".
+        `Path("Qwen3.6-27B实战").suffix` is `.6-27B实战` as far as pathlib is
+        concerned, so any note whose title contains a dot was skipped here and
+        reported as a broken link to a file that exists. A filename match still
+        wins; trying the stem afterwards can only resolve links that would
+        otherwise be called broken.
+        """
+        key = Path(target).name
+        found = self.by_name.get(key, [])
+        if not found:
+            found = self.by_stem.get(key, [])
+        if not found:
+            found = self._alias_map().get(key, [])
+        return found
+
+
+def build_link_index(linkable: list[Path]) -> LinkIndex:
+    by_name: dict[str, list[Path]] = defaultdict(list)
+    by_stem: dict[str, list[Path]] = defaultdict(list)
+    for path in linkable:
+        by_name[path.name].append(path)
+        by_stem[path.stem].append(path)
+    return LinkIndex(dict(by_name), dict(by_stem), linkable)
 
 
 def _frontmatter(text: str) -> tuple[dict[str, Any] | None, str | None]:
@@ -816,8 +896,7 @@ def _audit_links(
     source: Path,
     relative: Path,
     text: str,
-    by_name: dict[str, list[Path]],
-    by_stem: dict[str, list[Path]],
+    index: LinkIndex,
 ) -> None:
     for match in WIKILINK_RE.finditer(text):
         target = _clean_link_target(match.group(1))
@@ -829,10 +908,7 @@ def _audit_links(
             _add(findings, "broken-wikilink", relative, f"unresolved wikilink: {target}")
             continue
 
-        key_name = Path(target).name
-        matches = by_name.get(key_name, [])
-        if not matches and Path(key_name).suffix == "":
-            matches = by_stem.get(key_name, [])
+        matches = index.matches(target)
         if len(matches) == 1:
             continue
         if len(matches) > 1:
@@ -845,16 +921,11 @@ def _resolve_target(
     target: str,
     source: Path,
     vault: Path,
-    by_name: dict[str, list[Path]],
-    by_stem: dict[str, list[Path]],
+    index: LinkIndex,
 ) -> list[Path]:
     if "/" in target:
         return [candidate for candidate in _candidate_paths(source, target, vault) if candidate.is_file()]
-    key_name = Path(target).name
-    matches = by_name.get(key_name, [])
-    if not matches and Path(key_name).suffix == "":
-        matches = by_stem.get(key_name, [])
-    return [candidate for candidate in matches if candidate.is_file()]
+    return [candidate for candidate in index.matches(target) if candidate.is_file()]
 
 
 def _collect_references(
@@ -862,8 +933,7 @@ def _collect_references(
     text: str,
     metadata: dict[str, Any] | None,
     vault: Path,
-    by_name: dict[str, list[Path]],
-    by_stem: dict[str, list[Path]],
+    index: LinkIndex,
 ) -> set[Path]:
     """Return the set of note paths that ``source`` links to (body + related)."""
     referenced: set[Path] = set()
@@ -881,7 +951,7 @@ def _collect_references(
             target = _clean_link_target(match.group(1))
             if not target:
                 continue
-            for candidate in _resolve_target(target, source, vault, by_name, by_stem):
+            for candidate in _resolve_target(target, source, vault, index):
                 if candidate != source:
                     referenced.add(candidate)
     return referenced
@@ -1017,11 +1087,7 @@ def audit_vault(vault: Path) -> list[Finding]:
     _audit_conversation_digest_template(findings, vault)
     folder_index_config = read_folder_index_config(vault)
     linkable = _all_linkable_files(vault)
-    by_name: dict[str, list[Path]] = defaultdict(list)
-    by_stem: dict[str, list[Path]] = defaultdict(list)
-    for path in linkable:
-        by_name[path.name].append(path)
-        by_stem[path.stem].append(path)
+    index = build_link_index(linkable)
 
     tag_index: dict[str, set[str]] = {}
     title_list: list[tuple[str, str, Path]] = []
@@ -1073,10 +1139,9 @@ def audit_vault(vault: Path) -> list[Finding]:
                 path,
                 relative,
                 _without_code_examples(text),
-                by_name,
-                by_stem,
+                index,
             )
-        referenced |= _collect_references(path, text, metadata, vault, by_name, by_stem)
+        referenced |= _collect_references(path, text, metadata, vault, index)
         if metadata and metadata.get("type") in INDEX_TYPES:
             index_notes.add(path)
         if (
@@ -1152,11 +1217,7 @@ def _audit_note_content(
     linkable = _all_linkable_files(vault)
     if note not in linkable:
         linkable.append(note)
-    by_name: dict[str, list[Path]] = defaultdict(list)
-    by_stem: dict[str, list[Path]] = defaultdict(list)
-    for path in sorted(linkable):
-        by_name[path.name].append(path)
-        by_stem[path.stem].append(path)
+    index = build_link_index(sorted(linkable))
     if relative.name not in EXEMPT_NAMES:
         _audit_links(
             findings,
@@ -1164,8 +1225,7 @@ def _audit_note_content(
             note,
             relative,
             _without_code_examples(text),
-            by_name,
-            by_stem,
+            index,
         )
     return sorted(findings, key=lambda item: (item.path, item.code, item.message))
 

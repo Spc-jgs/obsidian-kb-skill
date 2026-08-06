@@ -11,6 +11,7 @@ from obsidian_kb_skill.scripts.audit_vault import (
     audit_note,
     audit_note_text,
     audit_vault,
+    build_link_index,
 )
 
 
@@ -1471,3 +1472,117 @@ def test_template_residue_is_reported_regardless_of_age(tmp_path):
     findings = audit_vault(tmp_path)
 
     assert [f for f in findings if f.code == "unresolved-template-placeholder"]
+
+
+def _alias_vault(tmp_path: Path) -> Path:
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    (vault / "Templates").mkdir()
+    (vault / "20-Learning").mkdir()
+    (vault / "20-Learning" / "2026-06-10 长标题的原始笔记.md").write_text(
+        '---\ndate: "2026-06-10"\ntype: learning-note\ntags: [learning]\n'
+        'aliases:\n  - "短别名"\n---\n\n# 原始笔记\n\n正文足够长，不是空模板。\n',
+        encoding="utf-8",
+    )
+    return vault
+
+
+def test_alias_link_is_not_reported_broken(tmp_path: Path):
+    """Obsidian resolves `[[alias]]`; an audit that only knows filenames does not.
+
+    `broken-wikilink` is the highest severity the audit has, so a false positive
+    here is the most expensive kind: it sends the user to repair a link that
+    already works.
+    """
+    vault = _alias_vault(tmp_path)
+    (vault / "20-Learning" / "2026-06-11 引用方.md").write_text(
+        '---\ndate: "2026-06-11"\ntype: learning-note\ntags: [learning]\n---\n\n'
+        "# 引用方\n\n见 [[短别名]]。\n",
+        encoding="utf-8",
+    )
+
+    codes = {finding.code for finding in audit_vault(vault)}
+
+    assert "broken-wikilink" not in codes
+
+
+def test_alias_link_counts_as_an_inbound_reference(tmp_path: Path):
+    """The same gap made the linked note look like an orphan."""
+    vault = _alias_vault(tmp_path)
+    (vault / "20-Learning" / "2026-06-11 引用方.md").write_text(
+        '---\ndate: "2026-06-11"\ntype: learning-note\ntags: [learning]\n---\n\n'
+        "# 引用方\n\n见 [[短别名]]。\n",
+        encoding="utf-8",
+    )
+
+    orphans = {
+        finding.path
+        for finding in audit_vault(vault)
+        if finding.code == "orphan-note"
+    }
+
+    assert "20-Learning/2026-06-10 长标题的原始笔记.md" not in orphans
+
+
+def test_an_alias_nobody_declared_is_still_broken(tmp_path: Path):
+    """The fix must not turn every unresolved link into a pass."""
+    vault = _alias_vault(tmp_path)
+    (vault / "20-Learning" / "2026-06-11 引用方.md").write_text(
+        '---\ndate: "2026-06-11"\ntype: learning-note\ntags: [learning]\n---\n\n'
+        "# 引用方\n\n见 [[根本不存在的别名]]。\n",
+        encoding="utf-8",
+    )
+
+    codes = {finding.code for finding in audit_vault(vault)}
+
+    assert "broken-wikilink" in codes
+
+
+def test_alias_map_is_built_only_when_a_link_fails_to_resolve(tmp_path: Path):
+    """Reading every note's frontmatter is a whole-Vault pass.
+
+    The per-note audit runs on every write, so a Vault whose links all resolve
+    by filename must not pay for the alias map at all.
+    """
+    vault = _alias_vault(tmp_path)
+    index = build_link_index(
+        sorted((vault / "20-Learning").glob("*.md"))
+    )
+
+    assert index.matches("2026-06-10 长标题的原始笔记")
+    assert index._aliases is None, "resolved by filename; the alias pass was wasted"
+
+    assert index.matches("短别名")
+    assert index._aliases is not None
+
+
+def test_a_dot_in_the_title_does_not_break_link_resolution(tmp_path: Path):
+    """`Path("Qwen3.6-27B").suffix` is `.6-27B` as far as pathlib is concerned.
+
+    Gating the stem lookup on "the target looks extensionless" therefore skipped
+    every note whose title contains a dot, and reported a link to a file that
+    exists as the highest-severity finding the audit has. Found on a real Vault:
+    four of its thirty-three `broken-wikilink` defects were this.
+    """
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    (vault / "Templates").mkdir()
+    (vault / "20-Learning").mkdir()
+    (vault / "20-Learning" / "2026-07-29 本地部署-Ollama+Qwen3.6-27B实战.md").write_text(
+        '---\ndate: "2026-07-29"\ntype: learning-note\ntags: [learning]\n---\n\n'
+        "# 部署\n\n正文足够长，不是空模板。\n",
+        encoding="utf-8",
+    )
+    (vault / "20-Learning" / "2026-07-30 引用方.md").write_text(
+        '---\ndate: "2026-07-30"\ntype: learning-note\ntags: [learning]\n---\n\n'
+        "# 引用方\n\n见 [[2026-07-29 本地部署-Ollama+Qwen3.6-27B实战]]。\n",
+        encoding="utf-8",
+    )
+
+    broken = [
+        finding
+        for finding in audit_vault(vault)
+        if finding.code == "broken-wikilink"
+    ]
+
+    assert not broken, broken

@@ -334,3 +334,41 @@ def test_cluster_analysis_prefers_the_destination_over_the_crowd(tmp_path: Path)
     # note it holds.
     chosen = next(item for item in crowded if item["path"] == "20-Learning/Chosen")
     assert {"term": "chosen", "kind": "title", "notes": 21} in chosen["clusters"]
+
+
+def test_a_long_frontmatter_block_still_yields_its_tags(tmp_path: Path):
+    """A fixed character budget silently dropped a note from cluster counting.
+
+    The reader used to stop at 4096 characters, so a note with a long `related`
+    list parsed as "no frontmatter" and its subject tag vanished from the
+    signal — no error, no warning, just a cluster reported one note short.
+    """
+    vault = _make_vault(tmp_path)
+    topic = vault / "20-Learning" / "AI-Agent"
+    topic.mkdir()
+    filler = "\n".join(f'  - "[[占位关联笔记 {i}]]"' for i in range(300))
+    for index in range(21):
+        (topic / f"2026-07-{index + 1:02} 长头部 {index}.md").write_text(
+            "---\ntype: learning-note\ndate: 2026-07-01\ntags: [learning, mcp]\n"
+            f"related:\n{filler}\n---\n\n# t\n",
+            encoding="utf-8",
+        )
+
+    clusters = collect(vault)["crowded_folders"][0]["clusters"]
+
+    assert {"term": "mcp", "kind": "tag", "notes": 21} in clusters
+
+
+def test_a_windows_style_route_still_matches_the_crowded_folder(tmp_path: Path):
+    vault = _make_vault(tmp_path)
+    topic = vault / "20-Learning" / "AI-Agent"
+    topic.mkdir()
+    _crowd(topic, 21, prefix="note", tags="[learning]")
+
+    info = collect(
+        vault, note_type="learning-note", folder="20-Learning\\AI-Agent"
+    )
+
+    assert "folder-routing.md" in [
+        item["file"] for item in info["required_references"]
+    ]
