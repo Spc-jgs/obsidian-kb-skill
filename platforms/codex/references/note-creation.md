@@ -71,6 +71,13 @@ operation needs — the workflow file plus whichever of `web-capture.md`,
 selected type, template, and destination actually require. Read that set; do not
 rediscover it one reference at a time.
 
+The same response carries `tag_vocabulary`: the subject tags this Vault already
+uses, most-used first. Take this note's tags from that list; coin a new one only
+when nothing there fits, and check the coinage against the list ignoring case,
+separators, and a trailing `s` — `springboot` next to an existing `spring-boot`
+is a duplicate, not a new tag. Reach for `yaml-standards.md` only for the rest
+of the frontmatter contract.
+
 That list is only as precise as the destination it was given. A crowded child
 folder is not crowding its parent: asking about `20-Learning` when the note is
 bound for `20-Learning/AI-Agent` returns no `folder-routing.md`, and the note

@@ -372,3 +372,88 @@ def test_a_windows_style_route_still_matches_the_crowded_folder(tmp_path: Path):
     assert "folder-routing.md" in [
         item["file"] for item in info["required_references"]
     ]
+
+
+def _template_tags(vault: Path, **defaults: str) -> None:
+    for name, tag in defaults.items():
+        (vault / "Templates" / f"{name}.md").write_text(
+            f"---\ntype: {name.lower()}\ntags: [{tag}]\n---\n", encoding="utf-8"
+        )
+
+
+def _tagged(folder: Path, name: str, tags: str) -> None:
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{name}.md").write_text(
+        f"---\ntype: learning-note\ndate: 2026-07-01\ntags: {tags}\n---\n\n# {name}\n",
+        encoding="utf-8",
+    )
+
+
+def test_discovery_returns_the_vocabulary_the_reuse_rule_needs(tmp_path: Path):
+    """Reusing an existing tag is only possible for tags the writer can see.
+
+    The rule used to be checked against the five most recent notes in one
+    folder, which names almost none of a Vault-wide vocabulary.
+    """
+    vault = _make_vault(tmp_path)
+    _template_tags(vault, Learning="learning", Insight="insight")
+    learning = vault / "20-Learning"
+    for index in range(3):
+        _tagged(learning, f"a{index}", "[learning, ai-agent]")
+    _tagged(learning, "b", "[learning, mcp]")
+    _tagged(vault / "30-Insights", "c", "[insight, mcp]")
+
+    vocabulary = collect(vault)["tag_vocabulary"]
+
+    assert vocabulary["tags"][0] == {"tag": "ai-agent", "notes": 3}
+    assert {"tag": "mcp", "notes": 2} in vocabulary["tags"]
+    assert vocabulary["distinct"] == 2
+    # Every managed note is read, including the three folder INDEX.md files,
+    # so `scanned` says how much of the Vault the vocabulary actually covers.
+    assert vocabulary["scanned"] == 8
+
+
+def test_vocabulary_drops_tags_the_template_already_supplies(tmp_path: Path):
+    """A type default is not a subject choice, and it is read from this Vault.
+
+    A hardcoded list both misses what a Vault renamed and discards real
+    subjects that merely looked common elsewhere — and dropping a live subject
+    invites the near-duplicate the vocabulary exists to prevent.
+    """
+    vault = _make_vault(tmp_path)
+    _template_tags(vault, Person="people", Daily="daily")
+    _tagged(vault / "20-Learning", "a", "[daily, people, java]")
+
+    terms = [item["tag"] for item in collect(vault)["tag_vocabulary"]["tags"]]
+
+    assert "daily" not in terms
+    assert "people" not in terms
+    assert "java" in terms
+
+
+def test_vocabulary_ignores_index_notes(tmp_path: Path):
+    vault = _make_vault(tmp_path)
+    (vault / "20-Learning" / "20-Learning.md").write_text(
+        "---\ntype: folder-index\ntags: [navigation]\n---\n# Index\n",
+        encoding="utf-8",
+    )
+    _tagged(vault / "20-Learning", "a", "[mcp]")
+
+    terms = [item["tag"] for item in collect(vault)["tag_vocabulary"]["tags"]]
+
+    assert terms == ["mcp"]
+
+
+def test_vocabulary_is_bounded_and_reports_what_it_left_out(tmp_path: Path):
+    vault = _make_vault(tmp_path)
+    for index in range(vault_info.MAX_VOCABULARY_TERMS + 5):
+        _tagged(vault / "20-Learning", f"n{index}", f"[t{index:03}]")
+
+    vocabulary = collect(vault)["tag_vocabulary"]
+
+    assert len(vocabulary["tags"]) == vault_info.MAX_VOCABULARY_TERMS
+    assert vocabulary["distinct"] == vault_info.MAX_VOCABULARY_TERMS + 5
+
+
+def test_an_invalid_vault_gets_no_vocabulary(tmp_path: Path):
+    assert "tag_vocabulary" not in collect(tmp_path / "missing")

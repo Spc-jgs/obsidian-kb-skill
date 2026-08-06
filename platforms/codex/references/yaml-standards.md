@@ -49,8 +49,8 @@ Templates use `{{date}}` as a placeholder. When creating a note from a template,
 
 To keep the tag taxonomy from sprawling:
 
-1. **Reuse existing tags first.** Before inventing a new tag, scan the 5 most recent notes in the target folder (read their YAML `tags:` field) and prefer an existing tag if one fits.
+1. **Reuse the Vault's vocabulary first.** Discovery returns it: `tag_vocabulary.tags` lists the subject tags this Vault already uses, most-used first, with `distinct` reporting how many exist in total. Pick from that list whenever a term fits. Coin a new tag only when nothing in it does, and say which existing term you rejected and why. Do not sample a handful of nearby notes instead — the vocabulary is Vault-wide, and a local sample names almost none of it.
 2. **kebab-case only.** All tags must be lowercase, hyphen-separated. No spaces, no camelCase, no underscores. Examples: `ai-agent`, `frontend`, `q3-okr`.
-3. **No near-duplicates.** Do not introduce `ai-agents` if `ai-agent` exists. Do not introduce `frontEnd` or `front_end` if `frontend` exists.
+3. **No near-duplicates.** Before coining a tag, check it against `tag_vocabulary` ignoring case, separators, and a trailing `s` — that is the same normalization the audit applies. Do not introduce `ai-agents` if `ai-agent` exists, `springboot` if `spring-boot` exists, or `frontEnd`/`front_end` if `frontend` exists. The vocabulary is capped at the most-used terms, so a rarely used tag can still be missing from it; the audit reports the duplicate afterwards as `near-duplicate-tags`.
 4. **Max 5 tags per note.** Pick the most specific ones; drop generic catch-alls like `note` or `misc`.
 5. **Standard tags** (always available): `daily`, `meeting`, `learning`, `web-clip`, `insight`, `project`, `people`, `ai-generated`, `todo`.

@@ -4,8 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `vault-info` returns `tag_vocabulary`: the subject tags the Vault already uses, most-used first, with `distinct` reporting how many exist in total. Tag hygiene told the writer to reuse an existing tag and to avoid near-duplicates of tags *anywhere* in the Vault, but the only evidence it offered was the five most recent notes in one folder — a local sample answering a Vault-wide question. The rule was therefore self-defeating in the same way the routing bug above was: the right instruction applied to the wrong input. On the reference Vault the result is measurable — 170 notes carrying 169 distinct tags, 63% of them used exactly once — and it compounds, because every coined term makes the next sample less representative. Discovery already opened note heads for clustering and discarded the vocabulary; it now returns it. Type defaults are excluded by reading this Vault's own templates rather than a hardcoded list, so a Vault that renamed `person` to `people` is handled and a real subject like `java` is not thrown away.
+
 ### Fixed
 
+- Near-duplicate tag detection missed the case its own rule names. `yaml-standards.md` calls `frontend`, `front_end`, and `frontEnd` one tag, but normalization folded case and underscores only, leaving `frontend` and `front-end` in separate buckets — the separator is a spelling choice, not a distinction. The reference Vault had been carrying `spring-boot` (6 notes) and `springboot` (1) with the audit reporting nothing. Separators are now folded out entirely.
 - Frontmatter readers stopped at a fixed 4096 characters, so a note whose block ran longer parsed as having none: its tags vanished from crowded-folder clustering and its aliases from link resolution — silently, defeating the alias fix above for exactly the notes most likely to declare one. Both callers now share one reader that stops when the block closes, capped only to stay bounded on a file with no closing delimiter.
 - The preflight cache bounded its entry count but not its size, and a note has no size limit, so sixty-four of them bounded nothing. Retention now also enforces a total byte budget, dropping oldest-first.
 - A Windows-style `--folder 20-Learning\AI-Agent` matched no crowded folder, because those paths are POSIX — so the crowded-destination answer was silently dropped on the platform the project ships an installer for.
