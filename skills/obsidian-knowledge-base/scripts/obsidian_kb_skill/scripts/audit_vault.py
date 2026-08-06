@@ -1056,7 +1056,11 @@ def _audit_folder_index_graph(
 
 
 def _normalize_tag_key(tag: str) -> str:
-    key = tag.lower().replace("_", "-")
+    # The separator is a spelling choice, not a distinction: yaml-standards.md
+    # names `frontend`/`front_end`/`frontEnd` as one tag, but folding only case
+    # and underscores left `frontend` and `front-end` in different buckets, so
+    # exactly the duplicates the rule describes went unreported.
+    key = tag.lower().replace("_", "").replace("-", "").replace(" ", "")
     if len(key) > 1 and key.endswith("s"):
         key = key[:-1]
     return key

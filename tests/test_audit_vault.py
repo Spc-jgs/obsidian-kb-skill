@@ -935,6 +935,29 @@ def test_reports_near_duplicate_tags(tmp_path):
     assert "near-duplicate-tags" in codes(tmp_path)
 
 
+def test_reports_separator_only_tag_duplicates(tmp_path):
+    """yaml-standards.md calls `frontend` and `front_end` one tag; so must the audit.
+
+    Folding only case and underscores left `spring-boot` and `springboot` in
+    separate buckets, so the duplicate the rule names went unreported.
+    """
+    (tmp_path / ".obsidian").mkdir()
+    for i, tag in enumerate(("spring-boot", "springboot", "front_end", "frontend")):
+        (tmp_path / f"Note{i}.md").write_text(
+            f'---\ndate: "2026-07-0{i + 1}"\ntype: learning-note\n'
+            f"tags: [{tag}]\n---\n# N\n",
+            encoding="utf-8",
+        )
+
+    messages = [
+        f.message
+        for f in audit_vault(tmp_path)
+        if f.code == "near-duplicate-tags"
+    ]
+    assert any("spring-boot" in m and "springboot" in m for m in messages)
+    assert any("front_end" in m and "frontend" in m for m in messages)
+
+
 def test_ignores_distinct_tags(tmp_path):
     (tmp_path / ".obsidian").mkdir()
     for i, tag in enumerate(("python", "obsidian", "java")):

@@ -31,14 +31,20 @@ Output schema (JSON):
        "child_folders": ["Skills"], "cluster_min_notes": 5,
        "clusters": [{"term": "mcp", "kind": "tag", "notes": 8}]}
     ],
+    "tag_vocabulary": {
+      "scanned": 170, "distinct": 169,
+      "tags": [{"tag": "ai-agent", "notes": 38}, ...]
+    },
     "required_references": [{"file": "note-creation.md", "reason": "..."}],
     "warnings": ["..."]
   }
 
 `clusters` answers whether a crowded folder holds a subject stable enough to
-split off, and `required_references` answers which reference files the selected
-type, template, and destination require — both so the agent gets one answer per
-call instead of discovering the same facts through its own reads.
+split off, `tag_vocabulary` answers which tags this Vault already uses so a new
+note reuses one instead of coining a near-duplicate, and `required_references`
+answers which reference files the selected type, template, and destination
+require — all so the agent gets one answer per call instead of discovering the
+same facts through its own reads.
 """
 from __future__ import annotations
 
@@ -68,6 +74,7 @@ from obsidian_kb_skill.scripts.note_catalog import (
     MANAGED_NOTE_FOLDERS,
     TYPE_TO_FOLDER,
 )
+from obsidian_kb_skill.scripts.audit_vault import INDEX_TYPES
 from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
 from obsidian_kb_skill.scripts.suggest_links import (
     GENERIC_TAGS,
@@ -103,6 +110,17 @@ MAX_CLUSTER_SCAN = 200
 # without a cluster list rather than turning one call into thousands of opens.
 MAX_CLUSTER_SCAN_TOTAL = 1000
 MAX_CHILD_FOLDERS = 12
+# Tag hygiene tells the writer to reuse an existing tag before inventing one,
+# and then to avoid near-duplicates of tags anywhere in the Vault — but the only
+# evidence it offered was the five most recent notes in one folder. That window
+# cannot answer a Vault-wide question: a 170-note Vault already carries 169
+# distinct tags, so the writer coins a new term, the vocabulary grows, and the
+# next window is even less representative. Discovery already opens note heads,
+# so it returns the vocabulary and makes the rule checkable instead of merely
+# stated. Newest-first and bounded: a large Vault should report the terms it
+# uses now, not every term it ever used.
+MAX_VOCABULARY_TERMS = 40
+MAX_VOCABULARY_SCAN = 1000
 CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]+")
 # Reference files the agent must load next, keyed by what it already told us.
 TYPE_REFERENCES: dict[str, tuple[str, str]] = {
@@ -204,6 +222,66 @@ def subject_clusters(notes: list[Path]) -> list[dict[str, Any]]:
     ]
     clusters.sort(key=lambda item: (-item["notes"], item["kind"], item["term"]))
     return clusters[:MAX_CLUSTER_TERMS]
+
+
+def _modified_time(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def _template_default_tags(vault: Path) -> set[str]:
+    """Return the tags this Vault's own templates already supply.
+
+    Read from the templates rather than a hardcoded list: the defaults are a
+    property of the Vault, and a static set both misses what a Vault renamed
+    (`person` → `people`) and drops real subjects that merely looked common
+    somewhere else. Dropping a live subject tag from the vocabulary would invite
+    the near-duplicate the vocabulary exists to prevent.
+    """
+    directory = vault / "Templates"
+    if not directory.is_dir():
+        return set()
+    defaults: set[str] = set()
+    for path in sorted(directory.glob("*.md")):
+        defaults |= _tags(_head_metadata(path))
+    return defaults
+
+
+def tag_vocabulary(
+    vault: Path,
+    *,
+    limit: int = MAX_VOCABULARY_TERMS,
+    scan: int = MAX_VOCABULARY_SCAN,
+) -> dict[str, Any]:
+    """Return the subject tags this Vault actually uses, most-used first.
+
+    Type-default tags are dropped because the template already fixes them, and
+    index notes are skipped because their tags describe structure rather than a
+    subject the writer of a new note gets to choose.
+    """
+    defaults = _template_default_tags(vault)
+    notes: list[Path] = []
+    for name in MANAGED_NOTE_FOLDERS:
+        directory = vault / name
+        if not directory.is_dir() or directory.is_symlink():
+            continue
+        notes.extend(path for path in directory.rglob("*.md") if path.is_file())
+    notes.sort(key=_modified_time, reverse=True)
+    scanned = notes[:scan]
+    counts: Counter[str] = Counter()
+    for path in scanned:
+        metadata = _head_metadata(path)
+        if (metadata or {}).get("type") in INDEX_TYPES:
+            continue
+        counts.update(_tags(metadata) - defaults)
+    ordered = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    return {
+        "scanned": len(scanned),
+        "distinct": len(counts),
+        "tags": [{"tag": tag, "notes": total} for tag, total in ordered[:limit]],
+    }
 
 
 def crowded_folders(
@@ -375,6 +453,7 @@ def collect(
     if note_type is not None:
         result["template_shape"] = template_shape(vault, note_type)
     if valid:
+        result["tag_vocabulary"] = tag_vocabulary(vault)
         result["required_references"] = required_references(
             note_type,
             result["custom_templates"],
