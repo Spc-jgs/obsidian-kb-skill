@@ -487,6 +487,23 @@ def test_readmes_use_agent_first_installation_and_changelog_owns_history():
     assert "## What's New in v1.12" not in readme_en
 
 
+def test_lockfile_records_the_current_project_version():
+    """A release bump must reach `uv.lock`, or CI cannot install the project.
+
+    Version-agnostic on purpose: the per-release contract below is rewritten
+    every time, but this one has to keep holding for every future bump. The
+    1.28.0 release shipped with a stale lock and `uv sync --locked` refused on
+    every CI job, while a local run against an already-built venv passed.
+    """
+    version = build.project_version()
+    lock = (ROOT / "uv.lock").read_text(encoding="utf-8")
+    entry = lock.index('name = "obsidian-kb-skill"')
+
+    assert f'version = "{version}"' in lock[entry : entry + 200], (
+        f"uv.lock does not record version {version}; run `uv lock`"
+    )
+
+
 def test_v1_28_0_release_contract_is_consistent():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     core = (ROOT / "core" / "OBSIDIAN_KB.md").read_text(encoding="utf-8")
