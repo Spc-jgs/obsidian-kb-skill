@@ -33,7 +33,7 @@
     "references/yaml-standards.md": "caa098d27338b771a28bd09ba1c9eaada953f2d2839a65a8f17d75019be4caa8",
     "scripts/obsidian_kb_skill/__init__.py": "b6f9cfd724f0d4944bcc4f8d2d04e70c33ff378503cb21498a6d306362901763",
     "scripts/obsidian_kb_skill/scripts/__init__.py": "ea3771d4d955569ada4adce0855760a4ba997fc8b7ab87e3d871f68b9def9ee7",
-    "scripts/obsidian_kb_skill/scripts/audit_vault.py": "97e56ed3891842855dc60647e04c7c38bd84580bf6a4fa882a5f2c8e33d47fe0",
+    "scripts/obsidian_kb_skill/scripts/audit_vault.py": "eb2ff938222dd5853234cc70ca53c3cc68b953d06139fd541bf1d3f5be36fa9e",
     "scripts/obsidian_kb_skill/scripts/backup_policy.py": "fbab84603bf0ad0dd76914516406cc05701e9bb9e9ae49eca468750be05df90c",
     "scripts/obsidian_kb_skill/scripts/capture_receipt.py": "3949f738537d297342b43d6f306489edb76d5169793a71c0d63401fd31caec19",
     "scripts/obsidian_kb_skill/scripts/console.py": "6d6eea164e78b50a0126a6cac68dc9ddcec08d2df2b4a9e9a7a8e62ff35ad0af",
