@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- A dot in a note's title made every link to it look broken. The stem lookup was gated on the target "looking extensionless", but `Path("Qwen3.6-27B实战").suffix` is `.6-27B实战` as far as pathlib is concerned, so the gate closed on any title containing a dot and the audit reported a `defect` for a file that exists. On the reference Vault four of thirty-three `broken-wikilink` findings were this. A filename match still wins; the stem is simply tried whenever it misses.
 - The audit reported working links as broken. Obsidian resolves `[[alias]]` through the target note's frontmatter `aliases`, and `search_vault` has scored aliases all along, but the audit's link index knew only filenames — so an alias link produced a `broken-wikilink`, the highest severity it has, and the note it pointed at was additionally reported as an `orphan-note` because the inbound link was never counted. One missing feature, two false positives, in the finding category a reader is most likely to act on. Link resolution now consults declared aliases, and it builds that map only when a link fails to resolve by filename, so a Vault whose links all resolve keeps the per-note audit that runs on every write exactly as cheap as before.
 
 ### Fixed

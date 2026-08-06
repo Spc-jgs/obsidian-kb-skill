@@ -284,10 +284,18 @@ class LinkIndex:
         return self._aliases
 
     def matches(self, target: str) -> list[Path]:
-        """Return every file a bare (non-path) wikilink target could mean."""
+        """Return every file a bare (non-path) wikilink target could mean.
+
+        The stem lookup is not gated on the target "looking extensionless".
+        `Path("Qwen3.6-27B实战").suffix` is `.6-27B实战` as far as pathlib is
+        concerned, so any note whose title contains a dot was skipped here and
+        reported as a broken link to a file that exists. A filename match still
+        wins; trying the stem afterwards can only resolve links that would
+        otherwise be called broken.
+        """
         key = Path(target).name
         found = self.by_name.get(key, [])
-        if not found and Path(key).suffix == "":
+        if not found:
             found = self.by_stem.get(key, [])
         if not found:
             found = self._alias_map().get(key, [])

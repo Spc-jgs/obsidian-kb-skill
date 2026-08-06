@@ -1554,3 +1554,35 @@ def test_alias_map_is_built_only_when_a_link_fails_to_resolve(tmp_path: Path):
 
     assert index.matches("短别名")
     assert index._aliases is not None
+
+
+def test_a_dot_in_the_title_does_not_break_link_resolution(tmp_path: Path):
+    """`Path("Qwen3.6-27B").suffix` is `.6-27B` as far as pathlib is concerned.
+
+    Gating the stem lookup on "the target looks extensionless" therefore skipped
+    every note whose title contains a dot, and reported a link to a file that
+    exists as the highest-severity finding the audit has. Found on a real Vault:
+    four of its thirty-three `broken-wikilink` defects were this.
+    """
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    (vault / "Templates").mkdir()
+    (vault / "20-Learning").mkdir()
+    (vault / "20-Learning" / "2026-07-29 本地部署-Ollama+Qwen3.6-27B实战.md").write_text(
+        '---\ndate: "2026-07-29"\ntype: learning-note\ntags: [learning]\n---\n\n'
+        "# 部署\n\n正文足够长，不是空模板。\n",
+        encoding="utf-8",
+    )
+    (vault / "20-Learning" / "2026-07-30 引用方.md").write_text(
+        '---\ndate: "2026-07-30"\ntype: learning-note\ntags: [learning]\n---\n\n'
+        "# 引用方\n\n见 [[2026-07-29 本地部署-Ollama+Qwen3.6-27B实战]]。\n",
+        encoding="utf-8",
+    )
+
+    broken = [
+        finding
+        for finding in audit_vault(vault)
+        if finding.code == "broken-wikilink"
+    ]
+
+    assert not broken, broken
