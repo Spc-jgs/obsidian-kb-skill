@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from dataclasses import dataclass
+import datetime
 from difflib import SequenceMatcher
 import json
 import math
@@ -16,6 +17,11 @@ from typing import Any, Iterable
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.frontmatter import FrontmatterResult, parse_frontmatter
+from obsidian_kb_skill.scripts.note_catalog import (
+    EXEMPT_NAMES,
+    VALID_NOTE_TYPES,
+    normalize_tag_key,
+)
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
     VaultPathError,
@@ -31,6 +37,7 @@ MAX_TOP_K = 20
 MAX_FILE_BYTES = 2 * 1024 * 1024
 MAX_SNIPPET_CHARS = 480
 MAX_ISSUES = 20
+MAX_TAG_CHARS = 100
 FIELD_WEIGHTS = {
     "title": 6.0,
     "aliases": 5.0,
@@ -56,6 +63,7 @@ IGNORED_DIRECTORY_NAMES = {
 }
 LATIN_TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
 TOKEN_RUN_RE = re.compile(r"[A-Za-z0-9]+|[\u3400-\u4dbf\u4e00-\u9fff]+")
+ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}")
 HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.+?)\s*$")
 WIKILINK_RE = re.compile(r"\[\[([^\]\n]+)\]\]")
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
@@ -73,6 +81,8 @@ class SearchDocument:
     body: str
     body_start_line: int
     field_tokens: dict[str, Counter[str]]
+    note_type: str | None = None
+    note_date: str | None = None
 
     @property
     def weighted_length(self) -> float:
@@ -151,6 +161,103 @@ def _body_start_line(parsed: FrontmatterResult) -> int:
     return parsed.normalized_text[:body_start].count("\n") + 1
 
 
+def _is_iso_date(value: str) -> bool:
+    """True when the text is a real ISO calendar date, not merely ISO-shaped."""
+    try:
+        datetime.date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _scalar(value: Any) -> str | None:
+    """Return a frontmatter scalar as text, or None when it is not one."""
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def parse_note_date(value: Any) -> str | None:
+    """Return a note's date as ISO `YYYY-MM-DD`, or None when it has none.
+
+    PyYAML returns a `date` for an unquoted value and a `str` for a quoted one,
+    and both spellings occur in a real Vault. A value that is neither is simply
+    "no date": a filter must never raise over a note's metadata.
+    """
+    if isinstance(value, datetime.datetime):
+        return value.date().isoformat()
+    if isinstance(value, datetime.date):
+        return value.isoformat()
+    if isinstance(value, str) and ISO_DATE_RE.match(value.strip()):
+        return value.strip()[:10]
+    return None
+
+
+@dataclass(frozen=True)
+class Filters:
+    """Metadata constraints applied before ranking.
+
+    Hard constraints, not weights: asking for July dailies makes a June note
+    wrong, not merely less relevant. Repeats within one dimension are OR;
+    dimensions combine with AND.
+    """
+
+    types: tuple[str, ...] = ()
+    tags: tuple[str, ...] = ()
+    after: str | None = None
+    before: str | None = None
+
+    @property
+    def active(self) -> bool:
+        return bool(self.types or self.tags or self.after or self.before)
+
+    def applied(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if self.types:
+            payload["type"] = list(self.types)
+        if self.tags:
+            payload["tag"] = list(self.tags)
+        if self.after:
+            payload["after"] = self.after
+        if self.before:
+            payload["before"] = self.before
+        return payload
+
+    def select(
+        self, documents: list[SearchDocument]
+    ) -> tuple[list[SearchDocument], dict[str, int]]:
+        """Return surviving documents and why each of the others was dropped.
+
+        A note is counted against the first dimension that rejects it, so the
+        tally sums to the number excluded rather than double-counting. Missing a
+        date is reported apart from falling outside the range: one is a
+        governance problem in the Vault, the other is the filter doing its job.
+        """
+        wanted_tags = {normalize_tag_key(tag) for tag in self.tags}
+        kept: list[SearchDocument] = []
+        excluded: Counter[str] = Counter()
+        for document in documents:
+            if self.types and document.note_type not in self.types:
+                excluded["type"] += 1
+                continue
+            if wanted_tags and not (
+                {normalize_tag_key(tag) for tag in document.tags} & wanted_tags
+            ):
+                excluded["tag"] += 1
+                continue
+            if (self.after or self.before) and document.note_date is None:
+                excluded["missing-date"] += 1
+                continue
+            if self.after and document.note_date < self.after:
+                excluded["after"] += 1
+                continue
+            if self.before and document.note_date > self.before:
+                excluded["before"] += 1
+                continue
+            kept.append(document)
+        return kept, dict(excluded)
+
+
 def _document(path: Path, vault: Path, text: str) -> tuple[SearchDocument | None, dict[str, Any] | None]:
     relative = path.relative_to(vault).as_posix()
     parsed = parse_frontmatter(text, source=relative)
@@ -189,6 +296,8 @@ def _document(path: Path, vault: Path, text: str) -> tuple[SearchDocument | None
             body=visible_body,
             body_start_line=_body_start_line(parsed),
             field_tokens=fields,
+            note_type=_scalar(metadata.get("type")),
+            note_date=parse_note_date(metadata.get("date")),
         ),
         None,
     )
@@ -221,7 +330,14 @@ def _load_documents(
     issues: list[dict[str, Any]] = []
     files = 0
     skipped = 0
+    excluded = 0
     for path in _markdown_files(scope):
+        # Scaffolding the write Skill already exempts from note contracts. It is
+        # not a malformed note, so it never becomes an `issues` entry — but a
+        # long Vault README mentions every subject and outranks real notes.
+        if path.name in EXEMPT_NAMES:
+            excluded += 1
+            continue
         files += 1
         relative = path.relative_to(vault).as_posix()
         try:
@@ -248,6 +364,7 @@ def _load_documents(
         "files": files,
         "indexed": len(documents),
         "skipped": skipped,
+        "excluded": excluded,
     }, issues
 
 
@@ -405,12 +522,22 @@ def search_vault(
     *,
     top_k: int = 5,
     scope: Path | None = None,
+    types: list[str] | None = None,
+    tags: list[str] | None = None,
+    after: str | None = None,
+    before: str | None = None,
 ) -> dict[str, Any]:
     """Search a validated Vault without writing files or persistent cache."""
     if not query.strip() or len(query) > MAX_QUERY_CHARS:
         raise ValueError(f"query must contain 1 to {MAX_QUERY_CHARS} characters")
     if not 1 <= top_k <= MAX_TOP_K:
         raise ValueError(f"top_k must be between 1 and {MAX_TOP_K}")
+    filters = Filters(
+        types=tuple(types or ()),
+        tags=tuple(tags or ()),
+        after=after,
+        before=before,
+    )
     root = validate_vault_root(vault)
     selected_scope = (
         resolve_existing_within_vault(root, scope, label="scope")
@@ -420,6 +547,10 @@ def search_vault(
     if not selected_scope.is_dir():
         raise ValueError("scope must be a directory")
     documents, scanned, issues = _load_documents(root, selected_scope)
+    # Filters run before scoring, so IDF is computed over the candidate set the
+    # caller actually asked about and `score` keeps meaning what it meant.
+    candidates = len(documents)
+    documents, filter_excluded = filters.select(documents)
     query_tokens = tokenize(query)
     frequencies = _document_frequencies(documents, set(query_tokens))
     average_length = (
@@ -457,10 +588,12 @@ def search_vault(
                 "line": line,
                 "snippet": snippet,
                 "signals": signals,
+                "type": document.note_type,
+                "date": document.note_date,
             }
         )
     scope_relative = selected_scope.relative_to(root).as_posix()
-    return {
+    payload = {
         "schema_version": SCHEMA_VERSION,
         "mode": "lexical",
         "query": query,
@@ -470,6 +603,17 @@ def search_vault(
         "issues": issues,
         "truncated": len(scored) > top_k,
     }
+    if filters.active:
+        # Without this an over-narrow filter is indistinguishable from an empty
+        # Vault, and the honest answer "nothing matched this filter" reads as
+        # "you have no notes about this".
+        payload["filters"] = {
+            "applied": filters.applied(),
+            "candidates": candidates,
+            "matched": len(documents),
+            "excluded": filter_excluded,
+        }
+    return payload
 
 
 def _json_error(code: str, message: str) -> str:
@@ -493,7 +637,28 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--scope", type=Path, help="Optional Vault-relative directory")
     parser.add_argument("--top-k", type=int, default=5, help="Results to return (1-20)")
     parser.add_argument("--json", action="store_true", help="Emit structured JSON")
+    parser.add_argument(
+        "--type", dest="types", action="append", default=[],
+        help="Keep only this note type; repeatable (repeats are OR)",
+    )
+    parser.add_argument(
+        "--tag", dest="tags", action="append", default=[],
+        help="Keep only notes carrying this tag; repeatable (repeats are OR)",
+    )
+    parser.add_argument(
+        "--after", help="Keep notes dated on or after this ISO date (YYYY-MM-DD)"
+    )
+    parser.add_argument(
+        "--before", help="Keep notes dated on or before this ISO date (YYYY-MM-DD)"
+    )
     args = parser.parse_args(argv)
+
+    def refuse(code: str, message: str) -> int:
+        if args.json:
+            print(_json_error(code, message))
+        else:
+            print(f"error: {message}", file=sys.stderr)
+        return 2
 
     if not args.query.strip() or len(args.query) > MAX_QUERY_CHARS:
         message = f"--query must contain 1 to {MAX_QUERY_CHARS} characters"
@@ -509,6 +674,36 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"error: {message}", file=sys.stderr)
         return 2
+    # Relative time ("上周", "recently") is resolved by the caller, which knows
+    # today's date and the user's language; this helper takes absolute dates so
+    # its behaviour stays deterministic and testable.
+    for flag in ("after", "before"):
+        value = getattr(args, flag)
+        if value is None:
+            continue
+        if not _is_iso_date(value):
+            return refuse(
+                "invalid-date",
+                f"--{flag} must be an ISO calendar date (YYYY-MM-DD); "
+                "resolve relative expressions before calling",
+            )
+    if args.after and args.before and args.after > args.before:
+        return refuse(
+            "invalid-date-range", "--after must not be later than --before"
+        )
+    for value in args.types:
+        if value not in VALID_NOTE_TYPES:
+            return refuse(
+                "invalid-type",
+                f"--type {value!r} is not a known note type; "
+                f"known types: {', '.join(sorted(VALID_NOTE_TYPES))}",
+            )
+    for value in args.tags:
+        if not value.strip() or len(value) > MAX_TAG_CHARS:
+            return refuse(
+                "invalid-tag",
+                f"--tag must contain 1 to {MAX_TAG_CHARS} non-blank characters",
+            )
     try:
         vault = validate_vault_root(args.vault)
     except InvalidVaultRootError as exc:
@@ -540,6 +735,10 @@ def main(argv: list[str] | None = None) -> int:
         args.query,
         top_k=args.top_k,
         scope=selected_scope,
+        types=args.types,
+        tags=args.tags,
+        after=args.after,
+        before=args.before,
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))

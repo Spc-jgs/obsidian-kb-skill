@@ -40,7 +40,11 @@ from obsidian_kb_skill.scripts.folder_index_policy import (
     is_folder_index_excluded,
     read_folder_index_config,
 )
-from obsidian_kb_skill.scripts.note_catalog import VALID_NOTE_TYPES
+from obsidian_kb_skill.scripts.note_catalog import (
+    EXEMPT_NAMES,
+    VALID_NOTE_TYPES,
+    normalize_tag_key as _normalize_tag_key,
+)
 from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
 from obsidian_kb_skill.scripts.metadata_quality import is_meaningful_metadata
 from obsidian_kb_skill.scripts.template_contract import (
@@ -131,7 +135,6 @@ def finding_severity(code: str) -> str:
     return FINDING_SEVERITY.get(code, DEFAULT_SEVERITY)
 
 
-EXEMPT_NAMES = {"README.md", "AGENTS.md", "CLAUDE.md"}
 INDEX_TYPES = {"folder-index", "moc"}
 # Findings that describe vault-wide consistency (not a defect of any single note).
 # Excluded from audit_note() so a post-write self-check only reports issues in the
@@ -1053,17 +1056,6 @@ def _audit_folder_index_graph(
                 expected.relative_to(vault),
                 f"parent graph traversal looks for {graph_target.name}",
             )
-
-
-def _normalize_tag_key(tag: str) -> str:
-    # The separator is a spelling choice, not a distinction: yaml-standards.md
-    # names `frontend`/`front_end`/`frontEnd` as one tag, but folding only case
-    # and underscores left `frontend` and `front-end` in different buckets, so
-    # exactly the duplicates the rule describes went unreported.
-    key = tag.lower().replace("_", "").replace("-", "").replace(" ", "")
-    if len(key) > 1 and key.endswith("s"):
-        key = key[:-1]
-    return key
 
 
 def _note_title(relative: Path, text: str) -> str:
