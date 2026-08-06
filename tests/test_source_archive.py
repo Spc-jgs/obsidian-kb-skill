@@ -41,14 +41,22 @@ AWKWARD = (
 
 
 def _run(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess:
-    return subprocess.run(
+    # Bytes on stdin, decoded output. In text mode Windows translates the `\n`
+    # in what the *parent* writes, turning this fixture's `\r\n` into `\r\r\n`
+    # before the helper ever sees it — the test would then be measuring the
+    # harness rather than whether the archive preserves what it was given.
+    result = subprocess.run(
         [sys.executable, "-m", "obsidian_kb_skill.scripts.archive_source", *args],
         cwd=ROOT,
         env={**os.environ, "PYTHONPATH": str(ROOT)},
-        input=stdin,
+        input=None if stdin is None else stdin.encode("utf-8"),
         capture_output=True,
-        text=True,
-        encoding="utf-8",
+    )
+    return subprocess.CompletedProcess(
+        result.args,
+        result.returncode,
+        result.stdout.decode("utf-8"),
+        result.stderr.decode("utf-8", errors="replace"),
     )
 
 

@@ -218,11 +218,32 @@ transport.
 
 ## Step 6: Wikilinks
 
-Use `[[wikilinks]]` only for high-confidence semantic relationships. With
-`--suggest-links`, the bounded helper will list the target folder's filenames,
-inspect only name-relevant sibling folders, score specific tags/type/Unicode
-title tokens, and suppress candidates below its confidence threshold. Add at
-most five useful links or skip them; never force weak links.
+Use `[[wikilinks]]` only for high-confidence semantic relationships. Ask
+`--suggest-links`: the bounded helper inspects only name-relevant sibling
+folders, scores specific shared tags, matching type, and Unicode title tokens,
+and suppresses everything below its confidence threshold. Add at most five of
+what it returns.
+
+**Zero candidates is an answer, not a gap to fill.** The helper says "No link
+suggestions found" when nothing in the Vault is confidently related, and that is
+the common case for the first note on a new subject. Take it at face value.
+
+This matters because the deep-capture contract *requires* a `关联笔记` /
+`Related Notes` heading, so "skip the links" cannot mean "omit the section", and
+an empty required section invites inventing something to put in it. It happened:
+four unrelated notes — a Flink-style storage engine, an SQL optimizer rewrite, a
+RAG streaming guide, and a Zig coding agent — all ended up linking the same note,
+which was simply the alphabetically first file in `20-Learning/Backend/`. The
+helper had proposed none of them.
+
+When there is no confident relationship, write the section with a single line
+saying so, in the user's language, and move on. That is a complete, honest
+section.
+
+Proximity is not a relationship. Same folder, same note type, same broad domain,
+and "both are backend topics" are all reasons to *not* link. A link says a reader
+following it will learn something about *this* note; if you cannot state that
+specific relationship in the link's own line, do not add the link.
 
 ## Steps 7–8: Apply Once
 
