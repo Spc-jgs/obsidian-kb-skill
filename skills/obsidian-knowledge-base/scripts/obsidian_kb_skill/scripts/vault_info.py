@@ -53,7 +53,10 @@ from typing import Any
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.detect_index import detect
-from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
+from obsidian_kb_skill.scripts.frontmatter import (
+    parse_frontmatter,
+    read_frontmatter_head,
+)
 from obsidian_kb_skill.scripts.folder_index_policy import (
     FolderIndexConfig,
     FolderIndexConfigError,
@@ -100,7 +103,6 @@ MAX_CLUSTER_SCAN = 200
 # without a cluster list rather than turning one call into thousands of opens.
 MAX_CLUSTER_SCAN_TOTAL = 1000
 MAX_CHILD_FOLDERS = 12
-FRONTMATTER_HEAD_BYTES = 4096
 CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]+")
 # Reference files the agent must load next, keyed by what it already told us.
 TYPE_REFERENCES: dict[str, tuple[str, str]] = {
@@ -134,12 +136,9 @@ def _index_names(vault: Path, folder: Path, config: FolderIndexConfig) -> set[st
 
 def _head_metadata(path: Path) -> dict[str, Any] | None:
     """Parse frontmatter from the head of a note without reading the body."""
-    try:
-        with path.open("r", encoding="utf-8", errors="replace") as handle:
-            head = handle.read(FRONTMATTER_HEAD_BYTES)
-    except OSError:
-        return None
-    return parse_frontmatter(head, source=path.name).metadata
+    return parse_frontmatter(
+        read_frontmatter_head(path), source=path.name
+    ).metadata
 
 
 def _merge_overlapping_runs(counts: Counter[str]) -> Counter[str]:
@@ -273,8 +272,14 @@ def crowded_folders(
 
 
 def selected_destination(note_type: str | None, folder: str | None) -> str | None:
-    """Return the folder this operation will write to, as far as it is known."""
-    return (folder or "").strip("/") or TYPE_TO_FOLDER.get(note_type or "")
+    """Return the folder this operation will write to, as far as it is known.
+
+    Crowded-folder paths are POSIX, so a Windows Agent passing
+    `20-Learning\\AI-Agent` would match nothing and silently lose the
+    crowded-destination answer — wrong, with no signal that it was wrong.
+    """
+    normalized = (folder or "").replace("\\", "/").strip("/")
+    return normalized or TYPE_TO_FOLDER.get(note_type or "")
 
 
 def required_references(

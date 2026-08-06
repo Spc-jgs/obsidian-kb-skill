@@ -217,3 +217,24 @@ def test_an_interrupted_write_is_not_mistaken_for_an_entry(tmp_path: Path):
         "--from-preflight", sha256, "--apply", "--compact-json",
     )
     assert json.loads(result.stdout)["error"]["code"] == "unknown-preflight-content"
+
+
+def test_retention_bounds_bytes_not_only_entry_count(tmp_path: Path):
+    """Sixty-four entries of unbounded size bound nothing."""
+    vault = _make_vault(tmp_path)
+    directory = preflight_cache.cache_dir()
+    body = "x" * (3 * 1024 * 1024)
+    now = time.time()
+    for index in range(20):
+        sha256 = hashlib.sha256(str(index).encode()).hexdigest()
+        preflight_cache.stage(
+            vault, sha256, body, note_type="insight-note", title="t"
+        )
+        stamp = now - (20 - index)
+        os.utime(directory / f"{sha256}.json", (stamp, stamp))
+
+    preflight_cache.prune(directory)
+
+    total = sum(path.stat().st_size for path in directory.glob("*.json"))
+    assert total <= preflight_cache.MAX_TOTAL_BYTES
+    assert list(directory.glob("*.json")), "the newest entry must survive"

@@ -28,7 +28,10 @@ from obsidian_kb_skill.scripts.deep_capture_contract import (
     formatted_deep_capture_variants,
     matches_deep_capture_contract,
 )
-from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
+from obsidian_kb_skill.scripts.frontmatter import (
+    parse_frontmatter,
+    read_frontmatter_head,
+)
 from obsidian_kb_skill.scripts.capture_receipt import CAPTURE_DEPTHS
 from obsidian_kb_skill.scripts.folder_index_policy import (
     FolderIndexConfig,
@@ -228,17 +231,11 @@ def _all_linkable_files(vault: Path) -> list[Path]:
     )
 
 
-ALIAS_HEAD_BYTES = 4096
-
-
 def _declared_aliases(path: Path) -> tuple[str, ...]:
     """Return the aliases a note declares, reading only its head."""
-    try:
-        with path.open("r", encoding="utf-8", errors="replace") as handle:
-            head = handle.read(ALIAS_HEAD_BYTES)
-    except OSError:
-        return ()
-    metadata = parse_frontmatter(head, source=path.name).metadata
+    metadata = parse_frontmatter(
+        read_frontmatter_head(path), source=path.name
+    ).metadata
     if not metadata:
         return ()
     raw = metadata.get("aliases")

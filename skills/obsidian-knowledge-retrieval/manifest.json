@@ -8,7 +8,7 @@
     "scripts/obsidian_kb_skill/scripts/__init__.py": "ea3771d4d955569ada4adce0855760a4ba997fc8b7ab87e3d871f68b9def9ee7",
     "scripts/obsidian_kb_skill/scripts/console.py": "6d6eea164e78b50a0126a6cac68dc9ddcec08d2df2b4a9e9a7a8e62ff35ad0af",
     "scripts/obsidian_kb_skill/scripts/doctor.py": "45fa782f62706ab75850f8a8d2ee7c067898a397593be45207a7091ce9f84a3a",
-    "scripts/obsidian_kb_skill/scripts/frontmatter.py": "faf6e4b31bf12a2eec25191d6d6e4b8e047c4daba39ccbc1256352bd7a365b40",
+    "scripts/obsidian_kb_skill/scripts/frontmatter.py": "85b676f3ba0043d6d32485f1c47fb339e9c9d5f8672845b7c3cae46dfb539c83",
     "scripts/obsidian_kb_skill/scripts/retrieval_vault_info.py": "af952ed626b49bbe84841302ace7796e777e68ad2c8f005998389395162164ec",
     "scripts/obsidian_kb_skill/scripts/search_vault.py": "7073dcd4f25c3504c2e6cae843398808e88a36e0a6d43640bf307adfba71936e",
     "scripts/obsidian_kb_skill/scripts/vault_paths.py": "5eb90ea7b46258b79c3e6e4f2361736639fd9a668e97361c1cde0205c55aec2d",
