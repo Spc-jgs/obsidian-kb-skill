@@ -56,6 +56,24 @@ this". Say which filter emptied the set and offer the obvious retry: a wider
 date range, a different type, or no filter at all. A large `missing-date` count
 is a governance problem in the Vault worth mentioning, not a search failure.
 
+## Archived sources
+
+`95-Sources/` holds sources kept verbatim: the article a note was built from,
+not the note's own knowledge. Whole-Vault search skips it, so ordinary questions
+return the user's digests rather than a stranger's prose.
+
+When the user explicitly asks what a source actually said — to check a quote, or
+to read past a summary — search it directly:
+
+```bash
+python <skill-root>/scripts/run_helper.py search-vault \
+  "<vault>" --query "<q>" --scope 95-Sources --json
+```
+
+Cite an archive as the source's words, never as the user's note. Each archive's
+frontmatter carries a `note` wikilink back to the note that digests it; offer
+that note too, since it is where the user's own thinking lives.
+
 ## Result interpretation
 
 Each result contains:
