@@ -128,6 +128,7 @@ FINDING_SEVERITY: dict[str, str] = {
     # may legitimately share a similar title.
     "orphan-note": "informational",
     "similar-title": "informational",
+    "disconnected-note": "informational",
 }
 
 
@@ -137,12 +138,18 @@ def finding_severity(code: str) -> str:
 
 
 INDEX_TYPES = {"folder-index", "moc"}
+# Periodic logs. A daily or weekly report that links nothing is doing its job,
+# so connectivity is not measured for them. On the reference Vault they are 36
+# of the 57 notes with no links at all — reporting them would bury the 21 that
+# actually went nowhere.
+PERIODIC_TYPES = {"daily-report", "weekly-report"}
 # Findings that describe vault-wide consistency (not a defect of any single note).
 # Excluded from audit_note() so a post-write self-check only reports issues in the
 # note that was just written.
 VAULT_WIDE_CODES = frozenset(
     {
         "orphan-note",
+        "disconnected-note",
         "duplicate-folder-index",
         "missing-folder-index",
         "misnamed-folder-index",
@@ -991,6 +998,38 @@ def _audit_orphans(
             )
 
 
+def _audit_connectivity(
+    findings: list[Finding],
+    vault: Path,
+    referenced: set[Path],
+    outbound: dict[Path, set[Path]],
+    connectivity_notes: list[Path],
+) -> None:
+    """Report notes that are reachable but connected to nothing.
+
+    ``_audit_orphans`` measures *reachability*: can this note still be found?
+    A folder index answers that for every note in its folder, because the
+    Folder Index plugin generates the listing from the folder's contents. That
+    is why ``orphan-note`` is correctly near-zero on a well-indexed Vault.
+
+    Reachability is not connectivity. A note nobody links to, and that links
+    nowhere itself, sits in a listing and touches no other knowledge. Only the
+    intersection is reported: no inbound *and* no outbound. Either side alone
+    is both noisy and ambiguous -- a concept note cited from three places is
+    supposed to have no outbound links.
+    """
+    for candidate in connectivity_notes:
+        if candidate in referenced or outbound.get(candidate):
+            continue
+        _add(
+            findings,
+            "disconnected-note",
+            candidate.relative_to(vault),
+            "note has no inbound or outbound links; it is reachable through its "
+            "folder index but connected to nothing",
+        )
+
+
 def _declares_folder_index(path: Path) -> bool:
     metadata, error = _frontmatter(path.read_text(encoding="utf-8"))
     return error is None and metadata is not None and metadata.get("type") == "folder-index"
@@ -1092,8 +1131,10 @@ def audit_vault(vault: Path) -> list[Finding]:
     tag_index: dict[str, set[str]] = {}
     title_list: list[tuple[str, str, Path]] = []
     referenced: set[Path] = set()
+    outbound: dict[Path, set[Path]] = {}
     index_notes: set[Path] = set()
     candidate_notes: list[Path] = []
+    connectivity_notes: list[Path] = []
     markdown = _markdown_files(vault)
     for path in markdown:
         relative = path.relative_to(vault)
@@ -1148,7 +1189,9 @@ def audit_vault(vault: Path) -> list[Finding]:
                 _without_code_examples(text),
                 index,
             )
-        referenced |= _collect_references(path, text, metadata, vault, index)
+        references = _collect_references(path, text, metadata, vault, index)
+        referenced |= references
+        outbound[path] = references
         if metadata and metadata.get("type") in INDEX_TYPES:
             index_notes.add(path)
         if (
@@ -1160,6 +1203,8 @@ def audit_vault(vault: Path) -> list[Finding]:
             and metadata.get("type") != "daily-note"
         ):
             candidate_notes.append(path)
+            if metadata.get("type") not in PERIODIC_TYPES:
+                connectivity_notes.append(path)
 
     for folder in sorted(path for path in vault.rglob("*") if path.is_dir()):
         relative_folder = folder.relative_to(vault)
@@ -1193,6 +1238,7 @@ def audit_vault(vault: Path) -> list[Finding]:
 
     _audit_titles(findings, title_list)
     _audit_orphans(findings, vault, referenced, index_notes, candidate_notes)
+    _audit_connectivity(findings, vault, referenced, outbound, connectivity_notes)
 
     return sorted(findings, key=lambda item: (item.path, item.code, item.message))
 

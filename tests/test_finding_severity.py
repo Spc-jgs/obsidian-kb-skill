@@ -95,5 +95,5 @@ def test_the_damaging_findings_are_defects():
 
 
 def test_the_often_fine_findings_are_informational():
-    for code in ("similar-title", "orphan-note"):
+    for code in ("similar-title", "orphan-note", "disconnected-note"):
         assert finding_severity(code) == "informational", code

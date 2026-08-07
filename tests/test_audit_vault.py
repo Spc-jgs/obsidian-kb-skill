@@ -1116,6 +1116,94 @@ def test_ignores_note_referenced_by_index(tmp_path):
     assert "orphan-note" not in codes(tmp_path)
 
 
+def _disconnected(tmp_path):
+    return {
+        finding.path.as_posix()
+        for finding in audit_vault(tmp_path)
+        if finding.code == "disconnected-note"
+    }
+
+
+def test_reports_disconnected_note(tmp_path):
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Lone.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Lone\nSome content.\n",
+        encoding="utf-8",
+    )
+
+    assert "disconnected-note" in codes(tmp_path)
+
+
+def test_outbound_link_alone_is_connected(tmp_path):
+    """One direction is enough. Only the intersection is reported."""
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Target.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Target\nNo links out.\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "Source.md").write_text(
+        '---\ndate: "2026-07-08"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Source\nLinks to [[Target]].\n",
+        encoding="utf-8",
+    )
+
+    # Source has an outbound link and no inbound; Target the reverse.
+    assert _disconnected(tmp_path) == set()
+
+
+def test_reachable_through_folder_index_is_still_disconnected(tmp_path):
+    """The whole point of the split: a folder index grants reachability only."""
+    (tmp_path / ".obsidian").mkdir()
+    topic = tmp_path / "Topic"
+    topic.mkdir()
+    (topic / "Topic.md").write_text(
+        "---\ntype: folder-index\ntags: [moc]\n---\n"
+        "```folder-index-content\n```\n",
+        encoding="utf-8",
+    )
+    (topic / "Child.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Child\nSome content.\n",
+        encoding="utf-8",
+    )
+
+    found = codes(tmp_path)
+    assert "disconnected-note" in found
+    assert "orphan-note" not in found
+
+
+def test_inbound_link_through_alias_counts_as_connected(tmp_path):
+    """Obsidian resolves [[alias]]; the audit must too, or #57 comes back."""
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Target.md").write_text(
+        '---\ndate: "2026-07-07"\ntype: learning-note\n'
+        'tags: [learning]\naliases: ["Nickname"]\n---\n# Target\nNo links out.\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "Source.md").write_text(
+        '---\ndate: "2026-07-08"\ntype: learning-note\n'
+        "tags: [learning]\n---\n# Source\nLinks to [[Nickname]].\n",
+        encoding="utf-8",
+    )
+
+    assert "Target.md" not in _disconnected(tmp_path)
+
+
+@pytest.mark.parametrize("note_type", ["daily-report", "weekly-report"])
+def test_periodic_reports_are_exempt_from_connectivity(tmp_path, note_type):
+    """A log that links nothing is doing its job."""
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "2026-07-07 Report.md").write_text(
+        f'---\ndate: "2026-07-07"\ntype: {note_type}\n'
+        "tags: [daily]\n---\n# Report\nSome content.\n",
+        encoding="utf-8",
+    )
+
+    assert "disconnected-note" not in codes(tmp_path)
+
+
 def test_ignores_unlinked_daily_note(tmp_path):
     (tmp_path / ".obsidian").mkdir()
     (tmp_path / "2026-07-07 Daily.md").write_text(
