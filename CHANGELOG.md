@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.29.0] - 2026-08-07
+
 ### Added
 
 - A captured source can be kept verbatim beside the note instead of inside it. `archive-source` writes the original to `95-Sources/<YYYY-MM>/`, records its SHA-256 over the source bytes alone, and links it from the note in both directions — a `source_archive` field plus one clickable line, with the archive's frontmatter pointing back. Retrieval skips `95-Sources/` by default and reaches it with `--scope` when the user asks what the source actually said, and the audit holds archives to no note contract: an archive is evidence, so its headings, tags, and placeholders belong to whoever wrote it. The Skill had no concept of this at all, so when a user asked for an article's original text the Agent invented a heading and appended 35 KB of it to a 7.6 KB digest — 82% of the file. A quarter of that note's search citations then landed in the author's prose rather than the reader's own knowledge, and BM25 length normalization cost the digest 20-30% of its score. After archiving, none of the same twelve queries cite archived text and the note's own sections rank the same or better. Verbatim is enforced rather than intended: line endings survive because the archive is read and written as bytes, and the frontmatter is excluded from the recorded hash.
