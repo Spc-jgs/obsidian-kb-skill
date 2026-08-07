@@ -179,7 +179,8 @@ their own knowledge.
 | Code | Meaning | Do this |
 |---|---|---|
 | `invalid-note` | `--note` does not name an existing note, or that note's frontmatter cannot be read | Create or repair the note first. An archive exists to support a note; it is not a place to park orphaned text |
-| `note-already-archived` | The note already links a source archive | Confirm with the user before adding a second. Pass `--replace` only when they said to keep both |
+| `note-already-archived` | The note already links a source archive | Confirm with the user before adding a second. Pass `--replace` only when they said to keep both — it adds one, it does not drop the existing archive, and `source_archive` becomes a list |
+| `undecodable-source-content` | The captured source is not valid UTF-8 | Re-capture the source as UTF-8. Do not transcode it yourself: an archive exists to be byte-faithful evidence, and a guessed encoding is not that |
 | `empty-source-content` | There is no source text to archive | Acquire the source first, following `web-capture.md`. Never archive a placeholder |
 | `invalid-date` | `--captured` is not an ISO calendar date | Pass `YYYY-MM-DD`, or omit it and let the helper use today |
 

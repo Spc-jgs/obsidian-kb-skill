@@ -1118,13 +1118,19 @@ def test_ignores_note_referenced_by_index(tmp_path):
 
 def _disconnected(tmp_path):
     return {
-        finding.path.as_posix()
+        finding.path
         for finding in audit_vault(tmp_path)
         if finding.code == "disconnected-note"
     }
 
 
-def test_reports_disconnected_note(tmp_path):
+def test_unreachable_note_is_only_an_orphan(tmp_path):
+    """An unreachable note is an orphan, and the connectivity message would lie.
+
+    `disconnected-note` states the note is reachable through its folder index.
+    With no index in its folder that is false, and the note is already reported
+    as `orphan-note`, so reporting both says two different things about one note.
+    """
     (tmp_path / ".obsidian").mkdir()
     (tmp_path / "Lone.md").write_text(
         '---\ndate: "2026-07-07"\ntype: learning-note\n'
@@ -1132,7 +1138,40 @@ def test_reports_disconnected_note(tmp_path):
         encoding="utf-8",
     )
 
-    assert "disconnected-note" in codes(tmp_path)
+    found = codes(tmp_path)
+    assert "orphan-note" in found
+    assert "disconnected-note" not in found
+
+
+def test_link_to_own_source_archive_is_not_connectivity(tmp_path):
+    """Archiving a source must not quietly clear the finding.
+
+    `95-Sources/` is declared evidence rather than knowledge everywhere else --
+    excluded from search, from note contracts, from folder-index requirements --
+    so a note whose only link is to its own archive still touches nothing.
+    """
+    (tmp_path / ".obsidian").mkdir()
+    topic = tmp_path / "Topic"
+    topic.mkdir()
+    (topic / "Topic.md").write_text(
+        "---\ntype: folder-index\ntags: [moc]\n---\n"
+        "```folder-index-content\n```\n",
+        encoding="utf-8",
+    )
+    (topic / "Kafka.md").write_text(
+        '---\ndate: "2026-08-01"\ntype: learning-note\n'
+        'tags: [learning]\nsource_archive: "[[Kafka·原文]]"\n---\n'
+        "# Kafka\n原文存档：[[Kafka·原文]]\n",
+        encoding="utf-8",
+    )
+    archive = tmp_path / "95-Sources" / "2026-08"
+    archive.mkdir(parents=True)
+    (archive / "Kafka·原文.md").write_text(
+        '---\ntype: source-archive\nnote: "[[Kafka]]"\n---\n原文正文。\n',
+        encoding="utf-8",
+    )
+
+    assert "Topic/Kafka.md" in _disconnected(tmp_path)
 
 
 def test_outbound_link_alone_is_connected(tmp_path):

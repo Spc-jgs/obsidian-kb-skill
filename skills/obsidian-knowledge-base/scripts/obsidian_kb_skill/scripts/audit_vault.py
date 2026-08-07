@@ -968,13 +968,13 @@ def _collect_references(
     return referenced
 
 
-def _audit_orphans(
-    findings: list[Finding],
-    vault: Path,
-    referenced: set[Path],
-    index_notes: set[Path],
-    candidate_notes: list[Path],
-) -> None:
+def _indexed_notes(vault: Path, index_notes: set[Path]) -> set[Path]:
+    """Notes an index makes reachable, whether or not anything links to them.
+
+    Shared by the two link findings so they cannot disagree about what
+    "reachable" means: ``orphan-note`` fires when this set does not cover a
+    note, ``disconnected-note`` only when it does.
+    """
     indexed: set[Path] = set()
     for index_note in index_notes:
         folder = index_note.parent
@@ -987,6 +987,16 @@ def _audit_orphans(
             if relative.name in EXEMPT_NAMES or relative.name == "INDEX.md":
                 continue
             indexed.add(child)
+    return indexed
+
+
+def _audit_orphans(
+    findings: list[Finding],
+    vault: Path,
+    referenced: set[Path],
+    indexed: set[Path],
+    candidate_notes: list[Path],
+) -> None:
     for candidate in candidate_notes:
         if candidate not in referenced and candidate not in indexed:
             _add(
@@ -1002,6 +1012,7 @@ def _audit_connectivity(
     findings: list[Finding],
     vault: Path,
     referenced: set[Path],
+    indexed: set[Path],
     outbound: dict[Path, set[Path]],
     connectivity_notes: list[Path],
 ) -> None:
@@ -1017,9 +1028,23 @@ def _audit_connectivity(
     intersection is reported: no inbound *and* no outbound. Either side alone
     is both noisy and ambiguous -- a concept note cited from three places is
     supposed to have no outbound links.
+
+    A note that is not reachable at all is already an ``orphan-note``, and this
+    message would claim a folder index it does not have, so reachability is a
+    precondition rather than an assumption. Links into ``95-Sources/`` do not
+    count: an archive is the note's own captured evidence, declared everywhere
+    else in this codebase to be not-knowledge, so archiving a source must not
+    quietly clear a finding about connection to other notes.
     """
     for candidate in connectivity_notes:
-        if candidate in referenced or outbound.get(candidate):
+        if candidate not in referenced and candidate not in indexed:
+            continue  # unreachable: reported as orphan-note instead
+        if candidate in referenced:
+            continue
+        if any(
+            target.relative_to(vault).parts[:1] != (SOURCE_ARCHIVE_FOLDER,)
+            for target in outbound.get(candidate, ())
+        ):
             continue
         _add(
             findings,
@@ -1237,8 +1262,11 @@ def audit_vault(vault: Path) -> list[Finding]:
             )
 
     _audit_titles(findings, title_list)
-    _audit_orphans(findings, vault, referenced, index_notes, candidate_notes)
-    _audit_connectivity(findings, vault, referenced, outbound, connectivity_notes)
+    indexed = _indexed_notes(vault, index_notes)
+    _audit_orphans(findings, vault, referenced, indexed, candidate_notes)
+    _audit_connectivity(
+        findings, vault, referenced, indexed, outbound, connectivity_notes
+    )
 
     return sorted(findings, key=lambda item: (item.path, item.code, item.message))
 

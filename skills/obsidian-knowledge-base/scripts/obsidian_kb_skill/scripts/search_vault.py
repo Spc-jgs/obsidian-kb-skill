@@ -197,7 +197,12 @@ def parse_note_date(value: Any) -> str | None:
     if isinstance(value, datetime.date):
         return value.isoformat()
     if isinstance(value, str) and ISO_DATE_RE.match(value.strip()):
-        return value.strip()[:10]
+        # Shape is not validity. `2026-13-45` matches the pattern and would then
+        # be range-compared as text, ranking a month that does not exist as a
+        # real date. The filter flags are already validated this way; a note's
+        # own metadata has to clear the same bar.
+        head = value.strip()[:10]
+        return head if _is_iso_date(head) else None
     return None
 
 

@@ -60,7 +60,7 @@ class ArchivePlan:
     sha256: str
     source_bytes: int
     note_relative: str
-    already_archived: str | None
+    already_archived: list[str]
 
 
 def source_sha256(text: str) -> str:
@@ -143,11 +143,17 @@ def archived_body(rendered: str) -> str:
     return rendered[end + len("\n---\n") :].removeprefix("\n")
 
 
-def declared_archive(note_text: str) -> str | None:
-    """Return the archive a note already declares, if any."""
+def declared_archives(note_text: str) -> list[str]:
+    """Return every archive a note already declares, in declaration order.
+
+    Reads both spellings on purpose: a note with one archive carries a plain
+    string, which is what every note written before `--replace` existed looks
+    like, and a note with several carries a list.
+    """
     metadata = parse_frontmatter(note_text).metadata or {}
     value = metadata.get("source_archive")
-    return value.strip() if isinstance(value, str) and value.strip() else None
+    values = value if isinstance(value, list) else [value]
+    return [item.strip() for item in values if isinstance(item, str) and item.strip()]
 
 
 def plan_archive(
@@ -173,11 +179,22 @@ def plan_archive(
     note_relative = note.relative_to(vault).as_posix()
     directory = archive_directory(vault, stamp)
     stem = archive_stem(note.stem, captured=stamp)
-    candidate = directory / f"{stem}.md"
+    # Uniqueness has to hold across the whole archive tree, not just this
+    # month's folder. The note links its archive by bare stem, and Obsidian
+    # resolves that vault-wide: two `<name>·原文.md` under different months
+    # make the link ambiguous, which the audit reports as a defect the helper
+    # itself created. Archiving the same note twice in different months, or two
+    # same-named notes from different folders, both hit this.
+    taken = {
+        existing.stem
+        for existing in (vault / SOURCE_ARCHIVE_FOLDER).rglob("*.md")
+    }
+    candidate_stem = stem
     suffix = 2
-    while candidate.exists():
-        candidate = directory / f"{stem}-{suffix}.md"
+    while candidate_stem in taken:
+        candidate_stem = f"{stem}-{suffix}"
         suffix += 1
+    candidate = directory / f"{candidate_stem}.md"
     return ArchivePlan(
         path=candidate,
         relative=candidate.relative_to(vault).as_posix(),
@@ -185,7 +202,7 @@ def plan_archive(
         sha256=source_sha256(text),
         source_bytes=len(text.encode("utf-8")),
         note_relative=note_relative,
-        already_archived=declared_archive(note.read_text(encoding="utf-8")),
+        already_archived=declared_archives(note.read_text(encoding="utf-8")),
     )
 
 
@@ -195,6 +212,13 @@ def link_note_to_archive(note_text: str, stem: str) -> str:
     Both placements are deliberate: frontmatter so the relationship is
     machine-readable, and one visible line so the reader can click through in
     Obsidian. Nothing else in the note is touched.
+
+    A second archive is added, never substituted. `--replace` is documented as
+    "keep both" in the refusal message and in `rules-and-errors.md`, but this
+    overwrote the single `source_archive` key, leaving the earlier archive on
+    disk still pointing back at the note while the note no longer pointed at
+    it. One archive stays a plain string so existing notes are untouched;
+    several become a list.
     """
     parsed = parse_frontmatter(note_text)
     if parsed.metadata is None:
@@ -203,7 +227,9 @@ def link_note_to_archive(note_text: str, stem: str) -> str:
             "the note has no readable frontmatter to record the archive in",
         )
     metadata = dict(parsed.metadata)
-    metadata["source_archive"] = f"[[{stem}]]"
+    link = f"[[{stem}]]"
+    existing = [item for item in declared_archives(note_text) if item != link]
+    metadata["source_archive"] = existing + [link] if existing else link
     block = yaml.safe_dump(
         portable_yaml_scalars(metadata),
         allow_unicode=True,
