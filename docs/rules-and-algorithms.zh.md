@@ -203,7 +203,7 @@ Vault 把 `person` 改成 `people` 能跟上，`java` 这种真实主题也不�
 |---|---|---|
 | **defect** | 笔记或 Vault 已经坏了：导航、渲染或工具链已失效，或者半成品脚手架被写进去了 | 19 种 |
 | **hygiene** | 一致性和完整性问题，方便的时候修 | 18 种 |
-| **informational** | 观察项，往往完全正常 | 2 种 |
+| **informational** | 观察项，往往完全正常 | 3 种 |
 
 **defect（19）**：`missing-frontmatter` `invalid-frontmatter` `missing-type`
 `invalid-type` `missing-date` `unclosed-fence` `empty-template-note`
@@ -222,7 +222,7 @@ Vault 把 `person` 改成 `people` 能跟上，`java` 这种真实主题也不�
 `misnamed-folder-index` `missing-folder-index-content` `web-clip-missing-source`
 `web-clip-missing-author` `web-clip-missing-published`
 
-**informational（2）**：`orphan-note` `similar-title`
+**informational（3）**：`orphan-note` `disconnected-note` `similar-title`
 
 ### 6.2 链接解析
 
@@ -246,14 +246,28 @@ wikilink 按这个顺序解析：**文件名 → 词干（stem）→ 声明的 a
 `95-Sources/` 还额外豁免 folder-index 要求 —— 存档是从引用它的笔记进去的，
 不靠浏览。
 
-### 6.4 已知的结构性盲区
+### 6.4 可达性和连通性是两件事
 
-**`orphan-note` 恒为 0。** 只要目录存在 folder-index，该目录下所有笔记就算
-「已被索引」，永不判为孤儿。参考 Vault 有 22 个 folder-index 覆盖全部管理目录，
-所以这个信号结构性地永远为 0 —— 而实测 **135 篇里 87 篇（64%）没有任何入链、
-80 篇（59%）没有任何出链**。仪表盘显示一切正常。
+`orphan-note` 测的是**可达性**：这篇笔记还能不能被翻到。只要目录存在
+folder-index，该目录下所有笔记就算已被索引 —— 这个推断是对的，因为 Folder Index
+插件自己按目录内容生成列表，审计还禁止把它换成手写列表。参考 Vault 有 22 个
+folder-index 覆盖全部管理目录，所以它报 0 条是真实的，不是漏报。
 
-已挂 [issue #57](https://github.com/Spc-jgs/obsidian-kb-skill/issues/57)，未修。
+但可达 ≠ 连通。躺在索引列表里翻得到，和与其他笔记有没有知识关系，是两回事。
+`disconnected-note`（[#57](https://github.com/Spc-jgs/obsidian-kb-skill/issues/57)）
+补的就是这个缺口：**零入链且零出链**。
+
+**只报交集。** 实测参考 Vault 审计候选 127 篇里，零入链 79 篇、零出链 74 篇 ——
+任何单边都太吵，含义还模糊：一篇被三处引用的概念笔记没有出链是正常的。
+两边都没有才是无歧义的「和知识库其余部分没有任何关系」。
+
+**周期性日志豁免。** `daily-report` 和 `weekly-report` 不参与判定 —— 流水日志不
+链东西是本分。完全孤立的 57 篇里它们占 36 篇（63%），不排掉就会把真正值得看的
+21 篇埋了。
+
+实测输出：21 条，其中 **14 条是 `web-clip`** —— 剪进来再没接上任何东西，
+正是调研里排第一的那个痛点。严重度 `informational`：孤立不是缺陷，
+而且**不要为了消掉它去编一条链接**，不相干的链接比没有更糟。
 
 ---
 
@@ -463,7 +477,7 @@ wikilink 按这个顺序解析：**文件名 → 词干（stem）→ 声明的 a
 | 问题 | 证据 | 状态 |
 |---|---|---|
 | 聚类词覆盖整个目录时应降权 | `10-Work/日报` 30 篇里 4 个词都是 30/30 | [#55](https://github.com/Spc-jgs/obsidian-kb-skill/issues/55) |
-| `orphan-note` 结构性恒为 0 | 135 篇里 87 篇零入链，审计报 0 条 | [#57](https://github.com/Spc-jgs/obsidian-kb-skill/issues/57) |
 | 关联度没有可用标尺 | 分数 3–30 无上界，阈值 3 就是众数 | 重做已否决（32/32 负例），维持现状 |
-| 66% 笔记零出链 | 检索索引 163 篇里 107 篇没有出链 | 病根同 [#57](https://github.com/Spc-jgs/obsidian-kb-skill/issues/57)，是缺口所在 |
+| 连通性无信号 | 127 篇候选里零入链 79、零出链 74，审计只报可达性 | 已修：`disconnected-note`（[#57](https://github.com/Spc-jgs/obsidian-kb-skill/issues/57)），见 6.4 |
+| 21 篇笔记完全孤立 | 其中 14 篇 web-clip，剪进来没接上任何东西 | 信号已可见，怎么处理是用户的判断 |
 | 同质笔记互相推荐 | 30 篇日报彼此雷同，各自推出另外 29 篇，占过线对数的 77% | 靠 top-N 兜住，未单独修 |

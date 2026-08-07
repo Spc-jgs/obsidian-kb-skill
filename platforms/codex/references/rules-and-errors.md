@@ -195,7 +195,7 @@ Frontmatter and content: `missing-frontmatter`, `invalid-frontmatter`,
 `invalid-related-entry`, `duplicate-related-entry`, `unclosed-fence`.
 
 Links and duplication: `broken-wikilink`, `ambiguous-wikilink`, `orphan-note`,
-`duplicate-title`, `similar-title`.
+`disconnected-note`, `duplicate-title`, `similar-title`.
 
 Templates: `missing-template-heading`, `empty-template-note`,
 `residual-template-instruction`, `unresolved-template-placeholder`,
@@ -231,6 +231,23 @@ Each finding carries a severity, and `--min-severity` filters by it:
 
 Report `defect` counts first. A long undifferentiated list is a list the user
 will not read.
+
+#### Reachability is not connectivity
+
+Two informational findings look alike and are not. `orphan-note` means the note
+cannot be *found*: nothing links to it and no index lists it. `disconnected-note`
+means the note can be found but touches nothing: a folder index makes it
+reachable, yet it has no inbound and no outbound links.
+
+A well-indexed Vault reports almost no orphans, because the Folder Index plugin
+generates each folder's listing from its contents. That is not evidence the
+knowledge is connected. Only the intersection is reported — a note missing just
+one direction is usually fine, and a concept note cited from three places is
+supposed to link nowhere. Periodic logs (daily and weekly reports) are exempt
+outright; linking nothing is what they are for.
+
+Neither finding is a defect. Suggest a link only when the user asks, and never
+invent one to clear the finding: an unrelated link is worse than none.
 
 ## Error Handling
 
