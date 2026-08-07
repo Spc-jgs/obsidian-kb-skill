@@ -345,8 +345,12 @@ wikilink 按这个顺序解析：**文件名 → 词干（stem）→ 声明的 a
 
 ## 9. 关联度（wikilink 建议）
 
-> **这一节正在重做**，见 `docs/superpowers/specs/2026-08-06-relatedness-scoring-design.md`。
-> 下面是**现状**。
+> **重做已结案：不改了。** 见
+> `docs/superpowers/specs/2026-08-06-relatedness-scoring-design.md`。
+> 原计划换成 BM25 + 标签 Jaccard、阈值 45；32 对人工标注全部为负（覆盖 0–74
+> 全部分档），说明这组信号测的是「像不像」，而用户要的是「走过去能不能学到东西」。
+> 换权重、换阈值都解决不了。**下面这套现状规则继续用**，它的问题（9.2）
+> 已知且未修；真正的缺口在沉淀时该建的链接没建成（[#57]），不在事后打分。
 
 ### 9.1 现在怎么算
 
@@ -441,7 +445,7 @@ wikilink 按这个顺序解析：**文件名 → 词干（stem）→ 声明的 a
 | `MAX_CLUSTER_SCAN_TOTAL` | 1000 | `vault_info` | 聚类整次调用读取预算 |
 | `MAX_VOCABULARY_TERMS` | 40 | `vault_info` | 标签词表返回多少词 |
 | `MAX_VOCABULARY_SCAN` | 1000 | `vault_info` | 标签词表扫多少篇 |
-| `MIN_SCORE` | 3 | `suggest_links` | 关联度阈值（**将改为 `RELATEDNESS_THRESHOLD = 45`**） |
+| `MIN_SCORE` | 3 | `suggest_links` | 关联度阈值（改 45 的方案已结案作废，见 9） |
 | `FIELD_WEIGHTS` | 6/5/3/2/2/1 | `search_vault` | BM25 字段权重 |
 | `k1` / `b` | 1.5 / 0.75 | `search_vault` | BM25 参数 |
 | `MAX_TOP_K` | 20 | `search_vault` | 检索返回上限 |
@@ -460,5 +464,6 @@ wikilink 按这个顺序解析：**文件名 → 词干（stem）→ 声明的 a
 |---|---|---|
 | 聚类词覆盖整个目录时应降权 | `10-Work/日报` 30 篇里 4 个词都是 30/30 | [#55](https://github.com/Spc-jgs/obsidian-kb-skill/issues/55) |
 | `orphan-note` 结构性恒为 0 | 135 篇里 87 篇零入链，审计报 0 条 | [#57](https://github.com/Spc-jgs/obsidian-kb-skill/issues/57) |
-| 关联度没有可用标尺 | 分数 3–30 无上界，阈值 3 就是众数 | 设计已定，待实施 |
+| 关联度没有可用标尺 | 分数 3–30 无上界，阈值 3 就是众数 | 重做已否决（32/32 负例），维持现状 |
+| 66% 笔记零出链 | 检索索引 163 篇里 107 篇没有出链 | 病根同 [#57](https://github.com/Spc-jgs/obsidian-kb-skill/issues/57)，是缺口所在 |
 | 同质笔记互相推荐 | 30 篇日报彼此雷同，各自推出另外 29 篇，占过线对数的 77% | 靠 top-N 兜住，未单独修 |
