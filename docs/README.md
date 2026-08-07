@@ -13,6 +13,7 @@
 | 保存对话上下文或提炼对话知识 | [对话上下文恢复与知识萃取](conversations.md) |
 | 查看各 Agent 的安装位置和差异 | [平台与安装](platforms-and-installation.md) |
 | 安装失败、检索不到或 doctor 报错 | [故障排查](troubleshooting.md) |
+| 搞清楚各项规则、阈值和算法到底是怎么定的 | [规则与算法总览](rules-and-algorithms.zh.md) |
 
 ## 两条互不混淆的工作流
 
