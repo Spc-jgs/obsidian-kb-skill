@@ -18,6 +18,7 @@ from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
 from obsidian_kb_skill.scripts.source_archive import (
     archive_stem,
     archived_body,
+    declared_archives,
     link_note_to_archive,
     render_archive,
     source_sha256,
@@ -40,7 +41,7 @@ AWKWARD = (
 )
 
 
-def _run(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess:
+def _run(*args: str, stdin: str | bytes | None = None) -> subprocess.CompletedProcess:
     # Bytes on stdin, decoded output. In text mode Windows translates the `\n`
     # in what the *parent* writes, turning this fixture's `\r\n` into `\r\r\n`
     # before the helper ever sees it — the test would then be measuring the
@@ -49,7 +50,7 @@ def _run(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess:
         [sys.executable, "-m", "obsidian_kb_skill.scripts.archive_source", *args],
         cwd=ROOT,
         env={**os.environ, "PYTHONPATH": str(ROOT)},
-        input=None if stdin is None else stdin.encode("utf-8"),
+        input=stdin.encode("utf-8") if isinstance(stdin, str) else stdin,
         capture_output=True,
     )
     return subprocess.CompletedProcess(
@@ -144,7 +145,7 @@ def test_preflight_writes_nothing(tmp_path: Path):
     payload = json.loads(result.stdout)
     assert payload["archive"]["path"].startswith("95-Sources/2026-")
     assert payload["archive"]["sha256"] == source_sha256(AWKWARD)
-    assert payload["archive"]["already_archived"] is None
+    assert payload["archive"]["already_archived"] == []
     assert _hashes(vault) == before
 
 
@@ -230,3 +231,88 @@ def test_a_dated_note_title_is_not_dated_twice():
 
     assert dated == "2026-08-06 从零构建Coding Agent·原文"
     assert undated == "2026-08-06 Violin 架构·原文"
+
+
+def test_undecodable_content_file_refuses_with_json(tmp_path: Path):
+    """A captured source's encoding is an input, not a guarantee.
+
+    The caller parses stdout, so an unguarded decode surfaced as a traceback
+    with no code to act on rather than a refusal it could report.
+    """
+    vault = _vault(tmp_path)
+    source = vault / "source.txt"
+    source.write_bytes("原文内容".encode("utf-16"))
+
+    result = _run(
+        str(vault), "--note", "20-Learning/violin.md",
+        "--source-url", "https://example.com/a",
+        "--content-file", str(source), "--preflight-json",
+    )
+
+    assert result.returncode == 2, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "undecodable-source-content"
+
+
+def test_undecodable_stdin_refuses_with_json(tmp_path: Path):
+    vault = _vault(tmp_path)
+
+    result = _run(
+        str(vault), "--note", "20-Learning/violin.md",
+        "--source-url", "https://example.com/a",
+        "--stdin", "--preflight-json",
+        stdin="原文内容".encode("utf-16"),
+    )
+
+    assert result.returncode == 2, result.stdout
+    assert json.loads(result.stdout)["error"]["code"] == "undecodable-source-content"
+
+
+def test_archive_stems_stay_unique_across_month_folders(tmp_path: Path):
+    """Obsidian resolves a bare stem vault-wide, so per-folder uniqueness is not enough.
+
+    Two `<name>·原文.md` under different months made the note's own link
+    ambiguous -- a defect the write helper created and its own audit reports.
+    """
+    vault = _vault(tmp_path)
+
+    first = _run(
+        str(vault), "--note", "20-Learning/violin.md",
+        "--source-url", "https://example.com/a", "--captured", "2026-08-10",
+        "--stdin", "--apply", stdin="原文 A",
+    )
+    assert first.returncode == 0, first.stderr
+    second = _run(
+        str(vault), "--note", "20-Learning/violin.md",
+        "--source-url", "https://example.com/b", "--captured", "2026-09-15",
+        "--stdin", "--apply", "--replace", stdin="原文 B",
+    )
+    assert second.returncode == 0, second.stderr
+
+    stems = sorted(p.stem for p in (vault / "95-Sources").rglob("*.md"))
+    assert len(stems) == len(set(stems)), stems
+
+
+def test_replace_keeps_the_earlier_archive(tmp_path: Path):
+    """`--replace` is documented as "keep both"; it used to drop the pointer."""
+    vault = _vault(tmp_path)
+    note = vault / "20-Learning" / "violin.md"
+
+    _run(
+        str(vault), "--note", "20-Learning/violin.md",
+        "--source-url", "https://example.com/a", "--captured", "2026-08-10",
+        "--stdin", "--apply", stdin="原文 A",
+    )
+    _run(
+        str(vault), "--note", "20-Learning/violin.md",
+        "--source-url", "https://example.com/b", "--captured", "2026-09-15",
+        "--stdin", "--apply", "--replace", stdin="原文 B",
+    )
+
+    declared = declared_archives(note.read_text(encoding="utf-8"))
+    assert len(declared) == 2, declared
+    # Every declared archive must actually exist and resolve unambiguously.
+    for entry in declared:
+        stem = entry.strip("[]")
+        assert len(list((vault / "95-Sources").rglob(f"{stem}.md"))) == 1, entry

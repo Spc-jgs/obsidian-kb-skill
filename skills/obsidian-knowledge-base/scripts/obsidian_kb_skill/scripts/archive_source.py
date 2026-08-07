@@ -96,11 +96,26 @@ def main(argv: list[str] | None = None) -> int:
     except VaultPathError as exc:
         return report_cli_violation(exc, param="--note", json_mode=True)
 
+    # A captured source is somebody else's bytes, so its encoding is an input
+    # this helper receives rather than a guarantee it holds. Decoding it
+    # unguarded raised UnicodeDecodeError past the JSON envelope: the caller
+    # parses stdout, so a traceback reads as an unexplained tool failure with
+    # no code to act on.
     if args.stdin:
         # Universal-newline translation would silently rewrite CRLF sources on
         # the way in. Evidence has to arrive exactly as it was captured.
         sys.stdin.reconfigure(newline="")
-        text = sys.stdin.read()
+        try:
+            text = sys.stdin.read()
+        except UnicodeDecodeError:
+            print(
+                _error(
+                    "undecodable-source-content",
+                    "the source text on stdin is not valid UTF-8; re-capture it "
+                    "as UTF-8 before archiving",
+                )
+            )
+            return 2
     else:
         try:
             content = resolve_existing_within_vault(
@@ -108,7 +123,18 @@ def main(argv: list[str] | None = None) -> int:
             )
         except VaultPathError as exc:
             return report_cli_violation(exc, param="--content-file", json_mode=True)
-        text = content.read_bytes().decode("utf-8")
+        try:
+            text = content.read_bytes().decode("utf-8")
+        except UnicodeDecodeError:
+            print(
+                _error(
+                    "undecodable-source-content",
+                    "--content-file is not valid UTF-8; re-capture the source as "
+                    "UTF-8 before archiving",
+                    content_file=str(args.content_file),
+                )
+            )
+            return 2
 
     if args.captured is not None:
         try:

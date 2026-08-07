@@ -10,7 +10,11 @@ from pathlib import Path
 
 import pytest
 
-from obsidian_kb_skill.scripts.search_vault import search_vault, tokenize
+from obsidian_kb_skill.scripts.search_vault import (
+    parse_note_date,
+    search_vault,
+    tokenize,
+)
 from obsidian_kb_skill.scripts.vault_paths import PathOutsideVaultError
 
 
@@ -552,3 +556,15 @@ def test_archives_are_invisible_by_default_but_reachable_with_scope(tmp_path: Pa
 
     assert [r["path"] for r in everywhere["results"]] == []
     assert [r["path"] for r in scoped["results"]] == ["95-Sources/2026-08/source.md"]
+
+
+def test_a_date_that_does_not_exist_is_not_a_date():
+    """Shape is not validity.
+
+    `2026-13-45` matched the ISO-shaped pattern and was then range-compared as
+    text, so a month that does not exist sorted as a real date while the flags
+    themselves were validated strictly.
+    """
+    assert parse_note_date("2026-08-06") == "2026-08-06"
+    assert parse_note_date("2026-13-45") is None
+    assert parse_note_date("2026-02-30") is None

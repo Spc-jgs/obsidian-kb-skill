@@ -11,7 +11,7 @@
     "scripts/obsidian_kb_skill/scripts/frontmatter.py": "85b676f3ba0043d6d32485f1c47fb339e9c9d5f8672845b7c3cae46dfb539c83",
     "scripts/obsidian_kb_skill/scripts/note_catalog.py": "be1bf5a813f94a5e5d7eba022267023b6ddcd2c714e15b876f8daf0fc94407ac",
     "scripts/obsidian_kb_skill/scripts/retrieval_vault_info.py": "af952ed626b49bbe84841302ace7796e777e68ad2c8f005998389395162164ec",
-    "scripts/obsidian_kb_skill/scripts/search_vault.py": "0a03fdd3485aced80bbefe2b55aedc048f7a0cd3ec8ac81ebdbd07830f976156",
+    "scripts/obsidian_kb_skill/scripts/search_vault.py": "c70c19e2ccf6179f5afec0306b93cb73c0310fff33cf182a4f686a41a615019a",
     "scripts/obsidian_kb_skill/scripts/vault_paths.py": "5eb90ea7b46258b79c3e6e4f2361736639fd9a668e97361c1cde0205c55aec2d",
     "scripts/run_helper.py": "f6004973790cb9760d761dedaf30611db3f1fa9a6e39e9c6a8994dabde776b8a"
   },
