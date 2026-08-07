@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.29.1] - 2026-08-07
+
+### Changed
+
+- Crowded-folder clustering no longer spends its six slots on terms that describe the folder itself. A term is a split candidate only when both sides of the split could stand alone, so the remainder must also clear `CLUSTER_MIN_NOTES` — expressed as a remainder rather than a percentage, because it reuses the threshold already in play instead of inventing a second one, and because covering 6 of 7 notes and 172 of 200 are both 86% and are not the same decision. A term equal to the folder's own name is dropped at any ratio: `20-Learning/AI-Agent/ai-agent/` renames the folder rather than splitting it, and the remainder rule alone misses it because that term leaves 9 notes behind. A title token that is one hyphen-separated part of a counted tag is also dropped — `ai` and `agent` are `ai-agent` seen twice, and the existing guard only caught a token equal to a whole tag.
+
+  On the reference Vault `20-Learning/AI-Agent` had 11 qualifying terms and reported six, of which four were noise: the folder's name, both halves of it, and the word "文章". Two real candidates, `llm-engineering` and `vibe-coding`, were cut off the end. All four real subject tags now appear. `10-Work/日报` reports nothing at all, which is the honest answer — four terms each covering 30 of 30 notes describe the folder, not a sub-theme — and a genuine majority cluster such as `spring-boot` at 5 of 13 is still reported. Terms are removed rather than ranked last: the slots are the scarce resource, and the terms they displaced were the real candidates.
+
 ## [1.29.0] - 2026-08-07
 
 ### Added
