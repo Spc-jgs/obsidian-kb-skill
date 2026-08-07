@@ -153,7 +153,9 @@ def test_crowded_folders_count_direct_notes_and_exclude_indexes(tmp_path: Path):
             "direct_notes": 22,
             "threshold": 20,
             "child_folders": ["Skills"],
-            "clusters": [{"term": "note", "kind": "title", "notes": 22}],
+            # Every note here is titled the same, so the one term covers the
+            # whole folder and cannot be split out of it.
+            "clusters": [],
             "cluster_min_notes": 5,
         }
     ]
@@ -179,7 +181,7 @@ def test_crowded_folders_are_bounded_and_sorted(tmp_path: Path):
         "direct_notes": 44,
         "threshold": 20,
         "child_folders": [],
-        "clusters": [{"term": "note", "kind": "title", "notes": 44}],
+        "clusters": [],
         "cluster_min_notes": 5,
     }
     assert crowded[-1]["direct_notes"] == 25
@@ -205,7 +207,18 @@ def test_crowded_folders_skip_directory_symlinks(tmp_path: Path):
 
 
 def _crowd(folder: Path, count: int, *, prefix: str, tags: str) -> None:
-    for number in range(count):
+    _crowd_from(folder, count, start=0, prefix=prefix, tags=tags)
+
+
+def _crowd_from(
+    folder: Path, count: int, *, start: int, prefix: str, tags: str
+) -> None:
+    """Write notes whose numbering starts past an existing batch.
+
+    A cluster term has to leave a remainder to be splittable, so most fixtures
+    need a second batch on a different subject alongside the first.
+    """
+    for number in range(start, start + count):
         (folder / f"2026-07-{number + 1:02} {prefix} {number}.md").write_text(
             f"---\ntype: learning-note\ndate: 2026-07-01\ntags: {tags}\n---\n\n# t\n",
             encoding="utf-8",
@@ -247,6 +260,8 @@ def test_clusters_report_a_readable_cjk_subject(tmp_path: Path):
     topic = vault / "20-Learning" / "AI-Agent"
     topic.mkdir()
     _crowd(topic, 21, prefix="记忆压缩", tags="[learning]")
+    # Leave a remainder, or the subject covers the folder and is not splittable.
+    _crowd_from(topic, 6, start=22, prefix="其他", tags="[learning]")
 
     clusters = collect(vault)["crowded_folders"][0]["clusters"]
 
@@ -321,7 +336,10 @@ def test_cluster_analysis_prefers_the_destination_over_the_crowd(tmp_path: Path)
         _crowd(topic, 190 - index, prefix=f"subject{index}", tags="[learning]")
     quiet = vault / "20-Learning" / "Chosen"
     quiet.mkdir()
-    _crowd(quiet, 21, prefix="chosen subject", tags="[learning]")
+    # Not named after the folder, and leaving a remainder, so the point of the
+    # test stays the scan budget rather than the splittability rules.
+    _crowd(quiet, 21, prefix="picked subject", tags="[learning]")
+    _crowd_from(quiet, 6, start=22, prefix="其他", tags="[learning]")
 
     crowded = collect(
         vault, note_type="learning-note", folder="20-Learning/Chosen"
@@ -333,7 +351,7 @@ def test_cluster_analysis_prefers_the_destination_over_the_crowd(tmp_path: Path)
     # Nothing is reported from a partial scan: an analyzed folder counted every
     # note it holds.
     chosen = next(item for item in crowded if item["path"] == "20-Learning/Chosen")
-    assert {"term": "chosen", "kind": "title", "notes": 21} in chosen["clusters"]
+    assert {"term": "picked", "kind": "title", "notes": 21} in chosen["clusters"]
 
 
 def test_a_long_frontmatter_block_still_yields_its_tags(tmp_path: Path):
@@ -353,6 +371,8 @@ def test_a_long_frontmatter_block_still_yields_its_tags(tmp_path: Path):
             f"related:\n{filler}\n---\n\n# t\n",
             encoding="utf-8",
         )
+    # Leave a remainder, or `mcp` covers the folder and is not splittable.
+    _crowd_from(topic, 6, start=22, prefix="其他", tags="[learning]")
 
     clusters = collect(vault)["crowded_folders"][0]["clusters"]
 
@@ -457,3 +477,108 @@ def test_vocabulary_is_bounded_and_reports_what_it_left_out(tmp_path: Path):
 
 def test_an_invalid_vault_gets_no_vocabulary(tmp_path: Path):
     assert "tag_vocabulary" not in collect(tmp_path / "missing")
+
+
+def test_a_term_covering_the_folder_does_not_take_a_slot(tmp_path: Path):
+    """The slots are the scarce resource, so an unsplittable term is removed.
+
+    On the reference Vault the top four terms in `20-Learning/AI-Agent` were the
+    folder's own name, both halves of it, and a generic word, which cut two real
+    candidates off the end of the list.
+    """
+    vault = _make_vault(tmp_path)
+    topic = vault / "20-Learning" / "AI-Agent"
+    topic.mkdir()
+    # `blanket` is on every note; `mcp` and `rag` are real sub-themes.
+    _crowd(topic, 8, prefix="server", tags="[learning, blanket, mcp]")
+    _crowd_from(topic, 7, start=9, prefix="pipeline", tags="[learning, blanket, rag]")
+    _crowd_from(topic, 6, start=17, prefix="其他", tags="[learning, blanket]")
+
+    clusters = collect(vault)["crowded_folders"][0]["clusters"]
+    terms = {item["term"] for item in clusters}
+
+    assert "blanket" not in terms
+    assert {"mcp", "rag"} <= terms
+
+
+def test_a_genuine_majority_cluster_is_still_reported(tmp_path: Path):
+    """Large is not the same as unsplittable; only the remainder decides."""
+    vault = _make_vault(tmp_path)
+    topic = vault / "20-Learning" / "AI-Agent"
+    topic.mkdir()
+    _crowd(topic, 13, prefix="server", tags="[learning, mcp]")
+    _crowd_from(topic, 8, start=14, prefix="其他", tags="[learning]")
+
+    clusters = collect(vault)["crowded_folders"][0]["clusters"]
+
+    # 13 of 21 is a clear majority, and the 8 left over could still be a folder.
+    assert {"term": "mcp", "kind": "tag", "notes": 13} in clusters
+
+
+def test_a_remainder_too_small_to_be_a_folder_is_not_a_split(tmp_path: Path):
+    """Expressed as a remainder, not a percentage, so it scales with the folder."""
+    vault = _make_vault(tmp_path)
+    topic = vault / "20-Learning" / "AI-Agent"
+    topic.mkdir()
+    _crowd(topic, 18, prefix="server", tags="[learning, mcp]")
+    _crowd_from(topic, 4, start=19, prefix="其他", tags="[learning]")
+
+    clusters = collect(vault)["crowded_folders"][0]["clusters"]
+
+    # Four left over cannot become a folder, so pulling `mcp` out is a rename.
+    assert "mcp" not in {item["term"] for item in clusters}
+
+
+def test_a_term_equal_to_the_folder_name_is_a_tautology(tmp_path: Path):
+    """`20-Learning/AI-Agent/ai-agent/` renames the folder rather than splitting it.
+
+    The remainder rule alone misses this: on the reference Vault `ai-agent`
+    covers 25 of 34 notes and leaves 9 behind, which is a viable folder.
+    """
+    vault = _make_vault(tmp_path)
+    topic = vault / "20-Learning" / "AI-Agent"
+    topic.mkdir()
+    _crowd(topic, 15, prefix="server", tags="[learning, ai-agent]")
+    _crowd_from(topic, 9, start=16, prefix="其他", tags="[learning, mcp]")
+
+    clusters = collect(vault)["crowded_folders"][0]["clusters"]
+    terms = {item["term"] for item in clusters}
+
+    assert "ai-agent" not in terms
+    assert "mcp" in terms
+
+
+def test_a_title_token_that_is_part_of_a_tag_is_not_a_separate_subject(tmp_path: Path):
+    """`ai` and `agent` are `ai-agent` seen twice.
+
+    The existing guard only dropped a title token equal to a whole tag, so both
+    halves of every hyphenated tag kept their own slot.
+    """
+    vault = _make_vault(tmp_path)
+    topic = vault / "20-Learning" / "Backend"
+    topic.mkdir()
+    _crowd(topic, 14, prefix="spring boot", tags="[learning, spring-boot]")
+    _crowd_from(topic, 8, start=15, prefix="其他", tags="[learning]")
+
+    clusters = collect(vault)["crowded_folders"][0]["clusters"]
+    terms = {item["term"] for item in clusters}
+
+    assert "spring-boot" in terms
+    assert "spring" not in terms
+    assert "boot" not in terms
+
+
+def test_a_title_token_merely_contained_in_a_tag_still_counts(tmp_path: Path):
+    """Hyphen parts, not substrings: an unrelated token must not be swallowed."""
+    vault = _make_vault(tmp_path)
+    topic = vault / "20-Learning" / "Backend"
+    topic.mkdir()
+    # `kafka` is not a part of `spring-boot` and is nobody's tag, so it keeps
+    # its own slot even though a hyphenated tag is being counted alongside it.
+    _crowd(topic, 14, prefix="kafka streams", tags="[learning, spring-boot]")
+    _crowd_from(topic, 8, start=15, prefix="其他", tags="[learning]")
+
+    clusters = collect(vault)["crowded_folders"][0]["clusters"]
+    terms = {item["term"] for item in clusters}
+
+    assert "kafka" in terms
