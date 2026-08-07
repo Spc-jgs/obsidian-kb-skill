@@ -54,7 +54,7 @@ import json
 import re
 import sys
 from collections import Counter
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
@@ -73,6 +73,7 @@ from obsidian_kb_skill.scripts.folder_index_policy import (
 from obsidian_kb_skill.scripts.note_catalog import (
     MANAGED_NOTE_FOLDERS,
     TYPE_TO_FOLDER,
+    normalize_tag_key,
 )
 from obsidian_kb_skill.scripts.audit_vault import INDEX_TYPES
 from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
@@ -201,24 +202,63 @@ def _merge_overlapping_runs(counts: Counter[str]) -> Counter[str]:
     return merged
 
 
-def subject_clusters(notes: list[Path]) -> list[dict[str, Any]]:
+def subject_clusters(notes: list[Path], folder: str = "") -> list[dict[str, Any]]:
     """Return the subject terms shared by enough notes to justify a child folder.
 
     Tags and title tokens are counted together because a Vault governs subjects
     through both. Type-default tags carry no subject information and are
     dropped, or every note in `20-Learning` would look like one big cluster.
+
+    Two kinds of term describe the folder rather than a subject inside it, and
+    both are removed rather than ranked last: the slots are the scarce resource,
+    and on the reference Vault the terms they displaced were the real candidates
+    (`llm-engineering` and `vibe-coding` were cut from `20-Learning/AI-Agent`
+    while its top four were the folder's own name, both halves of that name, and
+    the word "文章"). An empty list is a valid answer — it says this folder has
+    no splittable sub-theme.
     """
+    scanned = notes[:MAX_CLUSTER_SCAN]
     tags: Counter[str] = Counter()
     titles: Counter[str] = Counter()
-    for path in notes[:MAX_CLUSTER_SCAN]:
+    for path in scanned:
         tags.update(_tags(_head_metadata(path)) - GENERIC_TAGS)
         titles.update(_title_tokens(path.stem))
+    # A title token that is one hyphen-separated part of a counted tag is not an
+    # independent subject: `ai` and `agent` are `ai-agent` seen twice. The
+    # existing exact-match guard below never caught them. Parts rather than
+    # substrings, so an unrelated token is not swallowed by a longer tag.
+    tag_parts = {
+        normalize_tag_key(part)
+        for tag in tags
+        for part in tag.split("-")
+        if part
+    }
+    folder_key = normalize_tag_key(folder) if folder else None
+
+    def splittable(term: str, total: int) -> bool:
+        # Both sides of a split have to be able to stand as a folder. Only the
+        # part being pulled out was ever checked. Expressed as a remainder
+        # rather than a percentage on purpose: it reuses the threshold already
+        # in play instead of inventing a second one, and it scales with the
+        # folder — covering 6 of 7 notes and 172 of 200 are both 86% and are
+        # not remotely the same decision.
+        if len(scanned) - total < CLUSTER_MIN_NOTES:
+            return False
+        # A term equal to the folder's own name is a tautology at any ratio:
+        # `20-Learning/AI-Agent/ai-agent/` renames the folder, it does not split
+        # it. The remainder rule alone misses this, because `ai-agent` covers 25
+        # of 34 notes and leaves 9 behind.
+        return folder_key is None or normalize_tag_key(term) != folder_key
+
     counted = [("tag", tags), ("title", _merge_overlapping_runs(titles))]
     clusters = [
         {"term": term, "kind": kind, "notes": total}
         for kind, group in counted
         for term, total in group.items()
-        if total >= CLUSTER_MIN_NOTES and not (kind == "title" and term in tags)
+        if total >= CLUSTER_MIN_NOTES
+        and not (kind == "title" and term in tags)
+        and not (kind == "title" and normalize_tag_key(term) in tag_parts)
+        and splittable(term, total)
     ]
     clusters.sort(key=lambda item: (-item["notes"], item["kind"], item["term"]))
     return clusters[:MAX_CLUSTER_TERMS]
@@ -344,7 +384,9 @@ def crowded_folders(
         if finding["path"] != destination and cost > budget:
             continue
         budget -= cost
-        finding["clusters"] = subject_clusters(notes)
+        finding["clusters"] = subject_clusters(
+            notes, PurePosixPath(finding["path"]).name
+        )
         finding["cluster_min_notes"] = CLUSTER_MIN_NOTES
     return reported
 
