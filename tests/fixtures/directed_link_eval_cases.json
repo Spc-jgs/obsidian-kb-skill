@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "purpose": "Synthetic directional-link labels for evaluation only; v1.30 adds no scorer.",
+  "positive": [
+    {"id": "pos-01", "source": "Retry Policy", "target": "Backoff Measurements", "reader_learns": "The measurements justify Retry Policy's delay ceiling.", "evidence": "Retry Policy cites the measured saturation point."},
+    {"id": "pos-02", "source": "Offline Search Decision", "target": "Index Privacy Threat Model", "reader_learns": "The threat model explains why Offline Search Decision rejects a hosted index.", "evidence": "The decision names the threat model as its privacy constraint."},
+    {"id": "pos-03", "source": "Capture Receipt Contract", "target": "Candidate Hash Algorithm", "reader_learns": "The algorithm defines how Capture Receipt Contract binds a final note.", "evidence": "The contract delegates candidate identity to the hash algorithm."},
+    {"id": "pos-04", "source": "Bilingual Query Expansion", "target": "Vault Terminology Table", "reader_learns": "The terminology table supplies the bounded translations used by Bilingual Query Expansion.", "evidence": "Every expansion term is traced to that table."},
+    {"id": "pos-05", "source": "Zero-write Failure Rule", "target": "Unavailable Source Incident", "reader_learns": "The incident demonstrates the mutation that Zero-write Failure Rule prevents.", "evidence": "The rule was adopted in response to that incident."},
+    {"id": "pos-06", "source": "Search Latency Budget", "target": "Vault Scan Benchmark", "reader_learns": "The benchmark supplies the baseline behind Search Latency Budget.", "evidence": "The budget is expressed as a multiple of the benchmark P95."},
+    {"id": "pos-07", "source": "Alias Matching Design", "target": "Frontmatter Alias Examples", "reader_learns": "The examples define the input shapes handled by Alias Matching Design.", "evidence": "The design references scalar and list examples from the target."},
+    {"id": "pos-08", "source": "Verified Capture Workflow", "target": "Independent Audit Procedure", "reader_learns": "The procedure describes the second pass required by Verified Capture Workflow.", "evidence": "The workflow links to the procedure for its verification stage."},
+    {"id": "pos-09", "source": "No-answer Gate", "target": "False-positive Casebook", "reader_learns": "The casebook provides the counterexamples enforced by No-answer Gate.", "evidence": "The gate's corpus is selected from those cases."},
+    {"id": "pos-10", "source": "Template Compatibility Policy", "target": "Customized Vault Survey", "reader_learns": "The survey explains why Template Compatibility Policy avoids automatic migration.", "evidence": "The policy cites incompatible custom headings found by the survey."},
+    {"id": "pos-11", "source": "Source Archive Format", "target": "Archive Replay Test", "reader_learns": "The replay test verifies that Source Archive Format preserves reconstructable evidence.", "evidence": "The test consumes an archive written in that format."},
+    {"id": "pos-12", "source": "Deterministic Ranking", "target": "Tie-break Specification", "reader_learns": "The specification defines how Deterministic Ranking resolves equal scores.", "evidence": "The ranking contract imports the target's path-order rule."},
+    {"id": "pos-13", "source": "Material Image Capture", "target": "Image Availability Matrix", "reader_learns": "The matrix determines when Material Image Capture must stop instead of writing.", "evidence": "The capture flow branches on the matrix's availability states."},
+    {"id": "pos-14", "source": "Read-only Retrieval", "target": "Filesystem Snapshot Method", "reader_learns": "The snapshot method proves that Read-only Retrieval leaves the Vault unchanged.", "evidence": "The retrieval test uses before-and-after hashes from the method."},
+    {"id": "pos-15", "source": "Semantic Candidate Order", "target": "Lexical Baseline Report", "reader_learns": "The report identifies the misses that motivate Semantic Candidate Order.", "evidence": "Candidate priority follows the report's failure categories."},
+    {"id": "pos-16", "source": "Release Quality Gate", "target": "Reference Agent Runs", "reader_learns": "The runs provide the repeated evidence consumed by Release Quality Gate.", "evidence": "The gate fails when any referenced run has a hard failure."}
+  ],
+  "hard_negative": [
+    {"id": "neg-01", "source": "Retry Policy", "target": "HTTP Client Library Survey", "shared_topic": "Both discuss retries.", "why_not_related": "The survey does not explain or constrain this policy."},
+    {"id": "neg-02", "source": "Offline Search Decision", "target": "Search Icon Design", "shared_topic": "Both concern search.", "why_not_related": "Visual icon choices add nothing about offline architecture."},
+    {"id": "neg-03", "source": "Capture Receipt Contract", "target": "Receipt Printer Review", "shared_topic": "Both use the word receipt.", "why_not_related": "A retail printer is unrelated to evidence binding."},
+    {"id": "neg-04", "source": "Bilingual Query Expansion", "target": "Language Learning Schedule", "shared_topic": "Both mention two languages.", "why_not_related": "A study schedule does not define query terms."},
+    {"id": "neg-05", "source": "Zero-write Failure Rule", "target": "Empty File Cleanup", "shared_topic": "Both mention zero or empty output.", "why_not_related": "Cleanup policy does not justify capture failure behavior."},
+    {"id": "neg-06", "source": "Search Latency Budget", "target": "Quarterly Budget Notes", "shared_topic": "Both contain budget.", "why_not_related": "Financial allocation gives no latency evidence."},
+    {"id": "neg-07", "source": "Alias Matching Design", "target": "Shell Alias Collection", "shared_topic": "Both use aliases.", "why_not_related": "Shell shortcuts do not define note metadata matching."},
+    {"id": "neg-08", "source": "Verified Capture Workflow", "target": "Camera Capture Settings", "shared_topic": "Both concern capture.", "why_not_related": "Camera settings do not describe evidence verification."},
+    {"id": "neg-09", "source": "No-answer Gate", "target": "Interview Answers", "shared_topic": "Both mention answers.", "why_not_related": "Interview content does not constrain retrieval abstention."},
+    {"id": "neg-10", "source": "Template Compatibility Policy", "target": "Presentation Templates", "shared_topic": "Both discuss templates.", "why_not_related": "Slide styling does not explain Vault schema compatibility."},
+    {"id": "neg-11", "source": "Source Archive Format", "target": "Museum Archive Visit", "shared_topic": "Both use archive terminology.", "why_not_related": "A visit note adds no format or replay information."},
+    {"id": "neg-12", "source": "Deterministic Ranking", "target": "University Rankings", "shared_topic": "Both rank items.", "why_not_related": "University comparisons do not define search tie-breaking."},
+    {"id": "neg-13", "source": "Material Image Capture", "target": "Image Compression Tips", "shared_topic": "Both involve images.", "why_not_related": "Compression advice does not determine source availability."},
+    {"id": "neg-14", "source": "Read-only Retrieval", "target": "Reading List", "shared_topic": "Both contain read.", "why_not_related": "A book list does not prove filesystem immutability."},
+    {"id": "neg-15", "source": "Semantic Candidate Order", "target": "Election Candidates", "shared_topic": "Both use candidates.", "why_not_related": "Election ordering adds no retrieval evidence."},
+    {"id": "neg-16", "source": "Release Quality Gate", "target": "Airport Departure Gates", "shared_topic": "Both use gate terminology.", "why_not_related": "Travel logistics do not define software release evidence."}
+  ]
+}

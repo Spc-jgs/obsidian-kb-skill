@@ -32,7 +32,7 @@
   </tr>
 </table>
 
-One repository provides two skills with separate responsibilities: `obsidian-knowledge-retrieval` searches, cites, and answers without writing; `obsidian-knowledge-base` creates, updates, and governs notes only after explicit user authorization. The current stable release is **v1.29.2**.
+One repository provides two skills with separate responsibilities: `obsidian-knowledge-retrieval` searches, cites, and answers without writing; `obsidian-knowledge-base` creates, updates, and governs notes only after explicit user authorization. The current stable release is **v1.30.0**.
 
 ## At a Glance
 

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.30.0] - 2026-08-09
+
+### Added
+
+- Added a reproducible semantic quality gate for Web Capture: twelve synthetic standard, verified, and zero-write cases run three times with an isolated Codex reference Agent. The gate separates hard failures such as invented claims, false completion, mutation on failure, and receipt mismatch from soft coverage and structure scores.
+- Added a versioned forty-query retrieval corpus covering exact, alias or bilingual, metadata-filtered, semantic-paraphrase, and true no-answer searches, plus a read-only baseline runner that reports Recall@5, MRR, false-positive rate, and latency.
+- Added thirty-two directional-link labels: sixteen evidence-backed positive directions and sixteen same-topic hard negatives. They establish evaluation language without adding a new scorer or automatic link insertion.
+
+### Changed
+
+- Kept retrieval behavior lexical and offline in this release. The measured v1.29.2 baseline resolves three of eight semantic paraphrases; a future candidate must add at least two valid hits without regressing stable query groups, no-answer precision, read-only contracts, or the two-times P95 latency budget.
+
 ## [1.29.2] - 2026-08-09
 
 ### Fixed

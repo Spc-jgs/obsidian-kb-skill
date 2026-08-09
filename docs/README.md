@@ -14,6 +14,7 @@
 | 查看各 Agent 的安装位置和差异 | [平台与安装](platforms-and-installation.md) |
 | 安装失败、检索不到或 doctor 报错 | [故障排查](troubleshooting.md) |
 | 搞清楚各项规则、阈值和算法到底是怎么定的 | [规则与算法总览](rules-and-algorithms.zh.md) |
+| 查看 v1.30 的 Agent、检索与链接质量基线 | [语义质量门禁报告](evals/2026-08-09-semantic-quality-gates-v1.30.md) |
 
 ## 两条互不混淆的工作流
 
