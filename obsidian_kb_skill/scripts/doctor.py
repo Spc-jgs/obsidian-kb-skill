@@ -31,6 +31,7 @@ PROFILE_CONFIG = {
             "template_contract",
             "create_category",
             "create_note",
+            "archive_source",
             "update_note",
             "vault_info",
             "detect_index",

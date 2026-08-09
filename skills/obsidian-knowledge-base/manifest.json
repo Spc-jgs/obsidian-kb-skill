@@ -43,7 +43,7 @@
     "scripts/obsidian_kb_skill/scripts/create_note.py": "f64dcc550d3cc3e87c15cfeef8973552bf2dc89ff6c5b0c699290cf5d0f70cc6",
     "scripts/obsidian_kb_skill/scripts/deep_capture_contract.py": "171f3593c178958673fd9d1cc7a1996b7f6c146be779951dea0da12da8cd2abb",
     "scripts/obsidian_kb_skill/scripts/detect_index.py": "f5ba15b715e1e0045ff5184184f0f4e71fb2b83295067852e1c1ce3e57336368",
-    "scripts/obsidian_kb_skill/scripts/doctor.py": "45fa782f62706ab75850f8a8d2ee7c067898a397593be45207a7091ce9f84a3a",
+    "scripts/obsidian_kb_skill/scripts/doctor.py": "5569b4e109a708d9de1f55c25ccbb1a81180553feac77d029ac5586eaced34ce",
     "scripts/obsidian_kb_skill/scripts/folder_index_policy.py": "2fd58741d8cbb96c762ef905dcc89eef1901cfbeaa4d777f36ffcf44fa549dfe",
     "scripts/obsidian_kb_skill/scripts/frontmatter.py": "85b676f3ba0043d6d32485f1c47fb339e9c9d5f8672845b7c3cae46dfb539c83",
     "scripts/obsidian_kb_skill/scripts/index_templates.py": "27171d2cd9acb06ef1749006c87a9899676849811e7612752db43abbbc52d28c",
@@ -66,5 +66,5 @@
   },
   "product": "obsidian-kb-skill",
   "schema_version": 1,
-  "version": "1.29.1"
+  "version": "1.29.2"
 }

@@ -22,6 +22,7 @@ RETRIEVAL_SKILL = ROOT / "skills" / "obsidian-knowledge-retrieval"
 HELPERS = (
     "audit-vault",
     "capture-receipt",
+    "archive-source",
     "create-category",
     "create-note",
     "detect-index",

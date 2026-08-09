@@ -32,7 +32,7 @@
   </tr>
 </table>
 
-一个仓库包含两个职责分离的 Skill：`obsidian-knowledge-retrieval` 负责只读搜索、引用和问答；`obsidian-knowledge-base` 仅在用户明确授权后创建、更新和治理笔记。当前稳定版本为 **v1.29.1**。
+一个仓库包含两个职责分离的 Skill：`obsidian-knowledge-retrieval` 负责只读搜索、引用和问答；`obsidian-knowledge-base` 仅在用户明确授权后创建、更新和治理笔记。当前稳定版本为 **v1.29.2**。
 
 ## 一图看懂
 
@@ -95,6 +95,7 @@ AI 对话里产生的方案、会议结论、学习记录和排障经验很容�
 | 只读知识检索 | 可追溯到文件和行号的搜索结果与回答 | [只读检索](docs/retrieval.md) |
 | 八种预置笔记 | 日记、会议、学习、网页、洞察、项目、人物、摘要 | [完整功能指南](docs/feature-guide.md) |
 | 韧性网页沉淀 | 普通文章快速保存，访问失败安全换路，重要内容可升级求证 | [知识沉淀与治理](docs/capture-and-governance.md) |
+| 原文证据归档 | 原文与知识笔记分离保存，保留内容哈希和双向链接 | [知识沉淀与治理](docs/capture-and-governance.md) |
 | 对话上下文与知识萃取 | 分层恢复目标、状态、决定和证据，筛选长期知识候选 | [对话上下文恢复与知识萃取](docs/conversations.md) |
 | Vault 自定义治理 | 服从 `AGENTS.md`、自定义模板、目录和索引所有权 | [知识沉淀与治理](docs/capture-and-governance.md) |
 | 安全创建与更新 | dry-run、路径边界、模板哈希、Git 预检、写后审计 | [完整功能指南](docs/feature-guide.md) |
