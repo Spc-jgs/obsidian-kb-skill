@@ -1,38 +1,195 @@
 {
+  "schema_version": 2,
   "notes": [
     {
-      "path": "20-Learning/mcp.md",
-      "title": "Model Context Protocol",
-      "aliases": ["MCP 协议"],
+      "path": "20-Learning/protocol/mcp.md",
+      "title": "Model Context Protocol transports",
+      "aliases": ["MCP 协议", "tool transport contract"],
       "tags": ["agent", "protocol"],
-      "body": "## 传输方式\n\nMCP 可以通过 stdio 或 Streamable HTTP 连接工具服务。"
+      "date": "2026-06-10",
+      "type": "learning-note",
+      "body": "MCP connects tool servers through stdio or Streamable HTTP. The transport does not grant the server permission to edit unrelated files."
     },
     {
-      "path": "30-Insights/local-embedding.md",
-      "title": "本地 Embedding 取舍",
+      "path": "30-Insights/retrieval/local-embedding.md",
+      "title": "Local embedding trade-off",
       "aliases": ["向量检索决策"],
       "tags": ["retrieval", "privacy"],
-      "body": "## 当前决定\n\n第一版只做词法检索。本地 embedding 是未来可选 provider，默认关闭。"
+      "date": "2026-07-29",
+      "type": "insight-note",
+      "body": "Version one keeps lexical retrieval. A semantic vector provider remains optional and disabled until a measured recall gain justifies its index and runtime cost."
     },
     {
-      "path": "40-Projects/skill-architecture.md",
-      "title": "知识库 Skill 架构",
+      "path": "40-Projects/knowledge-skill-architecture.md",
+      "title": "Knowledge Skill architecture",
       "aliases": ["双 Skill 方案"],
       "tags": ["obsidian", "architecture"],
-      "body": "## 职责边界\n\n写入和只读检索拆成两个 Skill，共享一个仓库和版本。"
+      "date": "2026-06-09",
+      "type": "project-note",
+      "body": "Read-only retrieval and governed writing are separate Skills. Search never inherits save permission; explicit save intent enters an independent preflight."
     },
     {
-      "path": "20-Learning/bm25.md",
-      "title": "BM25 词法排序",
-      "aliases": [],
+      "path": "20-Learning/retrieval/bm25.md",
+      "title": "BM25 lexical ranking",
+      "aliases": ["词法排序"],
       "tags": ["retrieval", "ranking"],
-      "body": "## 排序解释\n\n标题、别名和标签权重高于正文，结果附带匹配信号。"
+      "date": "2026-07-28",
+      "type": "learning-note",
+      "body": "Title and alias fields receive more weight than tags, headings, links, and body text. Scores order results and do not express factual confidence."
+    },
+    {
+      "path": "20-Learning/backend/cache-stampede.md",
+      "title": "Cache stampede control",
+      "aliases": ["缓存击穿", "single-flight guard"],
+      "tags": ["cache", "backend"],
+      "date": "2026-05-12",
+      "type": "learning-note",
+      "body": "Synchronized expiry causes concurrent misses and duplicate backend recomputation. A per-key single-flight guard lets one caller refresh while others reuse the result."
+    },
+    {
+      "path": "20-Learning/backend/sse-proxy.md",
+      "title": "SSE reverse proxy buffering",
+      "aliases": ["Server-Sent Events 代理延迟", "Nginx SSE"],
+      "tags": ["sse", "nginx"],
+      "date": "2026-06-11",
+      "type": "learning-note",
+      "body": "Server-Sent Events can appear delayed when a reverse proxy buffers chunks. Disable response buffering for the event route and verify incremental delivery."
+    },
+    {
+      "path": "40-Projects/database/schema-migration.md",
+      "title": "Zero-downtime schema migration",
+      "aliases": ["expand-contract migration"],
+      "tags": ["database", "migration"],
+      "date": "2026-05-20",
+      "type": "project-note",
+      "body": "Add the compatible column first, deploy dual reads and writes, backfill, verify, then remove the old field in a later release."
+    },
+    {
+      "path": "20-Learning/python/uv-lock.md",
+      "title": "Reproducible Python environments with uv",
+      "aliases": ["uv 锁文件决策"],
+      "tags": ["python", "tooling"],
+      "date": "2026-07-07",
+      "type": "learning-note",
+      "body": "Pin the interpreter, commit uv.lock, sync with --locked, and keep pytest in the dev extra so local and CI dependency resolution agree."
+    },
+    {
+      "path": "20-Learning/capture/source-evidence.md",
+      "title": "Web capture source evidence",
+      "aliases": ["原文证据归档", "source archive"],
+      "tags": ["web-clip", "evidence"],
+      "date": "2026-08-07",
+      "type": "web-clip",
+      "body": "Keep a knowledge rewrite separate from verbatim source evidence. Store a content hash and reciprocal link so retrieval cites the reader's note by default."
+    },
+    {
+      "path": "20-Learning/obsidian/folder-index.md",
+      "title": "Folder Index graph ownership",
+      "aliases": ["目录索引图谱"],
+      "tags": ["obsidian", "navigation"],
+      "date": "2026-07-08",
+      "type": "learning-note",
+      "body": "A folder-named index is the plugin-owned navigation node. Replacing it with a generic INDEX filename can disconnect parent and child graph edges."
+    },
+    {
+      "path": "40-Projects/inbox-governance.md",
+      "title": "Inbox plan-before-move governance",
+      "aliases": ["Inbox 整理流程"],
+      "tags": ["inbox", "governance"],
+      "date": "2026-07-19",
+      "type": "project-note",
+      "body": "Inbox processing first returns a bounded plan. Apply refuses malformed frontmatter, avoids overwriting destinations, and reports partial outcomes honestly."
+    },
+    {
+      "path": "40-Projects/agent-handoff.md",
+      "title": "Cross-agent task handoff",
+      "aliases": ["Task Memory", "任务续接"],
+      "tags": ["agent", "handoff"],
+      "date": "2026-07-30",
+      "type": "project-note",
+      "body": "A mutable task record carries current status, next step, decisions, constraints, artifacts, and open questions so another Agent can continue unfinished work."
+    },
+    {
+      "path": "15-Daily/2026-06-30-report.md",
+      "title": "June reliability report",
+      "aliases": [],
+      "tags": ["report", "reliability"],
+      "date": "2026-06-30",
+      "type": "daily-note",
+      "body": "The report records one retry incident and an action to inspect queue depth."
+    },
+    {
+      "path": "15-Daily/2026-07-31-report.md",
+      "title": "July reliability report",
+      "aliases": [],
+      "tags": ["report", "reliability"],
+      "date": "2026-07-31",
+      "type": "daily-note",
+      "body": "The report records stable queue depth and no retry incident."
+    },
+    {
+      "path": "10-Work/incident-review.md",
+      "title": "Queue incident review meeting",
+      "aliases": ["retry incident review"],
+      "tags": ["meeting", "reliability"],
+      "date": "2026-07-22",
+      "type": "meeting-note",
+      "body": "The incident review decided to cap retries and add a queue-depth alert."
+    },
+    {
+      "path": "40-Projects/security-boundary.md",
+      "title": "Plugin security boundary",
+      "aliases": ["extension trust model"],
+      "tags": ["security", "architecture"],
+      "date": "2026-07-18",
+      "type": "project-note",
+      "body": "Treat plugin output as untrusted data, validate paths after resolving symlinks, and never turn note content into tool authorization."
     }
   ],
   "queries": [
-    {"query": "MCP transport stdio", "expected": "20-Learning/mcp.md"},
-    {"query": "为什么第一版不用本地 embedding", "expected": "30-Insights/local-embedding.md"},
-    {"query": "双 Skill 结构", "expected": "40-Projects/skill-architecture.md"},
-    {"query": "标题别名标签权重", "expected": "20-Learning/bm25.md"}
+    {"id": "exact-01", "group": "exact", "query": "Model Context Protocol transports", "expected": ["20-Learning/protocol/mcp.md"]},
+    {"id": "exact-02", "group": "exact", "query": "Knowledge Skill architecture", "expected": ["40-Projects/knowledge-skill-architecture.md"]},
+    {"id": "exact-03", "group": "exact", "query": "BM25 lexical ranking", "expected": ["20-Learning/retrieval/bm25.md"]},
+    {"id": "exact-04", "group": "exact", "query": "Cache stampede control", "expected": ["20-Learning/backend/cache-stampede.md"]},
+    {"id": "exact-05", "group": "exact", "query": "SSE reverse proxy buffering", "expected": ["20-Learning/backend/sse-proxy.md"]},
+    {"id": "exact-06", "group": "exact", "query": "Zero-downtime schema migration", "expected": ["40-Projects/database/schema-migration.md"]},
+    {"id": "exact-07", "group": "exact", "query": "Reproducible Python environments with uv", "expected": ["20-Learning/python/uv-lock.md"]},
+    {"id": "exact-08", "group": "exact", "query": "Web capture source evidence", "expected": ["20-Learning/capture/source-evidence.md"]},
+    {"id": "exact-09", "group": "exact", "query": "Folder Index graph ownership", "expected": ["20-Learning/obsidian/folder-index.md"]},
+    {"id": "exact-10", "group": "exact", "query": "Inbox plan-before-move governance", "expected": ["40-Projects/inbox-governance.md"]},
+
+    {"id": "alias-01", "group": "alias", "query": "MCP 协议", "expected": ["20-Learning/protocol/mcp.md"]},
+    {"id": "alias-02", "group": "alias", "query": "向量检索决策", "expected": ["30-Insights/retrieval/local-embedding.md"]},
+    {"id": "alias-03", "group": "alias", "query": "双 Skill 方案", "expected": ["40-Projects/knowledge-skill-architecture.md"]},
+    {"id": "alias-04", "group": "alias", "query": "single-flight guard", "expected": ["20-Learning/backend/cache-stampede.md"]},
+    {"id": "alias-05", "group": "alias", "query": "Server-Sent Events 代理延迟", "expected": ["20-Learning/backend/sse-proxy.md"]},
+    {"id": "alias-06", "group": "alias", "query": "expand-contract migration", "expected": ["40-Projects/database/schema-migration.md"]},
+    {"id": "alias-07", "group": "alias", "query": "uv 锁文件决策", "expected": ["20-Learning/python/uv-lock.md"]},
+    {"id": "alias-08", "group": "alias", "query": "原文证据归档", "expected": ["20-Learning/capture/source-evidence.md"]},
+
+    {"id": "filter-01", "group": "filtered", "query": "reliability report", "filters": {"types": ["daily-note"], "after": "2026-07-01"}, "expected": ["15-Daily/2026-07-31-report.md"]},
+    {"id": "filter-02", "group": "filtered", "query": "reliability report", "filters": {"types": ["daily-note"], "before": "2026-06-30"}, "expected": ["15-Daily/2026-06-30-report.md"]},
+    {"id": "filter-03", "group": "filtered", "query": "incident review", "filters": {"types": ["meeting-note"]}, "expected": ["10-Work/incident-review.md"]},
+    {"id": "filter-04", "group": "filtered", "query": "architecture boundary", "filters": {"tags": ["security"]}, "expected": ["40-Projects/security-boundary.md"]},
+    {"id": "filter-05", "group": "filtered", "query": "source evidence", "filters": {"types": ["web-clip"], "tags": ["evidence"]}, "expected": ["20-Learning/capture/source-evidence.md"]},
+    {"id": "filter-06", "group": "filtered", "query": "retrieval decision", "filters": {"types": ["insight-note"], "after": "2026-07-01"}, "expected": ["30-Insights/retrieval/local-embedding.md"]},
+    {"id": "filter-07", "group": "filtered", "query": "governance plan", "filters": {"tags": ["inbox"]}, "expected": ["40-Projects/inbox-governance.md"]},
+    {"id": "filter-08", "group": "filtered", "query": "task handoff", "filters": {"types": ["project-note"], "tags": ["handoff"]}, "expected": ["40-Projects/agent-handoff.md"]},
+
+    {"id": "semantic-01", "group": "semantic", "query": "避免大量请求同时重算刚过期的热点值", "expected": ["20-Learning/backend/cache-stampede.md"]},
+    {"id": "semantic-02", "group": "semantic", "query": "为什么查找知识和保存知识不能共享权限", "expected": ["40-Projects/knowledge-skill-architecture.md"]},
+    {"id": "semantic-03", "group": "semantic", "query": "让另一个代理接着完成上次没做完的工作", "expected": ["40-Projects/agent-handoff.md"]},
+    {"id": "semantic-04", "group": "semantic", "query": "怎样保留文章原始材料的可追溯性", "expected": ["20-Learning/capture/source-evidence.md"]},
+    {"id": "semantic-05", "group": "semantic", "query": "目录导航插件怎样避免知识图断开", "expected": ["20-Learning/obsidian/folder-index.md"]},
+    {"id": "semantic-06", "group": "semantic", "query": "怎样让开发机和持续集成安装完全相同的依赖", "expected": ["20-Learning/python/uv-lock.md"]},
+    {"id": "semantic-07", "group": "semantic", "query": "实时推送经过反向代理后很久才一起到达", "expected": ["20-Learning/backend/sse-proxy.md"]},
+    {"id": "semantic-08", "group": "semantic", "query": "为什么暂时不引入语义向量方案", "expected": ["30-Insights/retrieval/local-embedding.md"]},
+
+    {"id": "none-01", "group": "no-answer", "query": "quantum ledger consensus", "expected": []},
+    {"id": "none-02", "group": "no-answer", "query": "火星土壤光谱校准", "expected": []},
+    {"id": "none-03", "group": "no-answer", "query": "COBOL payroll compiler", "expected": []},
+    {"id": "none-04", "group": "no-answer", "query": "蛋白质折叠冷冻电镜", "expected": []},
+    {"id": "none-05", "group": "no-answer", "query": "satellite orbital decay", "expected": []},
+    {"id": "none-06", "group": "no-answer", "query": "古希腊陶器年代测定", "expected": []}
   ]
 }
