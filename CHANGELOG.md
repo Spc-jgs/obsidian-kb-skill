@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.29.2] - 2026-08-09
+
+### Fixed
+
+- Completed the release surface for source archiving without changing its storage or linking contract. Wheel installs now expose `obsidian-archive-source`, installed-skill `doctor` imports `archive_source`, hostile-working-directory runner coverage includes `archive-source`, and the wheel smoke test exercises an archive preflight outside the checkout. The Chinese and English feature maps and the complete CLI guide now advertise the capability that v1.29.0 already shipped through the bundled Skill runner.
+
 ## [1.29.1] - 2026-08-07
 
 ### Changed

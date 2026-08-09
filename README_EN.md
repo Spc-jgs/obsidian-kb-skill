@@ -32,7 +32,7 @@
   </tr>
 </table>
 
-One repository provides two skills with separate responsibilities: `obsidian-knowledge-retrieval` searches, cites, and answers without writing; `obsidian-knowledge-base` creates, updates, and governs notes only after explicit user authorization. The current stable release is **v1.29.1**.
+One repository provides two skills with separate responsibilities: `obsidian-knowledge-retrieval` searches, cites, and answers without writing; `obsidian-knowledge-base` creates, updates, and governs notes only after explicit user authorization. The current stable release is **v1.29.2**.
 
 ## At a Glance
 
@@ -95,6 +95,7 @@ Retrieval v1 uses deterministic local lexical ranking. It needs no embedding mod
 | Read-only knowledge retrieval | Search results and answers traceable to files and lines | [Retrieval](docs/retrieval.md) |
 | Eight built-in note types | Daily, meeting, learning, web, insight, project, person, digest | [Feature guide](docs/feature-guide.md) |
 | Resilient web capture | Fast standard saves, safe alternate access, and verified escalation when needed | [Capture and governance](docs/capture-and-governance.md) |
+| Verbatim source archives | Separate source evidence from knowledge notes with content hashes and reciprocal links | [Capture and governance](docs/capture-and-governance.md) |
 | Conversation context and knowledge harvest | Layered context recovery plus selective durable-knowledge candidates | [Conversation guide](docs/conversations.md) |
 | Vault-specific governance | Honors `AGENTS.md`, custom templates, folders, and index ownership | [Capture and governance](docs/capture-and-governance.md) |
 | Safe create and update | Dry runs, path boundaries, template hashes, Git checks, post-write audits | [Feature guide](docs/feature-guide.md) |

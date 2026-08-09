@@ -123,6 +123,7 @@ def test_wheel_exposes_console_scripts(tmp_path):
         "obsidian-update-note",
         "obsidian-audit-vault",
         "obsidian-capture-receipt",
+        "obsidian-archive-source",
         "obsidian-process-inbox",
         "obsidian-search-vault",
         "obsidian-suggest-links",
@@ -227,6 +228,33 @@ def test_installed_cli_works_without_repo(tmp_path):
     assert search_result.returncode == 0, search_result.stderr
     search_payload = json.loads(search_result.stdout)
     assert search_payload["results"][0]["path"].startswith("30-Insights/")
+
+    source = vault / "captured-source.txt"
+    source.write_text("Original source evidence.\n", encoding="utf-8")
+    archive = scripts / "obsidian-archive-source"
+    archive_result = subprocess.run(
+        [
+            str(archive),
+            str(vault),
+            "--note",
+            created[0].relative_to(vault).as_posix(),
+            "--source-url",
+            "https://example.com/source",
+            "--content-file",
+            source.relative_to(vault).as_posix(),
+            "--preflight-json",
+        ],
+        cwd=work,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert archive_result.returncode == 0, archive_result.stderr
+    archive_payload = json.loads(archive_result.stdout)
+    assert archive_payload["ok"] is True
+    assert archive_payload["applied"] is False
 
     (home / ".obsidian-kb-settings.json").write_text(
         '{"schema_version":1,"backup":{"keep_per_note":2}}\n',

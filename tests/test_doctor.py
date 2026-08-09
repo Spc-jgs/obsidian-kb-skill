@@ -48,10 +48,11 @@ def test_doctor_accepts_complete_installed_skill(tmp_path):
     result = doctor.inspect_installation(skill, home)
 
     assert result["ok"] is True
-    assert result["version"] == "1.29.1"
+    assert result["version"] == "1.29.2"
     assert result["skill"] == "obsidian-knowledge-base"
     assert "create_category" in doctor.HELPER_MODULES
     assert "capture_receipt" in doctor.HELPER_MODULES
+    assert "archive_source" in doctor.HELPER_MODULES
     assert {check["name"] for check in result["checks"]} == {
         "manifest",
         "payload",
@@ -75,7 +76,7 @@ def test_doctor_accepts_retrieval_profile_without_write_modules(tmp_path):
     result = doctor.inspect_installation(skill, home)
 
     assert result["ok"] is True
-    assert result["version"] == "1.29.1"
+    assert result["version"] == "1.29.2"
     assert result["skill"] == "obsidian-knowledge-retrieval"
     assert "search_vault" in doctor.PROFILE_CONFIG[result["skill"]]["modules"]
     assert "create_note" not in doctor.PROFILE_CONFIG[result["skill"]]["modules"]
