@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Added a read-only Project Revival Radar. `review-projects` finds blocked,
+  stale, or undated `project-note` files, extracts visible unfinished actions,
+  and returns a bounded, deterministic queue with explicit inclusion reasons;
+  it never changes project state or writes review metadata.
+
 ## [1.30.0] - 2026-08-09
 
 ### Added

@@ -18,8 +18,13 @@ REFERENCE = ROOT / "core" / "references" / "rules-and-errors.md"
 # `core/references/`, so documenting its refusals there would put the answer
 # where that Agent cannot read it. Kept in step with build.py's
 # RETRIEVAL_HELPER_FILES and the retrieval run_helper's HELPERS by a test below.
-RETRIEVAL_MODULES = frozenset({"search_vault.py", "retrieval_vault_info.py"})
-RETRIEVAL_REFERENCE = ROOT / "core" / "retrieval-references" / "search.md"
+RETRIEVAL_MODULES = frozenset(
+    {"review_projects.py", "search_vault.py", "retrieval_vault_info.py"}
+)
+RETRIEVAL_REFERENCES = (
+    ROOT / "core" / "retrieval-references" / "search.md",
+    ROOT / "core" / "retrieval-references" / "review-projects.md",
+)
 # Modules both bundles ship, so both Agents can receive their codes. The write
 # reference owns the rows; build.py fans the marked block out to this file.
 SHARED_MODULES = frozenset({"vault_paths.py", "frontmatter.py"})
@@ -212,7 +217,9 @@ def test_every_emitted_code_is_documented():
 
 def test_retrieval_codes_are_documented_where_that_agent_can_read_them():
     """A retrieval Agent never receives `core/references/`."""
-    reference = RETRIEVAL_REFERENCE.read_text(encoding="utf-8")
+    reference = "\n".join(
+        path.read_text(encoding="utf-8") for path in RETRIEVAL_REFERENCES
+    )
 
     undocumented = sorted(
         code for code in retrieval_codes() if f"`{code}`" not in reference
@@ -220,7 +227,7 @@ def test_retrieval_codes_are_documented_where_that_agent_can_read_them():
 
     assert not undocumented, (
         "these codes are emitted by retrieval-only helpers but absent from "
-        f"core/retrieval-references/search.md: {undocumented}. Documenting them "
+        f"core/retrieval-references/: {undocumented}. Documenting them "
         "in the write Skill's reference does not help — that file is not in the "
         "retrieval bundle."
     )

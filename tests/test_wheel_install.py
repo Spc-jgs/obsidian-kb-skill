@@ -125,6 +125,7 @@ def test_wheel_exposes_console_scripts(tmp_path):
         "obsidian-capture-receipt",
         "obsidian-archive-source",
         "obsidian-process-inbox",
+        "obsidian-review-projects",
         "obsidian-search-vault",
         "obsidian-suggest-links",
         "obsidian-vault-info",
@@ -228,6 +229,28 @@ def test_installed_cli_works_without_repo(tmp_path):
     assert search_result.returncode == 0, search_result.stderr
     search_payload = json.loads(search_result.stdout)
     assert search_payload["results"][0]["path"].startswith("30-Insights/")
+
+    review = scripts / "obsidian-review-projects"
+    project_note = vault / "project.md"
+    project_note.write_text(
+        "---\ndate: 2026-01-01\ntype: project-note\nstatus: active\n---\n"
+        "# Wheel Project\n\n## Next Steps\n\n- [ ] Prove the wheel path\n",
+        encoding="utf-8",
+    )
+    review_result = subprocess.run(
+        [
+            str(review), str(vault), "--as-of", "2026-08-10", "--json",
+        ],
+        cwd=work,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert review_result.returncode == 0, review_result.stderr
+    review_payload = json.loads(review_result.stdout)
+    assert review_payload["items"][0]["path"] == "project.md"
 
     source = vault / "captured-source.txt"
     source.write_text("Original source evidence.\n", encoding="utf-8")

@@ -84,7 +84,7 @@ Capture this article with its principles, practical steps, verification, and sou
 | Typical triggers | search, find, recall, compare, answer from the Vault | save, create, update, archive, remember |
 | Vault writes | never | only after explicit intent and preflight |
 | Main output | relative path, title, line, excerpt, match reason | note path, change summary, audit result |
-| Local helpers | `search-vault`, `vault-info`, `doctor` | create, update, categorize, index, link, and audit helpers |
+| Local helpers | `search-vault`, `review-projects`, `vault-info`, `doctor` | create, update, categorize, index, link, and audit helpers |
 
 Retrieval v1 uses deterministic local lexical ranking. It needs no embedding model, vector database, persistent service, or network index. Titles, aliases, tags, headings, wikilinks, and body text receive different weights. See [Read-only retrieval](docs/retrieval.md).
 
@@ -93,6 +93,7 @@ Retrieval v1 uses deterministic local lexical ranking. It needs no embedding mod
 | Capability | What you get | Guide |
 |---|---|---|
 | Read-only knowledge retrieval | Search results and answers traceable to files and lines | [Retrieval](docs/retrieval.md) |
+| Project revival radar | An explainable read-only queue for blocked or cooling projects | [Retrieval](docs/retrieval.md) |
 | Eight built-in note types | Daily, meeting, learning, web, insight, project, person, digest | [Feature guide](docs/feature-guide.md) |
 | Resilient web capture | Fast standard saves, safe alternate access, and verified escalation when needed | [Capture and governance](docs/capture-and-governance.md) |
 | Verbatim source archives | Separate source evidence from knowledge notes with content hashes and reciprocal links | [Capture and governance](docs/capture-and-governance.md) |

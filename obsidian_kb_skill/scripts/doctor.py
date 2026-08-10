@@ -43,6 +43,7 @@ PROFILE_CONFIG = {
         "resources": (
             "SKILL.md",
             "references/search.md",
+            "references/review-projects.md",
             "scripts/run_helper.py",
         ),
         "modules": (
@@ -50,6 +51,7 @@ PROFILE_CONFIG = {
             "frontmatter",
             "vault_paths",
             "search_vault",
+            "review_projects",
             "retrieval_vault_info",
             "doctor",
         ),
