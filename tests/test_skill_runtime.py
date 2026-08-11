@@ -34,7 +34,7 @@ HELPERS = (
     "update-note",
     "vault-info",
 )
-RETRIEVAL_HELPERS = ("doctor", "search-vault", "vault-info")
+RETRIEVAL_HELPERS = ("doctor", "review-projects", "search-vault", "vault-info")
 
 
 def test_installed_runner_reads_one_custom_template_contract(tmp_path):
@@ -192,6 +192,62 @@ def test_retrieval_runner_searches_from_hostile_cwd_without_mutation(tmp_path):
         for path in skill.rglob("*")
         if path.is_file()
     } == skill_before
+
+
+def test_retrieval_runner_reviews_projects_from_hostile_cwd_without_mutation(tmp_path):
+    skill = tmp_path / "installed" / "obsidian-knowledge-retrieval"
+    shutil.copytree(RETRIEVAL_SKILL, skill)
+    home = tmp_path / "home"
+    work = tmp_path / "hostile-cwd"
+    vault = tmp_path / "vault"
+    home.mkdir()
+    support = home / ".obsidian-kb-skill"
+    support.mkdir()
+    (support / "runtime.json").write_text(
+        json.dumps({"schema_version": 1, "python": [sys.executable]}),
+        encoding="utf-8",
+    )
+    (work / "obsidian_kb_skill" / "scripts").mkdir(parents=True)
+    (work / "obsidian_kb_skill" / "__init__.py").write_text(
+        "raise RuntimeError('shadow package imported')\n",
+        encoding="utf-8",
+    )
+    (vault / ".obsidian").mkdir(parents=True)
+    note = vault / "project.md"
+    note.write_text(
+        "---\ndate: 2026-01-01\ntype: project-note\nstatus: active\n---\n"
+        "# Project\n\n## Next Steps\n\n- [ ] Resume safely\n",
+        encoding="utf-8",
+    )
+    before = note.read_bytes()
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(skill / "scripts" / "run_helper.py"),
+            "review-projects",
+            str(vault),
+            "--as-of",
+            "2026-08-10",
+            "--json",
+        ],
+        cwd=work,
+        env={
+            **os.environ,
+            "HOME": str(home),
+            "USERPROFILE": str(home),
+            "PYTHONPATH": str(work),
+        },
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["items"][0]["path"] == "project.md"
+    assert payload["items"][0]["next_action"] == "Resume safely"
+    assert note.read_bytes() == before
 
 
 def test_standard_skill_root_resolves_assets_and_references(tmp_path):

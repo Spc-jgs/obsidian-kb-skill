@@ -6,6 +6,7 @@
 |---|---|---:|---|
 | 只读知识检索 | 按标题、别名、标签、标题层级、wikilink 和正文排序，并做双语概念词表查询扩展 | 否 | `obsidian-knowledge-retrieval` |
 | 带引用回答 | 返回相对路径、标题、行号、片段和匹配原因 | 否 | `search-vault` |
+| 项目复苏雷达 | 找出受阻、失温或缺少活动日期的项目，并给出已有下一步 | 否 | `review-projects` |
 | Vault 结构发现 | 返回 Vault 有效性、标准目录、模板、索引配置、拥挤目录的主题聚类，以及本次操作需要加载的参考文件清单 | 否 | `vault-info` |
 | Vault 治理读取 | 读取 `AGENTS.md` / `CLAUDE.md` 等 Vault 本地治理规则 | 否 | Agent 自行读取，非 helper |
 | 笔记创建 | 路由类型、合并 frontmatter、套用模板、避免覆盖 | 仅 `--apply` | `create-note` |
@@ -75,6 +76,7 @@ obsidian-create-category
 obsidian-create-note
 obsidian-detect-index
 obsidian-process-inbox
+obsidian-review-projects
 obsidian-scaffold-templates
 obsidian-search-vault
 obsidian-suggest-links

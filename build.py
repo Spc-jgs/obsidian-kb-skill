@@ -140,10 +140,13 @@ RETRIEVAL_HELPER_FILES = (
     # differently from the index would silently match nothing.
     Path("scripts/query_expansion.py"),
     Path("scripts/retrieval_vault_info.py"),
+    Path("scripts/review_projects.py"),
     Path("scripts/search_vault.py"),
     Path("scripts/text_tokens.py"),
     Path("scripts/vault_paths.py"),
 )
+RETRIEVAL_RUNNER_SRC = ROOT / "core" / "retrieval-run-helper.py"
+RETRIEVAL_RUNNER_DST = RETRIEVAL_SKILL_ROOT / "scripts" / "run_helper.py"
 PYPROJECT = ROOT / "pyproject.toml"
 STANDARD_MANIFEST = STANDARD_SKILL_ROOT / "manifest.json"
 RETRIEVAL_MANIFEST = RETRIEVAL_SKILL_ROOT / "manifest.json"
@@ -483,6 +486,16 @@ def main() -> int:
             RETRIEVAL_HELPER_FILES,
         )
         print(f"  synced {RETRIEVAL_HELPER_DST.relative_to(ROOT)}")
+
+    if args.check:
+        if (
+            not RETRIEVAL_RUNNER_DST.is_file()
+            or RETRIEVAL_RUNNER_DST.read_bytes() != RETRIEVAL_RUNNER_SRC.read_bytes()
+        ):
+            drift.append(RETRIEVAL_RUNNER_DST.relative_to(ROOT).as_posix())
+    else:
+        RETRIEVAL_RUNNER_DST.write_bytes(RETRIEVAL_RUNNER_SRC.read_bytes())
+        print(f"  wrote {RETRIEVAL_RUNNER_DST.relative_to(ROOT)}")
 
     for skill_root, manifest in (
         (STANDARD_SKILL_ROOT, STANDARD_MANIFEST),

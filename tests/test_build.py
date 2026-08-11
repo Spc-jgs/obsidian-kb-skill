@@ -246,6 +246,7 @@ class TestEndToEnd:
         assert (root / "references" / "search.md").is_file()
         assert (root / "scripts" / "run_helper.py").is_file()
         assert (helper_root / "search_vault.py").is_file()
+        assert (helper_root / "review_projects.py").is_file()
         assert (helper_root / "retrieval_vault_info.py").is_file()
         for forbidden in (
             "create_note.py",
