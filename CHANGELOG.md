@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.31.0] - 2026-08-11
+
 ### Fixed
 
 - The Web Capture hard gate no longer accepts three shapes of invalid answer. Both samples reported in #76 scored `hard_failures: []` on v1.30.0, and each exposed a different rule grading wording instead of assertions. Completion was inferred from prose patterns that covered "I wrote" but not "Your note is ready", so the grader had to guess a status nobody declared — runs now end with a required `OUTCOME:` / `BLOCKER:` block, and an unparseable one is itself a failure. A stop reason was accepted whenever any expected keyword appeared anywhere, so "transaction handler is irrelevant" counted as citing the material it dismissed; the declared blocker must now name the case's material *and* assert that it was unavailable, and naming required material only to wave it away is the new `dismissed-required-material`. Forbidden facts were matched as exact phrases, so `CVSS 9.8` was forbidden while "9.8 on the CVSS scale" scored clean; a claim is now a curated term set that must land unnegated in one clause, order-independent but clause-bounded, with a stated absence still allowed.
