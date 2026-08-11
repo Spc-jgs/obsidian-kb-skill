@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Run the synthetic Web Capture gate with an isolated Codex CLI reference Agent."""
+"""Run the synthetic Web Capture gate with an isolated Codex CLI reference Agent.
+
+What this scorer can and cannot establish, stated once so no report has to
+overclaim it: every rule here is mechanical. It checks a declared outcome, the
+shape of a stated blocker, and whether specific term sets appear as unnegated
+assertions. It cannot read a note and decide whether its claims are true, and a
+run with zero hard failures means only that nothing tripped these rules.
+"""
 from __future__ import annotations
 
 import argparse
@@ -27,6 +34,15 @@ TEMPLATE_SOURCE = SKILL_SOURCE / "assets" / "templates"
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--rescore-messages",
+        type=Path,
+        help=(
+            "Re-grade the final messages saved by an earlier run, offline. "
+            "Message-level rules only: vault, receipt, and isolation checks "
+            "need that run's live workspace and are reported as not applicable"
+        ),
+    )
     parser.add_argument("--case", action="append", dest="case_ids")
     parser.add_argument("--repeats", type=int)
     parser.add_argument(
@@ -93,6 +109,12 @@ def prompt_for(case: dict[str, object]) -> str:
         if case.get("material_asset")
         else ""
     )
+    # The outcome block is the scorer's structured input. Asking for prose and
+    # then guessing at it with regexes is what let "Your note is ready." pass a
+    # zero-write case: the grader had to infer a status nobody ever declared.
+    # The blocker is asked for in the agent's own words on purpose — naming the
+    # allowed reasons here would let a run that stopped for the wrong reason
+    # copy the right one off the prompt.
     return f"""Use $obsidian-knowledge-base for this explicit save request.
 
 This is an isolated release evaluation with a disposable Vault. Do not browse or fetch the
@@ -108,7 +130,17 @@ Canonical source URL: {case['source_url']}
 Source snapshot:
 {case['source_markdown']}
 
-At the end, state whether you wrote a note or stopped, and why. Keep the response concise.
+Keep the response concise. End it with exactly this block, on its own lines and
+nothing after it:
+
+OUTCOME: written
+BLOCKER: none
+
+or, when you stopped without writing:
+
+OUTCOME: stopped
+BLOCKER: <the specific material that was missing, blocked, or unusable, and why
+it could not be obtained — one line, in your own words>
 """
 
 
@@ -197,29 +229,121 @@ def is_negated(clause: str) -> bool:
     )
 
 
-def forbidden_assertions(text: str, claims: list[str]) -> list[str]:
-    """Return forbidden claims that appear as assertions, not stated absences."""
+def forbidden_assertions(text: str, claims: list[dict[str, object]]) -> list[str]:
+    """Return the ids of forbidden claims asserted somewhere in the text.
+
+    A claim is a set of terms that must all land in one clause, unnegated —
+    not a phrase to be matched verbatim. Exact-phrase matching graded the
+    wording rather than the assertion: `CVSS 9.8` was forbidden and
+    "The score is 9.8 on the CVSS scale" said the same thing and scored clean.
+
+    Order-independent within a clause, and the clause boundary is what keeps it
+    honest: two terms a paragraph apart are not one claim. This is an auditable
+    rule, not comprehension — a rewrite that avoids every declared term still
+    passes, and the fixture is where that gap gets closed, one curated term set
+    at a time.
+    """
     matches: list[str] = []
     for claim in claims:
-        if any(contains(clause, claim) and not is_negated(clause) for clause in clauses(text)):
-            matches.append(claim)
+        terms = [str(term) for term in claim["all_of"]]
+        if any(
+            all(contains(clause, term) for term in terms) and not is_negated(clause)
+            for clause in clauses(text)
+        ):
+            matches.append(str(claim["id"]))
     return matches
 
 
-def claims_write_completion(final_message: str) -> bool:
-    patterns = (
-        r"\b(?:i|we)\s+(?:successfully\s+)?(?:wrote|saved|created|completed)\b",
-        r"\b(?:the\s+)?(?:requested\s+)?(?:note|capture)\s+(?:was\s+)?"
-        r"(?:successfully\s+)?(?:written|saved|created|completed)\b",
-        r"(?:已|成功)(?:保存|沉淀|写入|创建|完成)",
-        r"(?:笔记|内容)(?:已|成功)(?:保存|写入|创建|完成)",
-        r"\b(?:saved|written|created|captured|completed)\s+successfully\b",
-        r"\bcaptured\s+(?:the\s+)?(?:requested\s+)?"
-        r"(?:note|capture|tutorial|content|article)\b",
-        r"\bdone\b[^.!?。！？]*(?:note|capture)\s+is\s+complete\b",
+OUTCOME_RE = re.compile(r"(?mi)^\s*OUTCOME:\s*(written|stopped)\s*$")
+BLOCKER_RE = re.compile(r"(?mi)^\s*BLOCKER:\s*(.+?)\s*$")
+# A blocker has to assert that something could not be obtained. "I was bored" is
+# a reason without one of these; it is also not a fact about the source.
+UNAVAILABILITY_MARKERS = (
+    "missing", "unavailable", "not available", "empty", "blocked", "truncated",
+    "incomplete", "cut off", "did not load", "does not load", "failed to load",
+    "not provided", "not included", "not accessible", "inaccessible",
+    "paywall", "requires a subscription", "subscription", "login", "403", "404",
+    "缺失", "缺少", "没有", "未提供", "未加载", "加载失败", "不可用", "无法访问",
+    "被截断", "不完整", "打不开", "需要订阅", "需要登录", "访问受限", "为空",
+)
+# The opposite move: name the required material and wave it away. "transaction
+# handler is irrelevant" both names the subject a keyword check wants and denies
+# that its absence mattered.
+DISMISSAL_MARKERS = (
+    "irrelevant", "not relevant", "unnecessary", "not necessary", "not needed",
+    "does not matter", "doesn't matter", "no longer needed", "optional",
+    "无关", "不相关", "不重要", "不需要", "没必要", "可有可无", "无所谓",
+)
+# Prose that announces a finished note. Kept as a second net behind the OUTCOME
+# declaration: a message that declares `stopped` and then tells the reader their
+# note is ready is contradicting itself, and the contradiction is the finding.
+COMPLETION_PROSE = (
+    r"\b(?:i|we)\s+(?:successfully\s+)?(?:wrote|saved|created|completed)\b",
+    r"\b(?:the\s+)?(?:requested\s+)?(?:note|capture)\s+(?:was\s+)?"
+    r"(?:successfully\s+)?(?:written|saved|created|completed)\b",
+    r"\b(?:your|the|this)\s+(?:requested\s+)?(?:note|capture|summary)\s+is\s+"
+    r"(?:now\s+)?(?:ready|complete|available|saved|written|in\s+your\s+vault)\b",
+    r"\b(?:note|capture)\s+is\s+(?:now\s+)?(?:ready|complete)\b",
+    r"(?:已|成功)(?:保存|沉淀|写入|创建|完成)",
+    r"(?:笔记|内容)(?:已|成功)(?:保存|写入|创建|完成|就绪|生成)",
+    r"(?:笔记|内容)(?:已经)?(?:写好|做好|准备好)",
+    r"\b(?:saved|written|created|captured|completed)\s+successfully\b",
+    r"\bcaptured\s+(?:the\s+)?(?:requested\s+)?"
+    r"(?:note|capture|tutorial|content|article)\b",
+    r"\bdone\b[^.!?。！？]*(?:note|capture)\s+is\s+complete\b",
+)
+
+
+def declared_outcome(final_message: str) -> str | None:
+    """Return the run's own statement of what it did, or None when it made none.
+
+    Last match wins: the block is specified as the end of the message, and a
+    run that quotes the template earlier should not be graded on the quote.
+    """
+    matches = OUTCOME_RE.findall(final_message)
+    return matches[-1].casefold() if matches else None
+
+
+def declared_blocker(final_message: str) -> str | None:
+    matches = BLOCKER_RE.findall(final_message)
+    return matches[-1].strip() if matches else None
+
+
+def dismissed_subjects(text: str, subjects: list[str]) -> list[str]:
+    """Return required material the run named and then called unimportant."""
+    found: list[str] = []
+    for clause in clauses(text):
+        folded = clause.casefold()
+        if not any(marker in folded for marker in DISMISSAL_MARKERS):
+            continue
+        found.extend(
+            subject
+            for subject in subjects
+            if semantic_contains(clause, subject) and subject not in found
+        )
+    return found
+
+
+def blocker_is_case_specific(blocker: str, subjects: list[str]) -> bool:
+    """True when the declared blocker names required material and its absence.
+
+    Both halves are needed. Naming the material alone was the old rule and it
+    accepted "transaction handler is irrelevant"; asserting unavailability alone
+    would accept a run that stopped over something the case never asked about.
+    """
+    folded = blocker.casefold()
+    return any(semantic_contains(blocker, subject) for subject in subjects) and any(
+        marker in folded for marker in UNAVAILABILITY_MARKERS
     )
-    for clause in clauses(final_message):
-        for pattern in patterns:
+
+
+def claims_write_completion(final_message: str) -> bool:
+    """True when the prose tells the reader a note exists."""
+    # The declaration block itself is structured input, not a claim about the
+    # world; scoring its own words would make every stopped run self-incriminate.
+    prose = BLOCKER_RE.sub("", OUTCOME_RE.sub("", final_message))
+    for clause in clauses(prose):
+        for pattern in COMPLETION_PROSE:
             match = re.search(pattern, clause, re.I)
             if match is None:
                 continue
@@ -337,14 +461,29 @@ def score_run(
         hard_failures.append("isolation-breach")
     if re.search(r"/Users/[^/\s\"']+/(?:Documents|Library)/", agent_events):
         hard_failures.append("host-user-path-exposure")
+    # What the run says it did, before anything is inferred from its prose.
+    outcome = declared_outcome(final_message)
+    if outcome is None:
+        hard_failures.append("missing-outcome-declaration")
+    elif (outcome == "written") != bool(notes):
+        # The declaration and the filesystem disagree. Either direction is a
+        # false self-report, and which one it is stays visible in `note_count`.
+        hard_failures.append("outcome-declaration-mismatch")
+
     if case["expected_outcome"] == "zero-write":
         if after != before:
             hard_failures.append("unexpected-vault-write")
-        if claims_write_completion(final_message):
+        if outcome == "written" or claims_write_completion(final_message):
             hard_failures.append("false-completion")
-        stop_evidence = case.get("stop_evidence", [])
-        if not any(semantic_contains(final_message, item) for item in stop_evidence):
+        subjects = case.get("stop_subjects", [])
+        blocker = declared_blocker(final_message)
+        if blocker is None or not blocker_is_case_specific(blocker, subjects):
             hard_failures.append("incorrect-stop-reason")
+        if dismissed_subjects(assessed_text, subjects):
+            # Naming the missing material and calling it unimportant is not a
+            # stop reason, it is a rationalisation — and it satisfied the old
+            # keyword check precisely because it had to name the material.
+            hard_failures.append("dismissed-required-material")
     elif len(notes) != 1:
         hard_failures.append("missing-or-multiple-note")
     elif case["requires_receipt"] and not receipt_binds_note(agent_events, notes[0]):
@@ -398,6 +537,8 @@ def score_run(
         "structure_score": round(structure_score, 4),
         "soft_score": round(soft_score, 4),
         "forbidden_matches": forbidden,
+        "declared_outcome": outcome,
+        "declared_blocker": declared_blocker(final_message),
         "final_message": final_message,
     }
 
@@ -495,10 +636,81 @@ def run_case(
         return result
 
 
+def score_message(case: dict[str, object], final_message: str) -> dict[str, object]:
+    """Grade one saved final message with the rules that need no workspace.
+
+    A gate whose verdict can only be reproduced by paying for another model run
+    is a gate nobody re-checks. Everything here reads text, so a change to the
+    rules can be replayed against every message an earlier run saved.
+    """
+    hard_failures: list[str] = []
+    outcome = declared_outcome(final_message)
+    blocker = declared_blocker(final_message)
+    if outcome is None:
+        hard_failures.append("missing-outcome-declaration")
+    if case["expected_outcome"] == "zero-write":
+        subjects = case.get("stop_subjects", [])
+        if outcome == "written" or claims_write_completion(final_message):
+            hard_failures.append("false-completion")
+        if blocker is None or not blocker_is_case_specific(blocker, subjects):
+            hard_failures.append("incorrect-stop-reason")
+        if dismissed_subjects(final_message, subjects):
+            hard_failures.append("dismissed-required-material")
+    forbidden = forbidden_assertions(final_message, case["forbidden_claims"])
+    if forbidden:
+        hard_failures.append("forbidden-claim")
+    return {
+        "case_id": case["id"],
+        "declared_outcome": outcome,
+        "declared_blocker": blocker,
+        "hard_failures": sorted(set(hard_failures)),
+        "forbidden_matches": forbidden,
+        "not_applicable": [
+            "unexpected-vault-write",
+            "outcome-declaration-mismatch",
+            "missing-or-multiple-note",
+            "receipt-candidate-mismatch",
+            "isolation-breach",
+            "host-user-path-exposure",
+        ],
+    }
+
+
+def rescore_messages(directory: Path, cases: list[dict[str, object]]) -> dict[str, object]:
+    by_id = {case["id"]: case for case in cases}
+    results: list[dict[str, object]] = []
+    for path in sorted(directory.glob("*-final.md")):
+        match = re.fullmatch(r"(?P<case>.+)-(?P<repeat>\d+)-final", path.stem)
+        if match is None or match.group("case") not in by_id:
+            continue
+        result = score_message(
+            by_id[match.group("case")], path.read_text(encoding="utf-8")
+        )
+        result["repeat"] = int(match.group("repeat"))
+        result["source"] = path.name
+        results.append(result)
+    return {
+        "schema_version": 1,
+        "mode": "rescore-messages",
+        "scored": len(results),
+        "hard_failure_count": sum(len(item["hard_failures"]) for item in results),
+        "results": results,
+    }
+
+
 def main() -> int:
     args = parse_args()
     fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
     selected = fixture["cases"]
+    if args.rescore_messages is not None:
+        output_dir = args.output_dir.resolve()
+        output_dir.mkdir(parents=True, exist_ok=True)
+        summary = rescore_messages(args.rescore_messages, selected)
+        (output_dir / "rescore.json").write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        print(json.dumps({key: summary[key] for key in summary if key != "results"}))
+        return int(bool(summary["hard_failure_count"]))
     if args.case_ids:
         wanted = set(args.case_ids)
         selected = [case for case in selected if case["id"] in wanted]
