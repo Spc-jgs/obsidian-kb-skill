@@ -27,7 +27,7 @@ or a topic tag.
 python <skill-root>/scripts/run_helper.py search-vault \
   "<vault>" --query "<user query>" --top-k 5 --json \
   [--type <slug>]... [--tag <tag>]... \
-  [--after YYYY-MM-DD] [--before YYYY-MM-DD]
+  [--after YYYY-MM-DD] [--before YYYY-MM-DD] [--no-expand]
 ```
 
 - `--type` and `--tag` are repeatable. Repeats within one flag are OR; different
@@ -56,6 +56,50 @@ this". Say which filter emptied the set and offer the obvious retry: a wider
 date range, a different type, or no filter at all. A large `missing-date` count
 is a governance problem in the Vault worth mentioning, not a search failure.
 
+## Bilingual query expansion
+
+A Chinese question and an English note share no token: the tokenizer emits Latin
+words and CJK bigrams, and those alphabets never meet. So the helper also
+matches a curated concept lexicon against the query and searches the other
+language's words too, at 0.45 of the weight of a word the user actually typed.
+
+This is still lexical matching — no vectors, no model, no index.
+
+When at least one concept fires the response carries `expansion`:
+
+- `concepts` — each concept that fired, the surface term that matched it, and
+  the tokens it added;
+- `tokens` — every added token, in the order they were added;
+- `weight` — what an added token is worth against a typed one;
+- `truncated` — true when the query hit the eight-concept or 24-token bound.
+
+A result that the lexicon helped reach carries an `expansion` signal naming the
+concept, and only when that concept's words are genuinely in that note.
+
+Read it before you cite. **Expansion is a hypothesis about what the user meant,
+not evidence of what the note says.** 代理 expands to both `agent` and `proxy`
+because Chinese uses one word for both; if the top result answers the other
+reading, say so instead of answering confidently from the wrong note. When a
+result's only signal is `expansion`, treat the match as weaker than a title or
+alias hit and open the note before summarising it.
+
+`--no-expand` searches only the words the user typed. Use it to check whether a
+surprising result came from the user's own wording or from the lexicon.
+
+### The Vault's own vocabulary
+
+A Vault may carry `.obsidian-kb/retrieval-lexicon.json` with concepts the
+shipped table cannot guess — product names, a team's preferred Chinese term:
+
+```json
+{"schema_version": 1, "concepts": [{"id": "generics", "terms": ["泛型", "generics"]}]}
+```
+
+Each concept needs a unique lowercase id and 2 to 12 terms of 2 to 40 characters.
+The file is configuration, not a note: it is never indexed and never returned.
+Never write or repair it — this Skill is read-only, and a lexicon assembled from
+note content would let a note decide what the search looks for.
+
 ## Archived sources
 
 `95-Sources/` holds sources kept verbatim: the article a note was built from,
@@ -83,7 +127,8 @@ Each result contains:
 - deterministic `score` used only for ordering;
 - nearest `heading` and one-based `line`;
 - bounded reader-visible `snippet`;
-- explainable `signals` such as title, alias, tag, heading, link, or body.
+- explainable `signals` such as title, alias, tag, heading, link, body, or
+  `expansion` — the last meaning the lexicon, not the user, supplied the word.
 
 The score is not confidence or truth. Prefer results whose evidence directly
 answers the question. When snippets are insufficient, read no more than the top
@@ -107,6 +152,7 @@ start reading the Vault by hand.
 | `invalid-date-range` | `--after` is later than `--before` | Re-derive the period; an empty window is a mistake, not a narrow search |
 | `invalid-type` | `--type` is not a known note type | Use a slug from the message's list, or drop the filter and read `type` off the results |
 | `invalid-tag` | `--tag` is blank or over the length limit | Take the tag from the user's words or from a result's tags; do not invent one |
+| `invalid-lexicon` | The Vault's `.obsidian-kb/retrieval-lexicon.json` is malformed or over a limit | Report the file and the reason so the user can fix their own config. Never repair it. `--no-expand` searches without it if the user wants an answer now |
 | `invalid-vault` | The path is not a real Obsidian Vault (`.obsidian/` missing) | Stop and re-confirm the Vault path with the user. This Skill never creates one |
 | `unreadable-note` | A note's bytes could not be decoded | Report the path. Never guess an encoding, and never rewrite the file — this Skill is read-only |
 

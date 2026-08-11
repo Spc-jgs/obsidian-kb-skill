@@ -21,6 +21,12 @@ FIXTURE = ROOT / "tests" / "fixtures" / "retrieval_eval_cases.json"
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--no-expand",
+        dest="expand",
+        action="store_false",
+        help="Measure pure lexical matching, without the bilingual lexicon",
+    )
     return parser.parse_args()
 
 
@@ -56,7 +62,9 @@ def percentile(values: list[float], fraction: float) -> float:
     return ordered[max(0, math.ceil(len(ordered) * fraction) - 1)]
 
 
-def evaluate(vault: Path, fixture: dict[str, object]) -> dict[str, object]:
+def evaluate(
+    vault: Path, fixture: dict[str, object], *, expand: bool = True
+) -> dict[str, object]:
     before = snapshot(vault)
     grouped: dict[str, list[dict[str, object]]] = defaultdict(list)
     latencies: list[float] = []
@@ -71,6 +79,7 @@ def evaluate(vault: Path, fixture: dict[str, object]) -> dict[str, object]:
             tags=filters.get("tags"),
             after=filters.get("after"),
             before=filters.get("before"),
+            expand=expand,
         )
         latency_ms = (time.perf_counter() - started) * 1000
         latencies.append(latency_ms)
@@ -101,8 +110,11 @@ def evaluate(vault: Path, fixture: dict[str, object]) -> dict[str, object]:
             ),
         }
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "fixture_schema_version": fixture["schema_version"],
+        # Which retrieval this measured. The same corpus scores very differently
+        # with and without the lexicon, so a report that omits this says nothing.
+        "expansion": expand,
         "query_count": len(fixture["queries"]),
         "groups": groups,
         "latency_ms": {
@@ -118,7 +130,9 @@ def main() -> int:
     args = parse_args()
     fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
     with tempfile.TemporaryDirectory(prefix="obsidian-retrieval-eval-") as raw:
-        result = evaluate(build_vault(Path(raw), fixture), fixture)
+        result = evaluate(
+            build_vault(Path(raw), fixture), fixture, expand=args.expand
+        )
     rendered = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.write_text(rendered, encoding="utf-8")
