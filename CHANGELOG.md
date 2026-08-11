@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Project Revival Radar no longer treats reusable `project-note` blueprints
+  marked `status: template` or `status: 模板` as stale project instances. These
+  non-instance markers stay separate from completed lifecycle states, while
+  `draft`, missing, and unrecognised statuses remain visible for human review.
+
 ## [1.31.0] - 2026-08-11
 
 ### Fixed

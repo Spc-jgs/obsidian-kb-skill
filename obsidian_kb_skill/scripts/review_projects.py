@@ -61,6 +61,13 @@ CLOSED_STATUSES = {
     "归档",
     "结束",
 }
+# These values describe a reusable project-shaped note, not a project lifecycle
+# state. Keep them separate from CLOSED_STATUSES: a template never started and
+# was not completed. Unknown states still remain visible by design.
+NON_INSTANCE_STATUSES = {
+    "template",
+    "模板",
+}
 # "What is not knowledge" is one policy, so it has one definition. A second copy
 # had already drifted: it spelled the archive folder as a literal instead of the
 # shared constant, and it did not learn about the retrieval lexicon's folder
@@ -225,7 +232,7 @@ def _candidate(
     stale_days: int,
 ) -> ProjectItem | None:
     status = (_scalar(metadata.get("status")) or "unknown").lower()
-    if status in CLOSED_STATUSES:
+    if status in CLOSED_STATUSES or status in NON_INSTANCE_STATUSES:
         return None
     activity_date = _activity_date(metadata)
     age_days = (as_of - activity_date).days if activity_date is not None else None
@@ -322,6 +329,9 @@ def review_projects(
             continue
         metadata = parsed.metadata or {}
         if _scalar(metadata.get("type")) != PROJECT_TYPE:
+            continue
+        status = (_scalar(metadata.get("status")) or "unknown").lower()
+        if status in NON_INSTANCE_STATUSES:
             continue
         projects += 1
         activity_date = _activity_date(metadata)

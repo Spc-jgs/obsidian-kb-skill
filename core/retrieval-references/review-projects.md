@@ -18,13 +18,15 @@ limits the review to that folder. Never pass an outside path.
 
 ## Reading the queue
 
-The helper considers only `type: project-note`. Completed, closed, archived, and
-cancelled projects are excluded, in English or Chinese — `completed`, `done`,
-`已完成`, `已归档`, `已取消` and their siblings all close a project. A status the
-helper does not recognise is treated as open, so an unfamiliar word keeps the
-project visible rather than silently retiring it. A project enters the queue when it is blocked,
-has no usable activity date, or its `updated` (falling back to `date`) is at least
-`stale_days` old.
+The helper considers only `type: project-note`. Reusable project-shaped notes
+marked `status: template` or `status: 模板` are not project instances and are
+excluded. Completed, closed, archived, and cancelled projects are also excluded,
+in English or Chinese — `completed`, `done`, `已完成`, `已归档`, `已取消` and their
+siblings all close a project. A status the helper does not recognise is treated
+as open, so an unfamiliar word keeps the project visible rather than silently
+retiring it; `draft` and a missing status remain visible. A project enters the
+queue when it is blocked, has no usable activity date, or its `updated` (falling
+back to `date`) is at least `stale_days` old.
 
 Each item contains the relative path, title, status, activity date, age, number
 of visible unchecked tasks, first actionable task, and stable `reasons`. Read the

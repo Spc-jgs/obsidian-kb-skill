@@ -301,6 +301,25 @@ def test_a_finished_project_stays_out_of_the_queue_in_either_language(tmp_path):
     assert [item["title"] for item in payload["items"]] == ["Still Running"]
 
 
+def test_non_instance_project_templates_stay_out_but_open_states_remain(tmp_path):
+    """A reusable project-shaped note is not a project instance to revive."""
+    vault = _vault(tmp_path)
+    _note(vault, "English Template", date="2025-01-01", status="template")
+    _note(vault, "Chinese Template", date="2025-01-01", status="模板")
+    _note(vault, "Draft", date="2025-01-01", status="draft")
+    _note(vault, "Active", date="2025-01-01", status="active")
+    _note(vault, "Unknown", date="2025-01-01", status=None)
+
+    payload = review_projects(vault, as_of=datetime.date(2026, 8, 11))
+
+    assert [item["title"] for item in payload["items"]] == [
+        "Active",
+        "Draft",
+        "Unknown",
+    ]
+    assert payload["summary"]["projects"] == 3
+
+
 def test_the_library_entrypoint_enforces_vault_containment_itself(tmp_path):
     """Not only the CLI. The sibling `search_vault` validates inside, too.
 
