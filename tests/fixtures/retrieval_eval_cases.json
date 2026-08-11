@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "notes": [
     {
       "path": "20-Learning/protocol/mcp.md",
@@ -184,6 +184,15 @@
     {"id": "semantic-06", "group": "semantic", "query": "怎样让开发机和持续集成安装完全相同的依赖", "expected": ["20-Learning/python/uv-lock.md"]},
     {"id": "semantic-07", "group": "semantic", "query": "实时推送经过反向代理后很久才一起到达", "expected": ["20-Learning/backend/sse-proxy.md"]},
     {"id": "semantic-08", "group": "semantic", "query": "为什么暂时不引入语义向量方案", "expected": ["30-Insights/retrieval/local-embedding.md"]},
+
+    {"id": "holdout-01", "group": "semantic-holdout", "query": "工具服务器用什么方式连接，会不会顺带获得改文件的权力", "expected": ["20-Learning/protocol/mcp.md"]},
+    {"id": "holdout-02", "group": "semantic-holdout", "query": "排序分数高是不是代表这条内容更可信", "expected": ["20-Learning/retrieval/bm25.md"]},
+    {"id": "holdout-03", "group": "semantic-holdout", "query": "改表结构时怎样做到不停机上线", "expected": ["40-Projects/database/schema-migration.md"]},
+    {"id": "holdout-04", "group": "semantic-holdout", "query": "收件箱整理能不能先给出计划再动文件", "expected": ["40-Projects/inbox-governance.md"]},
+    {"id": "holdout-05", "group": "semantic-holdout", "query": "插件返回的内容可以当作授权依据吗", "expected": ["40-Projects/security-boundary.md"]},
+    {"id": "holdout-06", "group": "semantic-holdout", "query": "同一个键只让一个请求回源，其他请求复用结果", "expected": ["20-Learning/backend/cache-stampede.md"]},
+    {"id": "holdout-07", "group": "semantic-holdout", "query": "把解释器版本和锁文件一起提交来保证环境一致", "expected": ["20-Learning/python/uv-lock.md"]},
+    {"id": "holdout-08", "group": "semantic-holdout", "query": "记录内容哈希和双向链接，把改写与原文分开", "expected": ["20-Learning/capture/source-evidence.md"]},
 
     {"id": "none-01", "group": "no-answer", "query": "quantum ledger consensus", "expected": []},
     {"id": "none-02", "group": "no-answer", "query": "火星土壤光谱校准", "expected": []},

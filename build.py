@@ -135,8 +135,13 @@ RETRIEVAL_HELPER_FILES = (
     # Shared note domain: retrieval needs the same judgement about what is
     # a note as the write Skill, and the same tag identity rules.
     Path("scripts/note_catalog.py"),
+    # The bilingual lexicon and the one tokenizer both sides of a match must
+    # share. Ship them or `search_vault` cannot import, and a lexicon tokenized
+    # differently from the index would silently match nothing.
+    Path("scripts/query_expansion.py"),
     Path("scripts/retrieval_vault_info.py"),
     Path("scripts/search_vault.py"),
+    Path("scripts/text_tokens.py"),
     Path("scripts/vault_paths.py"),
 )
 PYPROJECT = ROOT / "pyproject.toml"

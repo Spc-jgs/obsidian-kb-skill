@@ -23,6 +23,15 @@ from obsidian_kb_skill.scripts.note_catalog import (
     VALID_NOTE_TYPES,
     normalize_tag_key,
 )
+from obsidian_kb_skill.scripts.query_expansion import (
+    EXPANSION_WEIGHT,
+    LEXICON_FOLDER,
+    LexiconError,
+    QueryExpansion,
+    expand_query,
+    load_lexicon,
+)
+from obsidian_kb_skill.scripts.text_tokens import tokenize
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
     VaultPathError,
@@ -68,9 +77,11 @@ IGNORED_DIRECTORY_NAMES = {
     ".codex",
     ".agents",
     ".obsidian-kb-backups",
+    # The Vault's own lexicon lives here. It is configuration for the search,
+    # not knowledge the search should return. Dot-prefixed names are skipped
+    # anyway; naming it keeps the reason in the file that acts on it.
+    LEXICON_FOLDER,
 }
-LATIN_TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
-TOKEN_RUN_RE = re.compile(r"[A-Za-z0-9]+|[\u3400-\u4dbf\u4e00-\u9fff]+")
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}")
 HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.+?)\s*$")
 WIKILINK_RE = re.compile(r"\[\[([^\]\n]+)\]\]")
@@ -98,20 +109,6 @@ class SearchDocument:
             FIELD_WEIGHTS[field] * sum(tokens.values())
             for field, tokens in self.field_tokens.items()
         )
-
-
-def tokenize(text: str) -> list[str]:
-    """Return stable lowercase Latin tokens and overlapping CJK bigrams."""
-    tokens: list[str] = []
-    for match in TOKEN_RUN_RE.finditer(text):
-        run = match.group(0)
-        if LATIN_TOKEN_RE.fullmatch(run):
-            tokens.append(run.lower())
-        elif len(run) == 1:
-            tokens.append(run)
-        else:
-            tokens.extend(run[index : index + 2] for index in range(len(run) - 1))
-    return tokens
 
 
 def _normalize_name(text: str) -> str:
@@ -454,18 +451,24 @@ def _name_boost(
 
 def _bm25_score(
     document: SearchDocument,
-    query_tokens: list[str],
+    token_weights: dict[str, float],
     document_frequencies: Counter[str],
     document_count: int,
     average_length: float,
 ) -> float:
+    """Weighted BM25. A typed token weighs 1.0; an expanded one weighs less.
+
+    The weight multiplies the term's finished contribution rather than its raw
+    frequency, so an expanded token is worth a fixed fraction of the same token
+    typed directly, independent of how often the note repeats it.
+    """
     if document_count == 0:
         return 0.0
     k1 = 1.5
     b = 0.75
     length = document.weighted_length
     score = 0.0
-    for token in set(query_tokens):
+    for token, weight in token_weights.items():
         frequency = sum(
             FIELD_WEIGHTS[field] * counts.get(token, 0)
             for field, counts in document.field_tokens.items()
@@ -479,10 +482,38 @@ def _bm25_score(
         normalization = k1 * (
             1.0 - b + b * length / max(average_length, 1.0)
         )
-        score += inverse_frequency * (
+        score += weight * inverse_frequency * (
             frequency * (k1 + 1.0) / (frequency + normalization)
         )
     return score
+
+
+def _expansion_signals(
+    document: SearchDocument, expansion: QueryExpansion
+) -> list[dict[str, str]]:
+    """Name the concepts that actually reached this note, and nothing else.
+
+    A concept that fired on the query but matched nothing here would be noise in
+    the result; a concept that matched must be visible, or the reader cannot
+    tell which words were the search's idea rather than their own.
+    """
+    signals: list[dict[str, str]] = []
+    for concept in expansion.concepts:
+        hits = [
+            token
+            for token in concept.added
+            if any(
+                counts.get(token, 0) for counts in document.field_tokens.values()
+            )
+        ]
+        if hits:
+            signals.append(
+                {
+                    "kind": "expansion",
+                    "detail": f"{concept.matched} → {', '.join(hits)}"[:160],
+                }
+            )
+    return signals
 
 
 def _snippet(
@@ -539,6 +570,7 @@ def search_vault(
     tags: list[str] | None = None,
     after: str | None = None,
     before: str | None = None,
+    expand: bool = True,
 ) -> dict[str, Any]:
     """Search a validated Vault without writing files or persistent cache."""
     if not query.strip() or len(query) > MAX_QUERY_CHARS:
@@ -565,7 +597,17 @@ def search_vault(
     candidates = len(documents)
     documents, filter_excluded = filters.select(documents)
     query_tokens = tokenize(query)
-    frequencies = _document_frequencies(documents, set(query_tokens))
+    expansion = (
+        expand_query(query, load_lexicon(root)) if expand else QueryExpansion()
+    )
+    typed = set(query_tokens)
+    added = [token for token in expansion.tokens if token not in typed]
+    # A token the reader typed keeps full weight even when a concept also
+    # proposes it: direct evidence is never demoted by a guess that agrees.
+    token_weights: dict[str, float] = {token: EXPANSION_WEIGHT for token in added}
+    token_weights.update({token: 1.0 for token in query_tokens})
+    scoring_tokens = query_tokens + added
+    frequencies = _document_frequencies(documents, set(scoring_tokens))
     average_length = (
         sum(document.weighted_length for document in documents) / len(documents)
         if documents
@@ -575,22 +617,32 @@ def search_vault(
     for document in documents:
         lexical = _bm25_score(
             document,
-            query_tokens,
+            token_weights,
             frequencies,
             len(documents),
             average_length,
         )
+        # The name boost reads the raw query only. An expansion must never
+        # manufacture a title-exact match out of a word nobody typed.
         boost, bonus_signals = _name_boost(query, document)
         total = lexical + boost
         if total <= 0:
             continue
         scored.append(
-            (total, document, bonus_signals + _field_matches(document, query_tokens))
+            (
+                total,
+                document,
+                bonus_signals
+                # Direct matches first, then what the lexicon contributed, so a
+                # `body` signal never names a word the reader did not type.
+                + _field_matches(document, query_tokens)
+                + _expansion_signals(document, expansion),
+            )
         )
     scored.sort(key=lambda item: (-item[0], item[1].relative.casefold(), item[1].relative))
     results: list[dict[str, Any]] = []
     for rank, (score, document, signals) in enumerate(scored[:top_k], start=1):
-        heading, line, snippet = _snippet(document, query_tokens)
+        heading, line, snippet = _snippet(document, scoring_tokens)
         results.append(
             {
                 "rank": rank,
@@ -616,6 +668,11 @@ def search_vault(
         "issues": issues,
         "truncated": len(scored) > top_k,
     }
+    if expansion.active:
+        # Which words the search added, and on whose authority. Without this the
+        # reader cannot reproduce the ranking or tell a lexicon mistake from a
+        # Vault that genuinely says something surprising.
+        payload["expansion"] = expansion.payload()
     if filters.active:
         # Without this an over-narrow filter is indistinguishable from an empty
         # Vault, and the honest answer "nothing matched this filter" reads as
@@ -663,6 +720,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--before", help="Keep notes dated on or before this ISO date (YYYY-MM-DD)"
+    )
+    parser.add_argument(
+        "--no-expand",
+        dest="expand",
+        action="store_false",
+        help="Match only the words in the query, with no bilingual expansion",
     )
     args = parser.parse_args(argv)
 
@@ -743,19 +806,36 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(f"error: {message}", file=sys.stderr)
             return 2
-    payload = search_vault(
-        vault,
-        args.query,
-        top_k=args.top_k,
-        scope=selected_scope,
-        types=args.types,
-        tags=args.tags,
-        after=args.after,
-        before=args.before,
-    )
+    try:
+        payload = search_vault(
+            vault,
+            args.query,
+            top_k=args.top_k,
+            scope=selected_scope,
+            types=args.types,
+            tags=args.tags,
+            after=args.after,
+            before=args.before,
+            expand=args.expand,
+        )
+    except LexiconError as exc:
+        # Refuse rather than fall back to the built-in concepts. A search that
+        # quietly ran with different vocabulary than the file describes is a
+        # search nobody can reproduce, and the typo is in a file the user wrote.
+        return refuse("invalid-lexicon", str(exc))
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0
+    expansion = payload.get("expansion")
+    if expansion:
+        # Say it even when nothing matched: "we also looked for these and still
+        # found nothing" is a different answer from "we only looked for what you
+        # typed". The exact tokens stay in --json.
+        concepts = ", ".join(
+            f"{concept['matched']} → {concept['id']}"
+            for concept in expansion["concepts"]
+        )
+        print(f"also searched ({expansion['weight']:.2f} weight): {concepts}")
     if not payload["results"]:
         print(f"No results for: {args.query}")
         return 0
