@@ -110,6 +110,7 @@ modules, so both Agents can receive these. -->
 | `capture-depth-route-mismatch` | The capture depth and the destination disagree | Re-read `web-capture.md` and pick a consistent depth and route |
 | `invalid-content-file` | The supplied content file is missing or unreadable | Re-supply the content; do not fall back to inline guesses |
 | `invalid-folder-index-config` | The Folder Index plugin config cannot be interpreted | Do not touch listings. Report the config problem |
+| `invalid-vault-vocabulary` | The Vault's `.obsidian-kb/vault-vocabulary.json` is malformed or over a limit | Report the file and the reason so the user can fix their own config. Never repair it, and never fall back to ignoring it — the clusters it suppresses would come back as advice |
 | `confirmation-required` | `create-category` was applied without `--confirmed` | Show the proposed path, get the user's answer, then apply with `--confirmed` |
 | `invalid-category-name` | The category name is not a portable visible directory name | Propose a plain durable subject name; no dots, separators, or hidden prefixes |
 | `invalid-category-path` | The category path is not a normalized Vault-relative path | Pass one forward-slash path with no `.`, `..`, or absolute prefix |

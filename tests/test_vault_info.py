@@ -582,3 +582,129 @@ def test_a_title_token_merely_contained_in_a_tag_still_counts(tmp_path: Path):
     terms = {item["term"] for item in clusters}
 
     assert "kafka" in terms
+
+
+def _vault_vocabulary(vault: Path, document: str) -> None:
+    folder = vault / vault_info.VAULT_VOCABULARY_FOLDER
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / vault_info.VAULT_VOCABULARY_FILENAME).write_text(
+        document, encoding="utf-8"
+    )
+
+
+def test_type_default_tags_come_from_this_vaults_own_templates(tmp_path: Path):
+    """One question, one source. `tag_vocabulary` already reads the templates.
+
+    Clustering answered it from a hardcoded list instead, so a Vault that
+    renamed `person` to `people` kept having `people` counted as a subject while
+    the dead `person` entry protected nothing.
+    """
+    vault = _make_vault(tmp_path)
+    _template_tags(vault, Person="people")
+    topic = vault / "20-Learning" / "AI-Agent"
+    topic.mkdir()
+    _crowd(topic, 8, prefix="teammate", tags="[people, mcp]")
+    _crowd_from(topic, 13, start=9, prefix="其他", tags="[rag]")
+
+    clusters = collect(vault)["crowded_folders"][0]["clusters"]
+    terms = {item["term"] for item in clusters}
+
+    assert "people" not in terms
+    assert "mcp" in terms
+
+
+def test_a_real_subject_is_not_dropped_because_a_static_list_called_it_generic(
+    tmp_path: Path,
+):
+    """`java` was in the hardcoded set and is a real subject with real notes.
+
+    On the reference Vault twelve notes carry it. Nothing surfaced yet only
+    because they had not collected in one crowded folder — the moment five did,
+    the tag that folder should split on was the one silently discarded.
+    """
+    vault = _make_vault(tmp_path)
+    topic = vault / "20-Learning" / "Backend"
+    topic.mkdir()
+    _crowd(topic, 8, prefix="collections", tags="[java]")
+    _crowd_from(topic, 13, start=9, prefix="其他", tags="[rag]")
+
+    clusters = collect(vault)["crowded_folders"][0]["clusters"]
+
+    assert {"term": "java", "kind": "tag", "notes": 8} in clusters
+
+
+def test_a_word_for_a_piece_of_writing_does_not_take_a_cluster_slot(
+    tmp_path: Path,
+):
+    """`文章` describes the document, not what the document is about.
+
+    It took one of six slots on the reference Vault's `20-Learning/AI-Agent`,
+    displacing `llm-engineering` and `vibe-coding`.
+    """
+    vault = _make_vault(tmp_path)
+    topic = vault / "20-Learning" / "AI-Agent"
+    topic.mkdir()
+    _crowd(topic, 8, prefix="文章 mcp", tags="[rag]")
+    _crowd_from(topic, 13, start=9, prefix="其他", tags="[embedding]")
+
+    clusters = collect(vault)["crowded_folders"][0]["clusters"]
+    terms = {item["term"] for item in clusters}
+
+    assert "文章" not in terms
+    assert "mcp" in terms
+
+
+def test_a_vault_declares_which_of_its_own_words_are_not_subjects(tmp_path: Path):
+    """A clipping convention is one Vault's noise and another Vault's subject.
+
+    `掘金文章` in every clipped filename becomes the merged term `掘金文` and
+    takes a slot. Shipping the site name would be wrong for anyone writing about
+    the platform itself, so the Vault says. Declaring the phrase removes 掘金,
+    金文 and 文章 together — dropping only the last leaves the other two to merge
+    straight back into the term that was taking the slot.
+    """
+    vault = _make_vault(tmp_path)
+    topic = vault / "20-Learning" / "AI-Agent"
+    topic.mkdir()
+    _crowd(topic, 8, prefix="掘金文章 mcp", tags="[rag]")
+    _crowd_from(topic, 13, start=9, prefix="其他", tags="[embedding]")
+
+    before = {
+        item["term"] for item in collect(vault)["crowded_folders"][0]["clusters"]
+    }
+    _vault_vocabulary(
+        vault, '{"schema_version": 1, "non_subject_terms": ["掘金文章"]}'
+    )
+    after = {
+        item["term"] for item in collect(vault)["crowded_folders"][0]["clusters"]
+    }
+
+    assert "掘金文" in before
+    assert "掘金文" not in after
+    assert "mcp" in after
+
+
+def test_a_broken_vault_vocabulary_refuses_instead_of_being_ignored(tmp_path: Path):
+    """Silently ignoring it would report clusters the config says are noise."""
+    import pytest
+
+    vault = _make_vault(tmp_path)
+    _vault_vocabulary(vault, "{ not json")
+
+    with pytest.raises(vault_info.VaultVocabularyError) as error:
+        collect(vault)
+
+    assert error.value.code == "invalid-vault-vocabulary"
+    assert "not valid JSON" in error.value.message
+
+
+def test_the_vault_vocabulary_file_is_never_treated_as_a_note(tmp_path: Path):
+    vault = _make_vault(tmp_path)
+    _vault_vocabulary(
+        vault, '{"schema_version": 1, "non_subject_terms": ["掘金文章"]}'
+    )
+
+    info = collect(vault)
+
+    assert vault_info.VAULT_VOCABULARY_FOLDER not in info["standard_folders"]
+    assert info["valid"] is True
