@@ -74,15 +74,16 @@ def test_retrieval_fixture_has_the_accepted_forty_query_shape():
     fixture = _load_fixture()
     queries = fixture["queries"]
 
-    assert fixture["schema_version"] == 2
+    assert fixture["schema_version"] == 3
     assert Counter(case["group"] for case in queries) == {
         "exact": 10,
         "alias": 8,
         "filtered": 8,
         "semantic": 8,
+        "semantic-holdout": 8,
         "no-answer": 6,
     }
-    assert len({case["id"] for case in queries}) == len(queries) == 40
+    assert len({case["id"] for case in queries}) == len(queries) == 48
     assert all(case["expected"] for case in queries if case["group"] != "no-answer")
     assert all(not case["expected"] for case in queries if case["group"] == "no-answer")
 
@@ -127,3 +128,25 @@ def test_semantic_baseline_is_versioned_before_query_expansion(tmp_path):
     # must add at least two valid hits without weakening the stable groups.
     assert sum(score > 0 for score in semantic) == 3
     assert sum(semantic) / len(semantic) == 0.3125
+
+
+def test_holdout_baseline_is_frozen_before_any_lexicon_exists(tmp_path):
+    """Record the holdout set's score while no query expansion is implemented.
+
+    The eight `semantic-holdout` queries are written against the same corpus but
+    are never allowed to inform the lexicon: they exist to estimate how much of a
+    later gain generalises past the eight queries the gate optimises. Freezing
+    the number here, in the commit that adds the queries, is what makes that
+    claim checkable afterwards rather than merely asserted.
+    """
+    fixture = _load_fixture()
+    vault = _build_vault(tmp_path, fixture)
+
+    holdout = _run_cases(vault, fixture)["semantic-holdout"]
+
+    # Four of eight already hit without expansion, all four through a Chinese
+    # alias sharing a bigram with the query — the alias field doing its job, not
+    # cross-lingual matching. The other four have zero token overlap with their
+    # English target.
+    assert sum(score > 0 for score in holdout) == 4
+    assert sum(holdout) / len(holdout) == 0.5
