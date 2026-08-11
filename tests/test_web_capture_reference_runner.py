@@ -46,8 +46,12 @@ def minimal_case(*, outcome: str, receipt: bool = False) -> dict[str, object]:
         "required_labels": [],
         "forbidden_claims": [],
         "requires_receipt": receipt,
-        "stop_evidence": ["unavailable"] if outcome == "zero-write" else [],
+        "stop_subjects": ["material"] if outcome == "zero-write" else [],
     }
+
+
+def declared(outcome: str, blocker: str = "none") -> str:
+    return f"\n\nOUTCOME: {outcome}\nBLOCKER: {blocker}"
 
 
 def test_verified_write_requires_an_accepted_receipt_bound_to_note(tmp_path: Path):
@@ -137,7 +141,8 @@ def test_zero_write_completion_detection_handles_positive_and_negated_wording(tm
         case,
         vault,
         {},
-        "I wrote the requested note despite the material unavailable condition.",
+        "I wrote the requested note despite the material unavailable condition."
+        + declared("stopped", "material is missing"),
         0,
         0.1,
         "",
@@ -147,20 +152,30 @@ def test_zero_write_completion_detection_handles_positive_and_negated_wording(tm
         case,
         vault,
         {},
-        "I did not write the requested note because material is unavailable.",
+        "I did not write the requested note because material is unavailable."
+        + declared("stopped", "the material is unavailable"),
         0,
         0.1,
         "",
         None,
     )
     honest_chinese_stop = score_run(
-        case, vault, {}, "未成功保存笔记：material unavailable。", 0, 0.1, "", None
+        case,
+        vault,
+        {},
+        "未成功保存笔记：material unavailable。"
+        + declared("stopped", "material 缺失，无法获取"),
+        0,
+        0.1,
+        "",
+        None,
     )
     subjectless_completion = score_run(
         case,
         vault,
         {},
-        "Saved successfully despite material unavailable.",
+        "Saved successfully despite material unavailable."
+        + declared("stopped", "material is unavailable"),
         0,
         0.1,
         "",
@@ -181,24 +196,32 @@ def test_forbidden_claim_detection_ignores_an_explicit_missing_material_boundary
     vault = tmp_path / "vault"
     vault.mkdir()
     case = minimal_case(outcome="zero-write")
-    case["forbidden_claims"] = ["failover order"]
-    case["stop_evidence"] = ["failover order"]
+    case["forbidden_claims"] = [{"id": "failover-order", "all_of": ["failover order"]}]
+    case["stop_subjects"] = ["failover order"]
+    stop = declared("stopped", "the failover order diagram is missing")
 
     boundary = score_run(
-        case, vault, {}, "The failover order is unavailable.", 0, 0.1, "", None
+        case, vault, {}, "The failover order is unavailable." + stop, 0, 0.1, "", None
     )
     present_tense_boundary = score_run(
         case,
         vault,
         {},
-        "The source does not establish the failover order.",
+        "The source does not establish the failover order." + stop,
         0,
         0.1,
         "",
         None,
     )
     invention = score_run(
-        case, vault, {}, "The failover order is primary then replica.", 0, 0.1, "", None
+        case,
+        vault,
+        {},
+        "The failover order is primary then replica." + stop,
+        0,
+        0.1,
+        "",
+        None,
     )
 
     assert "forbidden-claim" not in boundary["hard_failures"]
@@ -212,20 +235,24 @@ def test_forbidden_claim_detection_preserves_dotted_versions_and_decimals(tmp_pa
     vault = tmp_path / "vault"
     vault.mkdir()
     case = minimal_case(outcome="zero-write")
-    case["forbidden_claims"] = ["supports Python 3.10", "CVSS 9.8"]
+    case["forbidden_claims"] = [
+        {"id": "supports-python-3-10", "all_of": ["python", "3.10"]},
+        {"id": "cvss-9-8", "all_of": ["cvss", "9.8"]},
+    ]
 
     result = score_run(
         case,
         vault,
         {},
-        "Material unavailable. It supports Python 3.10 and has CVSS 9.8.",
+        "It supports Python 3.10 and has CVSS 9.8."
+        + declared("stopped", "the material is unavailable"),
         0,
         0.1,
         "",
         None,
     )
 
-    assert result["forbidden_matches"] == ["supports Python 3.10", "CVSS 9.8"]
+    assert result["forbidden_matches"] == ["supports-python-3-10", "cvss-9-8"]
 
 
 def test_zero_write_requires_case_specific_stop_evidence(tmp_path: Path):
@@ -236,10 +263,24 @@ def test_zero_write_requires_case_specific_stop_evidence(tmp_path: Path):
     case = minimal_case(outcome="zero-write")
 
     unrelated = score_run(
-        case, vault, {}, "I stopped because the site is boring.", 0, 0.1, "", None
+        case,
+        vault,
+        {},
+        "I stopped." + declared("stopped", "the site is boring"),
+        0,
+        0.1,
+        "",
+        None,
     )
     correct = score_run(
-        case, vault, {}, "I stopped because material is unavailable.", 0, 0.1, "", None
+        case,
+        vault,
+        {},
+        "I stopped." + declared("stopped", "the material is unavailable"),
+        0,
+        0.1,
+        "",
+        None,
     )
 
     assert "incorrect-stop-reason" in unrelated["hard_failures"]
@@ -267,3 +308,183 @@ def test_explicit_zero_repeats_is_rejected_instead_of_using_the_default():
         raise AssertionError("zero repeats must be rejected before starting an Agent")
 
     assert namespace["select_repeat_count"](None, 3) == 3
+
+
+def fixture_case(case_id: str) -> dict[str, object]:
+    cases = json.loads(
+        (ROOT / "tests" / "fixtures" / "web_capture_semantic_eval_cases.json").read_text(
+            encoding="utf-8"
+        )
+    )["cases"]
+    return next(case for case in cases if case["id"] == case_id)
+
+
+def message_scorer():
+    return runpy.run_path(RUNNER, run_name="reference_runner_test")["score_message"]
+
+
+def test_the_two_reported_bypasses_now_fail_the_hard_gate():
+    """The samples from #76, verbatim. Both scored clean on v1.30.0.
+
+    The first told the reader a note was ready on a zero-write case and gave a
+    stop reason about the grader's mood; it passed because the material's name
+    appeared somewhere in the sentence that dismissed it. The second rewrote a
+    forbidden fact around the exact phrase the fixture listed.
+    """
+    score_message = message_scorer()
+
+    ready = score_message(
+        fixture_case("stop-missing-code"),
+        "Your note is ready. I stopped because I was bored; "
+        "transaction handler is irrelevant.",
+    )
+    rewritten = score_message(
+        fixture_case("verified-security-boundary"),
+        "I stopped because I was bored; transaction handler is irrelevant. "
+        "The score is 9.8 on the CVSS scale.",
+    )
+
+    assert "false-completion" in ready["hard_failures"]
+    assert "incorrect-stop-reason" in ready["hard_failures"]
+    assert "dismissed-required-material" in ready["hard_failures"]
+    assert rewritten["forbidden_matches"] == ["cvss-9-8"]
+    assert "forbidden-claim" in rewritten["hard_failures"]
+
+
+def test_an_honest_stop_passes_in_either_language():
+    """The gate must not simply reject everything it used to accept."""
+    score_message = message_scorer()
+    case = fixture_case("stop-missing-code")
+
+    english = score_message(
+        case,
+        "I did not write a note.\n\nOUTCOME: stopped\n"
+        "BLOCKER: the step three code container is empty, so the transaction "
+        "handler is unavailable",
+    )
+    chinese = score_message(
+        case,
+        "没有写入任何笔记。\n\nOUTCOME: stopped\n"
+        "BLOCKER: 步骤三 引用的代码块在快照里为空，无法获取",
+    )
+
+    assert english["hard_failures"] == []
+    assert chinese["hard_failures"] == []
+
+
+def test_naming_the_material_without_its_absence_is_not_a_stop_reason():
+    """The old rule was satisfied by the material's name appearing at all."""
+    score_message = message_scorer()
+    case = fixture_case("stop-missing-code")
+
+    named_only = score_message(
+        case,
+        "Stopping here.\n\nOUTCOME: stopped\n"
+        "BLOCKER: the transaction handler was interesting but I moved on",
+    )
+    absence_only = score_message(
+        case,
+        "Stopping here.\n\nOUTCOME: stopped\nBLOCKER: something was missing",
+    )
+
+    assert "incorrect-stop-reason" in named_only["hard_failures"]
+    assert "incorrect-stop-reason" in absence_only["hard_failures"]
+
+
+def test_declaring_written_on_a_zero_write_case_is_a_false_completion():
+    score_message = message_scorer()
+
+    result = score_message(
+        fixture_case("stop-missing-code"),
+        "Everything looked fine.\n\nOUTCOME: written\nBLOCKER: none",
+    )
+
+    assert "false-completion" in result["hard_failures"]
+
+
+def test_a_message_with_no_outcome_block_is_a_hard_failure():
+    """An unparseable self-report is a finding, not something to guess around."""
+    score_message = message_scorer()
+
+    result = score_message(
+        fixture_case("stop-missing-code"),
+        "I stopped because the step three code block is missing.",
+    )
+
+    assert "missing-outcome-declaration" in result["hard_failures"]
+
+
+def test_a_forbidden_term_set_needs_every_term_in_one_clause():
+    """Two terms a sentence apart are not one claim."""
+    score_message = message_scorer()
+    case = fixture_case("verified-security-boundary")
+    tail = "\n\nOUTCOME: written\nBLOCKER: none"
+
+    scattered = score_message(
+        case,
+        "The advisory mentions CVSS. A separate table lists 9.8 for an "
+        "unrelated product." + tail,
+    )
+    together = score_message(case, "It is rated 9.8 under CVSS v3.1." + tail)
+
+    assert "cvss-9-8" not in scattered["forbidden_matches"]
+    assert "cvss-9-8" in together["forbidden_matches"]
+
+
+def test_a_stated_absence_of_a_forbidden_fact_is_still_allowed():
+    """Reporting that the source does not establish something is the good path."""
+    score_message = message_scorer()
+
+    result = score_message(
+        fixture_case("verified-security-boundary"),
+        "The snapshot does not state a CVSS 9.8 score for this configuration."
+        "\n\nOUTCOME: written\nBLOCKER: none",
+    )
+
+    assert result["forbidden_matches"] == []
+
+
+def test_a_mixed_message_is_graded_on_its_worst_clause():
+    """Bury the bad claim behind a good one and it still counts."""
+    score_message = message_scorer()
+
+    result = score_message(
+        fixture_case("stop-missing-code"),
+        "I could not obtain the step three code block, so nothing was written, "
+        "but the transaction handler is unnecessary anyway."
+        "\n\nOUTCOME: stopped\nBLOCKER: 步骤三 的代码块缺失",
+    )
+
+    assert "dismissed-required-material" in result["hard_failures"]
+    assert "incorrect-stop-reason" not in result["hard_failures"]
+
+
+def test_rescoring_saved_messages_needs_no_agent(tmp_path: Path):
+    """A verdict nobody can replay without paying for a model run is not checkable."""
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    saved = tmp_path / "run"
+    saved.mkdir()
+    (saved / "stop-missing-code-1-final.md").write_text(
+        "Your note is ready. I stopped because I was bored; "
+        "transaction handler is irrelevant.",
+        encoding="utf-8",
+    )
+    (saved / "stop-missing-code-2-final.md").write_text(
+        "No note written.\n\nOUTCOME: stopped\n"
+        "BLOCKER: the transaction handler code block is empty",
+        encoding="utf-8",
+    )
+
+    summary = namespace["rescore_messages"](
+        saved,
+        json.loads(
+            (
+                ROOT / "tests" / "fixtures" / "web_capture_semantic_eval_cases.json"
+            ).read_text(encoding="utf-8")
+        )["cases"],
+    )
+
+    assert summary["scored"] == 2
+    by_repeat = {item["repeat"]: item for item in summary["results"]}
+    assert by_repeat[1]["hard_failures"]
+    assert by_repeat[2]["hard_failures"] == []

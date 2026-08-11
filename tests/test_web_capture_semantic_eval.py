@@ -18,7 +18,7 @@ def test_semantic_eval_has_twelve_balanced_cases_and_three_repeats():
     fixture = load_fixture()
     cases = fixture["cases"]
 
-    assert fixture["schema_version"] == 1
+    assert fixture["schema_version"] == 2
     assert fixture["reference_agent"]["repeats"] == 3
     assert Counter(case["group"] for case in cases) == {
         "standard": 4,
@@ -38,12 +38,18 @@ def test_every_case_declares_hard_gate_inputs():
         assert isinstance(case["required_facts"], list)
         assert isinstance(case["required_labels"], list)
         assert case["forbidden_claims"]
+        for claim in case["forbidden_claims"]:
+            # A claim is a set of terms that must land in one clause, not a
+            # phrase to be matched verbatim: an equivalent rewrite used to score
+            # clean, and a term set is the auditable middle ground.
+            assert claim["id"] and claim["all_of"]
+            assert all(term.strip() == term and term for term in claim["all_of"])
         if case["expected_outcome"] == "write":
             assert len(case["required_facts"]) >= 5
             assert "stop_reason" not in case
         else:
             assert case["stop_reason"]
-            assert case["stop_evidence"]
+            assert case["stop_subjects"]
             assert not case["required_facts"]
 
 
