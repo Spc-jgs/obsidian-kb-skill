@@ -281,3 +281,56 @@ def test_text_mode_reports_skipped_notes_even_when_queue_is_empty(tmp_path, caps
     captured = capsys.readouterr()
     assert "No projects need review." in captured.out
     assert "1 note(s) skipped." in captured.err
+
+
+def test_a_finished_project_stays_out_of_the_queue_in_either_language(tmp_path):
+    """A Chinese `status` closed a project just as much as an English one.
+
+    Before this, `status: 已完成` matched nothing in the closed set, so a project
+    finished eighteen months ago came back every review as `stale:N-days` — the
+    exact false positive the queue promises not to produce, in the language most
+    of this Vault's own notes are written in.
+    """
+    vault = _vault(tmp_path)
+    for index, status in enumerate(("completed", "已完成", "已归档", "已取消")):
+        _note(vault, f"Finished {index}", date="2025-01-01", status=status)
+    _note(vault, "Still Running", date="2025-01-01", status="active")
+
+    payload = review_projects(vault, as_of=datetime.date(2026, 8, 11))
+
+    assert [item["title"] for item in payload["items"]] == ["Still Running"]
+
+
+def test_the_library_entrypoint_enforces_vault_containment_itself(tmp_path):
+    """Not only the CLI. The sibling `search_vault` validates inside, too.
+
+    A scope outside the Vault used to reach `Path.relative_to` and raise a bare
+    ValueError carrying an absolute filesystem path — an unhandled crash where
+    the contract says refusal, and a path leak the retrieval reference forbids.
+    """
+    import pytest
+
+    from obsidian_kb_skill.scripts.vault_paths import PathOutsideVaultError
+
+    vault = _vault(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "x.md").write_text(
+        "---\ntype: project-note\n---\n# x\n", encoding="utf-8"
+    )
+
+    with pytest.raises(PathOutsideVaultError):
+        review_projects(vault, as_of=datetime.date(2026, 8, 11), scope=outside)
+
+
+def test_the_review_skips_exactly_what_search_skips(tmp_path):
+    """One policy for "this is not knowledge", not two copies drifting apart.
+
+    The sets were already different: search gained `.obsidian-kb` when the
+    retrieval lexicon landed, and this helper spelled `95-Sources` as a literal
+    rather than the shared constant.
+    """
+    from obsidian_kb_skill.scripts import review_projects as radar
+    from obsidian_kb_skill.scripts import search_vault as search
+
+    assert radar.IGNORED_DIRECTORY_NAMES is search.IGNORED_DIRECTORY_NAMES

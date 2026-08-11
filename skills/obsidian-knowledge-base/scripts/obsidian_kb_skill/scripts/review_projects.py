@@ -15,7 +15,10 @@ from typing import Any, Iterable
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
 from obsidian_kb_skill.scripts.note_catalog import EXEMPT_NAMES
-from obsidian_kb_skill.scripts.search_vault import parse_note_date
+from obsidian_kb_skill.scripts.search_vault import (
+    IGNORED_DIRECTORY_NAMES,
+    parse_note_date,
+)
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
     VaultPathError,
@@ -34,6 +37,10 @@ MAX_FILE_BYTES = 2 * 1024 * 1024
 MAX_ISSUES = 20
 MAX_NEXT_ACTION_CHARS = 200
 PROJECT_TYPE = "project-note"
+# A finished project is finished in whatever language its author wrote the
+# status in. An English-only set put `status: 已完成` back in the queue every
+# review as `stale:N-days` — precisely the false positive this helper exists to
+# avoid, in the language most of a bilingual Vault's notes use.
 CLOSED_STATUSES = {
     "archived",
     "canceled",
@@ -41,23 +48,23 @@ CLOSED_STATUSES = {
     "closed",
     "completed",
     "done",
+    "中止",
+    "关闭",
+    "取消",
+    "完成",
+    "已中止",
+    "已关闭",
+    "已取消",
+    "已完成",
+    "已归档",
+    "已结束",
+    "归档",
+    "结束",
 }
-IGNORED_DIRECTORY_NAMES = {
-    "Attachments",
-    "Templates",
-    "95-Sources",
-    "__pycache__",
-    "node_modules",
-    ".git",
-    ".obsidian",
-    ".venv",
-    ".workbuddy",
-    ".claude",
-    ".cursor",
-    ".codex",
-    ".agents",
-    ".obsidian-kb-backups",
-}
+# "What is not knowledge" is one policy, so it has one definition. A second copy
+# had already drifted: it spelled the archive folder as a literal instead of the
+# shared constant, and it did not learn about the retrieval lexicon's folder
+# when search did.
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.+?)\s*$")
 FENCE_RE = re.compile(r"^[ \t]{0,3}(?P<fence>`{3,}|~{3,})")
@@ -269,8 +276,19 @@ def review_projects(
     scope: Path | None = None,
 ) -> dict[str, Any]:
     """Return an explainable queue without mutating the Vault."""
-    root = vault.resolve()
-    selected_scope = (scope or root).resolve()
+    # Validated here and not only in `main`, exactly as `search_vault` does. A
+    # library caller handing in an outside scope used to reach `relative_to` and
+    # raise a bare ValueError carrying an absolute filesystem path: an unhandled
+    # crash where the contract promises a refusal, and a path leak in a Skill
+    # whose reference tells the Agent not to expose unrelated absolute paths.
+    root = validate_vault_root(vault)
+    selected_scope = (
+        resolve_existing_within_vault(root, scope, label="scope")
+        if scope is not None
+        else root
+    )
+    if not selected_scope.is_dir():
+        raise ValueError("scope must be a directory")
     items: list[ProjectItem] = []
     issues: list[dict[str, Any]] = []
     files = 0

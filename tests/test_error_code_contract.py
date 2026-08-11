@@ -18,13 +18,17 @@ REFERENCE = ROOT / "core" / "references" / "rules-and-errors.md"
 # `core/references/`, so documenting its refusals there would put the answer
 # where that Agent cannot read it. Kept in step with build.py's
 # RETRIEVAL_HELPER_FILES and the retrieval run_helper's HELPERS by a test below.
-RETRIEVAL_MODULES = frozenset(
-    {"review_projects.py", "search_vault.py", "retrieval_vault_info.py"}
-)
-RETRIEVAL_REFERENCES = (
-    ROOT / "core" / "retrieval-references" / "search.md",
-    ROOT / "core" / "retrieval-references" / "review-projects.md",
-)
+RETRIEVAL_REFERENCE_DIR = ROOT / "core" / "retrieval-references"
+# Which reference answers for which helper. Mapped rather than concatenated: the
+# Skill sends the Agent to exactly one of these files per task ("read only
+# references/search.md"), so a search refusal documented in the review reference
+# is still documented where that Agent will not look. Concatenating the two
+# would accept precisely the arrangement this test exists to reject.
+RETRIEVAL_MODULES = {
+    "retrieval_vault_info.py": RETRIEVAL_REFERENCE_DIR / "search.md",
+    "review_projects.py": RETRIEVAL_REFERENCE_DIR / "review-projects.md",
+    "search_vault.py": RETRIEVAL_REFERENCE_DIR / "search.md",
+}
 # Modules both bundles ship, so both Agents can receive their codes. The write
 # reference owns the rows; build.py fans the marked block out to this file.
 SHARED_MODULES = frozenset({"vault_paths.py", "frontmatter.py"})
@@ -161,12 +165,12 @@ def emitted_codes() -> tuple[set[str], set[str]]:
     return refusal, audit - refusal
 
 
-def retrieval_codes() -> set[str]:
-    """Return codes only a retrieval-Skill Agent can receive."""
-    codes: set[str] = set()
+def retrieval_codes() -> dict[str, set[str]]:
+    """Return codes only a retrieval-Skill Agent can receive, per module."""
+    codes: dict[str, set[str]] = {}
     for name in sorted(RETRIEVAL_MODULES):
         module_refusal, module_findings = _codes_in(SCRIPTS / name)
-        codes |= module_refusal | module_findings
+        codes[name] = module_refusal | module_findings
     return codes
 
 
@@ -216,20 +220,27 @@ def test_every_emitted_code_is_documented():
 
 
 def test_retrieval_codes_are_documented_where_that_agent_can_read_them():
-    """A retrieval Agent never receives `core/references/`."""
-    reference = "\n".join(
-        path.read_text(encoding="utf-8") for path in RETRIEVAL_REFERENCES
-    )
+    """A retrieval Agent never receives `core/references/` — and reads one file.
 
-    undocumented = sorted(
-        code for code in retrieval_codes() if f"`{code}`" not in reference
-    )
+    Each helper's codes must appear in the reference the Skill sends the Agent to
+    for that helper. Searching every retrieval reference at once would pass a
+    `search-vault` refusal documented only in `review-projects.md`, which the
+    searching Agent is explicitly told not to open.
+    """
+    undocumented: dict[str, list[str]] = {}
+    for module, codes in retrieval_codes().items():
+        reference = RETRIEVAL_MODULES[module]
+        text = reference.read_text(encoding="utf-8")
+        missing = sorted(code for code in codes if f"`{code}`" not in text)
+        if missing:
+            undocumented[f"{module} -> {reference.name}"] = missing
 
     assert not undocumented, (
-        "these codes are emitted by retrieval-only helpers but absent from "
-        f"core/retrieval-references/: {undocumented}. Documenting them "
-        "in the write Skill's reference does not help — that file is not in the "
-        "retrieval bundle."
+        "these codes are emitted by retrieval-only helpers but absent from the "
+        f"reference their Agent is told to read: {undocumented}. Documenting "
+        "them in the write Skill's reference does not help — that file is not "
+        "in the retrieval bundle — and neither does documenting them in the "
+        "other retrieval reference."
     )
 
 
@@ -329,9 +340,11 @@ def test_new_codes_follow_the_kebab_case_convention():
     """Stop the naming split from growing past the grandfathered four."""
     refusal, audit = emitted_codes()
 
+    retrieval = set().union(*retrieval_codes().values())
+
     offenders = sorted(
         code
-        for code in (refusal | audit | retrieval_codes()) - GRANDFATHERED_CODES
+        for code in (refusal | audit | retrieval) - GRANDFATHERED_CODES
         if not KEBAB.fullmatch(code)
     )
 

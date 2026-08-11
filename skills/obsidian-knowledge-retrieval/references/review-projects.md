@@ -19,7 +19,10 @@ limits the review to that folder. Never pass an outside path.
 ## Reading the queue
 
 The helper considers only `type: project-note`. Completed, closed, archived, and
-cancelled projects are excluded. A project enters the queue when it is blocked,
+cancelled projects are excluded, in English or Chinese — `completed`, `done`,
+`已完成`, `已归档`, `已取消` and their siblings all close a project. A status the
+helper does not recognise is treated as open, so an unfamiliar word keeps the
+project visible rather than silently retiring it. A project enters the queue when it is blocked,
 has no usable activity date, or its `updated` (falling back to `date`) is at least
 `stale_days` old.
 
