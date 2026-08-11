@@ -122,6 +122,36 @@ Skill 永远不自己往 Vault 写东西。只有用户明确表达保存意图�
 `ai-agent` → `ai`、`agent` 都不算独立主题。按连字符分段而不是子串匹配，
 否则会误伤无关词。原来只挡「和标签完全同名」，所以碎片全部漏网。
 
+**三、类型默认标签 —— 从本 Vault 的模板读，不是写死的表。** 这里原来引用
+`suggest_links.GENERIC_TAGS`，和 `tag_vocabulary` 用两份数据回答同一个问题。
+那份硬编码表把 `java` 当通用词（参考 Vault 里 12 篇的真实主题，只要某个拥挤目录
+攒够 5 篇，该拆的那个词就会被静默丢掉），又在模板从 `person` 改成 `people` 之后
+继续留着一条谁也保护不了的死条目。现在两处同源，`collect()` 读一次模板传下去。
+（[#69](https://github.com/Spc-jgs/obsidian-kb-skill/issues/69)）
+
+**四、描述「一篇东西」而不是主题的词。** `GENERIC_TITLE_TOKENS` 原来只覆盖体裁
+（指南/教程/guide），漏了「文章」这一类词本身。参考 Vault 上 `文章` 占掉 6 个名额
+里的一个，挤掉了 `llm-engineering` 和 `vibe-coding`。已补：`文章` `笔记` `记录`
+`整理` `汇总` `合集` `系列` `article` `note` `notes` `post` `summary`。
+
+**五、来源站点名 —— 由 Vault 自己声明，不写进代码。**
+`2026-07-24 掘金文章-Jackson3升级指南` 这种剪藏命名约定，会让 `掘金文`
+（`掘金`+`金文` 合并出来的）长期占名额。但这件事没有全局答案：对做剪藏的 Vault
+它是噪声，对写「掘金这个平台」的人它是正当主题，对不剪藏的 Vault 它是死代码。
+所以不硬编码、也不上没测过的启发式（比如「出现在标题前缀位置」——
+真实主题同样会打头），而是让 Vault 自己说：
+
+```json
+{"schema_version": 1, "non_subject_terms": ["掘金文章", "微信公众号"]}
+```
+
+放在 `.obsidian-kb/vault-vocabulary.json`。每条声明按标题同样的方式分词，
+**产出的全部词元一起剔除** —— `掘金文章` 会同时去掉 `掘金`、`金文`、`文章`；
+只去掉最后一个，前两个会重新合并成 `掘金文`，也就是原来占名额的那个词。
+上限 16 KiB / 100 条 / 每条 2–40 字符；文件坏了用 `invalid-vault-vocabulary`
+拒绝而不是忽略 —— 忽略等于把配置说过不算主题的词重新当建议报出去。
+（[#68](https://github.com/Spc-jgs/obsidian-kb-skill/issues/68)）
+
 > 修复前，`20-Learning/AI-Agent`（34 篇，11 个达标词）报出来的前 6 名里有 4 个是
 > 噪音：`ai-agent`（目录名）、`ai` 和 `agent`（目录名的两半）、`文章`（通用词），
 > 而 `llm-engineering` 和 `vibe-coding` 两个真候选被截断。修复后 4 个真候选标签
@@ -564,8 +594,8 @@ CJK bigram 是两套字母表。所以在中英混写的 Vault 里用中文问�
 
 | 问题 | 证据 | 状态 |
 |---|---|---|
-| `subject_clusters` 仍用硬编码 `GENERIC_TAGS` | 里面错含 `java`、缺 `people`，而 `tag_vocabulary` v1.28.0 起已改读 Vault 自己的模板 | 不一致待收敛 |
-| 通用/来源标题词仍占名额 | `文章`、`掘金文`、`企业级落地` | `GENERIC_TITLE_TOKENS` 词表维护，待单独处理 |
+| `suggest_links` 仍用硬编码 `GENERIC_TAGS` | 聚类那侧已改读模板（[#69](https://github.com/Spc-jgs/obsidian-kb-skill/issues/69)），链接打分这侧没动 | 有意留下：那是相对噪声过滤 + 动态补充，是另一件事，改它要连打分一起测，归 [#75](https://github.com/Spc-jgs/obsidian-kb-skill/issues/75) |
+| `企业级落地` 这类词仍可能占名额 | 既不是体裁也不是「一篇东西」，是这个 Vault 的口头禅 | 用 `.obsidian-kb/vault-vocabulary.json` 声明；不打算继续往内置表里塞 |
 | 关联度没有可用标尺 | 分数 3–30 无上界，阈值 3 就是众数 | 重做已否决（32/32 负例），维持现状 |
 | 连通性无信号 | 127 篇候选里零入链 79、零出链 74，审计只报可达性 | 已修：`disconnected-note`（[#57](https://github.com/Spc-jgs/obsidian-kb-skill/issues/57)），见 6.4 |
 | 21 篇笔记完全孤立 | 其中 14 篇 web-clip，剪进来没接上任何东西 | 信号已可见，怎么处理是用户的判断 |

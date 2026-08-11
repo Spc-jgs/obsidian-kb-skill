@@ -51,6 +51,17 @@ GENERIC_TAGS = {
     "task",
     "web-clip",
 }
+# Words that describe the shape of a document rather than its subject. Two
+# families, both general language in any Vault:
+#   - article genres: 指南, 教程, guide, tutorial;
+#   - words for "a piece of writing" itself: 文章, 笔记, article, note.
+# The second family was missing, and on the reference Vault `文章` took one of
+# `20-Learning/AI-Agent`'s six cluster slots — displacing `llm-engineering` and
+# `vibe-coding`, which were the real candidates. Source-site names such as 掘金
+# deliberately stay out: they are noise in a Vault that clips from that site and
+# a legitimate subject in a Vault that writes about it, so a Vault declares its
+# own through `.obsidian-kb/vault-vocabulary.json` rather than inheriting a
+# guess.
 GENERIC_TITLE_TOKENS = {
     "详解",
     "指南",
@@ -62,6 +73,13 @@ GENERIC_TITLE_TOKENS = {
     "介绍",
     "总结",
     "分享",
+    "文章",
+    "笔记",
+    "记录",
+    "整理",
+    "汇总",
+    "合集",
+    "系列",
     "guide",
     "tutorial",
     "overview",
@@ -69,6 +87,11 @@ GENERIC_TITLE_TOKENS = {
     "intro",
     "practice",
     "explained",
+    "article",
+    "note",
+    "notes",
+    "post",
+    "summary",
 }
 
 

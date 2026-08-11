@@ -78,7 +78,6 @@ from obsidian_kb_skill.scripts.note_catalog import (
 from obsidian_kb_skill.scripts.audit_vault import INDEX_TYPES
 from obsidian_kb_skill.scripts.note_types import TYPE_TO_TEMPLATE
 from obsidian_kb_skill.scripts.suggest_links import (
-    GENERIC_TAGS,
     _tags,
     _title_tokens,
 )
@@ -122,6 +121,14 @@ MAX_CHILD_FOLDERS = 12
 # uses now, not every term it ever used.
 MAX_VOCABULARY_TERMS = 40
 MAX_VOCABULARY_SCAN = 1000
+# The Vault's own answer to "which of my words are not subjects". Same folder as
+# the retrieval lexicon: dot-prefixed, so no helper treats it as a note.
+VAULT_VOCABULARY_FOLDER = ".obsidian-kb"
+VAULT_VOCABULARY_FILENAME = "vault-vocabulary.json"
+VAULT_VOCABULARY_SCHEMA_VERSION = 1
+MAX_VAULT_VOCABULARY_TERMS = 100
+MAX_VAULT_VOCABULARY_TERM_CHARS = 40
+MAX_VAULT_VOCABULARY_BYTES = 16 * 1024
 CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]+")
 # Reference files the agent must load next, keyed by what it already told us.
 TYPE_REFERENCES: dict[str, tuple[str, str]] = {
@@ -202,12 +209,25 @@ def _merge_overlapping_runs(counts: Counter[str]) -> Counter[str]:
     return merged
 
 
-def subject_clusters(notes: list[Path], folder: str = "") -> list[dict[str, Any]]:
+def subject_clusters(
+    notes: list[Path],
+    folder: str = "",
+    *,
+    default_tags: frozenset[str] | set[str] = frozenset(),
+    non_subject_terms: frozenset[str] | set[str] = frozenset(),
+) -> list[dict[str, Any]]:
     """Return the subject terms shared by enough notes to justify a child folder.
 
     Tags and title tokens are counted together because a Vault governs subjects
     through both. Type-default tags carry no subject information and are
     dropped, or every note in `20-Learning` would look like one big cluster.
+
+    `default_tags` comes from the Vault's own `Templates/`, the same source
+    `tag_vocabulary` reads. It used to be a hardcoded list, which answered the
+    identical question with different data: that list called `java` generic —
+    a real subject with twelve notes, silently dropped the moment a crowded
+    folder collected five of them — and still carried `person` after the
+    templates moved to `people`.
 
     Two kinds of term describe the folder rather than a subject inside it, and
     both are removed rather than ranked last: the slots are the scarce resource,
@@ -221,8 +241,8 @@ def subject_clusters(notes: list[Path], folder: str = "") -> list[dict[str, Any]
     tags: Counter[str] = Counter()
     titles: Counter[str] = Counter()
     for path in scanned:
-        tags.update(_tags(_head_metadata(path)) - GENERIC_TAGS)
-        titles.update(_title_tokens(path.stem))
+        tags.update(_tags(_head_metadata(path)) - set(default_tags))
+        titles.update(_title_tokens(path.stem) - set(non_subject_terms))
     # A title token that is one hyphen-separated part of a counted tag is not an
     # independent subject: `ai` and `agent` are `ai-agent` seen twice. The
     # existing exact-match guard below never caught them. Parts rather than
@@ -289,9 +309,88 @@ def _template_default_tags(vault: Path) -> set[str]:
     return defaults
 
 
+class VaultVocabularyError(ValueError):
+    """A stable validation failure for the Vault's own vocabulary file."""
+
+    code = "invalid-vault-vocabulary"
+
+    def __init__(self, message: str) -> None:
+        self.message = f"{VAULT_VOCABULARY_FILENAME}: {message}"
+        super().__init__(self.message)
+
+
+def vault_vocabulary_path(vault: Path) -> Path:
+    """Where a Vault declares which of its own words are not subjects."""
+    return vault / VAULT_VOCABULARY_FOLDER / VAULT_VOCABULARY_FILENAME
+
+
+def vault_non_subject_terms(vault: Path) -> frozenset[str]:
+    """Return title tokens this Vault says describe nothing.
+
+    Some noise is a property of one Vault's naming convention and cannot be
+    shipped. A Vault that clips articles as `2026-07-24 掘金文章-…` spends
+    cluster slots on `掘金文` — but 掘金 is a real subject to somebody writing
+    about the platform itself, so hardcoding site names would be wrong for them
+    and dead weight for a Vault that never clips. The Vault owner is the only
+    party who knows which it is, so they say.
+
+    Each declared phrase is tokenized exactly as a title is and every resulting
+    token is removed. `掘金文章` therefore removes 掘金, 金文, and 文章 together —
+    dropping only the last would leave the other two to merge back into 掘金文,
+    which is the term that was taking the slot.
+    """
+    path = vault_vocabulary_path(vault)
+    if not path.exists():
+        return frozenset()
+    if path.is_symlink() or not path.is_file():
+        raise VaultVocabularyError("must be a regular file inside the Vault")
+    if path.stat().st_size > MAX_VAULT_VOCABULARY_BYTES:
+        raise VaultVocabularyError(
+            f"file exceeds {MAX_VAULT_VOCABULARY_BYTES} bytes"
+        )
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError) as exc:
+        raise VaultVocabularyError(str(exc)) from exc
+    except json.JSONDecodeError as exc:
+        raise VaultVocabularyError(f"not valid JSON at line {exc.lineno}") from exc
+    if not isinstance(document, dict):
+        raise VaultVocabularyError("top level must be an object")
+    if document.get("schema_version") != VAULT_VOCABULARY_SCHEMA_VERSION:
+        raise VaultVocabularyError(
+            f"schema_version must be {VAULT_VOCABULARY_SCHEMA_VERSION}"
+        )
+    declared = document.get("non_subject_terms", [])
+    if not isinstance(declared, list) or not all(
+        isinstance(term, str) for term in declared
+    ):
+        raise VaultVocabularyError("'non_subject_terms' must be a list of strings")
+    if len(declared) > MAX_VAULT_VOCABULARY_TERMS:
+        raise VaultVocabularyError(
+            f"at most {MAX_VAULT_VOCABULARY_TERMS} terms are allowed"
+        )
+    tokens: set[str] = set()
+    for term in declared:
+        stripped = term.strip()
+        if not 2 <= len(stripped) <= MAX_VAULT_VOCABULARY_TERM_CHARS:
+            raise VaultVocabularyError(
+                f"term {term!r} must be 2 to "
+                f"{MAX_VAULT_VOCABULARY_TERM_CHARS} characters"
+            )
+        expanded = _title_tokens(stripped)
+        if not expanded:
+            raise VaultVocabularyError(
+                f"term {term!r} produces no title token; a single character or "
+                "a term already treated as generic cannot be declared"
+            )
+        tokens |= expanded
+    return frozenset(tokens)
+
+
 def tag_vocabulary(
     vault: Path,
     *,
+    defaults: frozenset[str] | set[str] | None = None,
     limit: int = MAX_VOCABULARY_TERMS,
     scan: int = MAX_VOCABULARY_SCAN,
 ) -> dict[str, Any]:
@@ -301,7 +400,9 @@ def tag_vocabulary(
     index notes are skipped because their tags describe structure rather than a
     subject the writer of a new note gets to choose.
     """
-    defaults = _template_default_tags(vault)
+    if defaults is None:
+        defaults = _template_default_tags(vault)
+    defaults = set(defaults)
     notes: list[Path] = []
     for name in MANAGED_NOTE_FOLDERS:
         directory = vault / name
@@ -331,8 +432,20 @@ def crowded_folders(
     threshold: int = CROWDED_FOLDER_THRESHOLD,
     limit: int = MAX_CROWDED_FOLDERS,
     destination: str | None = None,
+    default_tags: frozenset[str] | set[str] | None = None,
+    non_subject_terms: frozenset[str] | set[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Return bounded navigation-pressure signals under managed note roots."""
+    """Return bounded navigation-pressure signals under managed note roots.
+
+    The Vault's own vocabulary is read once by the caller and passed down, so a
+    discovery call that also builds the tag vocabulary parses `Templates/` once
+    rather than once per crowded folder. Computed here when absent, so a direct
+    caller still gets the same answer.
+    """
+    if default_tags is None:
+        default_tags = _template_default_tags(vault)
+    if non_subject_terms is None:
+        non_subject_terms = vault_non_subject_terms(vault)
     findings: list[dict[str, Any]] = []
     direct: dict[str, list[Path]] = {}
     stack = [
@@ -385,7 +498,10 @@ def crowded_folders(
             continue
         budget -= cost
         finding["clusters"] = subject_clusters(
-            notes, PurePosixPath(finding["path"]).name
+            notes,
+            PurePosixPath(finding["path"]).name,
+            default_tags=default_tags,
+            non_subject_terms=non_subject_terms,
         )
         finding["cluster_min_notes"] = CLUSTER_MIN_NOTES
     return reported
@@ -456,6 +572,11 @@ def collect(
         warnings.append("Templates/ directory missing")
 
     config = read_folder_index_config(vault)
+    # One read of the Vault's own vocabulary, shared by the two places that ask
+    # the same question: which tags are type defaults, and which title tokens
+    # this Vault says are not subjects.
+    default_tags = _template_default_tags(vault) if exists else set()
+    non_subject_terms = vault_non_subject_terms(vault) if exists else frozenset()
     standard_folders: dict[str, Any] = {}
     for name in STANDARD_FOLDERS:
         directory = vault / name
@@ -485,7 +606,11 @@ def collect(
         "custom_templates": custom_template_types(vault) if exists else [],
         "crowded_folders": (
             crowded_folders(
-                vault, config, destination=selected_destination(note_type, folder)
+                vault,
+                config,
+                destination=selected_destination(note_type, folder),
+                default_tags=default_tags,
+                non_subject_terms=non_subject_terms,
             )
             if exists
             else []
@@ -495,7 +620,7 @@ def collect(
     if note_type is not None:
         result["template_shape"] = template_shape(vault, note_type)
     if valid:
-        result["tag_vocabulary"] = tag_vocabulary(vault)
+        result["tag_vocabulary"] = tag_vocabulary(vault, defaults=default_tags)
         result["required_references"] = required_references(
             note_type,
             result["custom_templates"],
@@ -556,7 +681,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         info = collect(vault, note_type=args.note_type, folder=args.folder)
-    except FolderIndexConfigError as exc:
+    except (FolderIndexConfigError, VaultVocabularyError) as exc:
         print(json.dumps({"error": {
             "code": exc.code,
             "message": exc.message,
