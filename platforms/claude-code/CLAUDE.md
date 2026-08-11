@@ -25,6 +25,8 @@ This skill **never writes to the vault on its own**. Write only after **explicit
    - Crowded selected destination: when compact discovery reports it, also read
      `folder-routing.md`; uncrowded destinations do not load it.
    - Existing note: read only `update-note.md`.
+   - Filing the Inbox: read only `process-inbox.md`. Filing moves notes the user
+     already wrote; it never authors one, so `≤1 note written` does not bound it.
    - Conversation context archive: read `conversation-digest.md`.
    - Conversation knowledge review: read `conversation-harvest.md`; load
      `note-creation.md` only after one durable candidate is selected for writing.
