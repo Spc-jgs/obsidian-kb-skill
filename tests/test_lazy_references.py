@@ -5,6 +5,7 @@ The always-loaded body (core/OBSIDIAN_KB.md) is a thin gate: it states the
 workflows. Those references are loaded only when the agent is about to save.
 """
 
+import importlib.util
 import pathlib
 import re
 import subprocess
@@ -13,6 +14,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CORE = ROOT / "core" / "OBSIDIAN_KB.md"
 REFERENCES_DIR = ROOT / "core" / "references"
+STANDARD_SKILL = ROOT / "skills" / "obsidian-knowledge-base"
 
 GENERATED = [
     ROOT / "skills" / "obsidian-knowledge-base" / "SKILL.md",
@@ -504,6 +506,194 @@ def test_governance_is_read_before_the_discovery_call():
     )
     assert "crowded child" in normalized, (
         "explain why the parent folder is the wrong thing to ask about"
+    )
+
+
+# Helpers that ship inside the bundle but are deliberately not selectable from
+# the instructions. Each entry needs a reason, because an entry here is the
+# difference between a decision and an oversight.
+UNROUTED_HELPERS = {
+    "doctor": "installer and troubleshooting tool, not a Vault operation",
+    "audit-vault": (
+        "placement between the write and read-only Skills is unresolved; see "
+        "docs/superpowers/specs/2026-08-11-inbox-filing-entrypoint-decision.md"
+    ),
+}
+
+
+def _instruction_text() -> str:
+    """Every word an Agent can actually reach: the body plus all references."""
+    parts = [CORE.read_text(encoding="utf-8")]
+    parts.extend(
+        path.read_text(encoding="utf-8")
+        for path in sorted(REFERENCES_DIR.glob("*.md"))
+    )
+    return "\n".join(parts)
+
+
+def _bundled_helpers() -> set[str]:
+    spec = importlib.util.spec_from_file_location(
+        "standard_run_helper", STANDARD_SKILL / "scripts" / "run_helper.py"
+    )
+    runner = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runner)
+    return set(runner.HELPERS)
+
+
+def test_every_bundled_helper_is_reachable_from_the_instructions():
+    """A helper can be implemented, tested, shipped — and still be dead code.
+
+    `process-inbox` was implemented, covered by tests, registered in
+    `[project.scripts]`, listed in the runner's `HELPERS`, and advertised in
+    `docs/feature-guide.md`, while `core/` never named it once. It reached
+    every user's disk and no Agent could ever select it. Shipping is not
+    reachability, and only an explicit check can tell them apart.
+
+    Known limit: this matches the helper name anywhere in the instruction text,
+    so prose that merely names a helper — even to forbid it — reads as
+    reachable. Tightening it to a command form would flag six helpers that are
+    reachable today only through prose (`suggest-links` has no command form at
+    all), which is a separate piece of work. The branch added here is pinned
+    directly by the routing-table test below.
+    """
+    unreachable = {
+        helper for helper in _bundled_helpers() if helper not in _instruction_text()
+    }
+
+    assert unreachable <= set(UNROUTED_HELPERS), (
+        "bundled helper ships but no instruction names it: "
+        f"{sorted(unreachable - set(UNROUTED_HELPERS))}"
+    )
+
+
+def test_inbox_filing_is_selectable_from_the_routing_table_itself():
+    """Being named somewhere is weak; being routed is the actual contract.
+
+    The reachability check above accepts a helper mentioned anywhere in the
+    instruction text. This one pins the branch that makes filing selectable: the
+    routing table has to point at the workflow, and the two refusal codes an
+    Agent will actually meet have to be interpretable from the workflow itself
+    rather than from a file that never documented them.
+    """
+    body = CORE.read_text(encoding="utf-8")
+    reference = " ".join(
+        (REFERENCES_DIR / "process-inbox.md").read_text(encoding="utf-8").split()
+    )
+
+    assert "process-inbox.md" in body, (
+        "filing has no branch in the routing table; naming the helper elsewhere "
+        "does not make it selectable"
+    )
+    for code in ("unknown-target", "unreadable-frontmatter", "unsafe-inbox-entry"):
+        assert code in reference, f"filing refusal code is uninterpretable: {code!r}"
+
+
+def test_inbox_filing_reports_refusals_from_the_right_channel():
+    """A refusal the Agent cannot find is a refusal it will report as success.
+
+    Plan-phase refusals are fields on a plan entry, not a top-level error, and
+    apply-phase refusals never reach the plan at all — they go to stderr. An
+    Agent told the wrong shape checks for an `error` key, finds none, and
+    presents notes that will never move as part of an approved plan.
+    """
+    reference = " ".join(
+        (REFERENCES_DIR / "process-inbox.md").read_text(encoding="utf-8").split()
+    )
+
+    for marker in (
+        "refuses **per note**, not per run",
+        "not a top-level error",
+        "There is no top-level `error` key to check",
+        "printed to **stderr**",
+        "*not* written back onto the plan entry",
+        "Do not infer the reason from the plan",
+    ):
+        assert marker in reference, f"refusal channel contract missing: {marker!r}"
+
+
+def test_filing_does_not_inherit_the_authoring_rename_rule():
+    """`-2` on clash is an authoring rule; filing leaves the note where it is."""
+    reference = " ".join(
+        (REFERENCES_DIR / "process-inbox.md").read_text(encoding="utf-8").split()
+    )
+
+    assert "does **not** apply the body's `-2` rename rule" in reference, (
+        "the body's global clash rule contradicts filing and nothing reconciles them"
+    )
+    assert "the note stays in the Inbox" in reference
+
+
+def test_unrouted_helper_list_does_not_outlive_its_reason():
+    """Once a helper is routed, its exemption is a lie that hides the next one."""
+    instructions = _instruction_text()
+    stale = {helper for helper in UNROUTED_HELPERS if helper in instructions}
+
+    assert not stale, f"UNROUTED_HELPERS still lists reachable helpers: {sorted(stale)}"
+
+
+def test_inbox_filing_never_applies_without_a_confirmed_plan():
+    """`--apply` moves files. The plan is what the user actually authorizes.
+
+    Intent to file an Inbox is not consent to a specific set of moves nobody has
+    read yet — destinations are inferred, and keyword inference is exactly what
+    a user needs to be able to overrule. The plan step is the veto.
+    """
+    normalized = " ".join(
+        (REFERENCES_DIR / "process-inbox.md").read_text(encoding="utf-8").split()
+    )
+
+    for marker in (
+        "`--plan` is read-only and is the default",
+        "Wait for the user to confirm this plan",
+        "intent to file, not consent",
+        "never write to the Vault on its own",
+        "do not hand-roll a partial apply",
+    ):
+        assert marker in normalized, f"two-phase filing contract missing: {marker!r}"
+
+    assert normalized.index("--plan") < normalized.index("--apply"), (
+        "the apply command is shown before the plan that authorizes it"
+    )
+
+
+def test_inbox_filing_does_not_erode_the_authoring_bound():
+    """The `≤1 note written` bound must survive filing, not bend to accommodate it.
+
+    Filing one Inbox can touch thirty notes, which reads like a violation. The
+    resolution is that filing authors nothing — not that the bound is negotiable.
+    A future reader who misses that distinction will loosen a real safety limit
+    to make filing fit under it.
+    """
+    body = CORE.read_text(encoding="utf-8")
+    reference = " ".join(
+        (REFERENCES_DIR / "process-inbox.md").read_text(encoding="utf-8").split()
+    )
+
+    assert "≤1 note written" in body, "the authoring bound was removed, not explained"
+
+    for marker in (
+        "Filing never authors a note",
+        "`≤1 note written` bound does not apply",
+        "holds exactly as many notes after the run as before",
+        "The bound that does apply is the Inbox itself",
+    ):
+        assert marker in reference, f"filing/authoring distinction missing: {marker!r}"
+
+
+def test_skill_description_can_trigger_on_inbox_filing():
+    """Routing a helper is useless if the Skill never activates in the first place.
+
+    The description is the only thing an Agent sees before deciding whether this
+    Skill is relevant. A user asking to sort out their Inbox matches none of
+    save/create/update/archive/remember, so the routing branch behind those
+    words is unreachable from the outside no matter how correct it is.
+    """
+    header = (STANDARD_SKILL / "header.md").read_text(encoding="utf-8")
+    description = header.split("description:", 1)[1].split("\n", 1)[0].lower()
+
+    assert "inbox" in description, (
+        "description cannot trigger on an Inbox filing request: "
+        f"{description.strip()!r}"
     )
 
 
