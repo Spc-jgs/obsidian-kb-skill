@@ -86,7 +86,7 @@ Capture this article with its principles, practical steps, verification, and sou
 | Main output | relative path, title, line, excerpt, match reason | note path, change summary, audit result |
 | Local helpers | `search-vault`, `vault-info`, `doctor` | create, update, categorize, index, link, and audit helpers |
 
-Retrieval v1 uses deterministic local lexical ranking. It needs no embedding model, vector database, persistent service, or network index. Titles, aliases, tags, headings, wikilinks, and body text receive different weights. See [Read-only retrieval](docs/retrieval.md).
+Retrieval uses deterministic local lexical ranking. It needs no embedding model, vector database, persistent service, or network index. Titles, aliases, tags, headings, wikilinks, and body text receive different weights. A bilingual concept lexicon expands the query so a Chinese question reaches an English note, at reduced weight and with every added word reported back. See [Read-only retrieval](docs/retrieval.md).
 
 ## Feature Map
 

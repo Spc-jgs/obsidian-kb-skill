@@ -20,10 +20,11 @@
 由 `build.py` 扇出成 6 份产物（标准 Skill ×2、QoderWork、Claude Code、Codex、
 Cursor）。**不要直接改生成物**，改源再跑 `python build.py`。
 
-两个 Skill 打包的 Python 模块不同。检索包是白名单，只有 7 个模块
-（`console`、`doctor`、`frontmatter`、`note_catalog`、`retrieval_vault_info`、
-`search_vault`、`vault_paths`）—— 所以写入侧的东西检索侧用不了，需要共用的
-必须放进 `note_catalog` 这类共享域并加进白名单。
+两个 Skill 打包的 Python 模块不同。检索包是白名单，只有 9 个模块
+（`console`、`doctor`、`frontmatter`、`note_catalog`、`query_expansion`、
+`retrieval_vault_info`、`search_vault`、`text_tokens`、`vault_paths`）——
+所以写入侧的东西检索侧用不了，需要共用的必须放进 `note_catalog` 这类共享域
+并加进白名单。
 
 ---
 
@@ -325,7 +326,64 @@ folder-index 覆盖全部管理目录，所以它报 0 条是真实的，不是�
   > 和关联度打分时必须先合回词，否则一个词会被当成 4 条独立证据。
   > `vault_info._merge_overlapping_runs` 干的就是这件事。
 
-### 7.3 元数据过滤器
+### 7.3 跨语言查询扩展
+
+**要解决的事**：中文查询和英文笔记**一个词元都不共享**。看 7.2 —— 拉丁词元和
+CJK bigram 是两套字母表。所以在中英混写的 Vault 里用中文问一篇英文笔记，BM25
+拿不到任何可排的东西，返回的是**零结果**，不是排错。v1.30 的评测里 8 条语义改写
+只命中 3 条，其中 5 条失败全是零结果；3 条命中全靠笔记自己带了中文别名。
+
+**做法**：一份人工整理的**概念词表**，每个概念是若干跨语言同义说法。匹配原始
+查询，命中就把该概念其余说法的词元一起加进检索，权重打折。
+
+匹配规则按语言分：
+
+- **中文词条按子串匹配**。中文没有词边界，只有子串能在 `避免缓存击穿的方案`
+  里找到 `击穿`。
+- **拉丁词条按连续词元串匹配**。`cache stampede` 命中 `cache stampede control`，
+  但不命中「一群用户挤爆了售票缓存」这种两个词各自出现、隔着一句话的句子。
+
+**用户打过的词永远是 1.0**，即使某个概念也提议了同一个词 —— 直接证据不因为一个
+和它意见一致的猜测而降权。
+
+**歧义如实展开**。中文「代理」同时是 agent 和 proxy，词表两边都展开，两个概念都
+出现在 `expansion` 里。helper 不替用户选一个读法。
+
+**证据必须可见**，否则扩展就是不可审计的黑箱：
+
+- 每条结果一条 `expansion` signal，**只在那些词确实出现在这篇笔记里时才给**；
+- 整个响应一个 `expansion` 块：命中概念、触发原词、引入词元、权重、是否截断；
+- `--no-expand` 完整复现 v1.29.2 的纯词法行为。评测里两个数都能现场跑出来。
+
+`mode` 仍然是 `lexical`。按词表改写查询就是词法检索，改叫别的会让人以为有个不
+存在的向量库。
+
+**Vault 自己的词表**：可选文件 `.obsidian-kb/retrieval-lexicon.json`，格式
+`{"schema_version": 1, "concepts": [{"id": ..., "terms": [...]}]}`。内置表覆盖的
+是这个 Skill 服务的领域，猜不到你的产品名。用户词条和内置表走同一套结构校验，
+文件坏了用 `invalid-lexicon` **拒绝**而不是悄悄退回内置 —— 悄悄降级会让检索无法
+复现，而且会让 `expansion` 块变成假话。
+
+**词表不从笔记里学**。从笔记内容自动抽同义词能省掉整理成本，但那等于让笔记决定
+检索去找什么。笔记在这个 Skill 里是不可信数据，这条规则不为省事开口子。
+
+**噪声怎么挡住的**（按实际作用排序）：
+
+1. 词表是**领域词表不是词典**，只覆盖这个 Skill 服务的主题；
+2. **禁用通用词**，`LEXICON_STOPWORDS` 机械拦截（`方法`、`内容`、`thing`……），
+   不靠人工评审；
+3. **扩展词降权**到 0.45；
+4. **6 条 no-answer 查询是发布门禁**，扩展最可能破坏的就是它，所以是硬断言。
+
+第 1 条承担了大部分作用，也是唯一会随时间劣化的一条：词表会长大，每加一条都是
+一次「加进一个有五种含义的词」的机会。这是这个方案接受并写明的维护成本。
+
+**0.45 这个值没有被评测证明。** 权重从 0.25 扫到 1.0，40 条查询的召回完全不动 ——
+16 篇的合成语料太干净，区分不出来。0.45 是按原则选的（一个直接标题命中约 4–6 分，
+压到一半以下，两个扩展正文命中就顶不掉一个真标题命中），不是按数据调的。它在
+真实 Vault 里的保护作用尚未测量。
+
+### 7.4 元数据过滤器
 
 `--type` `--tag`（可重复，同 flag 内 OR、跨 flag AND）、`--after` `--before`
 （含端点，读 frontmatter `date`）。
@@ -341,14 +399,15 @@ folder-index 覆盖全部管理目录，所以它报 0 条是真实的，不是�
    字段缺失（`missing-date`）单独计。**空结果在有过滤器时永远报「没有匹配这个
    过滤条件的」，绝不能报「你的知识库里没有这个」。**
 
-### 7.4 默认不检索的目录
+### 7.5 默认不检索的目录
 
-`Attachments` `Templates` `95-Sources` 以及所有点开头的隐藏目录。
+`Attachments` `Templates` `95-Sources` 以及所有点开头的隐藏目录（含存放检索
+词表的 `.obsidian-kb/`）。
 
 **但 `--scope` 仍能进去。** 走查只对**子目录**套忽略集、从不套 scope 根 ——
 所以 `--scope 95-Sources` 能搜原文存档。这个性质有专门的测试守着。
 
-### 7.5 上限
+### 7.6 上限
 
 | 参数 | 值 |
 |---|---|
@@ -357,6 +416,9 @@ folder-index 覆盖全部管理目录，所以它报 0 条是真实的，不是�
 | `MAX_FILE_BYTES` | 2 MB |
 | `MAX_SNIPPET_CHARS` | 480 |
 | `MAX_ISSUES` | 20 |
+| `MAX_EXPANSION_CONCEPTS` | 8 |
+| `MAX_EXPANSION_TOKENS` | 24 |
+| 词表文件上限 | 64 KiB / 200 概念 |
 
 ---
 
@@ -489,6 +551,8 @@ folder-index 覆盖全部管理目录，所以它报 0 条是真实的，不是�
 | `MAX_TOP_K` | 20 | `search_vault` | 检索返回上限 |
 | `MAX_QUERY_CHARS` | 500 | `search_vault` | 查询长度上限 |
 | `MAX_FILE_BYTES` | 2 MB | `search_vault` | 单文件索引上限 |
+| `EXPANSION_WEIGHT` | 0.45 | `query_expansion` | 扩展词相对输入词的权重（见 7.3，未被评测证明） |
+| `MAX_EXPANSION_CONCEPTS` / `MAX_EXPANSION_TOKENS` | 8 / 24 | `query_expansion` | 单次查询扩展上限 |
 | `FRONTMATTER_SCAN_LIMIT` | 256 KB | `frontmatter` | frontmatter 读取上限 |
 | `ENTRY_TTL_SECONDS` | 24 小时 | `preflight_cache` | 预检缓存过期 |
 | `MAX_ENTRIES` / `MAX_TOTAL_BYTES` | 64 / 32 MB | `preflight_cache` | 预检缓存容量 |
