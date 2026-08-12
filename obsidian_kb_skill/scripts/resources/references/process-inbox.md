@@ -87,6 +87,11 @@ refusal is a field on that note's own plan entry, never a top-level error.
 
 - `unknown-target` — the destination folder could not be inferred. The most
   common refusal in an unstructured Inbox, and the one to expect first.
+- `entity-instance-unknown` — the note belongs in an entity folder such as
+  `40-Projects`, which groups by *which project owns a note*. Filing knows the
+  folder and cannot know the owner, so the note stays put. Ask the user which
+  project it belongs to; never place it at the entity folder's root and never
+  guess an instance directory from the body.
 - `unreadable-frontmatter` — the note's YAML could not be parsed.
 - `unsafe-inbox-entry` — the Inbox entry is not a regular file.
 

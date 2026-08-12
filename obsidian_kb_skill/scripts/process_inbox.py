@@ -30,6 +30,7 @@ from obsidian_kb_skill.scripts.folder_index_policy import (
 from obsidian_kb_skill.scripts.frontmatter import FrontmatterIssue, parse_frontmatter
 from obsidian_kb_skill.scripts.note_catalog import (
     DEFAULT_TAG_BY_TYPE,
+    ENTITY_FOLDERS,
     FOLDER_TO_DEFAULT_TYPE,
     TYPE_TO_FOLDER,
 )
@@ -64,6 +65,13 @@ UNREADABLE_FRONTMATTER = "unreadable-frontmatter"
 
 # Skip code for an Inbox entry that is not a regular file (symlink, directory).
 UNSAFE_INBOX_ENTRY = "unsafe-inbox-entry"
+
+# Skip code for a note bound for an entity folder, where knowing the folder is
+# not enough: the note belongs to one *instance* inside it, and which one is not
+# inferable from the note. Distinct from `unknown-target`, where the folder
+# itself could not be determined — here routing knows the kind and only the
+# owner is missing, which is what the user is asked to supply.
+ENTITY_INSTANCE_UNKNOWN = "entity-instance-unknown"
 
 # Skip code for a destination that is already occupied. Filing never renames a
 # note to make room, so the Inbox copy stays put.
@@ -163,6 +171,20 @@ def plan_note(path: Path, vault: Path) -> dict[str, Any]:
     metadata = parsed.metadata
     target = infer_target(text, metadata)
     result["target"] = target
+    # An entity folder groups by *which* project a note belongs to, and that is
+    # the one thing routing cannot read off the note. Filing here would either
+    # drop it at the entity root — the state the entity-folder rules exist to
+    # prevent — or guess an instance directory, where a wrong guess files the
+    # note into another project and it is then read as that project's history.
+    # Both are worse than leaving it in the Inbox for the user to place.
+    if target in ENTITY_FOLDERS:
+        result["target"] = None
+        result["skip"] = (
+            f"belongs in {target} but filing cannot tell which project owns it; "
+            f"move it into that project's directory yourself"
+        )
+        result["skip_code"] = ENTITY_INSTANCE_UNKNOWN
+        return result
     if target is None:
         result["skip"] = "could not infer a target folder"
         result["skip_code"] = "unknown-target"
