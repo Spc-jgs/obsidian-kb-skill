@@ -26,6 +26,19 @@ HELPERS = {
     "doctor": "obsidian_kb_skill.scripts.doctor",
 }
 
+# Helpers this Skill does not carry, and where they do live. Names only — no
+# import, no dependency, nothing that would pull the other Skill's modules in.
+#
+# Without this, asking the wrong runner for a real capability returns nothing
+# but `invalid choice`, which reads as "no such capability". That has already
+# cost someone two rounds and a hand-rolled PYTHONPATH workaround for a helper
+# that was working the whole time.
+PEER_SKILL = "obsidian-knowledge-retrieval"
+PEER_HELPERS = frozenset({
+    "review-projects",
+    "search-vault",
+})
+
 
 def python_command(home: Path | None = None) -> list[str]:
     """Return the installer-selected Python command, or this interpreter."""
@@ -70,6 +83,18 @@ def parse_dispatch(argv: list[str] | None = None) -> tuple[str, list[str]]:
     if not arguments or arguments[0] in {"-h", "--help"}:
         parser.parse_args(arguments)
         raise AssertionError("argparse help should exit")
+    if arguments[0] in PEER_HELPERS:
+        # It exists — just not here. Saying only "invalid choice" sends the
+        # reader looking for a capability that is working fine one Skill over.
+        print(
+            f"error: `{arguments[0]}` is provided by the {PEER_SKILL} Skill, "
+            f"not this one.\n"
+            f"Run it through that Skill's run_helper.py. Invoking the module "
+            f"directly will fail on dependencies: this runner is what puts the "
+            f"vendored packages on the path.",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
     if arguments[0] not in HELPERS:
         parser.parse_args(arguments[:1])
         raise AssertionError("argparse validation should exit")

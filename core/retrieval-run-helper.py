@@ -17,6 +17,27 @@ HELPERS = {
     "vault-info": "obsidian_kb_skill.scripts.retrieval_vault_info",
 }
 
+# Helpers this Skill does not carry, and where they do live. Names only — no
+# import, nothing that would pull the write Skill's modules into a bundle whose
+# value is being small.
+#
+# Naming them here does not make them runnable from this read-only Skill; it
+# only stops `invalid choice` from reading as "no such capability".
+PEER_SKILL = "obsidian-knowledge-base"
+PEER_HELPERS = frozenset({
+    "archive-source",
+    "audit-vault",
+    "capture-receipt",
+    "create-category",
+    "create-note",
+    "detect-index",
+    "process-inbox",
+    "scaffold-templates",
+    "suggest-links",
+    "template-contract",
+    "update-note",
+})
+
 
 def python_command(home: Path | None = None) -> list[str]:
     runtime_file = (home or Path.home()) / ".obsidian-kb-skill" / "runtime.json"
@@ -58,6 +79,19 @@ def parse_dispatch(argv: list[str] | None = None) -> tuple[str, list[str]]:
     if not arguments or arguments[0] in {"-h", "--help"}:
         parser.parse_args(arguments)
         raise AssertionError("argparse help should exit")
+    if arguments[0] in PEER_HELPERS:
+        # It exists — just not here. This Skill is read-only by design, so the
+        # answer is which Skill to use, not how to run a write helper from one
+        # that promises never to write.
+        print(
+            f"error: `{arguments[0]}` is provided by the {PEER_SKILL} Skill, "
+            f"not this one.\n"
+            f"Run it through that Skill's run_helper.py. Invoking the module "
+            f"directly will fail on dependencies: this runner is what puts the "
+            f"vendored packages on the path.",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
     if arguments[0] not in HELPERS:
         parser.parse_args(arguments[:1])
         raise AssertionError("argparse validation should exit")
