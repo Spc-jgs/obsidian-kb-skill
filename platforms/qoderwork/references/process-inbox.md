@@ -79,26 +79,32 @@ look better.
 ## Refusals
 
 Filing refuses **per note**, not per run: a refused note leaves the rest of the
-plan intact and the run still exits 0. Where the reason appears depends on the
-phase, and the two phases do not report the same way.
+plan intact and the run still exits 0. Both phases report the same way — the
+refusal is a field on that note's own plan entry, never a top-level error.
+`skip` carries the readable reason, `skip_code` the machine-readable one.
 
-**`--plan --json`** — the refusal is a field on that note's own plan entry, not
-a top-level error. `skip` carries the readable reason and `skip_code` is one of:
+**Planning refusals** — nothing was written:
 
 - `unknown-target` — the destination folder could not be inferred. The most
   common refusal in an unstructured Inbox, and the one to expect first.
 - `unreadable-frontmatter` — the note's YAML could not be parsed.
 - `unsafe-inbox-entry` — the Inbox entry is not a regular file.
 
+**Apply refusals** — raised at write time:
+
+- `target-exists` — the destination already holds that name. Filing does not
+  rename to make room.
+- `source-removal-failed` — the copy was rolled back and the Vault is
+  unchanged; the note is still in the Inbox.
+- `partial-apply` — **the copy survived and the note now exists in both
+  places.** This is the only filing refusal that leaves the Vault changed.
+  Report both paths and tell the user to remove one by hand; never delete
+  either copy yourself to tidy the result.
+
 Read every entry: the array holds refused and fileable notes together, so a
 plan that looks complete may contain notes that will never move. There is no
-top-level `error` key to check.
-
-**`--apply`** — refusals raised at write time (destination already occupied,
-frontmatter unreadable at write time, source could not be removed) are printed
-to **stderr** and are *not* written back onto the plan entry. A note that did
-not move shows only `applied: false`, with no reason attached, so read stderr
-to report why. Do not infer the reason from the plan.
+top-level `error` key to check. The readable messages also go to stderr for a
+human watching the run, but `skip_code` is what you act on.
 
 Only an `--inbox` path that resolves outside the Vault refuses the whole run,
 through the usual `{"error": {"code", "message"}}` shape. See

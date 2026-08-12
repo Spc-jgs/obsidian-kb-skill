@@ -95,6 +95,9 @@ modules, so both Agents can receive these. -->
 | `BACKUP_FAILED` | The pre-write backup could not be created | Stop. The note was not modified. Report the cause; do not retry the write without a backup |
 | `unreadable-frontmatter` | Inbox processing refused a note whose frontmatter cannot be read | Leave the note in the Inbox untouched. Report the reported line and let the user repair the YAML |
 | `unsafe-inbox-entry` | An Inbox entry is a symlink, a directory, or otherwise not a regular file | Leave it in place. Never resolve it: following the link would import content from outside the Vault. Tell the user what the entry is |
+| `target-exists` | The filing destination already holds a file of that name | Leave the note in the Inbox. Filing never renames to make room — the `-2` rule belongs to authoring. Report both paths and let the user decide |
+| `source-removal-failed` | The copy was written but the original could not be removed, so the copy was rolled back | The Vault is unchanged and the note is still in the Inbox. Report the cause; do not retry blindly, the same permission or lock will stop it again |
+| `partial-apply` | Rollback failed too: the note now exists in **both** places and needs manual cleanup | Stop. This is the only filing refusal that leaves the Vault changed. Report both paths and say the user must remove one by hand; never delete either copy to tidy up |
 | `invalid-utf8-input` | Supplied content is not valid UTF-8 | Re-encode the content as UTF-8 without BOM and retry |
 | `missing-required-metadata` | Required frontmatter fields are absent for this note type | Add the listed fields and re-run preflight; do not write a partial note |
 | `template-changed` | The Vault template changed after its contract was read | Re-read the template contract, re-render, then retry |

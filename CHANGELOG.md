@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Inbox filing explains every note that did not move. Plan-phase refusals already carried `skip` and `skip_code` on the note's plan entry, but the three refusals raised at write time — destination occupied, frontmatter unreadable at write time, source could not be removed — only printed to stderr and set nothing. A `--json` consumer saw `applied: false` with no reason attached, so an Agent could report *that* N notes stayed put and never *why* for any of them. Both phases now use one vocabulary: `target-exists`, `source-removal-failed`, and the plan-phase codes, all recorded on the entry. The human-readable stderr messages are unchanged.
+
+  The failure that leaves the Vault changed gets its own code. When the copy is written, the original cannot be removed, and the rollback also fails, the note exists in two places and needs manual cleanup — every other refusal means nothing happened at all. Sharing a code between them is how an Agent reports a clean skip over a split note, so `partial-apply` is separate, and both the error table and the workflow state that neither copy may be deleted to tidy the result.
+
+  `unknown-target` is now documented alongside the other codes. It is the most common refusal in an unstructured Inbox — the folder simply could not be inferred — and it was the one code the workflow pointed at `rules-and-errors.md` for without that file ever defining it.
+
 - Project Revival Radar no longer treats reusable `project-note` blueprints
   marked `status: template` or `status: 模板` as stale project instances. These
   non-instance markers stay separate from completed lifecycle states, while
