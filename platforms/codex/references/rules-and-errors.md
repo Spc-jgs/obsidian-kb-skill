@@ -202,6 +202,14 @@ Frontmatter and content: `missing-frontmatter`, `invalid-frontmatter`,
 Links and duplication: `broken-wikilink`, `ambiguous-wikilink`, `orphan-note`,
 `disconnected-note`, `duplicate-title`, `similar-title`.
 
+Entity folders: `duplicate-project-note` — one project directory holds more
+than one project note, so the revival radar reports that project once per note.
+Keep the note that tracks status and retype the others to what they actually
+are: a finished retrospective is an insight note, a context snapshot is a
+conversation digest. Retyping is a write and needs its own explicit request. A
+template-status card, and any note at the entity folder's own root, is not an
+instance and is never reported.
+
 Templates: `missing-template-heading`, `empty-template-note`,
 `residual-template-instruction`, `unresolved-template-placeholder`,
 `missing-deep-capture-heading`, `outdated-deep-capture-template`,

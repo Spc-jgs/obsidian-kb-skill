@@ -41,7 +41,10 @@ from obsidian_kb_skill.scripts.folder_index_policy import (
     read_folder_index_config,
 )
 from obsidian_kb_skill.scripts.note_catalog import (
+    ENTITY_FOLDERS,
+    ENTITY_INSTANCE_TYPE,
     EXEMPT_NAMES,
+    NON_INSTANCE_STATUSES,
     SOURCE_ARCHIVE_FOLDER,
     VALID_NOTE_TYPES,
     normalize_tag_key as _normalize_tag_key,
@@ -99,6 +102,8 @@ FINDING_SEVERITY: dict[str, str] = {
     "broken-wikilink": "defect",
     "invalid-related": "defect",
     "invalid-related-entry": "defect",
+    # The revival radar already reports this entity once per note.
+    "duplicate-project-note": "defect",
     # Index ownership that is ambiguous or actively wrong.
     "duplicate-folder-index": "defect",
     "duplicate-folder-index-content": "defect",
@@ -336,6 +341,64 @@ def _add(
     findings: list[Finding], code: str, relative: Path, message: str
 ) -> None:
     findings.append(Finding(code, relative.as_posix(), message))
+
+
+def _collect_entity_instance(
+    instances: dict[tuple[str, str], list[str]],
+    relative: Path,
+    metadata: dict[str, Any] | None,
+) -> None:
+    """Record a note that claims to be an entity instance inside its directory.
+
+    Three exclusions, each load-bearing:
+
+    * Only notes *inside* an instance directory count. Two project notes at the
+      entity root are two projects nobody has given directories yet — the
+      pre-existing flat layout, which this design explicitly does not migrate.
+    * Only the entity's instance type counts. A retrospective or digest sharing
+      the directory is the subordinate output the directory exists to hold.
+    * `NON_INSTANCE_STATUSES` never counts. A template is entity-shaped but
+      started no project, and reporting one would repeat #83 in a new place.
+    """
+    if metadata is None or len(relative.parts) < 3:
+        return
+    entity_folder = relative.parts[0]
+    if entity_folder not in ENTITY_FOLDERS:
+        return
+    if metadata.get("type") != ENTITY_INSTANCE_TYPE.get(entity_folder):
+        return
+    status = metadata.get("status")
+    if isinstance(status, str) and status.strip().lower() in NON_INSTANCE_STATUSES:
+        return
+    instances.setdefault((entity_folder, relative.parts[1]), []).append(
+        relative.as_posix()
+    )
+
+
+def _audit_entity_instances(
+    findings: list[Finding], instances: dict[tuple[str, str], list[str]]
+) -> None:
+    """One instance note per instance directory.
+
+    `review-projects` identifies instances by frontmatter alone, so a second
+    one here reports the same project twice, each copy carrying its own
+    staleness and open-task count. The radar cannot see the duplication —
+    it never looks at paths — so nothing surfaces it but this check.
+    """
+    for (entity_folder, instance), notes in sorted(instances.items()):
+        if len(notes) < 2:
+            continue
+        listed = ", ".join(sorted(notes))
+        _add(
+            findings,
+            "duplicate-project-note",
+            Path(entity_folder) / instance,
+            f"{len(notes)} notes typed "
+            f"`{ENTITY_INSTANCE_TYPE[entity_folder]}` share one instance "
+            f"directory, so the revival radar reports this entity once per "
+            f"note: {listed}. Keep the one that tracks status and give the "
+            f"others the type of what they actually are.",
+        )
 
 
 def _audit_metadata(
@@ -1160,6 +1223,7 @@ def audit_vault(vault: Path) -> list[Finding]:
     index_notes: set[Path] = set()
     candidate_notes: list[Path] = []
     connectivity_notes: list[Path] = []
+    entity_instances: dict[tuple[str, str], list[str]] = {}
     markdown = _markdown_files(vault)
     for path in markdown:
         relative = path.relative_to(vault)
@@ -1175,6 +1239,7 @@ def audit_vault(vault: Path) -> list[Finding]:
         if yaml_error:
             _add(findings, "invalid-frontmatter", relative, yaml_error)
         _audit_metadata(findings, relative, text, metadata)
+        _collect_entity_instance(entity_instances, relative, metadata)
         if metadata and relative.name not in EXEMPT_NAMES:
             raw_tags = metadata.get("tags")
             tag_values = (
@@ -1261,6 +1326,7 @@ def audit_vault(vault: Path) -> list[Finding]:
                 f"near-duplicate tags: {', '.join(sorted(originals))} (consider merging)",
             )
 
+    _audit_entity_instances(findings, entity_instances)
     _audit_titles(findings, title_list)
     indexed = _indexed_notes(vault, index_notes)
     _audit_orphans(findings, vault, referenced, indexed, candidate_notes)

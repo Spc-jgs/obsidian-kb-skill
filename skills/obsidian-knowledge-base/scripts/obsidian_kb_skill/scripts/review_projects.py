@@ -14,7 +14,10 @@ from typing import Any, Iterable
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
-from obsidian_kb_skill.scripts.note_catalog import EXEMPT_NAMES
+from obsidian_kb_skill.scripts.note_catalog import (
+    EXEMPT_NAMES,
+    NON_INSTANCE_STATUSES as _NON_INSTANCE_STATUSES,
+)
 from obsidian_kb_skill.scripts.search_vault import (
     IGNORED_DIRECTORY_NAMES,
     parse_note_date,
@@ -64,10 +67,11 @@ CLOSED_STATUSES = {
 # These values describe a reusable project-shaped note, not a project lifecycle
 # state. Keep them separate from CLOSED_STATUSES: a template never started and
 # was not completed. Unknown states still remain visible by design.
-NON_INSTANCE_STATUSES = {
-    "template",
-    "模板",
-}
+#
+# The set lives in `note_catalog` because the audit needs the same judgement:
+# one policy, one definition. Re-exported here so existing callers and tests
+# keep their import site.
+NON_INSTANCE_STATUSES = _NON_INSTANCE_STATUSES
 # "What is not knowledge" is one policy, so it has one definition. A second copy
 # had already drifted: it spelled the archive folder as a literal instead of the
 # shared constant, and it did not learn about the retrieval lexicon's folder
