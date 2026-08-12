@@ -25,6 +25,7 @@ RETRIEVAL_REFERENCE_DIR = ROOT / "core" / "retrieval-references"
 # is still documented where that Agent will not look. Concatenating the two
 # would accept precisely the arrangement this test exists to reject.
 RETRIEVAL_MODULES = {
+    "resume_project.py": RETRIEVAL_REFERENCE_DIR / "resume-project.md",
     "retrieval_vault_info.py": RETRIEVAL_REFERENCE_DIR / "search.md",
     "review_projects.py": RETRIEVAL_REFERENCE_DIR / "review-projects.md",
     "search_vault.py": RETRIEVAL_REFERENCE_DIR / "search.md",

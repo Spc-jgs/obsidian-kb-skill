@@ -34,7 +34,13 @@ HELPERS = (
     "update-note",
     "vault-info",
 )
-RETRIEVAL_HELPERS = ("doctor", "review-projects", "search-vault", "vault-info")
+RETRIEVAL_HELPERS = (
+    "doctor",
+    "resume-project",
+    "review-projects",
+    "search-vault",
+    "vault-info",
+)
 
 
 def test_installed_runner_reads_one_custom_template_contract(tmp_path):
