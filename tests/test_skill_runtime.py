@@ -753,3 +753,31 @@ def test_peer_helper_lists_cannot_drift_from_the_runners_they_mirror():
     assert not (set(write.HELPERS) & set(write.PEER_HELPERS)), (
         "a helper cannot be both local and peer"
     )
+
+
+@pytest.mark.parametrize("helper", RETRIEVAL_HELPERS)
+def test_every_retrieval_helper_imports_from_the_installed_bundle(helper, tmp_path):
+    """Being on the allowlist is not the same as being importable.
+
+    The read-only bundle ships a hand-picked module list. A helper can be
+    registered, have its own file copied, pass every unit test — which run from
+    the repo root where all modules are visible — and still fail on the first
+    real invocation because something it imports was never added to the list.
+    `doctor` does not catch this: it verifies files are present, not that the
+    import graph resolves.
+
+    `--help` is enough: argparse runs after the module-level imports.
+    """
+    skill = tmp_path / "installed" / "obsidian-knowledge-retrieval"
+    shutil.copytree(RETRIEVAL_SKILL, skill)
+
+    result = subprocess.run(
+        [sys.executable, str(skill / "scripts" / "run_helper.py"), helper, "--help"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, (
+        f"{helper} cannot start from the shipped bundle:\n{result.stderr}"
+    )
