@@ -30,6 +30,35 @@ location cannot be stale in either direction — it is where the user put it.
 layout, not an error, and such a project simply has no subordinate output to
 gather.
 
+## What the pack answers
+
+`resume` holds what the **project note** says, one entry per field, each with
+the path and line it came from: `goal`, `decisions`, `blockers`,
+`next_actions`. A field the note does not answer is `null` and named in
+`missing_sections`.
+
+`from_sources` holds what the **source notes** say, keyed by the same fields
+plus `constraints` and `evidence` — a project note has no section for those,
+so their absence there is not a gap. Each entry cites its own path and line.
+
+`contested` names fields answered on both sides. That is not automatically a
+contradiction; a decision may simply be restated. **Report both and let the
+user judge** — the pack deliberately does not pick a winner, and neither
+should you. Recency is not authority: a project note updated last week can
+still be describing a constraint a digest settled months ago.
+
+`missing_sections` is a fact about the note, not a defect to fix. A Vault using
+custom templates may legitimately have none of the standard sections; say what
+is unavailable rather than assembling an answer out of surrounding prose.
+
+## Bounds
+
+`--max-sources` (default 5) keeps the pack a known number of reads. Sources are
+ordered newest first, because resuming needs current state. When more exist,
+`truncated` is `true` and `summary.sources_available` gives the real count —
+say so rather than presenting a partial pack as the whole picture. An undated
+note sorts last but is never dropped for lacking a date.
+
 ## Read the sources, do not re-derive them
 
 The pack tells you which notes to open. Open those and no others: do not list

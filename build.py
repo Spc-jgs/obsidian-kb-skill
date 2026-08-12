@@ -139,6 +139,10 @@ RETRIEVAL_HELPER_FILES = (
     # share. Ship them or `search_vault` cannot import, and a lexicon tokenized
     # differently from the index would silently match nothing.
     Path("scripts/query_expansion.py"),
+    # `resume_project` derives the digest section names from this contract
+    # rather than restating them, so the contract travels with it. Zero further
+    # dependencies and ~2 KB, which is what makes deriving cheaper than copying.
+    Path("scripts/conversation_digest_contract.py"),
     Path("scripts/resume_project.py"),
     Path("scripts/retrieval_vault_info.py"),
     Path("scripts/review_projects.py"),
