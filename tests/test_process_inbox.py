@@ -386,3 +386,106 @@ def test_inbox_discovery_reports_unsafe_entries_in_plan_mode(tmp_path):
     plans = process_vault(vault, apply=False)
 
     assert [p["skip_code"] for p in plans] == ["unsafe-inbox-entry"]
+
+
+# --- Apply-phase refusals must reach the plan, not only stderr (#92) ---------
+#
+# Plan-phase refusals carry `skip`/`skip_code` on the plan entry. Apply-phase
+# refusals printed to stderr and set nothing, so a JSON consumer saw
+# `applied: false` with no reason at all and could report *that* a note did not
+# move but never *why*.
+
+
+def test_apply_records_why_an_occupied_target_was_refused(tmp_path):
+    vault = make_vault(tmp_path)
+    (vault / "30-Insights" / "Note.md").write_text("existing\n", encoding="utf-8")
+    (vault / "00-Inbox" / "Note.md").write_text(
+        "# Some Insight\nidea\n", encoding="utf-8"
+    )
+
+    plans = process_vault(vault, apply=True, silent=True)
+
+    assert plans[0]["applied"] is False
+    assert plans[0]["skip_code"] == "target-exists"
+    assert plans[0].get("skip"), "a refusal code without a readable reason"
+
+
+def test_apply_records_a_write_time_frontmatter_failure(tmp_path):
+    """The plan was sound when shown; the file changed before it was applied.
+
+    This is the real window between showing a user their filing plan and their
+    confirming it — the re-check exists for exactly that, and its refusal has
+    to be as visible as the plan-phase one.
+    """
+    vault = make_vault(tmp_path)
+    source = vault / "00-Inbox" / "Note.md"
+    source.write_text("# Some Insight\nidea\n", encoding="utf-8")
+    plan = process_inbox.plan_note(source, vault)
+    source.write_text(MALFORMED_NOTE, encoding="utf-8")
+
+    applied = process_inbox.apply_plan(plan, vault, silent=True)
+
+    assert applied is False
+    assert plan["skip_code"] == "unreadable-frontmatter"
+    assert plan.get("skip")
+
+
+def test_apply_records_why_a_failed_source_removal_refused_the_note(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+):
+    vault = make_vault(tmp_path)
+    source = vault / "00-Inbox" / "Note.md"
+    source.write_text("# Some Insight\nidea\n", encoding="utf-8")
+    _refuse_unlink_for(monkeypatch, source)
+
+    plans = process_vault(vault, apply=True, silent=True)
+
+    assert plans[0]["applied"] is False
+    assert plans[0]["skip_code"] == "source-removal-failed"
+    assert not (vault / "30-Insights" / "Note.md").exists()
+
+
+def test_partial_apply_is_reported_as_its_own_state(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+):
+    """Two copies on disk is not the same outcome as 'nothing happened'.
+
+    Every other refusal leaves the Vault untouched. This one leaves a copy the
+    user has to remove by hand, so it cannot share their code — an Agent that
+    cannot tell the two apart will report a clean skip over a split note.
+    """
+    vault = make_vault(tmp_path)
+    source = vault / "00-Inbox" / "Note.md"
+    source.write_text("# Some Insight\nidea\n", encoding="utf-8")
+    dest = vault / "30-Insights" / "Note.md"
+    _refuse_unlink_for(monkeypatch, source, dest)
+
+    plans = process_vault(vault, apply=True, silent=True)
+
+    assert plans[0]["applied"] is False
+    assert plans[0]["skip_code"] == "partial-apply"
+    assert dest.is_file(), "the copy survives when rollback also fails"
+    assert source.is_file()
+
+
+def test_every_unapplied_note_carries_a_machine_readable_reason(tmp_path, capsys):
+    """The contract the Agent depends on: no silent `applied: false`."""
+    vault = make_vault(tmp_path)
+    (vault / "30-Insights" / "Occupied.md").write_text("existing\n", encoding="utf-8")
+    (vault / "00-Inbox" / "Occupied.md").write_text(
+        "# Some Insight\nidea\n", encoding="utf-8"
+    )
+    (vault / "00-Inbox" / "Bad.md").write_text(MALFORMED_NOTE, encoding="utf-8")
+    (vault / "00-Inbox" / "Good.md").write_text(
+        "# Some Insight\nidea\n", encoding="utf-8"
+    )
+
+    exit_code = process_inbox.main([str(vault), "--apply", "--json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    unapplied = [entry for entry in payload if not entry.get("applied")]
+    assert len(unapplied) == 2
+    for entry in unapplied:
+        assert entry.get("skip_code"), f"no machine-readable reason: {entry['path']}"
+        assert entry.get("skip"), f"no readable reason: {entry['path']}"

@@ -65,6 +65,21 @@ UNREADABLE_FRONTMATTER = "unreadable-frontmatter"
 # Skip code for an Inbox entry that is not a regular file (symlink, directory).
 UNSAFE_INBOX_ENTRY = "unsafe-inbox-entry"
 
+# Skip code for a destination that is already occupied. Filing never renames a
+# note to make room, so the Inbox copy stays put.
+TARGET_EXISTS = "target-exists"
+
+# Skip code for a note whose copy was rolled back because the original could
+# not be removed. The Vault is unchanged.
+SOURCE_REMOVAL_FAILED = "source-removal-failed"
+
+# Skip code for the one refusal that does NOT leave the Vault untouched: the
+# copy was written, the original could not be removed, and the rollback failed
+# too. The note now exists twice and needs manual cleanup. It gets its own code
+# because an Agent that reads it as an ordinary skip will report a clean run
+# over a split note.
+PARTIAL_APPLY = "partial-apply"
+
 
 def scan_inbox(inbox: Path) -> tuple[list[Path], list[Path]]:
     """Return (regular notes, unsafe entries) without following symlinks.
@@ -198,6 +213,25 @@ def _fill_frontmatter(text: str, updates: dict[str, Any]) -> str:
     return f"{text[:fence]}{rendered}\n{text[fence:]}"
 
 
+def _refuse_apply(
+    plan: dict[str, Any], code: str, reason: str, stderr_line: str
+) -> bool:
+    """Record an apply-phase refusal on the plan, and report it on stderr.
+
+    Both channels are required. stderr is what a person reads while the command
+    runs; `skip_code` is the only thing a `--json` consumer can act on. Writing
+    one without the other is how apply-phase refusals stayed invisible to
+    Agents: the note did not move and the payload said only `applied: false`.
+
+    Plan-phase refusals already set these two fields, so recording them here
+    gives both phases one vocabulary instead of two.
+    """
+    plan["skip"] = reason
+    plan["skip_code"] = code
+    print(stderr_line, file=sys.stderr)
+    return False
+
+
 def apply_plan(plan: dict[str, Any], vault: Path, silent: bool = False) -> bool:
     """Move one planned note. Return True only when the move committed."""
     if plan.get("skip"):
@@ -208,18 +242,23 @@ def apply_plan(plan: dict[str, Any], vault: Path, silent: bool = False) -> bool:
     dest_folder = vault / plan["target"]
     dest = dest_folder / source.name
     if dest.exists():
-        print(f"  skip (target exists): {dest.as_posix()}", file=sys.stderr)
-        return False
+        return _refuse_apply(
+            plan,
+            TARGET_EXISTS,
+            f"target already exists: {dest.as_posix()}",
+            f"  skip (target exists): {dest.as_posix()}",
+        )
     text = source.read_text(encoding="utf-8")
     parsed = parse_frontmatter(text, source=source.as_posix())
     # Re-check at write time: the file may have changed since it was planned.
     if parsed.issue is not None:
-        print(
+        return _refuse_apply(
+            plan,
+            UNREADABLE_FRONTMATTER,
+            f"unreadable frontmatter: {parsed.issue.message}",
             f"  skip (unreadable frontmatter): {source.as_posix()} — "
             f"{parsed.issue.message}",
-            file=sys.stderr,
         )
-        return False
     metadata = parsed.metadata
 
     dest_folder.mkdir(parents=True, exist_ok=True)
@@ -244,12 +283,24 @@ def apply_plan(plan: dict[str, Any], vault: Path, silent: bool = False) -> bool:
         try:
             dest.unlink()
         except OSError as cleanup_exc:
-            print(
+            # Rollback failed too, so this is the one outcome that leaves the
+            # Vault changed. It must not share a code with the clean refusals.
+            return _refuse_apply(
+                plan,
+                PARTIAL_APPLY,
+                f"copy left at {dest.as_posix()}: source could not be removed "
+                f"({exc}) and the rollback failed ({cleanup_exc}); "
+                f"remove one copy by hand",
                 f"  warning: could not roll back {dest.as_posix()} — "
                 f"{cleanup_exc}; remove it manually",
-                file=sys.stderr,
             )
-        return False
+        return _refuse_apply(
+            plan,
+            SOURCE_REMOVAL_FAILED,
+            f"source could not be removed ({exc}); the copy was rolled back "
+            f"and the Vault is unchanged",
+            f"  skip (rolled back): {source.as_posix()}",
+        )
     append_static_index_entry(
         vault,
         StaticIndexEntry(

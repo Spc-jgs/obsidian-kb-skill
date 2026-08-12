@@ -591,10 +591,9 @@ def test_inbox_filing_is_selectable_from_the_routing_table_itself():
 def test_inbox_filing_reports_refusals_from_the_right_channel():
     """A refusal the Agent cannot find is a refusal it will report as success.
 
-    Plan-phase refusals are fields on a plan entry, not a top-level error, and
-    apply-phase refusals never reach the plan at all — they go to stderr. An
-    Agent told the wrong shape checks for an `error` key, finds none, and
-    presents notes that will never move as part of an approved plan.
+    Refusals are fields on a plan entry, never a top-level error. An Agent told
+    the wrong shape checks for an `error` key, finds none, and presents notes
+    that will never move as part of an approved plan.
     """
     reference = " ".join(
         (REFERENCES_DIR / "process-inbox.md").read_text(encoding="utf-8").split()
@@ -602,13 +601,30 @@ def test_inbox_filing_reports_refusals_from_the_right_channel():
 
     for marker in (
         "refuses **per note**, not per run",
-        "not a top-level error",
+        "never a top-level error",
         "There is no top-level `error` key to check",
-        "printed to **stderr**",
-        "*not* written back onto the plan entry",
-        "Do not infer the reason from the plan",
+        "`skip_code` is what you act on",
     ):
         assert marker in reference, f"refusal channel contract missing: {marker!r}"
+
+
+def test_partial_apply_is_not_documented_as_an_ordinary_skip():
+    """One filing refusal leaves the Vault changed; it must not read like the rest.
+
+    Every other refusal means nothing happened. `partial-apply` means the note
+    is now in two places. An Agent that treats them alike reports a clean skip
+    over a split note — or worse, deletes a copy to tidy the result.
+    """
+    reference = " ".join(
+        (REFERENCES_DIR / "process-inbox.md").read_text(encoding="utf-8").split()
+    )
+
+    for marker in (
+        "the copy survived and the note now exists in both places",
+        "the only filing refusal that leaves the Vault changed",
+        "never delete either copy yourself",
+    ):
+        assert marker in reference, f"partial-apply contract missing: {marker!r}"
 
 
 def test_filing_does_not_inherit_the_authoring_rename_rule():
