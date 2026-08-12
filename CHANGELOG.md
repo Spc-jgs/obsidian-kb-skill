@@ -4,7 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed
+### Fixed
+
+- The helper-reachability guard no longer accepts a mention as an invocation. It matched the helper's name anywhere in the instruction text, so a line telling an Agent *not* to use a helper satisfied it exactly as well as a line showing how — adding "never invoke `process-inbox` during conversation harvest" to any reference would have turned the guard green while no branch selected it, reproducing the #90 state with the guard reporting success. A guard that weak is worse than none, because it advertises coverage it does not provide. Reachability is now "the instructions show how to run it": either through the bundled runner, or as the helper named with its arguments. A bare mention does not count, and neither does a flag that embeds the name.
+
+  Two helpers are exempt with stated reasons rather than silently passing. `doctor` is an installer and troubleshooting tool, not a Vault operation. `suggest-links` is not a standalone entrypoint at all — the instructions reach it as `create-note --suggest-links`, so it has no invocation of its own to show, and the old substring check had been counting the flag as proof the helper was routed.
+
+  The scope of this change was smaller than #93 estimated. That issue reported six helpers reachable only through prose, which came from a survey that inspected each helper's *first* match and stopped; counted properly, ten of the thirteen already showed a runner invocation, and only `scaffold-templates` needed the second accepted shape.
 
 - The crowded-folder contract states which kind of folder it governs. It never did, and reading it as universal is what produced #95: its thresholds solve "too many notes to navigate", which is subject clustering, while an entity folder groups by what a note belongs to. Applied to `40-Projects` the rules forbid the correct structure — "Never create a one-note directory" rules out a project directory, which by definition starts with exactly one note, and the five-note cluster evidence never appears because a project's retrospective and its meeting records share a directory without sharing a subject. The reference now scopes itself to taxonomy folders, names entity folders as excluded, and points at the design document rather than leaving the next reader to re-derive the distinction.
 

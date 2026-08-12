@@ -516,7 +516,36 @@ def test_governance_is_read_before_the_discovery_call():
 # difference between a decision and an oversight.
 UNROUTED_HELPERS = {
     "doctor": "installer and troubleshooting tool, not a Vault operation",
+    "suggest-links": (
+        "not a standalone entrypoint: the instructions reach it as "
+        "`create-note --suggest-links`, so it has no invocation of its own to show"
+    ),
 }
+
+
+def _shows_invocation(helper: str, text: str) -> bool:
+    """Does the text demonstrate running this helper, rather than name it?
+
+    Naming is not reachability. A line telling an Agent *not* to use a helper
+    contains its name exactly as a line telling it how would, and #90 was a
+    helper nothing named at all — a guard that accepts any mention would have
+    stayed green through the fix and through its own regression.
+
+    Two shapes count, both of which an Agent can act on:
+
+    * `run_helper.py <helper>` — the bundled runner, how the body says to
+      invoke anything.
+    * `` `<helper> <arg>` `` — the helper named with its arguments, used where
+      a reference shows a command without repeating the runner prefix.
+
+    A bare `` `<helper>` `` does not count, and neither does a flag that
+    happens to embed the name, such as `--suggest-links`.
+    """
+    name = re.escape(helper)
+    return bool(
+        re.search(rf"run_helper\.py\s+{name}\b", text)
+        or re.search(rf"(?<![-\w]){name}\s+[<-]", text)
+    )
 
 
 def _instruction_text() -> str:
@@ -527,6 +556,30 @@ def _instruction_text() -> str:
         for path in sorted(REFERENCES_DIR.glob("*.md"))
     )
     return "\n".join(parts)
+
+
+def test_naming_a_helper_is_not_the_same_as_showing_how_to_run_it():
+    """The reachability check must not accept a mention, only an invocation.
+
+    A line forbidding a helper contains its name just as surely as a line
+    invoking it. Under a bare substring test, adding "never invoke
+    `process-inbox` during conversation harvest" to any reference would turn
+    the guard green while no branch selects it — reproducing #90 with the guard
+    reporting success.
+    """
+    from tests.test_lazy_references import _shows_invocation
+
+    assert not _shows_invocation(
+        "process-inbox", "never invoke `process-inbox` during conversation harvest"
+    )
+    assert not _shows_invocation("suggest-links", "pass `--suggest-links` to enable")
+    assert _shows_invocation(
+        "process-inbox",
+        "python <skill-root>/scripts/run_helper.py process-inbox <vault> --plan",
+    )
+    assert _shows_invocation(
+        "scaffold-templates", "run `scaffold-templates <vault> --apply` first"
+    )
 
 
 def _bundled_helpers() -> set[str]:
@@ -547,15 +600,15 @@ def test_every_bundled_helper_is_reachable_from_the_instructions():
     every user's disk and no Agent could ever select it. Shipping is not
     reachability, and only an explicit check can tell them apart.
 
-    Known limit: this matches the helper name anywhere in the instruction text,
-    so prose that merely names a helper — even to forbid it — reads as
-    reachable. Tightening it to a command form would flag six helpers that are
-    reachable today only through prose (`suggest-links` has no command form at
-    all), which is a separate piece of work. The branch added here is pinned
-    directly by the routing-table test below.
+    Reachability means the instructions show how to run it — see
+    `_shows_invocation`. Accepting a bare mention would let a line forbidding a
+    helper satisfy the guard that exists to catch helpers nothing invokes.
     """
+    instructions = _instruction_text()
     unreachable = {
-        helper for helper in _bundled_helpers() if helper not in _instruction_text()
+        helper
+        for helper in _bundled_helpers()
+        if not _shows_invocation(helper, instructions)
     }
 
     assert unreachable <= set(UNROUTED_HELPERS), (
@@ -640,7 +693,11 @@ def test_filing_does_not_inherit_the_authoring_rename_rule():
 def test_unrouted_helper_list_does_not_outlive_its_reason():
     """Once a helper is routed, its exemption is a lie that hides the next one."""
     instructions = _instruction_text()
-    stale = {helper for helper in UNROUTED_HELPERS if helper in instructions}
+    stale = {
+        helper
+        for helper in UNROUTED_HELPERS
+        if _shows_invocation(helper, instructions)
+    }
 
     assert not stale, f"UNROUTED_HELPERS still lists reachable helpers: {sorted(stale)}"
 
