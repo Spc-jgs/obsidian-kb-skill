@@ -661,3 +661,89 @@ def test_skill_runner_doctor_survives_invalid_runtime_record(tmp_path):
     )["ok"] is False
     assert normal_result.returncode == 3
     assert "invalid Skill runtime record" in normal_result.stderr
+
+
+# --- Using the wrong Skill's runner must say so (#103) -----------------------
+#
+# The project ships two Skills with separate runners. A peer session looking for
+# `review-projects` checked the write runner, did not find it, concluded the
+# capability was missing, reported a phantom bug upstream, then bypassed the
+# runner entirely and hit a missing-dependency error because vendor injection
+# lives inside the runner it had just bypassed. The capability worked the whole
+# time; only the signpost was absent.
+
+
+def test_write_runner_points_at_the_retrieval_skill_for_its_helpers(tmp_path):
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(STANDARD_SKILL / "scripts" / "run_helper.py"),
+            "review-projects",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "obsidian-knowledge-retrieval" in result.stderr, (
+        "the helper exists in the other Skill; saying only 'invalid choice' "
+        f"reads as 'this capability does not exist': {result.stderr!r}"
+    )
+
+
+def test_retrieval_runner_points_at_the_write_skill_for_its_helpers(tmp_path):
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(RETRIEVAL_SKILL / "scripts" / "run_helper.py"),
+            "create-note",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "obsidian-knowledge-base" in result.stderr, result.stderr
+
+
+def test_a_name_neither_skill_provides_still_reports_invalid_choice(tmp_path):
+    """The hint must not swallow the ordinary error for a genuine typo."""
+    for runner in (
+        STANDARD_SKILL / "scripts" / "run_helper.py",
+        RETRIEVAL_SKILL / "scripts" / "run_helper.py",
+    ):
+        result = subprocess.run(
+            [sys.executable, str(runner), "not-a-helper"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 2, runner
+        assert "invalid choice" in result.stderr, runner
+
+
+def test_peer_helper_lists_cannot_drift_from_the_runners_they_mirror():
+    """A hand-kept mirror rots. This is the only thing keeping the two in sync.
+
+    `install.sh` already carries 20 hand-maintained copies of the same paths
+    (#91); the lists added here are the same shape of duplication and need the
+    assertion the installer never got.
+    """
+    write = load_runner(STANDARD_SKILL / "scripts" / "run_helper.py")
+    retrieval = load_runner(RETRIEVAL_SKILL / "scripts" / "run_helper.py")
+
+    # Only what the *other* runner has and this one lacks. `doctor` and
+    # `vault-info` exist on both sides — the retrieval `vault-info` is a
+    # separate, read-only implementation — so neither is a peer helper.
+    assert set(write.PEER_HELPERS) == set(retrieval.HELPERS) - set(write.HELPERS), (
+        "the write runner's peer list no longer matches the retrieval runner"
+    )
+    assert set(retrieval.PEER_HELPERS) == set(write.HELPERS) - set(retrieval.HELPERS), (
+        "the retrieval runner's peer list no longer matches the write runner"
+    )
+    assert not (set(write.HELPERS) & set(write.PEER_HELPERS)), (
+        "a helper cannot be both local and peer"
+    )
