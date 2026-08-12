@@ -1,6 +1,6 @@
 {
   "files": {
-    "SKILL.md": "741373a347270d52525b2aa24af057f168693ae436f4925918e7c1c1f46bd96e",
+    "SKILL.md": "f52e1e7c8db1c6dab991c6a874129ff1db98ec467afcb2f09e88bd51f7b13492",
     "agents/openai.yaml": "ef2093cf1b5deacc9a170a3c39e26add0f0bfd528864454be91e5893a68ed795",
     "assets/templates/daily-note.md": "0a13e43e068e10531234941609190ec02f01f7a35e8c77a58a036d29ca02757c",
     "assets/templates/digest-note.md": "9dc4aa0156d9c6c120949ce31e455b07e20521229ca0e2cf4e7842c5ab341a94",
@@ -18,6 +18,7 @@
     "assets/templates/person-note.md": "1c1e1474661df176c0ccfb94571d9b257a2504f3a429ee67626bf34934acd71d",
     "assets/templates/project-note.md": "232188234bc1306388d13883cd4ee50a74dddf5687824d2159ff584203d03991",
     "assets/templates/web-clip.md": "b919263468bb0004e58d4ddb7d7d778f1fae09c4c7c43aab51041c3d93bbc44d",
+    "references/audit-vault.md": "b7380df15429f2ecdf323f528e1d3100efa57777f85a9551dafc516eff3ebd08",
     "references/conversation-digest.md": "1e1acc911acccbdfad0bcff4b56866706452f651df28daea9886450ee76f7b84",
     "references/conversation-harvest.md": "04c05b866d04ab5cd34c78e7df22360cb98936ccb88ef1844ad3ef0cdd6c3978",
     "references/custom-template.md": "de98b2fbb06bfd7f1c3caf7593f54f49fccb5548a42c9e0575180271119483ac",
