@@ -30,6 +30,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+# Skill locations left alone because another tool owns them.
+$script:ManagedSkips = 0
 $SupportRoot = Join-Path $env:USERPROFILE ".obsidian-kb-skill"
 $CanonicalSkill = Join-Path $SupportRoot "skill"
 $CanonicalRetrievalSkill = Join-Path $SupportRoot "retrieval-skill"
@@ -99,6 +101,25 @@ function Install-StandardSkill {
         [string]$SourceDirectory,
         [string]$DestinationDirectory
     )
+    # Mirrors install.sh: a link here was not created by this script, and the
+    # two reasons one exists need opposite handling. Pointing into this
+    # checkout, copying would write back through it into the source tree, so it
+    # must be replaced. Pointing anywhere else, something owns this location --
+    # typically a Skill manager linking its own store -- and replacing the link
+    # ends that ownership silently while both sides report success. -Force
+    # overrides, matching how it already governs template overwrites.
+    $existing = Get-Item -LiteralPath $DestinationDirectory -Force -ErrorAction SilentlyContinue
+    if ($existing -and $existing.LinkType) {
+        $resolved = $null
+        try { $resolved = (Resolve-Path -LiteralPath $DestinationDirectory -ErrorAction Stop).Path } catch { }
+        $insideCheckout = $resolved -and ($resolved -eq $ScriptDir -or $resolved.StartsWith($ScriptDir + [IO.Path]::DirectorySeparatorChar))
+        if (-not $insideCheckout -and -not $Force) {
+            $target = if ($existing.Target) { $existing.Target -join ", " } else { "?" }
+            Write-Host "-> Skipped (managed elsewhere): $DestinationDirectory -> $target"
+            $script:ManagedSkips++
+            return
+        }
+    }
     Copy-SkillPayload -SourceDirectory $SourceDirectory -DestinationDirectory $DestinationDirectory
 }
 
@@ -809,6 +830,13 @@ try {
 Write-Host "-> Installed write and retrieval Skill runtimes verified." -ForegroundColor Green
 
 Write-Host ""
+if ($script:ManagedSkips -gt 0) {
+    Write-Host ""
+    Write-Host "-> $($script:ManagedSkips) Skill location(s) are managed by another tool and were left untouched."
+    Write-Host "   Refresh them through that tool so it picks up this version,"
+    Write-Host "   or re-run with -Force to replace them with a direct install."
+}
+
 Write-Host "=== Installation complete! ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Your vault is at: $VaultPath"

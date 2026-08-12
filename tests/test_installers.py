@@ -570,6 +570,8 @@ def test_bash_codex_install_replaces_destination_symlink_without_touching_source
         home=home,
     )
 
+    # No --force needed: the link points into this checkout, so replacing it is
+    # the only way to avoid `cp -R` writing back through it into the source.
     assert not target.is_symlink()
     assert _payload_files(target) == _payload_files(
         ROOT / "skills/obsidian-knowledge-base"
@@ -641,8 +643,11 @@ def test_bash_workbuddy_replaces_symlink_without_touching_target(tmp_path):
     except (OSError, NotImplementedError):
         pytest.skip("directory symlinks unavailable")
 
+    # Points outside the checkout, so it is skipped unless --force says
+    # otherwise; this contract is about --force replacing it *without* writing
+    # through the link into the target.
     _run_release_installer(
-        release, home=home, vault=vault, platforms="workbuddy"
+        release, home=home, vault=vault, platforms="workbuddy", extra_args=("--force",)
     )
 
     assert not target.is_symlink()
@@ -910,3 +915,66 @@ def test_readme_does_not_claim_the_installer_asks_for_the_vault():
         text = (ROOT / name).read_text(encoding="utf-8")
         assert "安装器会发现或询问 Vault" not in text, name
         assert "installer discovers or asks for the Vault" not in text, name
+
+
+def test_bash_install_does_not_clobber_a_managed_skill_symlink(tmp_path):
+    """A Skill directory that is a symlink belongs to something else.
+
+    On a machine where a Skill manager owns `~/.claude/skills/*`, those entries
+    are links into the manager's store. Replacing one with a real directory
+    silently destroys that ownership: the installer reports success, the
+    manager reports drift, and neither knows about the other. Skipping and
+    saying so is the only honest option — the installer cannot know what the
+    link is for, only that it did not create it.
+    """
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+    store = home / "managed-store" / "obsidian-knowledge-base"
+    store.mkdir(parents=True)
+    (store / "SKILL.md").write_text("managed payload\n", encoding="utf-8")
+    managed = home / ".claude" / "skills" / "obsidian-knowledge-base"
+    managed.parent.mkdir(parents=True)
+    managed.symlink_to(store)
+
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env["OBSIDIAN_KB_PYTHON"] = sys.executable
+    result = subprocess.run(
+        [
+            "bash",
+            str(ROOT / "install.sh"),
+            "--vault",
+            str(vault),
+            "--platforms",
+            "claude-code",
+        ],
+        cwd=ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert managed.is_symlink(), "the managed link was replaced by a real directory"
+    assert managed.resolve() == store.resolve()
+    assert (store / "SKILL.md").read_text(encoding="utf-8") == "managed payload\n"
+    assert "managed elsewhere" in result.stdout, (
+        f"the skip must be reported, not silent:\n{result.stdout}"
+    )
+
+
+def test_powershell_installer_has_managed_symlink_parity():
+    """The two installers must make the same call about a link they did not create.
+
+    A guard that exists on only one platform is worse than none: the behaviour
+    a user learns on macOS silently does not hold on Windows.
+    """
+    script = (ROOT / "install.ps1").read_text(encoding="utf-8")
+
+    for marker in (
+        "managed elsewhere",
+        "$script:ManagedSkips",
+        "$insideCheckout",
+        "-not $Force",
+    ):
+        assert marker in script, f"PowerShell installer missing: {marker!r}"
