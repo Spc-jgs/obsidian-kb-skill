@@ -30,6 +30,8 @@ FORCE_UPGRADE=false
 DO_UNINSTALL=false
 PURGE_CONFIG=false
 PYTHON_BIN=""
+# Skill directories left alone because a manager owns them.
+MANAGED_SKIPS=0
 
 copy_skill_payload() {
   local source_dir="$1"
@@ -49,7 +51,40 @@ copy_skill_payload() {
 }
 
 install_standard_skill() {
-  copy_skill_payload "$1" "$2"
+  local source_dir="$1"
+  local destination="$2"
+  # A symlink here was not created by this script, and the two reasons one
+  # exists need opposite handling.
+  #
+  # Pointing into this checkout: someone linked the install location at the
+  # source tree. `cp -R` would follow the link and write back into the very
+  # payload being installed, so the link must go. `copy_skill_payload` removes
+  # it first, which is why this case falls through even without --force.
+  #
+  # Pointing anywhere else: something owns this location — typically a Skill
+  # manager linking it at its own store. Replacing the link ends that ownership
+  # silently: this script reports success while the manager reports drift, and
+  # neither inspects the other. Skip it and say so. --force is the way to
+  # override, matching how --force already governs overwriting templates.
+  if [ -L "$destination" ]; then
+    local resolved
+    resolved=$(cd "$destination" 2>/dev/null && pwd -P || true)
+    case "$resolved" in
+      "$SCRIPT_DIR"|"$SCRIPT_DIR"/*)
+        : # links into this checkout are replaced, never written through
+        ;;
+      *)
+        if [ "$FORCE_UPGRADE" != true ]; then
+          local target
+          target=$(readlink "$destination" 2>/dev/null || echo "?")
+          echo "-> Skipped (managed elsewhere): $destination -> $target"
+          MANAGED_SKIPS=$((MANAGED_SKIPS + 1))
+          return 0
+        fi
+        ;;
+    esac
+  fi
+  copy_skill_payload "$source_dir" "$destination"
 }
 
 validate_platforms() {
@@ -719,6 +754,13 @@ rm -rf "$VERIFY_DIR"
 echo "-> Installed write and retrieval Skill runtimes verified."
 
 echo ""
+if [ "$MANAGED_SKIPS" -gt 0 ]; then
+  echo ""
+  echo "-> $MANAGED_SKIPS Skill location(s) are managed by another tool and were left untouched."
+  echo "   Refresh them through that tool so it picks up this version,"
+  echo "   or re-run with --force to replace them with a direct install."
+fi
+
 echo "=== Installation complete! ==="
 echo ""
 echo "Your vault is at: $VAULT_PATH"

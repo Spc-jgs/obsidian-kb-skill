@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- The installer no longer destroys a Skill link it did not create. On a machine where a Skill manager owns `~/.claude/skills/*`, those entries are symlinks into the manager's store; `copy_skill_payload` began with `rm -rf`, so a routine install replaced each one with a real directory and silently ended that ownership. Observed in practice: the installer printed `Installation complete` with all five platforms ticked while `skillctl doctor` went from `OK` to `FAILED` with eight `runtime link drift` errors. Neither side inspects the other, so nothing reported a problem.
+
+  A link pointing *into this checkout* is still replaced without `--force`, because copying would otherwise follow it and write back into the source tree being installed — that contract predates this change and its tests are unmodified. A link pointing anywhere else is now skipped with the target named, and `--force` overrides, matching how `--force` already governs template overwrites. Both installers report a count at the end and say how to refresh through the owning tool.
+
 ## [1.32.0] - 2026-08-12
 
 ### Added

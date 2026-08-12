@@ -68,7 +68,12 @@ try {
         Write-Host "SKIP: WorkBuddy directory symlink migration unavailable: $($_.Exception.Message)"
     }
 
-    & (Join-Path $Release "install.ps1") -VaultPath $Vault -Platforms "codex,qoderwork,workbuddy"
+    # -Force is required here: the WorkBuddy location is a symlink pointing
+    # outside the checkout, which the installer now leaves alone by default so
+    # it cannot silently end another tool's ownership of that path. This run
+    # exercises the replacement path, and the assertions below check that
+    # replacing it does not write through the link into $OldClone.
+    & (Join-Path $Release "install.ps1") -VaultPath $Vault -Platforms "codex,qoderwork,workbuddy" -Force
 
     $Settings = Join-Path $HomeDir ".obsidian-kb-settings.json"
     Assert-True (Test-Path $Settings) "Global backup settings were not created"
