@@ -22,6 +22,8 @@ Use four-space indentation, UTF-8, and LF line endings. Follow existing Python c
 
 Pytest discovers `tests/test_*.py`; name tests `test_<behavior>` and group related cases in `Test...` classes when useful. Add regression tests for bug fixes and fixtures for larger evaluation cases. There is no configured coverage threshold. Before opening a PR, run the generated-artifact check, full pytest suite, and lockfile check. Installer or path changes should cover POSIX and Windows behavior where applicable.
 
+When a change makes two places have to agree — a constant restating what another module declares, a list duplicated because the two bundles cannot import each other, documentation naming a code or path the code also names — add an assertion **in the same change**, and a row to `docs/superpowers/specs/2026-08-12-consistency-inventory.md`. This project's recurring defect is a boundary nobody checks: the failure is silent, and the first drift is found by a user. If the relation cannot be checked mechanically, record the row with its guard as **none** and say why.
+
 ## Commit & Pull Request Guidelines
 
 History follows Conventional Commits, often with a scope and concise Chinese description, for example `feat(retrieval): 增加元数据过滤` or `fix(tests): 按 UTF-8 解码输出`. Keep commits focused; use `release:` only for version releases. PRs should explain the problem, summarize source and generated-file changes, list verification commands and results, and link the relevant issue. Include screenshots only when documentation assets or other visible output changes.
