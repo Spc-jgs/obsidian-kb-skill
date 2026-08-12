@@ -139,6 +139,7 @@ RETRIEVAL_HELPER_FILES = (
     # share. Ship them or `search_vault` cannot import, and a lexicon tokenized
     # differently from the index would silently match nothing.
     Path("scripts/query_expansion.py"),
+    Path("scripts/resume_project.py"),
     Path("scripts/retrieval_vault_info.py"),
     Path("scripts/review_projects.py"),
     Path("scripts/search_vault.py"),

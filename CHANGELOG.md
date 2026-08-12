@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `resume-project` gathers what belongs to one project, read-only. `review-projects` answers *which* project to pick up; this answers *what to read to continue it*, returning the project note plus the output that belongs to it. Membership is established by the entity-folder layout — a note inside the project's instance directory belongs to that project because of where it is. Every other route depends on maintenance: a `project` frontmatter field can be missing on a note that clearly belongs, and a `related` wikilink can resolve to a same-named note in another folder. A note's location cannot be stale in either direction. Each source carries an `origin` naming how membership was established, so a later, weaker origin cannot silently look like this one.
+
+  This is the first half of #86. It delivers the sources; extracting goal, constraints, decisions and next actions out of those sources follows. The split is deliberate: the capability is reachable from the retrieval Skill's routing table on arrival, rather than being completed first and connected afterwards — the failure that produced #90 twice.
+
+  A project note living directly at `40-Projects` returns `instance_directory: null` and no sources, which is a valid pre-existing layout rather than an error; #95 explicitly does not migrate those. A source whose own frontmatter is unreadable is reported in `issues`, and the rest of the pack is still returned.
+
 ### Fixed
 
 - Asking the wrong Skill's runner for a real capability now says where it lives. The project ships two Skills with separate runners, and until now the write runner answered `review-projects` with nothing but argparse's `invalid choice` plus its own 14 names — which reads as "no such capability" rather than "wrong door". That is exactly how it was read: an Agent session concluded the helper was missing from the machine, reported a phantom registration bug upstream, then bypassed the runner to invoke the module directly and hit `ModuleNotFoundError: No module named 'yaml'` — because the vendored packages are put on the path *by the runner it had just bypassed*. It ended up hand-rolling a `PYTHONPATH` workaround for a capability that had been working the entire time. Each runner now carries the peer's helper names — names only, no import, nothing that would pull the write Skill's modules into a bundle whose value is being small — and points at the Skill that provides them.

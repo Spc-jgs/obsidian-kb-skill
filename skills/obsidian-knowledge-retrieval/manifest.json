@@ -1,7 +1,8 @@
 {
   "files": {
-    "SKILL.md": "471a5e2c3891b0ce2437f7a1731a657855ca251ec6e54d8359824791358c1642",
+    "SKILL.md": "b55f84bdc35ac8364a02bc5c8a0d6ad6e0732a42ac33659a3c02e8e360bd9573",
     "agents/openai.yaml": "a8cc92153803b94afcfecf55ff57c846d76c9707793decc1a37b66b96fb2f8d6",
+    "references/resume-project.md": "88a559d1612a7a0f132ba4f639c51cc3f87a354bc62d72b65814c1c4138a4540",
     "references/review-projects.md": "d80228c533214716dbb4cd3077d5a892b926122344854d521b4dc481307abc4e",
     "references/search.md": "2908cb535e29d14f7f22be84cc482acc45dca526ea8414f064758fd9bc89030f",
     "references/shared-errors.md": "6534c5b22b7f96c87f88dd1a79bdf03dfb3586c865ec7c9ab9ce995267ff32d2",
@@ -12,12 +13,13 @@
     "scripts/obsidian_kb_skill/scripts/frontmatter.py": "85b676f3ba0043d6d32485f1c47fb339e9c9d5f8672845b7c3cae46dfb539c83",
     "scripts/obsidian_kb_skill/scripts/note_catalog.py": "e4d544c76ca88eaa4064c03373dc1153c7baf6deda536877926f370f7dae3236",
     "scripts/obsidian_kb_skill/scripts/query_expansion.py": "11ab6592cb5695b54a4a86ef4de28a250eebb356b1f77723befa0762814c7209",
+    "scripts/obsidian_kb_skill/scripts/resume_project.py": "8c03f3ba40ac3489f6a88ae8adecb1123c04a8e04e862b0db0c753074bdb8435",
     "scripts/obsidian_kb_skill/scripts/retrieval_vault_info.py": "af952ed626b49bbe84841302ace7796e777e68ad2c8f005998389395162164ec",
     "scripts/obsidian_kb_skill/scripts/review_projects.py": "270b1fa78f19d93dbd0418c09b48ee66ab4c72d427678deaf4d4e49381dfe741",
     "scripts/obsidian_kb_skill/scripts/search_vault.py": "9a27f5ccc641d7d4f5a1b3f09c2afca5d92171a831d9a9674d4076d874880a36",
     "scripts/obsidian_kb_skill/scripts/text_tokens.py": "61e7f86e9ea231b3f4fa7684b00b59141fce5c95c12552492b98c55b60115f13",
     "scripts/obsidian_kb_skill/scripts/vault_paths.py": "5eb90ea7b46258b79c3e6e4f2361736639fd9a668e97361c1cde0205c55aec2d",
-    "scripts/run_helper.py": "eb8f313bae2b54f15c6ee6e326986631d1f0d40601d40811a640b19ab0d0ae30"
+    "scripts/run_helper.py": "5864006e86956a17280971f7e7f96c6ec0460ccd8d457426956ff965c66d261b"
   },
   "product": "obsidian-kb-skill",
   "schema_version": 1,
