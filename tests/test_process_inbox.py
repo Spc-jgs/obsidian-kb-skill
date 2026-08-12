@@ -489,3 +489,80 @@ def test_every_unapplied_note_carries_a_machine_readable_reason(tmp_path, capsys
     for entry in unapplied:
         assert entry.get("skip_code"), f"no machine-readable reason: {entry['path']}"
         assert entry.get("skip"), f"no readable reason: {entry['path']}"
+
+
+# --- Filing never guesses which project a note belongs to (#95) --------------
+#
+# `40-Projects` is an entity folder: one directory per project. Filing can tell
+# that a note is a project note, but not *which* project owns it — membership
+# is not inferable from text with any reliability, and a wrong guess files the
+# note into another project's directory where it reads as that project's
+# history. Landing it at the entity root instead is the other wrong answer: it
+# is the state the entity-folder rules exist to prevent.
+
+
+def test_filing_refuses_a_project_note_instead_of_guessing_its_project(tmp_path):
+    vault = make_vault(tmp_path)
+    (vault / "00-Inbox" / "Note.md").write_text(
+        "---\ntype: project-note\ndate: 2026-08-12\ntags: [project]\n---\n"
+        "# Some Project\nnotes\n",
+        encoding="utf-8",
+    )
+
+    plans = process_vault(vault, apply=True, silent=True)
+
+    assert plans[0]["applied"] is False
+    assert plans[0]["skip_code"] == "entity-instance-unknown"
+    assert (vault / "00-Inbox" / "Note.md").is_file(), "the note stays in the Inbox"
+    assert not (vault / "40-Projects" / "Note.md").exists(), (
+        "landing at the entity root is the state these rules exist to prevent"
+    )
+
+
+def test_filing_does_not_reach_an_entity_folder_through_keywords_either(tmp_path):
+    """The `type` route is not the only way in — `KEYWORD_ROUTES` maps "project".
+
+    Guessing from body text is strictly worse than guessing from `type`: the
+    note never even claimed to be a project note.
+    """
+    vault = make_vault(tmp_path)
+    (vault / "00-Inbox" / "Note.md").write_text(
+        "# Notes\nthoughts about the project milestone\n", encoding="utf-8"
+    )
+
+    plans = process_vault(vault, apply=True, silent=True)
+
+    assert plans[0]["applied"] is False
+    assert plans[0]["skip_code"] == "entity-instance-unknown"
+    assert (vault / "00-Inbox" / "Note.md").is_file()
+
+
+def test_filing_still_routes_notes_bound_for_taxonomy_folders(tmp_path):
+    """Only entity folders are affected. Everything else files as before."""
+    vault = make_vault(tmp_path)
+    (vault / "00-Inbox" / "Note.md").write_text(
+        "---\ntype: insight-note\ndate: 2026-08-12\ntags: [insight]\n---\n"
+        "# Some Insight\nidea\n",
+        encoding="utf-8",
+    )
+
+    plans = process_vault(vault, apply=True, silent=True)
+
+    assert plans[0]["applied"] is True
+    assert (vault / "30-Insights" / "Note.md").is_file()
+
+
+def test_entity_refusal_names_the_project_the_user_must_supply(tmp_path):
+    """A refusal the user cannot act on just moves the work to them silently."""
+    vault = make_vault(tmp_path)
+    (vault / "00-Inbox" / "Note.md").write_text(
+        "---\ntype: project-note\ndate: 2026-08-12\ntags: [project]\n---\n"
+        "# Some Project\nnotes\n",
+        encoding="utf-8",
+    )
+
+    plans = process_vault(vault, apply=False, silent=True)
+
+    reason = plans[0]["skip"]
+    assert "40-Projects" in reason
+    assert "which" in reason.lower() or "project" in reason.lower()
