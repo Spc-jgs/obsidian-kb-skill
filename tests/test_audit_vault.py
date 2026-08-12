@@ -1785,3 +1785,95 @@ def test_a_note_can_link_to_its_source_archive(tmp_path):
     (archive / "violin-source.md").unlink()
 
     assert "broken-wikilink" in codes(tmp_path)
+
+
+# --- Entity folders: one instance note per instance directory (#95) ----------
+#
+# `40-Projects` groups by entity, not by subject: one directory per project,
+# holding that project's heterogeneous output. The revival radar identifies
+# instances per-note (`review_projects.py` reads `type` and nothing else), so
+# two `project-note` files in one directory report as two separate projects,
+# each with its own staleness and open-task count. Nothing else notices.
+
+
+def _project_note(path: Path, *, status: str = "active", title: str = "P") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "---\n"
+        "type: project-note\n"
+        "date: 2026-08-12\n"
+        "tags: [project]\n"
+        f"status: {status}\n"
+        "---\n"
+        f"# {title}\n\nbody\n",
+        encoding="utf-8",
+    )
+
+
+def _subordinate(path: Path, note_type: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "---\n"
+        f"type: {note_type}\n"
+        "date: 2026-08-12\n"
+        "tags: [project]\n"
+        "---\n"
+        "# Sub\n\nbody\n",
+        encoding="utf-8",
+    )
+
+
+def test_reports_two_project_notes_in_one_instance_directory(tmp_path):
+    """One project reported as two is a wrong answer nothing else surfaces."""
+    (tmp_path / ".obsidian").mkdir()
+    _project_note(tmp_path / "40-Projects" / "etianqu" / "Project.md", title="鹅天渠")
+    _project_note(
+        tmp_path / "40-Projects" / "etianqu" / "Retro.md", title="鹅天渠 复盘"
+    )
+
+    assert "duplicate-project-note" in codes(tmp_path)
+
+
+def test_subordinate_output_beside_a_project_note_is_legal(tmp_path):
+    """A project owning many documents is the entire point of an entity folder.
+
+    Only the `project-note` type is bounded to one. Retrospectives, digests and
+    meeting records are what an instance directory is *for*.
+    """
+    (tmp_path / ".obsidian").mkdir()
+    instance = tmp_path / "40-Projects" / "etianqu"
+    _project_note(instance / "Project.md")
+    _subordinate(instance / "Retro.md", "insight-note")
+    _subordinate(instance / "Context.md", "conversation-digest")
+    _subordinate(instance / "Review.md", "meeting-note")
+
+    assert "duplicate-project-note" not in codes(tmp_path)
+
+
+def test_non_instance_note_at_the_entity_root_is_legal(tmp_path):
+    """A template card belongs to no project and is not unfiled material.
+
+    It cannot live in an instance directory and `00-Inbox` would nag it as
+    unsorted, so the entity root is its correct home. Reporting it repeats #83
+    in a new location.
+    """
+    (tmp_path / ".obsidian").mkdir()
+    _project_note(tmp_path / "40-Projects" / "etianqu" / "Project.md")
+    _project_note(
+        tmp_path / "40-Projects" / "Template.md", status="template", title="项目小结模板"
+    )
+
+    assert "duplicate-project-note" not in codes(tmp_path)
+
+
+def test_project_notes_at_the_entity_root_are_not_instances_of_each_other(tmp_path):
+    """Existing flat Vaults stay valid — migration is an explicit non-goal.
+
+    Two project notes at the root are two projects that have not been given
+    directories yet, which is the pre-existing layout, not a duplicate.
+    """
+    (tmp_path / ".obsidian").mkdir()
+    _project_note(tmp_path / "40-Projects" / "One.md", title="One")
+    _project_note(tmp_path / "40-Projects" / "Two.md", title="Two")
+
+    assert "duplicate-project-note" not in codes(tmp_path)

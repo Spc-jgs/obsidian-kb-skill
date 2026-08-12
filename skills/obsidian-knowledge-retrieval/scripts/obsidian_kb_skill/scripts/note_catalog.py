@@ -79,6 +79,33 @@ STANDARD_NOTE_FOLDERS = set(TYPE_TO_FOLDER.values()) | {
     "00-Inbox", "90-Archive",
 }
 
+# Folders that group members by *what they belong to* rather than by *what they
+# are about*. A project is an entity owning heterogeneous output — a status
+# note, designs, retrospectives, meeting records — whose only common trait is
+# the project. That is not the taxonomy folders' model, where members share a
+# subject and crowding drives the split.
+#
+# The distinction is declared once, here, so rules can ask which kind of folder
+# they are looking at. Naming the category is the point: special-casing
+# `40-Projects` wherever a rule needs it is how the crowding contract came to
+# be applied to a structure it was never written for.
+ENTITY_FOLDERS = frozenset({"40-Projects"})
+
+# An instance directory holds exactly one note of its entity's type. The rest of
+# its contents are subordinate output carrying their own types. `review-projects`
+# identifies instances per-note, so a second one here silently reports the same
+# project twice.
+ENTITY_INSTANCE_TYPE = {"40-Projects": "project-note"}
+
+# Values marking a reusable, entity-shaped note that is not an instance: a
+# template belongs to no project and never started one. Both Skills need the
+# same judgement — retrieval keeps these out of the revival queue, and the audit
+# must not report one sitting legitimately at an entity folder's root.
+NON_INSTANCE_STATUSES = frozenset({
+    "template",
+    "模板",
+})
+
 # Files a Vault keeps for humans and agents rather than as knowledge. Both
 # Skills need this judgement over the same Vault: the audit exempts them from
 # note contracts, and retrieval must not rank them as notes. It lives here so
