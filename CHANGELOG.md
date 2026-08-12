@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- The crowded-folder contract states which kind of folder it governs. It never did, and reading it as universal is what produced #95: its thresholds solve "too many notes to navigate", which is subject clustering, while an entity folder groups by what a note belongs to. Applied to `40-Projects` the rules forbid the correct structure — "Never create a one-note directory" rules out a project directory, which by definition starts with exactly one note, and the five-note cluster evidence never appears because a project's retrospective and its meeting records share a directory without sharing a subject. The reference now scopes itself to taxonomy folders, names entity folders as excluded, and points at the design document rather than leaving the next reader to re-derive the distinction.
+
 ### Added
 
 - Filing refuses a project note instead of guessing which project owns it. `40-Projects` groups by entity, so knowing the folder is not enough — the note belongs to one instance inside it, and which one is not readable off the note. Both available answers were wrong: dropping it at the entity root is the state the entity-folder rules exist to prevent, and guessing an instance directory files the note into another project, where it is then read as that project's history. The note stays in the Inbox with the new `entity-instance-unknown`, which is distinct from `unknown-target` because routing did determine the kind and only the owner is missing — that difference is what the user is being asked to supply.

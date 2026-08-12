@@ -694,6 +694,27 @@ def test_inbox_filing_does_not_erode_the_authoring_bound():
         assert marker in reference, f"filing/authoring distinction missing: {marker!r}"
 
 
+def test_crowding_contract_states_which_folder_kind_it_governs():
+    """A rule that never named its scope got applied where it does not belong.
+
+    These thresholds solve "too many notes to navigate" — subject clustering.
+    Read as universal, they forbid an entity folder's correct structure: a
+    project directory starts with one note and holds documents that share no
+    subject. That misreading is #95, not a hypothetical.
+    """
+    text = " ".join(
+        (REFERENCES_DIR / "folder-routing.md").read_text(encoding="utf-8").split()
+    )
+
+    for marker in (
+        "**Taxonomy folders**",
+        "**Entity folders are excluded.**",
+        "A project starts with exactly one note",
+        "An instance directory exists because the project exists",
+    ):
+        assert marker in text, f"crowding scope statement missing: {marker!r}"
+
+
 def test_reporting_a_finding_does_not_authorize_fixing_it():
     """An audit answers "what is wrong", not "go change it".
 

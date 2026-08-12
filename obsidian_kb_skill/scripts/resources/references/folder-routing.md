@@ -4,6 +4,25 @@ Load this reference only when compact `vault-info` reports the selected
 destination in `crowded_folders`. Folder pressure is a navigation signal, not
 permission to mutate the Vault.
 
+## What these rules govern
+
+**Taxonomy folders** — folders whose members share a subject, where crowding is
+what drives a split. `20-Learning` and `30-Insights` are taxonomy folders, and
+everything below is about them.
+
+**Entity folders are excluded.** They group members by what they *belong to*
+rather than what they are *about*: `40-Projects` holds one directory per
+project, and that directory holds the project's heterogeneous output — a status
+note, designs, retrospectives, meeting records. The thresholds below are
+meaningless there. A project starts with exactly one note, so rule 5 would
+forbid the correct structure; its retrospective and its meeting notes share the
+directory without sharing any subject, so rule 2's cluster evidence never
+appears. An instance directory exists because the project exists.
+
+Applying these rules to an entity folder is not a hypothetical mistake — it is
+what produced #95. See
+`docs/superpowers/specs/2026-08-12-entity-folder-routing-design.md`.
+
 ## Read the Signals You Already Have
 
 The crowded entry answers both routing questions without opening a single note:
@@ -34,7 +53,8 @@ reading the folder yourself.
 3. Name it by durable subject. Do not name a category after a date, source site,
    author, or the current article title.
 4. Keep paths to at most two category levels beneath the managed root.
-5. Never create a one-note directory.
+5. Never create a one-note directory. (Taxonomy folders only — an entity
+   folder's instance directory begins with exactly one note.)
 6. If no stable cluster exists, keep the current category and rely on its index,
    tags, links, and search.
 
