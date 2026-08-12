@@ -115,6 +115,18 @@ value is being small.
 That trade-off is independent of Inbox filing and is not resolved here.
 Bundling the two would hide a real decision inside an unrelated change.
 
+**Resolved separately in #96 (2026-08-12): the audit lives in the write
+Skill.** The trade-off was settled on measured cost. `audit_vault`'s transitive
+dependency closure is 13 modules; the read-only bundle carries 10 and would
+need 9 more, taking its Python payload from 98 KB to 217 KB — a 121% increase
+for a bundle whose value is partly that it is small. Nearly every addition is a
+write-side contract (`capture_receipt`, `deep_capture_contract`,
+`conversation_digest_contract`, `template_contract`, `folder_index_policy`), so
+placing the audit there buys semantic purity — an audit is read-only — with
+semantic impurity: a Skill that promises never to write, shipping a complete
+set of write contracts. The write Skill already holds those dependencies, and
+the repair a finding suggests would happen there anyway.
+
 ## Scope of this decision
 
 **In scope**: one routing branch in `core/OBSIDIAN_KB.md`, one workflow

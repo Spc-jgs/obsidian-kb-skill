@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Vault audit is reachable. `audit-vault` was the second helper in the #90 pair: implemented, tested, registered in `[project.scripts]`, listed in the Skill runner's `HELPERS`, advertised in `docs/feature-guide.md`, and named nowhere in `core/`. It now has a routing branch of its own — the audit is not part of the save flow, so it gets its own entry in the body rather than a line in the save routing table — pointing at the new `core/references/audit-vault.md`. The `description` covers checking or auditing a Vault, without which "帮我体检一下 Vault" matches none of save/create/update/archive/remember and the branch stays unreachable from outside.
+
+  Placement was the open question, and it was decided on measured cost rather than on which Skill reads better. `audit_vault`'s transitive dependency closure is 13 modules; the read-only bundle carries 10 and would need 9 more, growing its Python payload from 98 KB to 217 KB — **+121%** — for a bundle whose value is partly that it is small. Almost all of the additions are write-side contracts: `capture_receipt`, `deep_capture_contract`, `conversation_digest_contract`, `template_contract`, `folder_index_policy`. Buying semantic purity (an audit is read-only) with semantic impurity (a never-writing Skill shipping a full set of write contracts) is not a trade worth making, so the audit lives in the write Skill, where its dependencies already are and where the repair a finding suggests would happen anyway.
+
+  The reference states the boundary that a read-only capability most easily leaks across: reporting a finding does not authorize fixing it. The fix is a separate request with its own explicit save intent, and a note is never repaired to make a finding disappear before it is reported. It also states that findings are not verdicts — `disconnected-note` on genuinely standalone knowledge is a legitimate state, and reporting it as a defect pushes users to manufacture exactly the weak links the rest of this Skill refuses to create.
+
 ### Fixed
 
 - Inbox filing explains every note that did not move. Plan-phase refusals already carried `skip` and `skip_code` on the note's plan entry, but the three refusals raised at write time — destination occupied, frontmatter unreadable at write time, source could not be removed — only printed to stderr and set nothing. A `--json` consumer saw `applied: false` with no reason attached, so an Agent could report *that* N notes stayed put and never *why* for any of them. Both phases now use one vocabulary: `target-exists`, `source-removal-failed`, and the plan-phase codes, all recorded on the entry. The human-readable stderr messages are unchanged.

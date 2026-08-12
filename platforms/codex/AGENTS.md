@@ -37,3 +37,9 @@ This skill **never writes to the vault on its own**. Write only after **explicit
 4. **Prefer bundled helpers** (never a one-off script): run `python <skill-root>/scripts/run_helper.py <helper> ...`, where `<skill-root>` contains this `SKILL.md`. For new notes use `create-note --preflight-json`, inspect the structured validation, then apply with `--from-preflight <content.sha256> --apply --compact-json` instead of resending the body; `update-note` is only for Task Memory, while ordinary existing-note edits follow `update-note.md` with native file tools.
 5. **Stay bounded**: ≤10 files scanned, ≤1 note written, ≤5 wikilinks. Never overwrite; add `-2` on name clash. Validate after.
 6. **Route**: daily→`15-Daily` · meeting→`10-Work` · learning/article→`20-Learning` · insight/digest→`30-Insights` · project→`40-Projects` · person→`50-People` · quick/unread source→`00-Inbox`. An ordinary finished article uses standard capture; verified capture is explicit or evidence-sensitive.
+
+## When the user asks to check or audit the Vault
+
+Read only `audit-vault.md`. The audit is read-only and reports findings; it
+never repairs a note. Fixing one is a separate request needing its own explicit
+save intent — reporting a finding does not grant authority to act on it.

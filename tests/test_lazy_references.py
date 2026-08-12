@@ -133,6 +133,8 @@ def test_all_reference_files_exist():
         "web-capture.md",
         "deep-capture.md",
         "folder-routing.md",
+        "process-inbox.md",
+        "audit-vault.md",
     }
     actual = {p.name for p in REFERENCES_DIR.iterdir() if p.is_file()}
     assert expected <= actual, f"missing reference files: {expected - actual}"
@@ -514,10 +516,6 @@ def test_governance_is_read_before_the_discovery_call():
 # difference between a decision and an oversight.
 UNROUTED_HELPERS = {
     "doctor": "installer and troubleshooting tool, not a Vault operation",
-    "audit-vault": (
-        "placement between the write and read-only Skills is unresolved; see "
-        "docs/superpowers/specs/2026-08-11-inbox-filing-entrypoint-decision.md"
-    ),
 }
 
 
@@ -694,6 +692,67 @@ def test_inbox_filing_does_not_erode_the_authoring_bound():
         "The bound that does apply is the Inbox itself",
     ):
         assert marker in reference, f"filing/authoring distinction missing: {marker!r}"
+
+
+def test_reporting_a_finding_does_not_authorize_fixing_it():
+    """An audit answers "what is wrong", not "go change it".
+
+    This is where a read-only capability most easily leaks into a write: the
+    finding is specific, the fix looks trivial, and nobody said stop. A missing
+    `date` is one edit away, which is exactly why the boundary has to be stated
+    rather than left to judgement.
+    """
+    reference = " ".join(
+        (REFERENCES_DIR / "audit-vault.md").read_text(encoding="utf-8").split()
+    )
+
+    for marker in (
+        "never repairs a note",
+        "does not grant authority to fix it",
+        "separate request",
+        "Never repair a note to make a finding disappear",
+        "`≤1 note written` bound still applies",
+    ):
+        assert marker in reference, f"audit read-only contract missing: {marker!r}"
+
+
+def test_audit_findings_are_not_verdicts_about_a_note():
+    """Some findings describe legitimate states, and the audit cannot tell.
+
+    `disconnected-note` on a standalone note is not a defect; reporting it as
+    one pushes the user to link notes that were never meant to link, which is
+    how a Vault accumulates exactly the weak relationships the rest of this
+    Skill refuses to create.
+    """
+    reference = " ".join(
+        (REFERENCES_DIR / "audit-vault.md").read_text(encoding="utf-8").split()
+    )
+
+    for marker in (
+        "legitimate states, not errors",
+        "let the user judge",
+        "do not translate a finding into a verdict",
+        "by kind rather than listing every occurrence",
+    ):
+        assert marker in reference, f"audit reporting contract missing: {marker!r}"
+
+
+def test_skill_description_can_trigger_on_vault_audit():
+    """Same failure as the Inbox branch: a correct route nobody can reach.
+
+    "帮我体检一下 Vault" matches none of save/create/update/archive/remember,
+    so without audit vocabulary in the description the routing branch added
+    here is unreachable from outside no matter how correct it is.
+    """
+    header = (STANDARD_SKILL / "header.md").read_text(encoding="utf-8")
+    description = header.split("description:", 1)[1].split("\n", 1)[0].lower()
+
+    assert "audit" in description, (
+        f"description cannot trigger on an audit request: {description.strip()!r}"
+    )
+    assert "read-only" in description, (
+        "the description must not imply an audit writes to the Vault"
+    )
 
 
 def test_skill_description_can_trigger_on_inbox_filing():
