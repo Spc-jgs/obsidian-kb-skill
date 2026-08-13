@@ -40,6 +40,15 @@ set of moves the user has not seen yet. Destinations are **inferred** — from t
 note's `type` when present, from body keywords when not — and keyword inference
 is exactly what the user must be able to overrule per note.
 
+**Pass the Vault's own word for a draft.** Filing refuses a note that declares
+itself unfinished, and the tag that declares it is the Vault's vocabulary, not
+this Skill's. The default is `incomplete`. When the Vault's governance names a
+different word, pass it — `--draft-tag <tag>`, repeatable, and it *replaces* the
+default rather than adding to it, so a Vault that uses `incomplete` for
+something else is not caught by surprise. Governance is already read before this
+step, so the word is in front of you; passing nothing silently checks for
+`incomplete` alone.
+
 ## Step 3: Show the Plan and Get Confirmation
 
 Present, per note: current path, destination folder, inferred `type`, and the
@@ -92,6 +101,13 @@ refusal is a field on that note's own plan entry, never a top-level error.
   folder and cannot know the owner, so the note stays put. Ask the user which
   project it belongs to; never place it at the entity folder's root and never
   guess an instance directory from the body.
+- `draft-incomplete` — the note says it is not finished. `draft_signals` names
+  what said so: the Vault's draft tag, or an unreplaced `{{placeholder}}` still
+  in the body. An unfinished capture belongs in the Inbox — filing is what
+  makes a note read as settled knowledge, and this Skill's own capture rules
+  forbid presenting Inbox content as finished. Report what completes it. Never
+  remove the tag yourself to make the note filable: the marker is the user's
+  statement about their own note, and clearing it is a content decision.
 - `unreadable-frontmatter` — the note's YAML could not be parsed.
 - `unsafe-inbox-entry` — the Inbox entry is not a regular file.
 

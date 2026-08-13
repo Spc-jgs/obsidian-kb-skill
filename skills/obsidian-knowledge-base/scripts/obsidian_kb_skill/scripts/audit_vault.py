@@ -46,6 +46,7 @@ from obsidian_kb_skill.scripts.note_catalog import (
     EXEMPT_NAMES,
     NON_INSTANCE_STATUSES,
     SOURCE_ARCHIVE_FOLDER,
+    TEMPLATE_PLACEHOLDER_RE,
     VALID_NOTE_TYPES,
     normalize_tag_key as _normalize_tag_key,
 )
@@ -185,7 +186,7 @@ FOLDER_INDEX_CONTENT_RE = re.compile(
     r"^\s*```folder-index-content(?:\s+[^\n]*)?\s*$", re.MULTILINE
 )
 
-PLACEHOLDER_RE = re.compile(r"\{\{[^}]+\}\}")
+PLACEHOLDER_RE = TEMPLATE_PLACEHOLDER_RE
 TEMPLATE_INSTRUCTION_MARKERS = (
     "用 2–4 句话",
     "用 2-4 句话",

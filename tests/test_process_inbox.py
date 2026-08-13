@@ -566,3 +566,147 @@ def test_entity_refusal_names_the_project_the_user_must_supply(tmp_path):
     reason = plans[0]["skip"]
     assert "40-Projects" in reason
     assert "which" in reason.lower() or "project" in reason.lower()
+
+
+# --- Filing never promotes a note that says it is unfinished (#116) ----------
+#
+# The Skill's own capture references make an "explicitly incomplete Inbox
+# capture" a distinct product: `note-creation.md` forbids presenting Inbox
+# content as finished knowledge, and `web-capture.md` forbids auto-downgrading
+# a failed capture into one — the user must choose it. Filing such a note out
+# of the Inbox is what turns it into a finished-looking note, so the refusal
+# belongs here. The *word* a Vault uses to mark that state is the Vault's, not
+# the Skill's; see `test_the_draft_vocabulary_belongs_to_the_vault`.
+
+
+def _incomplete_clip(vault: Path, name: str = "Draft.md") -> Path:
+    """An Inbox capture marked unfinished, shaped like the real one.
+
+    Modelled on `00-Inbox/2026-08-06 Spring Boot 接入金仓数据库….md` on the
+    reference Vault: a `web-clip` whose frontmatter routes cleanly to
+    `20-Learning`, carrying the Vault's `incomplete` tag.
+    """
+    path = vault / "00-Inbox" / name
+    path.write_text(
+        '---\ndate: "2026-08-06"\ntype: web-clip\n'
+        "tags:\n- spring-boot\n- incomplete\n"
+        'source: "https://example.invalid/post"\nauthor: "someone"\n'
+        'published: "2026-08-03"\n---\n\n# Draft\n\n## 关键要点\n\n'
+        "- 待后续详细阅读后补充完整。\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_a_note_marked_unfinished_is_refused_before_the_plan_is_shown(tmp_path):
+    """The plan must not propose it at all, not merely fail to apply it.
+
+    A user skimming a long plan approves the list, not each line. The two-phase
+    gate caught this note once, by attention — which is not a guard.
+    """
+    vault = make_vault(tmp_path)
+    (vault / "20-Learning").mkdir()
+    _incomplete_clip(vault)
+
+    plans = process_vault(vault, apply=False)
+
+    assert plans[0]["target"] is None
+    assert plans[0]["skip_code"] == "draft-incomplete"
+    assert "incomplete" in plans[0]["skip"]
+
+
+def test_an_unfinished_note_is_never_moved_by_apply(tmp_path):
+    """The refusal is worth nothing if `--apply` still files it."""
+    vault = make_vault(tmp_path)
+    (vault / "20-Learning").mkdir()
+    _incomplete_clip(vault)
+
+    plans = process_vault(vault, apply=True, silent=True)
+
+    assert plans[0]["applied"] is False
+    assert (vault / "00-Inbox" / "Draft.md").is_file()
+    assert not (vault / "20-Learning" / "Draft.md").exists()
+
+
+def test_an_unresolved_template_placeholder_also_refuses(tmp_path):
+    """A scaffold that was never filled in is unfinished by construction."""
+    vault = make_vault(tmp_path)
+    (vault / "30-Insights").mkdir(exist_ok=True)
+    (vault / "00-Inbox" / "Scaffold.md").write_text(
+        '---\ndate: "2026-08-06"\ntype: insight\ntags: [insight]\n---\n\n'
+        "# {{title}}\n\nAn insight about something.\n",
+        encoding="utf-8",
+    )
+
+    plans = process_vault(vault, apply=False)
+
+    assert plans[0]["skip_code"] == "draft-incomplete"
+    assert plans[0]["target"] is None
+
+
+def test_the_placeholder_rule_is_the_audits_rule_not_a_second_copy():
+    """One definition, imported twice — not two regexes that must agree.
+
+    `audit-vault` already grades an unreplaced placeholder as a `defect`.
+    Writing a second pattern here would be the hand-mirror shape the
+    consistency inventory exists to catch, so the two share an object rather
+    than an assertion.
+    """
+    from obsidian_kb_skill.scripts import audit_vault, note_catalog, template_contract
+
+    assert (
+        process_inbox.TEMPLATE_PLACEHOLDER_RE
+        is note_catalog.TEMPLATE_PLACEHOLDER_RE
+    )
+    assert audit_vault.PLACEHOLDER_RE is note_catalog.TEMPLATE_PLACEHOLDER_RE
+    assert template_contract.PLACEHOLDER_RE is note_catalog.TEMPLATE_PLACEHOLDER_RE
+
+
+def test_the_draft_vocabulary_belongs_to_the_vault(tmp_path):
+    """The Skill never writes this tag, so it must not hardcode it either.
+
+    `incomplete` is declared by the reference Vault's own governance, not by
+    this project — asserting someone else's vocabulary as fixed is how the
+    English project-note template drifted out of the resume vocabulary (#115).
+    The default matches the word the Skill's own references already use for
+    this state; a Vault that says it differently declares it.
+    """
+    vault = make_vault(tmp_path)
+    (vault / "20-Learning").mkdir()
+    _incomplete_clip(vault, "Draft.md")
+    (vault / "00-Inbox" / "Wip.md").write_text(
+        '---\ndate: "2026-08-06"\ntype: web-clip\ntags:\n- 未完成\n'
+        'source: "https://example.invalid/x"\nauthor: "a"\npublished: "2026-08-01"\n'
+        "---\n\n# Wip\n\ncontent\n",
+        encoding="utf-8",
+    )
+
+    plans = process_vault(vault, apply=False, draft_tags=("未完成",))
+
+    by_name = {plan["path"].name: plan for plan in plans}
+    assert by_name["Wip.md"]["skip_code"] == "draft-incomplete"
+    # Declaring a vocabulary replaces the default rather than extending it: a
+    # Vault that uses `incomplete` for something else must be able to opt out.
+    assert by_name["Draft.md"].get("skip_code") is None
+    assert by_name["Draft.md"]["target"] == "20-Learning"
+
+
+def test_a_finished_note_files_exactly_as_before(tmp_path):
+    """Hard negative: the ordinary path must not change.
+
+    A refusal rule earns its place only if it stays out of the way of every
+    note that is actually done.
+    """
+    vault = make_vault(tmp_path)
+    (vault / "20-Learning").mkdir()
+    (vault / "00-Inbox" / "Done.md").write_text(
+        '---\ndate: "2026-08-06"\ntype: web-clip\ntags:\n- spring-boot\n'
+        'source: "https://example.invalid/post"\nauthor: "someone"\n'
+        'published: "2026-08-03"\n---\n\n# Done\n\n## 关键要点\n\n- 写完了。\n',
+        encoding="utf-8",
+    )
+
+    plans = process_vault(vault, apply=False)
+
+    assert plans[0].get("skip_code") is None
+    assert plans[0]["target"] == "20-Learning"

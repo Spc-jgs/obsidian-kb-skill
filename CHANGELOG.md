@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Filing refuses a note that says it is not finished, with the new `draft-incomplete` code. On the reference Vault a `web-clip` tagged `incomplete`, whose four sections all read "待后续详细阅读后补充完整", was proposed for migration to `20-Learning`. The two-phase gate caught it — a human read the plan and said no — but that is attention, not a guard, and a user approving a long plan reads the list rather than each line. Once applied, the mistake is hard to notice: the file looks like an ordinary archived note, in the folder where finished notes live.
+
+  Two signals, both things the note states about itself rather than judgements about its content: the Vault's draft tag in `tags`, and an unreplaced `{{placeholder}}` still in the body. A body that says "待后续补充" in prose is *not* matched — reading prose for meaning is exactly what filing does not do. `draft_signals` names which fired, and the refusal says what completes the note; the Agent is told never to strip the tag to make the note filable, because the marker is the user's statement about their own note.
+
+  The refusal is the Skill's own rule applied one step later. `note-creation.md` forbids presenting Inbox content as finished knowledge and `web-capture.md` forbids auto-downgrading a failed capture into an Inbox bookmark — "the user must choose that different product explicitly". Filing one *out* of the Inbox is that same downgrade running backwards, unasked.
+
+  The word `incomplete` is the Vault's, not this Skill's: the project never writes that tag, and hardcoding another system's vocabulary is exactly how the English project-note template drifted out of the resume contract. It is the default because it is the word this Skill's own references already use for the state, and `--draft-tag` declares a different one — replacing the default rather than extending it, so a Vault that uses `incomplete` to mean something else can opt out. Registered as row 21; the filing reference must name whatever the default is.
+
+### Changed
+
+- The unreplaced-placeholder rule now has one definition instead of three-in-waiting. `audit-vault` and `template-contract` each carried their own pattern and had already diverged — only the latter captured the placeholder's name, which its `findall` depends on — and filing was about to add a third. They now share `note_catalog.TEMPLATE_PLACEHOLDER_RE`, asserted by object identity so a local copy cannot come back. Registered as row 20, which records a relation *removed* rather than guarded: when two places can import each other, deleting the boundary beats asserting over it.
+
 ### Fixed
 
 - `resume-project` no longer reports "the project never recorded this" when it means "I did not recognise the heading". `missing_sections` said only that a field could not be filled, and those two readings send a user in opposite directions — one goes looking, the other writes a decisions log that already exists. Measured on the reference Vault: a project note written from a conversation rather than the template returned `goal` alone and listed decisions, blockers and next actions as missing, while its decisions sat under `1.0 推荐方案` and `Redis 优先级结论` and its next actions under `后续行动`. The same note's next action was extracted correctly by `review-projects`, which scans checkboxes and does not depend on section names, so two helpers gave opposite answers about one note.

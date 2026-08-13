@@ -15,6 +15,7 @@ from obsidian_kb_skill.scripts.frontmatter import (
     parse_frontmatter,
     portable_yaml_scalars,
 )
+from obsidian_kb_skill.scripts.note_catalog import TEMPLATE_PLACEHOLDER_RE
 from obsidian_kb_skill.scripts.note_types import (
     TYPE_TO_TEMPLATE,
     TYPE_TO_TEMPLATE_ASSET,
@@ -28,7 +29,7 @@ from obsidian_kb_skill.scripts.vault_paths import (
 
 
 SUPPORTED_PLACEHOLDERS = ("date", "title")
-PLACEHOLDER_RE = re.compile(r"\{\{([^}]+)\}\}")
+PLACEHOLDER_RE = TEMPLATE_PLACEHOLDER_RE
 ATX_HEADING_RE = re.compile(r"^(#{2,6})[ \t]+(.+?)[ \t]*$")
 # Section headings start at level two, but a level-one line still has to be
 # recognised to explain why a section the author clearly wrote is "missing".

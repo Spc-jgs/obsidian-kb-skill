@@ -12,7 +12,7 @@
     "scripts/obsidian_kb_skill/scripts/conversation_digest_contract.py": "5fe29db421b88be88e9671d694a45e67169f94ef2c0fa00cd8510edcf1f9feab",
     "scripts/obsidian_kb_skill/scripts/doctor.py": "f8d024dfabedc97e420e0374f8b0e53f3603732e609ec6726b8256b0475b00e6",
     "scripts/obsidian_kb_skill/scripts/frontmatter.py": "85b676f3ba0043d6d32485f1c47fb339e9c9d5f8672845b7c3cae46dfb539c83",
-    "scripts/obsidian_kb_skill/scripts/note_catalog.py": "e4d544c76ca88eaa4064c03373dc1153c7baf6deda536877926f370f7dae3236",
+    "scripts/obsidian_kb_skill/scripts/note_catalog.py": "aa5157ac8ab391e7eee948d17b96e3796259df38368992b38b11a26a70a83e15",
     "scripts/obsidian_kb_skill/scripts/query_expansion.py": "11ab6592cb5695b54a4a86ef4de28a250eebb356b1f77723befa0762814c7209",
     "scripts/obsidian_kb_skill/scripts/resume_project.py": "afe12b268fdf06eef4dc9dee9b06327cae6bfeb4bafff0b39d376fb4dcce76bd",
     "scripts/obsidian_kb_skill/scripts/retrieval_vault_info.py": "af952ed626b49bbe84841302ace7796e777e68ad2c8f005998389395162164ec",
