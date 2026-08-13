@@ -274,3 +274,21 @@ def test_the_two_activity_semantics_are_documented_as_different():
     # The fallback must be described as belonging to the other helper, never
     # as something this one does.
     assert "falling back to `date`" in reference
+
+
+def test_every_resume_origin_is_ranked_in_the_reference():
+    """An origin the reference does not rank cannot be weighed by a reader.
+
+    The field exists so a weaker membership claim does not look as reliable as
+    a directory. An origin shipped without its trust level stated leaves the
+    Agent to treat them as equal, which is the field's own defeat.
+    """
+    from obsidian_kb_skill.scripts.resume_project import ORIGIN_TRUST
+
+    reference = (
+        ROOT / "core" / "retrieval-references" / "resume-project.md"
+    ).read_text(encoding="utf-8")
+
+    assert len(ORIGIN_TRUST) == len(set(ORIGIN_TRUST)), "duplicate origin"
+    for origin in ORIGIN_TRUST:
+        assert f"`{origin}`" in reference, f"unranked resume origin: {origin}"

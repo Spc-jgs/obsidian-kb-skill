@@ -113,6 +113,30 @@ PROJECT_NOTE_FIELDS = tuple(
 # membership claim, and a later origin must not silently look like this one.
 ORIGIN_INSTANCE_DIRECTORY = "instance-directory"
 
+# The two routes #86 named and #107/#108 did not ship. Both are weaker than
+# location and the ordering here is the trust ordering: a note's directory
+# cannot be stale, a declaration can point at the wrong thing.
+#
+# `project-field`  — the source note names this project itself.
+# `related-link`   — the project note links to the source.
+#
+# A root-level project note has no instance directory at all, and #95 made
+# migrating those a non-goal, so for them these are the *only* membership
+# claims that exist.
+ORIGIN_PROJECT_FIELD = "project-field"
+ORIGIN_RELATED_LINK = "related-link"
+
+# Strongest first. Used both to name an entry's `origin` when several routes
+# reach it and to layer the `--max-sources` bound, so a declaration can never
+# displace a note whose membership is readable from where it sits.
+ORIGIN_TRUST = (
+    ORIGIN_INSTANCE_DIRECTORY,
+    ORIGIN_PROJECT_FIELD,
+    ORIGIN_RELATED_LINK,
+)
+
+WIKILINK_RE = re.compile(r"\[\[([^\]\n]+)\]\]")
+
 # Resuming needs the project's current state, so the newest output is the
 # relevant output. The bound keeps the pack a known number of reads; the
 # overflow is reported rather than dropped, because a pack that looks
@@ -259,38 +283,172 @@ def _instance_sources(
     for path in sorted(directory.glob("*.md")):
         if path == project or path.name in EXEMPT_NAMES:
             continue
-        relative = path.relative_to(vault)
+        entry, issue = _source_entry(
+            path, vault, ORIGIN_INSTANCE_DIRECTORY, from_sources
+        )
+        if issue is not None:
+            issues.append(issue)
+        if entry is not None:
+            sources.append(entry)
+    return sources, issues
+
+
+def _source_entry(
+    path: Path,
+    vault: Path,
+    origin: str,
+    from_sources: dict[str, list[dict[str, Any]]],
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """One source, whatever route established its membership."""
+    relative = path.relative_to(vault)
+    metadata, error = _read(path)
+    if error is not None:
+        return None, {
+            "path": relative.as_posix(),
+            "code": "unreadable-frontmatter",
+            "message": error,
+        }
+    entry = _note_payload(relative, metadata)
+    entry["origin"] = origin
+    entry["origins"] = [origin]
+    note_type = (metadata or {}).get("type")
+    contributed, _ = _extract(
+        path.read_text(encoding="utf-8"),
+        relative,
+        note_type,
+        tuple(
+            field
+            for field, per_type in RESUME_SECTIONS.items()
+            if note_type in per_type
+        ),
+    )
+    entry["fields"] = sorted(
+        field for field, value in contributed.items() if value is not None
+    )
+    for field, value in contributed.items():
+        if value is not None:
+            from_sources.setdefault(field, []).append(value)
+    return entry, None
+
+
+def _descending(date: str | None) -> str:
+    """Sort key that puts newer dates first and undated notes last.
+
+    ISO dates sort as text, so inverting each digit gives a descending order
+    inside an otherwise ascending key — needed because the layer rank in front
+    of it must stay ascending.
+    """
+    if not date:
+        return "~"  # sorts after every digit
+    return "".join(str(9 - int(char)) if char.isdigit() else char for char in date)
+
+
+def _link_name(raw: str) -> str:
+    """The note name a wikilink or a bare `related` entry points at."""
+    target = raw.split("|", 1)[0]
+    target = target.split("#", 1)[0].split("^", 1)[0]
+    return Path(target.strip()).name.removesuffix(".md").strip()
+
+
+def _related_names(metadata: dict[str, Any] | None) -> list[str]:
+    """Names the project note declares as related.
+
+    Both spellings occur in a real Vault: a list of wikilinks and a list of
+    bare note names. Read only the frontmatter field — a wikilink in the body
+    is a reference, not a claim that the note belongs to this project.
+    """
+    raw = (metadata or {}).get("related") or []
+    values = raw if isinstance(raw, list) else [raw]
+    names: list[str] = []
+    for value in values:
+        if not isinstance(value, str) or not value.strip():
+            continue
+        match = WIKILINK_RE.search(value)
+        name = _link_name(match.group(1) if match else value)
+        if name:
+            names.append(name)
+    return names
+
+
+def _vault_notes(vault: Path) -> list[Path]:
+    """Every Markdown note, for resolving declarations by name.
+
+    A declaration names a note; only a scan can say which file that is, and
+    whether more than one answers to it. `audit-vault` pays the same cost to
+    build its link index. The pack still reads only the notes it returns.
+    """
+    return [
+        path
+        for path in sorted(vault.rglob("*.md"))
+        if path.is_file()
+        and not any(part.startswith(".") for part in path.relative_to(vault).parts)
+        and path.name not in EXEMPT_NAMES
+    ]
+
+
+def _declared_sources(
+    vault: Path,
+    project: Path,
+    project_metadata: dict[str, Any] | None,
+) -> tuple[dict[str, str], list[dict[str, Any]]]:
+    """Map a note path to the weaker origin that claimed it, plus any issues.
+
+    Ambiguity is reported, never resolved. A `related` link that answers to two
+    notes could file another project's material into this pack, where it reads
+    as this project's own history — and the reader would have no way to tell.
+    """
+    notes = _vault_notes(vault)
+    by_stem: dict[str, list[Path]] = {}
+    for path in notes:
+        by_stem.setdefault(path.stem, []).append(path)
+
+    claimed: dict[str, str] = {}
+    issues: list[dict[str, Any]] = []
+    project_names = {project.stem, project.relative_to(vault).as_posix()}
+
+    # Third kind: the source note names this project in its own frontmatter.
+    for path in notes:
+        if path == project:
+            continue
         metadata, error = _read(path)
         if error is not None:
+            continue
+        declared = (metadata or {}).get("project")
+        if not isinstance(declared, str) or not declared.strip():
+            continue
+        if _link_name(declared) in project_names or declared.strip() in project_names:
+            claimed[path.relative_to(vault).as_posix()] = ORIGIN_PROJECT_FIELD
+
+    # Fourth kind: the project note links to the source.
+    for name in _related_names(project_metadata):
+        matches = [path for path in by_stem.get(name, []) if path != project]
+        if not matches:
             issues.append(
                 {
-                    "path": relative.as_posix(),
-                    "code": "unreadable-frontmatter",
-                    "message": error,
+                    "code": "unresolved-related-link",
+                    "name": name,
+                    "message": f"related link {name!r} matches no note in the Vault",
                 }
             )
             continue
-        entry = _note_payload(relative, metadata)
-        entry["origin"] = ORIGIN_INSTANCE_DIRECTORY
-        note_type = (metadata or {}).get("type")
-        contributed, _ = _extract(
-            path.read_text(encoding="utf-8"),
-            relative,
-            note_type,
-            tuple(
-                field
-                for field, per_type in RESUME_SECTIONS.items()
-                if note_type in per_type
-            ),
-        )
-        entry["fields"] = sorted(
-            field for field, value in contributed.items() if value is not None
-        )
-        for field, value in contributed.items():
-            if value is not None:
-                from_sources.setdefault(field, []).append(value)
-        sources.append(entry)
-    return sources, issues
+        if len(matches) > 1:
+            issues.append(
+                {
+                    "code": "ambiguous-related-link",
+                    "name": name,
+                    "candidates": sorted(
+                        path.relative_to(vault).as_posix() for path in matches
+                    ),
+                    "message": (
+                        f"related link {name!r} matches more than one note; "
+                        "membership is not inferable, so none was used"
+                    ),
+                }
+            )
+            continue
+        relative = matches[0].relative_to(vault).as_posix()
+        claimed.setdefault(relative, ORIGIN_RELATED_LINK)
+    return claimed, issues
 
 
 def build(
@@ -334,9 +492,42 @@ def build(
         sources, issues = _instance_sources(
             project.parent, project, vault, from_sources
         )
-        # Newest first. A missing date sorts last rather than being dropped —
-        # an undated note is still this project's output.
-        sources.sort(key=lambda item: (item.get("date") or "", item["path"]), reverse=True)
+
+    # The two declared routes. A note already found by its location keeps that
+    # origin and records the extra route: it is one source, not two, and the
+    # reader still sees every way it was claimed.
+    by_path = {entry["path"]: entry for entry in sources}
+    claimed, declared_issues = _declared_sources(vault, project, metadata)
+    issues.extend(declared_issues)
+    for relative_path, origin in claimed.items():
+        existing = by_path.get(relative_path)
+        if existing is not None:
+            if origin not in existing["origins"]:
+                existing["origins"].append(origin)
+            continue
+        entry, issue = _source_entry(
+            vault / relative_path, vault, origin, from_sources
+        )
+        if issue is not None:
+            issues.append(issue)
+        if entry is not None:
+            sources.append(entry)
+            by_path[relative_path] = entry
+    for entry in sources:
+        entry["origins"].sort(key=ORIGIN_TRUST.index)
+
+    # Layered, then newest first inside each layer. The bound must not let a
+    # declaration displace a note whose membership is readable from where it
+    # sits — a `related` list is maintained by hand and a directory is not. A
+    # missing date sorts last rather than being dropped: an undated note is
+    # still this project's output.
+    sources.sort(
+        key=lambda item: (
+            ORIGIN_TRUST.index(item["origin"]),
+            _descending(item.get("date")),
+            item["path"],
+        )
+    )
 
     available = len(sources)
     bounded = sources[:max_sources] if max_sources is not None else sources

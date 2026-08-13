@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- The resume pack gathers the two source kinds #86 named and never shipped. PR #107/#108 delivered membership-by-location and closed that issue, so `project` frontmatter and the project note's own `related` list lost their tracker. They matter most where location cannot help: a project note directly under `40-Projects` has no instance directory, #95 made migrating one a non-goal, and until now such a project's pack was the note and nothing else. On the reference Vault that is exactly what happened — `40-Projects/2026-07-09 项目小结实践…` returned zero sources and now returns the learning note its own `related` list points at.
+
+  Both routes are weaker than location and say so. `origin` names the strongest route that reached a note and `origins` lists every one, so a note found in the directory *and* linked from the project note appears once rather than twice. The reference ranks all three, and the `--max-sources` bound is layered: a hand-maintained `related` entry never displaces a note whose membership is readable from where it sits.
+
+  Ambiguity is reported and never resolved. A `related` name matching two notes returns `ambiguous-related-link` with both candidates and uses neither — picking one would file another project's material into this pack, where it reads as this project's own history and the reader has no way to tell. A name matching nothing returns `unresolved-related-link` rather than quietly shrinking the pack. Only explicit declarations count: a wikilink in the project note's *body* is a reference, not a claim of membership.
+
+  On the reference Vault `project:` frontmatter is unused — three occurrences, all empty, two of them templates — so that route's only evidence is its tests. Said plainly here rather than left for someone to discover.
+
 - `search-vault` can filter on when a note *changed*, not only on when it was written. `--after/--before` have always read the frontmatter `date`, and there was no way to ask the other question — while the retrieval guide's own example was "最近的项目风险", a question about change that `date` answers wrongly in a way that looks right.
 
   Measured on the reference Vault: a project note dated `2026-06-09` was updated `2026-08-12`. `--after 2026-08-01` returns five notes and **silently omits the one that actually changed that month**; `--updated-after 2026-08-01` returns exactly it. Of 200 notes, 177 have no `updated` at all and are counted as `missing-updated`, separately from the 4 whose `updated` fell outside the window — "nobody recorded when this changed" is a Vault fact, while "it changed outside your window" is the filter working, and merging them would tell a user their note is old when the truth is that nothing was written down.
