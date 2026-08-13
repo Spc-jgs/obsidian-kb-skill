@@ -18,8 +18,10 @@ directory made the radar count one project twice (#95). The crowding contract
 never said which folders it governed, so it was applied to a structure it would
 have forbidden (#95). The wrong runner answered a real capability with `invalid
 choice` (#103). A bundle shipped with an unresolvable import graph while unit
-tests, `build --check` and `doctor` all passed (#108). And twice the author's
-own survey method produced a wrong premise that only a test caught.
+tests, `build --check` and `doctor` all passed (#108). An installer reported
+`Installation complete` with all five platforms ticked while `skillctl doctor`
+went from OK to FAILED with eight link-drift errors (#113). And twice the
+author's own survey method produced a wrong premise that only a test caught.
 
 Every instance is the same underlying gap, so the response is not seven fixes.
 It is a list of the boundaries, and the discipline of adding to it.
@@ -44,9 +46,11 @@ It is a list of the boundaries, and the discipline of adding to it.
 | 14 | Capability table ↔ helpers that exist | `test_the_feature_guide_only_advertises_helpers_that_exist` |
 | 15 | Digest section names ↔ the resume contract that uses them | `test_digest_heading_variants_are_derived_not_copied` |
 | 16 | Installer paths ↔ Skill × platform matrix | **none — #91**, 20 hand-copied paths across two languages |
+| 17 | Managed-link decision in `install.sh` ↔ `install.ps1` ↔ `tests/windows_installer_smoke.ps1` | `test_bash_install_does_not_clobber_a_managed_skill_symlink` (POSIX behaviour) and `test_powershell_installer_has_managed_symlink_parity` (reads `install.ps1` text only) — **the smoke script is unguarded**, and only Windows CI executes it |
 
 Guards 12, 13 and 14 were added by this work. The rest already existed; several
-had caught the author earlier the same day.
+had caught the author earlier the same day. Row 17 arrived late, in #114 — see
+below.
 
 ## What the guards are not
 
@@ -58,6 +62,16 @@ until someone named it.
 **Not guards for the guards.** A meta-test asserting each registry row has a
 live assertion would be one more hand-kept mirror, with the same failure mode
 and no third level to catch it.
+
+**Not coverage of everything the guard is named after.** Row 17 was created by
+#114, which shipped a parity assertion in the same commit that created the
+boundary — and was then broken by the very platform gap that assertion was
+written for, because it reads `install.ps1` while the drift was in
+`tests/windows_installer_smoke.ps1`. The guard was real and its name was
+accurate; its scope was narrower than a reader would assume. A row records what
+a guard covers, not what it is called. The row itself was also missing until the
+next day: writing the gap into a commit message put a known risk somewhere
+nobody reads, which is the shape of #92.
 
 **Not a substitute for judgement.** Two of the seven instances — the author's
 `head -1` sampling read as a full survey, and a drift assertion written as
