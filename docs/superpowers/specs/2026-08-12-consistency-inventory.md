@@ -58,6 +58,8 @@ It is a list of the boundaries, and the discipline of adding to it.
 | 26 | Zero-result reason in JSON ↔ the same reason in text mode | **relation removed** — one `ZERO_RESULT_REASONS` table, read by both `search_vault()` and `main()` |
 | 27 | Zero-result reason codes ↔ the reference the retrieval Agent reads | `test_every_zero_result_reason_is_documented_for_the_agent_that_reads_it` |
 | 28 | `search-vault --updated-*` (reads `updated` only) ↔ `review-projects` activity (`updated` falling back to `date`) | `test_the_two_activity_semantics_are_documented_as_different` — **deliberately different**, guarded as a documented distinction rather than unified |
+| 29 | `resume_project.ORIGIN_TRUST` ↔ the reference that ranks each origin's reliability | `test_every_resume_origin_is_ranked_in_the_reference` |
+| 30 | "a folder index is excluded" in `resume-project.md` ↔ what `_instance_sources` excludes | **none — #133**, the reference promises an exclusion the code does not make |
 
 Guards 12, 13 and 14 were added by this work. The rest already existed; several
 had caught the author earlier the same day. Row 17 arrived late, in #114 — see

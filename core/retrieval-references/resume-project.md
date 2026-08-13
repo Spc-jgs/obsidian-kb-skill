@@ -17,18 +17,32 @@ date; resolve the date yourself, the helper never parses "上周".
 ## What it returns, and why that is trustworthy
 
 `sources` lists the notes that belong to this project, each with an `origin`
-saying how membership was established. Today the only origin is
-`instance-directory`: the note sits inside the project's own directory.
+saying how membership was established, and `origins` listing every route that
+reached it. Three exist, **in descending order of trust**:
 
-That matters because every other way of establishing membership can be wrong.
-A `project` frontmatter field can be missing on a note that clearly belongs; a
-`related` wikilink can point at a same-named note in another folder. A note's
-location cannot be stale in either direction — it is where the user put it.
+| `origin` | The claim | How it goes wrong |
+|---|---|---|
+| `instance-directory` | The note sits inside the project's own directory | It cannot be stale in either direction — it is where the user put it |
+| `project-field` | The note's frontmatter names this project | The field can name the wrong project of the same name, and is missing on many notes that clearly belong |
+| `related-link` | The project note's `related` links to it | Maintained by hand, and a link resolves by name |
+
+Say which origin a claim rests on when it matters. "This decision is in a note
+filed under the project" and "this decision is in a note the project note links
+to" are different strengths of evidence, and the reader is entitled to both.
+
+The bound is layered: a declaration never displaces a note whose membership is
+readable from where it sits. When `truncated` is true, what was dropped is the
+weakest layer first.
 
 `instance_directory` is `null` for a project note living directly at
 `40-Projects`, which has no directory of its own. That is a valid pre-existing
-layout, not an error, and such a project simply has no subordinate output to
-gather.
+layout, not an error — #95 made migrating it a non-goal — and for such a project
+the two declared routes are the **only** membership claims that exist.
+
+Ambiguity is reported and never resolved: see `ambiguous-related-link` below.
+Only explicit declarations count. Sitting nearby, sharing a subject, or being
+linked from the project note's *body* establishes nothing — a body wikilink is
+a reference, not a claim of membership.
 
 ## What the pack answers
 
@@ -114,7 +128,17 @@ Structured refusal through `{"ok": false, "error": {"code", "message"}}`:
   stop; this Skill never repairs a note.
 
 A source whose own frontmatter is unreadable is reported in `issues` rather
-than dropped silently, and the rest of the pack is still returned.
+than dropped silently, and the rest of the pack is still returned. Two more
+entries appear there, both about links the pack refused to follow:
+
+- `ambiguous-related-link` — the name matches more than one note, listed in
+  `candidates`. **None was used.** Picking one could file another project's
+  material into this pack, where it would read as this project's own history
+  and the reader would have no way to tell. Report the ambiguity and let the
+  user say which they meant, or ask them to disambiguate the link.
+- `unresolved-related-link` — the name matches no note at all. The link is
+  stale or the note was renamed; say so rather than treating the project as
+  having less material.
 
 See `shared-errors.md` for the path and Vault guards this helper shares with
 the rest of the Skill.

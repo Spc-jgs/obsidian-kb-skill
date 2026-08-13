@@ -627,3 +627,201 @@ def test_an_unbounded_pack_reports_no_truncation(tmp_path):
 
     assert payload["truncated"] is False
     assert payload["summary"]["sources_available"] == 1
+
+
+# --- Membership declared, not inferred, outside the directory (#110) ---------
+#
+# #86 named four kinds of source; PR #107/#108 shipped the first two and the
+# issue closed, so the other two lost their tracker. The entity folder makes
+# membership readable from a note's location, which is the most reliable route
+# and rightly came first — but `40-Projects` root-level project notes have no
+# instance directory at all, and #95 made migrating them a non-goal. For those,
+# frontmatter `project` and the project note's own `related` are the *only*
+# membership claims that exist.
+#
+# Both are weaker than location: a `project` field can name the wrong project of
+# the same name, and a `related` link can resolve to a same-named note in
+# another folder. Weaker is not the same as unusable — it means the origin has
+# to say so.
+
+
+def test_a_root_level_project_gains_sources_from_its_related_links(tmp_path):
+    """The case #110 exists for, shaped like the reference Vault's own.
+
+    A project note directly under `40-Projects` has no instance directory, so
+    today its pack is the note and nothing else. Its `related` list is an
+    explicit statement of membership, made by the project note itself.
+    """
+    vault = make_vault(tmp_path)
+    write_note(
+        vault / "40-Projects" / "Summary.md",
+        "project-note",
+        status="active",
+        extra='related:\n  - "[[Habits|四个工作习惯]]"\n',
+        body=PROJECT_BODY_ZH,
+    )
+    write_note(vault / "20-Learning" / "Habits.md", "learning-note")
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/Summary.md"), as_of=AS_OF
+    )
+
+    assert payload["instance_directory"] is None
+    assert [source["path"] for source in payload["sources"]] == [
+        "20-Learning/Habits.md"
+    ]
+    assert payload["sources"][0]["origin"] == "related-link"
+
+
+def test_a_note_naming_this_project_in_frontmatter_is_a_source(tmp_path):
+    """The third kind: the source note declares its own membership."""
+    vault = make_vault(tmp_path)
+    write_note(
+        vault / "40-Projects" / "Summary.md", "project-note", status="active"
+    )
+    write_note(
+        vault / "30-Insights" / "Digest.md",
+        "conversation-digest",
+        extra="project: Summary\n",
+    )
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/Summary.md"), as_of=AS_OF
+    )
+
+    assert [source["path"] for source in payload["sources"]] == [
+        "30-Insights/Digest.md"
+    ]
+    assert payload["sources"][0]["origin"] == "project-field"
+
+
+def test_an_ambiguous_related_link_is_reported_and_not_resolved(tmp_path):
+    """Hard negative from #110: two notes share a name, so nothing is chosen.
+
+    Picking one would file another project's material into this pack, where it
+    reads as this project's history. Saying "this link is ambiguous" costs the
+    reader one sentence; guessing costs them a wrong conclusion.
+    """
+    vault = make_vault(tmp_path)
+    write_note(
+        vault / "40-Projects" / "Summary.md",
+        "project-note",
+        status="active",
+        extra='related:\n  - "[[Notes]]"\n',
+    )
+    write_note(vault / "20-Learning" / "Notes.md", "learning-note")
+    write_note(vault / "30-Insights" / "Notes.md", "insight-note")
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/Summary.md"), as_of=AS_OF
+    )
+
+    assert payload["sources"] == []
+    codes = {issue["code"] for issue in payload["issues"]}
+    assert "ambiguous-related-link" in codes
+    ambiguous = next(
+        issue for issue in payload["issues"] if issue["code"] == "ambiguous-related-link"
+    )
+    assert sorted(ambiguous["candidates"]) == [
+        "20-Learning/Notes.md",
+        "30-Insights/Notes.md",
+    ]
+
+
+def test_a_related_link_that_resolves_nowhere_is_reported(tmp_path):
+    vault = make_vault(tmp_path)
+    write_note(
+        vault / "40-Projects" / "Summary.md",
+        "project-note",
+        status="active",
+        extra='related:\n  - "[[Nothing Here]]"\n',
+    )
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/Summary.md"), as_of=AS_OF
+    )
+
+    assert payload["sources"] == []
+    assert {issue["code"] for issue in payload["issues"]} == {
+        "unresolved-related-link"
+    }
+
+
+def test_one_note_reached_two_ways_appears_once_with_both_origins(tmp_path):
+    """#110: report every route, but the note is one source, not two."""
+    vault = make_vault(tmp_path)
+    instance = vault / "40-Projects" / "etianqu"
+    write_note(
+        instance / "Project.md",
+        "project-note",
+        status="active",
+        extra='related:\n  - "[[Digest]]"\n',
+    )
+    write_note(instance / "Digest.md", "conversation-digest", date="2026-08-05")
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/etianqu/Project.md"), as_of=AS_OF
+    )
+
+    assert [source["path"] for source in payload["sources"]] == [
+        "40-Projects/etianqu/Digest.md"
+    ]
+    source = payload["sources"][0]
+    # The strongest route names the entry; every route is still reported.
+    assert source["origin"] == "instance-directory"
+    assert sorted(source["origins"]) == ["instance-directory", "related-link"]
+
+
+def test_directory_sources_are_never_crowded_out_by_weaker_ones(tmp_path):
+    """The bound is layered: location beats declaration when space runs out."""
+    vault = make_vault(tmp_path)
+    instance = vault / "40-Projects" / "etianqu"
+    related = "\n".join(f'  - "[[Far{index}]]"' for index in range(1, 5))
+    write_note(
+        instance / "Project.md",
+        "project-note",
+        status="active",
+        extra=f"related:\n{related}\n",
+    )
+    for index in range(1, 4):
+        write_note(
+            instance / f"Near{index}.md",
+            "conversation-digest",
+            date=f"2026-08-0{index}",
+        )
+    for index in range(1, 5):
+        write_note(vault / "30-Insights" / f"Far{index}.md", "insight-note")
+
+    payload = resume_project.build(
+        vault,
+        note=Path("40-Projects/etianqu/Project.md"),
+        as_of=AS_OF,
+        max_sources=3,
+    )
+
+    origins = [source["origin"] for source in payload["sources"]]
+    assert origins == ["instance-directory"] * 3, (
+        f"a weaker origin displaced a directory source: {origins}"
+    )
+    assert payload["truncated"] is True
+    assert payload["summary"]["sources_available"] == 7
+
+
+def test_proximity_still_never_establishes_membership(tmp_path):
+    """Hard negative that predates this change and must keep holding.
+
+    Both new routes are explicit declarations. A note that merely sits nearby,
+    or shares a subject, is still not a source.
+    """
+    vault = make_vault(tmp_path)
+    write_note(
+        vault / "40-Projects" / "Summary.md", "project-note", status="active"
+    )
+    write_note(vault / "30-Insights" / "Unrelated.md", "insight-note")
+    write_note(vault / "40-Projects" / "Sibling.md", "insight-note")
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/Summary.md"), as_of=AS_OF
+    )
+
+    assert payload["sources"] == []

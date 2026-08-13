@@ -2,7 +2,7 @@
   "files": {
     "SKILL.md": "b55f84bdc35ac8364a02bc5c8a0d6ad6e0732a42ac33659a3c02e8e360bd9573",
     "agents/openai.yaml": "a8cc92153803b94afcfecf55ff57c846d76c9707793decc1a37b66b96fb2f8d6",
-    "references/resume-project.md": "3e61505462bd1a8e53863fd6c8049c26373c616ff757f34a2f5a7bcc311edaa8",
+    "references/resume-project.md": "01a9c2ef3adee2e951ae66beec9585f968efec69f6a4841506dbeaaf327ab68e",
     "references/review-projects.md": "6ffcece04e3a247589fe98fd5a0398d76d2100a36942fd3bbded25e34a5e22e2",
     "references/search.md": "31bc1f20ff0583f9e0e53e7872cef238e65cbeb24c056925535716a6259185d4",
     "references/shared-errors.md": "6534c5b22b7f96c87f88dd1a79bdf03dfb3586c865ec7c9ab9ce995267ff32d2",
@@ -14,7 +14,7 @@
     "scripts/obsidian_kb_skill/scripts/frontmatter.py": "85b676f3ba0043d6d32485f1c47fb339e9c9d5f8672845b7c3cae46dfb539c83",
     "scripts/obsidian_kb_skill/scripts/note_catalog.py": "d3e3be74ca47b9d15bb0fd533b0c069e91997175e5e886f5947ffcff95b93640",
     "scripts/obsidian_kb_skill/scripts/query_expansion.py": "11ab6592cb5695b54a4a86ef4de28a250eebb356b1f77723befa0762814c7209",
-    "scripts/obsidian_kb_skill/scripts/resume_project.py": "f01428af5e629d3b9c8bf7ebc14e35db5745031ac7316dc6fe50c57f0229e820",
+    "scripts/obsidian_kb_skill/scripts/resume_project.py": "3651a547bcc00b428bdb91be5fabb60c417cb36958de9e9e514e70abe542f7d0",
     "scripts/obsidian_kb_skill/scripts/retrieval_vault_info.py": "af952ed626b49bbe84841302ace7796e777e68ad2c8f005998389395162164ec",
     "scripts/obsidian_kb_skill/scripts/review_projects.py": "94fe4b6471200299b2106ecf2172d7d5b2d92b3a18411f52f720783c8e2fe7e1",
     "scripts/obsidian_kb_skill/scripts/search_vault.py": "3a5c007e7c366be90ac61459a540ec2e4969fc8a021f9a969964cd585a82611f",
