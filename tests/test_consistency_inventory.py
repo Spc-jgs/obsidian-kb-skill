@@ -151,3 +151,27 @@ def test_the_filing_reference_names_the_draft_tag_the_code_defaults_to():
             f"the reference never names the default draft tag {tag!r}, so an "
             "Agent cannot know what it checks when passing nothing"
         )
+
+
+def test_both_retrieval_helpers_mean_the_same_thing_by_next_actions():
+    """One concept, one vocabulary — asserted by identity, not by equality.
+
+    `review-projects` finds a project's next action and `resume-project`
+    extracts the same section; each held its own literal set. #125 widened only
+    the resume side with `后续行动`, and nothing noticed: on the reference Vault
+    that note's seven checkboxes all sit under that heading, so scoping the
+    radar's task count to the section would have silently zeroed it out.
+
+    Sharing the tuple makes the agreement structural. Equality would let the
+    two drift apart and back into step without anyone knowing which is right.
+    """
+    from obsidian_kb_skill.scripts import note_catalog, resume_project, review_projects
+
+    shared = note_catalog.PROJECT_NOTE_NEXT_ACTION_HEADINGS
+    assert shared, "no next-action heading is recognised at all"
+    assert (
+        resume_project.RESUME_SECTIONS["next_actions"]["project-note"] is shared
+    ), "the resume contract restates the headings instead of deriving them"
+    assert review_projects.NEXT_ACTION_HEADINGS == {
+        heading.lower() for heading in shared
+    }, "the radar's heading set is not the shared one"

@@ -16,6 +16,14 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- The revival queue says where its task count came from. `open_tasks` counted every unchecked box in a note, and that number ordered the queue — so a note holding a *reusable* checklist outranked projects with real work. On the reference Vault one project note ends with fifteen checklist items for landing some *other* project, while its own plan is a P0/P1/P2 numbered list with no checkbox at all; it ranked as the busiest project in the Vault and reported `测试或发布基线是什么；` — a checklist question — as its next step.
+
+  The queue now orders by `open_tasks_in_next_actions`, the boxes inside the note's own next-actions section, and reports both numbers plus `open_tasks_scope` so the ordering can be checked. `null` there is not zero: zero means the note put nothing in that section, `null` means it has no such section and the whole-note count still applies — scoping must not erase a class of project from the queue. `next_action` no longer reaches past an empty next-actions section for the first checkbox anywhere, which is how the checklist question was picked up.
+
+  `next_action_heading` is new, and it is where this stops being mechanical. On that Vault the checklist is *nested inside* the next-actions section — `### 可复用的项目落地检查表` under `## 下一步行动`, beside `### P0：下一次迭代前完成`. No structure separates them; what separates them is what the author called them, and that is a judgement about content this helper does not make. So it names the heading and the reader judges. A test asserts that case as it is, rather than a fixture that made the two siblings and passed while the defect stood.
+
+- Both retrieval helpers now mean the same thing by "next actions". `review-projects` and `resume-project` each held their own literal heading set; the previous release widened only the resume side with `后续行动`. Nothing failed, because the radar falls back to the first checkbox anywhere in a note — the drift surfaced only when scoping that count to the section, where it would have zeroed out the one project whose checkboxes all sit under the widened heading. They now share `note_catalog.PROJECT_NOTE_NEXT_ACTION_HEADINGS`, with each variant's source recorded beside it. Registered as row 22, another relation removed rather than guarded.
+
 - The unreplaced-placeholder rule now has one definition instead of three-in-waiting. `audit-vault` and `template-contract` each carried their own pattern and had already diverged — only the latter captured the placeholder's name, which its `findall` depends on — and filing was about to add a third. They now share `note_catalog.TEMPLATE_PLACEHOLDER_RE`, asserted by object identity so a local copy cannot come back. Registered as row 20, which records a relation *removed* rather than guarded: when two places can import each other, deleting the boundary beats asserting over it.
 
 ### Fixed

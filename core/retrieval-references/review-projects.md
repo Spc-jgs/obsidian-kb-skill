@@ -37,6 +37,31 @@ reasons literally:
 - `stale:N-days` is calendar arithmetic, not low value;
 - `open-tasks:N` counts visible Markdown checkboxes and does not infer ownership.
 
+## A checkbox is syntax, not a todo
+
+Notes hold checklists, examples and templates too, so say where a count came
+from before treating it as workload:
+
+- `open_tasks` counts every visible unchecked box in the note.
+- `open_tasks_in_next_actions` counts only those inside the note's own
+  next-actions section, and is `null` when the note has no such section.
+  **`null` is not zero**: zero means the note put nothing there, `null` means it
+  never claimed a place for its todos.
+- `open_tasks_scope` says which of the two ordered the queue.
+- `next_action_heading` names the heading the next action was taken from.
+
+Read that last one before repeating a next action. A checklist can sit *inside*
+the next-actions section, and no structure separates it from real work — on the
+reference Vault, `可复用的项目落地检查表` and `P0：下一次迭代前完成` are both
+subsections of `下一步行动`. What separates them is what the author called them,
+which is a judgement about content that this helper does not make. When the
+heading reads like reusable material rather than this project's plan, say so
+instead of repeating the item as the next step.
+
+A `next_action` of `null` where the section exists means the project wrote its
+plan as something other than checkboxes — prose or a numbered list. That is not
+"nothing to do"; open the note.
+
 Show a short queue and let the user choose. To resume one project, read its note
 and search for directly related digest or meeting evidence; do not dump every
 queued project into context. Any edit must switch to the write Skill and obtain

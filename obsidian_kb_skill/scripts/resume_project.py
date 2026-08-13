@@ -31,6 +31,7 @@ from obsidian_kb_skill.scripts.note_catalog import (
     ENTITY_FOLDERS,
     ENTITY_INSTANCE_TYPE,
     EXEMPT_NAMES,
+    PROJECT_NOTE_NEXT_ACTION_HEADINGS,
 )
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
@@ -90,13 +91,11 @@ RESUME_SECTIONS: dict[str, dict[str, tuple[str, ...]]] = {
         "project-note": ("风险与阻塞", "risks and blockers", "risks & blockers"),
     },
     "next_actions": {
-        # `后续行动` is observed, not invented: it is the heading in
-        # `40-Projects/etianqu/2026-07-09 AI对话上下文与落库设计复盘.md` on the
-        # reference Vault, and the note #115 was filed from. Every variant here
-        # must come from a template or a real note — a guessed synonym makes the
-        # vocabulary look complete while it still fails silently, which is the
-        # defect itself rather than a fix for it.
-        "project-note": ("下一步行动", "后续行动", "next actions", "next steps"),
+        # Shared with `review-projects`, which locates the same section to
+        # report a project's next action. Two literal sets drifted apart in
+        # #125 with nothing to notice; each variant's source is recorded where
+        # the tuple is defined.
+        "project-note": PROJECT_NOTE_NEXT_ACTION_HEADINGS,
         "conversation-digest": _digest_section(4),
     },
 }

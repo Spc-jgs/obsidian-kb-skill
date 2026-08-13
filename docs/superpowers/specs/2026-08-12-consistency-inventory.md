@@ -51,10 +51,20 @@ It is a list of the boundaries, and the discipline of adding to it.
 | 19 | `core/templates/*/project-note.md` headings ↔ the resume vocabulary that reads them | `test_this_projects_own_templates_are_fully_readable_by_the_extractor` |
 | 20 | The unreplaced-placeholder rule across `audit-vault`, `template-contract` and `process-inbox` | **relation removed** — one `TEMPLATE_PLACEHOLDER_RE` in `note_catalog`, shared by object; `test_the_placeholder_rule_is_the_audits_rule_not_a_second_copy` asserts identity so a local copy cannot come back |
 | 21 | Default draft tag in `process_inbox` ↔ the reference an Agent reads | `test_the_filing_reference_names_the_draft_tag_the_code_defaults_to` |
+| 22 | Next-actions headings in `review_projects` ↔ `resume_project` | **relation removed** — one `PROJECT_NOTE_NEXT_ACTION_HEADINGS` in `note_catalog`; `test_both_retrieval_helpers_mean_the_same_thing_by_next_actions` asserts both derive from it |
 
 Guards 12, 13 and 14 were added by this work. The rest already existed; several
 had caught the author earlier the same day. Row 17 arrived late, in #114 — see
 below. Rows 18 and 19 came with #115.
+
+Row 22 is the registry's first same-day catch of its own author. #125 widened
+one of two vocabularies for *next actions* and left the other alone, without a
+row — the rule this document sets, broken in the change made right after citing
+it. Nothing failed: the radar kept working because it falls back to the first
+checkbox anywhere in the note. It surfaced a few hours later while scoping that
+very count to the section, where the drift would have zeroed out the one project
+whose checkboxes all sit under the widened heading. An unregistered boundary
+does not announce itself; it waits for the change that depends on it.
 
 Row 20 is the shape this whole document prefers: the relation was **deleted**
 rather than guarded. Three modules were about to hold the same placeholder rule;
