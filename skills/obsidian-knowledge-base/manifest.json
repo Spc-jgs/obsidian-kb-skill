@@ -60,7 +60,7 @@
     "scripts/obsidian_kb_skill/scripts/retrieval_vault_info.py": "af952ed626b49bbe84841302ace7796e777e68ad2c8f005998389395162164ec",
     "scripts/obsidian_kb_skill/scripts/review_projects.py": "94fe4b6471200299b2106ecf2172d7d5b2d92b3a18411f52f720783c8e2fe7e1",
     "scripts/obsidian_kb_skill/scripts/scaffold_templates.py": "436ffdf56e9f8ff1b1ecdddb4224e4031a61884b66cc17a136f21d1edc6e19ff",
-    "scripts/obsidian_kb_skill/scripts/search_vault.py": "8d17c3ae0612f763d5f1b477c41d4c0bb8b17746eccfe7bde96b06029d2b6cc0",
+    "scripts/obsidian_kb_skill/scripts/search_vault.py": "3a5c007e7c366be90ac61459a540ec2e4969fc8a021f9a969964cd585a82611f",
     "scripts/obsidian_kb_skill/scripts/source_archive.py": "a0052d7f57f0a3c8a529e055765c9ff441dc5634626a429b49feca63f152b8b0",
     "scripts/obsidian_kb_skill/scripts/suggest_links.py": "5fbcd61be850f7453d487c9fd5d55219128f69510b3f59020aee22160c29e829",
     "scripts/obsidian_kb_skill/scripts/template_contract.py": "5381c6b6739845b75d27dd07da4e905632476f9c06ebd3c2c299ad3ceb64d8bb",

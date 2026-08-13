@@ -57,10 +57,20 @@ It is a list of the boundaries, and the discipline of adding to it.
 | 25 | Tests that invoke `install.sh` ↔ the `test_bash_` prefix the Windows skip keys on | `test_every_bash_invoking_installer_test_is_named_for_the_windows_skip` |
 | 26 | Zero-result reason in JSON ↔ the same reason in text mode | **relation removed** — one `ZERO_RESULT_REASONS` table, read by both `search_vault()` and `main()` |
 | 27 | Zero-result reason codes ↔ the reference the retrieval Agent reads | `test_every_zero_result_reason_is_documented_for_the_agent_that_reads_it` |
+| 28 | `search-vault --updated-*` (reads `updated` only) ↔ `review-projects` activity (`updated` falling back to `date`) | `test_the_two_activity_semantics_are_documented_as_different` — **deliberately different**, guarded as a documented distinction rather than unified |
 
 Guards 12, 13 and 14 were added by this work. The rest already existed; several
 had caught the author earlier the same day. Row 17 arrived late, in #114 — see
 below. Rows 18 and 19 came with #115.
+
+Row 28 is the registry's first row for two places that must **stay different**.
+`search-vault` filters on `updated` alone; `review-projects` ranks on `updated`
+falling back to `date`, because a project note without one still has an age
+worth ordering. Unifying them would be the easy move and the wrong one — a
+search for "changed in August" must not return a note whose only date is June.
+What needs guarding is not agreement but that the difference is written down
+where the Agent reads it, since the failure mode is a reader assuming there is
+only one answer. Not every boundary wants to be closed; some want to be legible.
 
 Row 25 was written from a red CI run, and the boundary is a *naming
 convention*: `tests/test_installers.py` skips bash lifecycle tests on Windows

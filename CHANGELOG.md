@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- `search-vault` can filter on when a note *changed*, not only on when it was written. `--after/--before` have always read the frontmatter `date`, and there was no way to ask the other question — while the retrieval guide's own example was "最近的项目风险", a question about change that `date` answers wrongly in a way that looks right.
+
+  Measured on the reference Vault: a project note dated `2026-06-09` was updated `2026-08-12`. `--after 2026-08-01` returns five notes and **silently omits the one that actually changed that month**; `--updated-after 2026-08-01` returns exactly it. Of 200 notes, 177 have no `updated` at all and are counted as `missing-updated`, separately from the 4 whose `updated` fell outside the window — "nobody recorded when this changed" is a Vault fact, while "it changed outside your window" is the filter working, and merging them would tell a user their note is old when the truth is that nothing was written down.
+
+  `--updated-*` reads `updated` **only**. A note without one is excluded, never treated as if its `date` were the answer. `review-projects` deliberately answers activity differently — `updated` falling back to `date`, because a project note without one still has an age worth ranking — and that difference is now registered as row 28 and stated in the reference. It is the registry's first row for two places that must **stay** different: what needs guarding is not agreement but that the distinction is legible where the Agent reads it.
+
 - A zero-result search says which of four things happened. `results: []` was one shape for "the scope holds nothing searchable", "the filters removed every candidate", "the notes could not be read", and "no note uses your words" — each with a different next step, and the text mode printed the same sentence for all of them. The counts to tell them apart were already in hand.
 
   `diagnostics` now carries `primary_reason`, the `facts` behind it, and `safe_retries`. Only mechanically provable reasons: the helper does not guess at spelling, synonyms, or intent. Several reasons can hold at once, so one is named primary by proximate cause and the rest stay in `facts` — a filter the user just added explains the emptiness better than the words not overlapping, and an unreadable note explains it better than an empty folder, because that scope is not empty, it is broken, and telling the user to write notes they already have is the wrong next step.

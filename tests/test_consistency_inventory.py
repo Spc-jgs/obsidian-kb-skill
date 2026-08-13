@@ -251,3 +251,26 @@ def test_every_zero_result_reason_is_documented_for_the_agent_that_reads_it():
     assert ZERO_RESULT_REASONS, "the helper diagnoses nothing at all"
     for code in ZERO_RESULT_REASONS:
         assert f"`{code}`" in reference, f"undocumented zero-result reason: {code}"
+
+
+def test_the_two_activity_semantics_are_documented_as_different():
+    """Two helpers answer "recent" differently, and that is deliberate.
+
+    `search-vault --updated-after` reads `updated` only; `review-projects`
+    reads `updated` falling back to `date`. Registry row 28 records the pair
+    because the danger is not the difference — it is a reader assuming there is
+    only one answer. #119 asked for exactly this row, so the reference has to
+    keep saying which is which.
+    """
+    reference = (
+        ROOT / "core" / "retrieval-references" / "search.md"
+    ).read_text(encoding="utf-8")
+
+    assert "`--updated-after`" in reference
+    assert "review-projects" in reference, (
+        "the reference never mentions the other activity semantics, so an "
+        "Agent cannot know the two differ"
+    )
+    # The fallback must be described as belonging to the other helper, never
+    # as something this one does.
+    assert "falling back to `date`" in reference

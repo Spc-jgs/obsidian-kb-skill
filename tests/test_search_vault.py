@@ -743,3 +743,186 @@ def test_the_text_mode_says_the_same_reason_as_the_json(tmp_path):
 
     assert result.returncode == 0
     assert payload["diagnostics"]["primary_reason"] in result.stdout
+
+
+# --- `date` and `updated` are different questions (#119) ---------------------
+#
+# "notes I wrote in July" and "notes that changed recently" are not the same
+# query, and one field cannot answer both. On the reference Vault exactly one
+# note has them apart: a project note dated 2026-06-09 and updated 2026-08-12.
+# Asking for August changes with `--after 2026-08-01` misses it, because
+# `--after` has always meant the note's own date.
+
+
+def _dated_note(
+    path: Path, *, title: str, date: str, updated: str | None = None
+) -> None:
+    lines = ["---", "type: project-note", f"date: {date}"]
+    if updated is not None:
+        lines.append(f"updated: {updated}")
+    lines += ["aliases: []", "tags: []", "---"]
+    path.write_text(
+        "\n".join(lines) + f"\n# {title}\n\n上下文链路的风险与阻塞。\n",
+        encoding="utf-8",
+    )
+
+
+def test_an_old_note_updated_recently_answers_the_updated_window(tmp_path):
+    """The hard negative #119 names, taken from a real note's shape.
+
+    Old `date`, new `updated`: it must be found by the updated window and must
+    not be found by the date window. One field answering both is how a project
+    that changed yesterday looks two months stale.
+    """
+    vault = _vault(tmp_path)
+    _dated_note(
+        vault / "20-Learning" / "project.md",
+        title="知识库 Skill 项目",
+        date="2026-06-09",
+        updated="2026-08-12",
+    )
+
+    by_updated = search_vault(vault, "风险", updated_after="2026-08-01")
+    by_date = search_vault(vault, "风险", after="2026-08-01")
+
+    assert [item["path"] for item in by_updated["results"]] == [
+        "20-Learning/project.md"
+    ]
+    assert by_date["results"] == []
+    assert by_date["filters"]["excluded"] == {"after": 1}
+
+
+def test_updated_filters_are_inclusive_on_the_boundary_day(tmp_path):
+    vault = _vault(tmp_path)
+    _dated_note(
+        vault / "20-Learning" / "edge.md",
+        title="边界",
+        date="2026-01-01",
+        updated="2026-08-12",
+    )
+
+    assert search_vault(vault, "风险", updated_after="2026-08-12")["results"]
+    assert search_vault(vault, "风险", updated_before="2026-08-12")["results"]
+
+
+def test_a_note_without_updated_is_excluded_under_its_own_name(tmp_path):
+    """Missing metadata is a Vault fact, not the filter doing its job.
+
+    Counting it as "outside the window" would tell the user their note is old
+    when the truth is that nobody recorded when it changed.
+    """
+    vault = _vault(tmp_path)
+    _dated_note(
+        vault / "20-Learning" / "no-updated.md",
+        title="没有 updated",
+        date="2026-08-12",
+    )
+
+    payload = search_vault(vault, "风险", updated_after="2026-08-01")
+
+    assert payload["results"] == []
+    assert payload["filters"]["excluded"] == {"missing-updated": 1}
+    assert payload["filters"]["applied"] == {"updated_after": "2026-08-01"}
+
+
+def test_date_and_updated_windows_combine_with_and(tmp_path):
+    vault = _vault(tmp_path)
+    _dated_note(
+        vault / "20-Learning" / "both.md",
+        title="两者都满足",
+        date="2026-07-05",
+        updated="2026-08-12",
+    )
+    _dated_note(
+        vault / "20-Learning" / "date-only.md",
+        title="只满足 date",
+        date="2026-07-06",
+        updated="2026-01-01",
+    )
+
+    payload = search_vault(
+        vault, "风险", after="2026-07-01", updated_after="2026-08-01"
+    )
+
+    assert [item["path"] for item in payload["results"]] == [
+        "20-Learning/both.md"
+    ]
+    assert payload["filters"]["excluded"] == {"updated-after": 1}
+
+
+def test_updated_is_returned_on_every_result(tmp_path):
+    """A reader cannot check a time filter whose field is not in the answer."""
+    vault = _vault(tmp_path)
+    _dated_note(
+        vault / "20-Learning" / "p.md",
+        title="项目",
+        date="2026-06-09",
+        updated="2026-08-12",
+    )
+
+    payload = search_vault(vault, "风险")
+
+    assert payload["results"][0]["updated"] == "2026-08-12"
+
+
+def test_a_note_without_updated_reports_it_as_null_not_as_its_date(tmp_path):
+    """No fallback. #119 forbids smuggling `updated = updated or date` in."""
+    vault = _vault(tmp_path)
+    _dated_note(
+        vault / "20-Learning" / "p.md", title="项目", date="2026-06-09"
+    )
+
+    payload = search_vault(vault, "风险")
+
+    assert payload["results"][0]["date"] == "2026-06-09"
+    assert payload["results"][0]["updated"] is None
+
+
+def test_an_unquoted_updated_date_parses_like_the_date_field(tmp_path):
+    """PyYAML gives a `date` object unquoted and a `str` quoted; both occur."""
+    vault = _vault(tmp_path)
+    (vault / "20-Learning" / "unquoted.md").write_text(
+        "---\ntype: project-note\ndate: 2026-06-09\nupdated: 2026-08-12\n"
+        "aliases: []\ntags: []\n---\n# 项目\n\n风险与阻塞。\n",
+        encoding="utf-8",
+    )
+
+    payload = search_vault(vault, "风险", updated_after="2026-08-01")
+
+    assert payload["results"][0]["updated"] == "2026-08-12"
+
+
+def test_an_invalid_updated_value_is_missing_not_a_match(tmp_path):
+    """`2026-13-45` is ISO-shaped and not a date; treat it as absent."""
+    vault = _vault(tmp_path)
+    (vault / "20-Learning" / "bad.md").write_text(
+        "---\ntype: project-note\ndate: 2026-06-09\nupdated: \"2026-13-45\"\n"
+        "aliases: []\ntags: []\n---\n# 项目\n\n风险与阻塞。\n",
+        encoding="utf-8",
+    )
+
+    payload = search_vault(vault, "风险", updated_after="2026-01-01")
+
+    assert payload["results"] == []
+    assert payload["filters"]["excluded"] == {"missing-updated": 1}
+
+
+def test_the_date_filters_are_untouched_by_the_new_ones(tmp_path):
+    """Hard negative: `--after/--before` keep meaning the note's own date."""
+    vault = _vault(tmp_path)
+    _dated_note(
+        vault / "20-Learning" / "july.md",
+        title="七月",
+        date="2026-07-05",
+        updated="2026-01-01",
+    )
+
+    payload = search_vault(vault, "风险", after="2026-07-01", before="2026-07-31")
+
+    assert [item["path"] for item in payload["results"]] == [
+        "20-Learning/july.md"
+    ]
+    assert payload["filters"]["applied"] == {
+        "after": "2026-07-01",
+        "before": "2026-07-31",
+    }
