@@ -156,6 +156,8 @@ A first install must name the Vault explicitly. Later runs reuse the path saved 
 
 The installer initializes missing folders and templates, installs platform entrypoints and the private helper runtime, and verifies both skills from a neutral directory.
 
+**If a Skill manager (such as skill-hub) already owns your Skill directories**, use `--runtime-only` / `-RuntimeOnly`: it installs the runtime, config and Vault structure and writes no platform Skill files, leaving distribution to the manager. No manager provides the first three, so this step cannot be skipped. See [Platforms and installation](docs/platforms-and-installation.md).
+
 To inspect installer options:
 
 ```bash

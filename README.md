@@ -155,6 +155,8 @@ Windows PowerShell：
 
 安装器会初始化缺失的目录与模板，安装平台入口和私有 helper runtime，并从中立目录验证两个 Skill。
 
+**本机已有 Skill 管理器（如 skill-hub）时**，用 `--runtime-only` / `-RuntimeOnly`：它只装运行时、配置与 Vault 结构，不写任何平台 Skill 文件，Skill 分发交给管理器。管理器不提供前三者，所以这一步不能跳过。详见 [平台与安装](docs/platforms-and-installation.md#与-skill-管理器共存)。
+
 如果只想检查选项：
 
 ```bash

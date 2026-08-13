@@ -29,6 +29,13 @@ LOCALE="zh-CN"
 FORCE_UPGRADE=false
 DO_UNINSTALL=false
 PURGE_CONFIG=false
+# Install everything except the platform Skill files. Distributing those is the
+# only job here that a Skill manager also does; the vendored runtime, the
+# interpreter record, the Vault path and the Vault's own structure are not
+# provided by any manager, so "just use the manager" yields an install whose
+# first helper call fails to import. See #113.
+RUNTIME_ONLY=false
+PLATFORMS_EXPLICIT=false
 PYTHON_BIN=""
 # Skill directories left alone because a manager owns them.
 MANAGED_SKIPS=0
@@ -259,9 +266,10 @@ remove_marker_block() {
 while [[ $# -gt 0 ]]; do
   case $1 in
     --vault) VAULT_PATH="$2"; shift 2 ;;
-    --platforms) PLATFORMS="$2"; shift 2 ;;
+    --platforms) PLATFORMS="$2"; PLATFORMS_EXPLICIT=true; shift 2 ;;
     --locale) LOCALE="$2"; shift 2 ;;
     --force) FORCE_UPGRADE=true; shift ;;
+    --runtime-only) RUNTIME_ONLY=true; shift ;;
     --uninstall) DO_UNINSTALL=true; shift ;;
     --purge-config) PURGE_CONFIG=true; shift ;;
     --help)
@@ -274,6 +282,9 @@ while [[ $# -gt 0 ]]; do
       echo "  --platforms LIST   Comma-separated: qoderwork,claude-code,codex,cursor,workbuddy (default: all)"
       echo "  --locale LOCALE    Template language: zh-CN or en (default: zh-CN)"
       echo "  --force            Overwrite existing templates and replace marker-wrapped skill blocks"
+      echo "  --runtime-only     Install the runtime, config and Vault structure only;"
+      echo "                     write no platform Skill files. Use this when a Skill"
+      echo "                     manager owns those locations. Cannot be combined with --platforms"
       echo "  --uninstall        Remove installed skills and legacy marker blocks"
       echo "  --purge-config     With --uninstall, also remove Vault and backup settings"
       echo ""
@@ -292,6 +303,15 @@ case "$LOCALE" in
   zh-CN|en) ;;
   *) echo "Unsupported locale: $LOCALE (expected zh-CN or en)"; exit 1 ;;
 esac
+
+# Two contradictory instructions. Silently honouring one would leave the user
+# believing the other took effect, which on a managed machine is exactly the
+# wrong belief to hold about whether Skill files were written.
+if [ "$RUNTIME_ONLY" = true ] && [ "$PLATFORMS_EXPLICIT" = true ]; then
+  echo "--runtime-only writes no platform Skill files, so --platforms has nothing to select." >&2
+  echo "Drop one of them: --runtime-only for a manager-owned machine, --platforms otherwise." >&2
+  exit 2
+fi
 
 validate_platforms
 
@@ -463,7 +483,11 @@ VAULT_PATH="$(cd -P "$VAULT_PATH" && pwd -P)"
 
 echo "=== Obsidian Knowledge Base Skill Installer ==="
 echo "Vault path: $VAULT_PATH"
-echo "Platforms:  $PLATFORMS"
+if [ "$RUNTIME_ONLY" = true ]; then
+  echo "Platforms:  (none — runtime only)"
+else
+  echo "Platforms:  $PLATFORMS"
+fi
 echo "Locale:     $LOCALE"
 if [ "$FORCE_UPGRADE" = true ]; then echo "Mode:       FORCE (overwrite existing templates and skill blocks)"; fi
 echo ""
@@ -655,9 +679,17 @@ echo "-> Vault structure ready."
 echo ""
 
 # Step 3: Install platform files
-IFS=',' read -ra PLATFORM_LIST <<< "$PLATFORMS"
+if [ "$RUNTIME_ONLY" = true ]; then
+  PLATFORM_LIST=()
+  echo "-> Runtime only: no platform Skill files written."
+  echo "   Install the Skills through your Skill manager; this run supplied the"
+  echo "   vendored runtime, interpreter record, Vault config and Vault structure,"
+  echo "   which no manager provides."
+else
+  IFS=',' read -ra PLATFORM_LIST <<< "$PLATFORMS"
+fi
 
-for platform in "${PLATFORM_LIST[@]}"; do
+for platform in "${PLATFORM_LIST[@]+"${PLATFORM_LIST[@]}"}"; do
   platform=$(echo "$platform" | tr -d ' ')
   case $platform in
     qoderwork)

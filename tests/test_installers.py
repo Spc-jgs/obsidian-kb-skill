@@ -978,3 +978,199 @@ def test_powershell_installer_has_managed_symlink_parity():
         "-not $Force",
     ):
         assert marker in script, f"PowerShell installer missing: {marker!r}"
+
+
+# --- Coexisting with a Skill manager (#113) ---------------------------------
+#
+# `install.sh` does six jobs; only one of them — distributing Skill files into
+# five platform directories — is something a Skill manager also does. The other
+# five (vendored PyYAML, the interpreter record, the Vault path, the Vault's
+# folders and templates, the diagnostic copies) no manager provides, so "just
+# use the manager" leaves an install whose first helper call is a
+# `ModuleNotFoundError`. `--runtime-only` is the half that never conflicts.
+
+
+def _claude_skill_dir(home):
+    return home / ".claude" / "skills" / "obsidian-knowledge-base"
+
+
+def test_bash_runtime_only_writes_no_platform_skill(tmp_path):
+    """The one conflicting job is skipped; the other five still run."""
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env["OBSIDIAN_KB_PYTHON"] = sys.executable
+    result = subprocess.run(
+        ["bash", str(ROOT / "install.sh"), "--vault", str(vault), "--runtime-only"],
+        cwd=ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    # Nothing was written to any platform Skill location.
+    assert not (home / ".claude" / "skills").exists()
+    assert not (home / ".qoderwork").exists()
+    assert not (home / ".codex").exists()
+    assert not (home / ".cursor").exists()
+
+    # Everything a manager does not provide is in place.
+    assert (home / ".obsidian-kb-config").read_text(encoding="utf-8").strip() == str(
+        vault.resolve()
+    )
+    assert (home / ".obsidian-kb-skill" / "runtime.json").is_file()
+    assert (vault / "Templates" / "Project Note.md").is_file()
+    assert (vault / "00-Inbox").is_dir()
+    assert (vault / ".obsidian").is_dir()
+    assert "runtime only" in result.stdout.lower(), (
+        f"the mode must be stated in the output:\n{result.stdout}"
+    )
+
+
+def test_bash_runtime_only_leaves_an_existing_managed_link_alone(tmp_path):
+    """The mode exists for managed machines, so prove it on one."""
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+    store = home / "managed-store" / "obsidian-knowledge-base"
+    store.mkdir(parents=True)
+    (store / "SKILL.md").write_text("managed payload\n", encoding="utf-8")
+    managed = _claude_skill_dir(home)
+    managed.parent.mkdir(parents=True)
+    managed.symlink_to(store)
+
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env["OBSIDIAN_KB_PYTHON"] = sys.executable
+    subprocess.run(
+        ["bash", str(ROOT / "install.sh"), "--vault", str(vault), "--runtime-only"],
+        cwd=ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert managed.is_symlink()
+    assert (store / "SKILL.md").read_text(encoding="utf-8") == "managed payload\n"
+
+
+def test_bash_runtime_only_still_verifies_the_helpers_it_installed(tmp_path):
+    """A runtime nobody checked is the failure mode this mode exists to avoid.
+
+    Skipping distribution must not skip proving the runtime works — that is the
+    part a Skill manager cannot do for you.
+    """
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env["OBSIDIAN_KB_PYTHON"] = sys.executable
+    result = subprocess.run(
+        ["bash", str(ROOT / "install.sh"), "--vault", str(vault), "--runtime-only"],
+        cwd=ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "verified" in result.stdout
+
+
+def test_bash_runtime_only_refuses_an_explicit_platform_list(tmp_path):
+    """Two contradictory instructions must not be silently reconciled."""
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env["OBSIDIAN_KB_PYTHON"] = sys.executable
+    result = subprocess.run(
+        [
+            "bash",
+            str(ROOT / "install.sh"),
+            "--vault",
+            str(vault),
+            "--runtime-only",
+            "--platforms",
+            "claude-code",
+        ],
+        cwd=ROOT,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    combined = result.stdout + result.stderr
+    assert "--runtime-only" in combined and "--platforms" in combined
+
+
+def test_a_normal_install_is_unchanged_by_the_new_mode(tmp_path):
+    """Hard negative: the default path still delivers every platform."""
+    home = tmp_path / "home"
+    vault = tmp_path / "vault"
+
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env["OBSIDIAN_KB_PYTHON"] = sys.executable
+    subprocess.run(
+        ["bash", str(ROOT / "install.sh"), "--vault", str(vault),
+         "--platforms", "claude-code"],
+        cwd=ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert _claude_skill_dir(home).is_dir()
+    assert (home / ".obsidian-kb-skill" / "runtime.json").is_file()
+
+
+def test_powershell_installer_has_runtime_only_parity():
+    """A mode that exists on only one platform is worse than none.
+
+    The behaviour a user learns on macOS must hold on Windows; #114 shipped a
+    guard that read this file and was then broken by a gap in the smoke script,
+    so this checks the implementation and the Windows smoke script covers the
+    behaviour.
+    """
+    script = (ROOT / "install.ps1").read_text(encoding="utf-8")
+
+    for marker in ("RuntimeOnly", "runtime only"):
+        assert marker in script, f"PowerShell installer missing: {marker!r}"
+
+
+def test_both_installers_document_runtime_only_in_their_help():
+    """The mode is undiscoverable if `--help` does not name it."""
+    bash = (ROOT / "install.sh").read_text(encoding="utf-8")
+    powershell = (ROOT / "install.ps1").read_text(encoding="utf-8")
+
+    assert "--runtime-only" in bash
+    assert "-RuntimeOnly" in powershell
+
+
+def test_the_docs_explain_installing_alongside_a_skill_manager():
+    """A user who hits this needs the order written down, not inferred.
+
+    Re-running `install.sh` is the documented upgrade path, and on a managed
+    machine that is the destructive move — the docs have to say what to run
+    instead.
+    """
+    guide = (ROOT / "docs" / "platforms-and-installation.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "--runtime-only" in guide
+    assert "-RuntimeOnly" in guide
+    for name, text in (
+        ("README.md", (ROOT / "README.md").read_text(encoding="utf-8")),
+        ("README_EN.md", (ROOT / "README_EN.md").read_text(encoding="utf-8")),
+    ):
+        assert "--runtime-only" in text, f"{name} never mentions the mode"

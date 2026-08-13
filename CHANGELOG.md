@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- `--runtime-only` / `-RuntimeOnly` installs everything a Skill manager does not provide, and nothing it does. The installer has six jobs and only one of them — writing Skill files into five platform directories — is something a manager also does. The other five are the vendored PyYAML, the interpreter record, the Vault path, the Vault's folders and templates, and the diagnostic copies, so "just use the manager" produces an install whose first helper call raises `ModuleNotFoundError`. Users were facing a false choice between the two tools when in fact each supplies a different half.
+
+  The mode skips platform distribution and runs everything else, post-install verification included — a runtime nobody checked is the failure this mode exists to avoid. Combining it with `--platforms` is refused rather than reconciled: silently honouring one would leave the user believing the other took effect, and on a managed machine that is exactly the wrong belief to hold about whether Skill files were written.
+
+  The upgrade path is now documented for that case. Re-running the plain installer was the published advice, and on a managed machine it used to be the destructive move; it is safe as of the previous release, but it still does not refresh what the manager serves. Both READMEs and `docs/platforms-and-installation.md` say which command to run and in what order, with the six-job table so the split is checkable rather than asserted.
+
+  Registered as rows 23 and 24. Row 23 is row 17 with its gap closed: the Windows *behaviour* of an installer flag is exercised by exactly one file, which runs only in CI, and this change added its scenario there in the same commit rather than a release later.
+
 - Filing refuses a note that says it is not finished, with the new `draft-incomplete` code. On the reference Vault a `web-clip` tagged `incomplete`, whose four sections all read "待后续详细阅读后补充完整", was proposed for migration to `20-Learning`. The two-phase gate caught it — a human read the plan and said no — but that is attention, not a guard, and a user approving a long plan reads the list rather than each line. Once applied, the mistake is hard to notice: the file looks like an ordinary archived note, in the folder where finished notes live.
 
   Two signals, both things the note states about itself rather than judgements about its content: the Vault's draft tag in `tags`, and an unreplaced `{{placeholder}}` still in the body. A body that says "待后续补充" in prose is *not* matched — reading prose for meaning is exactly what filing does not do. `draft_signals` names which fired, and the refusal says what completes the note; the Agent is told never to strip the tag to make the note filable, because the marker is the user's statement about their own note.
