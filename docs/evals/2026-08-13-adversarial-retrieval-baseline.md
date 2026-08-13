@@ -84,6 +84,31 @@ suggests.
 还没写" ranks above the note that answers the question, because
 `FIELD_WEIGHTS["title"]` is 6x body.
 
+## The aggregate is blind to the worst case in this set
+
+Recorded beside the per-case rows, and the pair is the point:
+
+| Group | Recall@5 | MRR | must-see misses | hard-negative hits |
+|---|---|---|---|---|
+| `dilution` | **1.000** | **1.000** | **1** | 0 |
+| `crowding` | 0.750 | 0.750 | 1 | 0 |
+| `ambiguity` | 0.750 | 0.750 | 0 | 5 |
+| `field` | 1.000 | 0.750 | 0 | 0 |
+| `no-answer` | — | — | 0 | 6 |
+
+No-answer false-positive rate: **1.000** — every case returns something.
+
+`dilution` scores a perfect 1.000 on both standard metrics while the note
+holding the exact evidence paragraph is absent from Top-5. The metrics are not
+wrong: `expected` names both notes in the pair, the short one ranks first, so
+recall and reciprocal rank are satisfied. **They are simply blind to the thing
+the family exists to measure.**
+
+This is why #117 asked for the extra reporting items rather than a headline
+number, and it is why the gate reads per-case rows as well as the aggregate. A
+change that improved every mean in this table while one no-answer case started
+returning a note would have made retrieval worse.
+
 ## How to use this baseline
 
 It is a golden file. A ranking change is *supposed* to move it. Update it in

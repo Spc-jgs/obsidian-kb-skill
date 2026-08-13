@@ -158,6 +158,74 @@ def _run(vault: Path, fixture: dict) -> tuple[list[dict], list[float]]:
     return report, latencies
 
 
+def _aggregate(report: list[dict]) -> dict:
+    """Group metrics, reported beside the per-case rows and never instead.
+
+    #117 requires both: aggregates make a trend legible, and per-case rows stop
+    an aggregate from hiding one hard negative. A set whose mean improved while
+    one no-answer case started returning a note has got worse.
+    """
+    by_group: dict[str, list[dict]] = {}
+    for case in report:
+        by_group.setdefault(case["group"], []).append(case)
+
+    groups: dict[str, dict] = {}
+    for group, cases in sorted(by_group.items()):
+        answerable = [case for case in cases if case["rank"] is not None or True]
+        # `no-answer` cases have no rank to average; their metric is the false
+        # positive, counted below.
+        ranked = [case for case in cases if case["group"] != "no-answer"]
+        groups[group] = {
+            "cases": len(cases),
+            "recall_at_5": (
+                round(
+                    sum(1 for case in ranked if case["rank"] is not None)
+                    / len(ranked),
+                    3,
+                )
+                if ranked
+                else None
+            ),
+            "mrr": (
+                round(
+                    sum(
+                        1 / case["rank"] if case["rank"] else 0.0
+                        for case in ranked
+                    )
+                    / len(ranked),
+                    3,
+                )
+                if ranked
+                else None
+            ),
+            "must_see_misses": sum(
+                len(case["must_see_missing"]) for case in answerable
+            ),
+            "hard_negative_hits": sum(
+                len(case["hard_negative_hits"]) for case in cases
+            ),
+        }
+
+    no_answer = [case for case in report if case["group"] == "no-answer"]
+    return {
+        "groups": groups,
+        "no_answer_false_positive_rate": (
+            round(
+                sum(1 for case in no_answer if case["returned"]) / len(no_answer),
+                3,
+            )
+            if no_answer
+            else None
+        ),
+        "cases_reproducing_a_limitation": sum(
+            1
+            for case in report
+            if case["must_see_missing"] or case["hard_negative_hits"]
+        ),
+        "cases": len(report),
+    }
+
+
 # --- Fixture shape ----------------------------------------------------------
 
 
@@ -274,6 +342,11 @@ def test_the_recorded_baseline_still_describes_this_ranker(tmp_path):
             ensure_ascii=False,
         )
     )
+    # The aggregate is checked too, and against a recomputation rather than a
+    # second hand-kept copy: a recorded mean that no longer follows from the
+    # recorded rows would make the summary and the detail disagree, which is
+    # the shape the consistency registry exists for.
+    assert _aggregate(report) == _load(BASELINE)["aggregate"]
 
 
 def test_the_set_reproduces_at_least_one_real_limitation():

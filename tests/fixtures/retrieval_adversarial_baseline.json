@@ -357,5 +357,47 @@
         "throttle-summary": 1
       }
     }
-  ]
+  ],
+  "aggregate": {
+    "groups": {
+      "ambiguity": {
+        "cases": 4,
+        "recall_at_5": 0.75,
+        "mrr": 0.75,
+        "must_see_misses": 0,
+        "hard_negative_hits": 5
+      },
+      "crowding": {
+        "cases": 4,
+        "recall_at_5": 0.75,
+        "mrr": 0.75,
+        "must_see_misses": 1,
+        "hard_negative_hits": 0
+      },
+      "dilution": {
+        "cases": 4,
+        "recall_at_5": 1.0,
+        "mrr": 1.0,
+        "must_see_misses": 1,
+        "hard_negative_hits": 0
+      },
+      "field": {
+        "cases": 4,
+        "recall_at_5": 1.0,
+        "mrr": 0.75,
+        "must_see_misses": 0,
+        "hard_negative_hits": 0
+      },
+      "no-answer": {
+        "cases": 6,
+        "recall_at_5": null,
+        "mrr": null,
+        "must_see_misses": 0,
+        "hard_negative_hits": 6
+      }
+    },
+    "no_answer_false_positive_rate": 1.0,
+    "cases_reproducing_a_limitation": 12,
+    "cases": 22
+  }
 }
