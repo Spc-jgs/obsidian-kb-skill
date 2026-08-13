@@ -1,4 +1,16 @@
+import re
 from dataclasses import dataclass
+
+# The one definition of "this template placeholder was never replaced". It
+# lived in `audit_vault` and `template_contract` as two near-copies, and
+# `process_inbox` was about to make a third. Two copies of a rule are the shape
+# the consistency inventory exists to catch; sharing the object removes the
+# boundary instead of guarding it.
+#
+# The copies had already diverged: only `template_contract`'s captured the
+# placeholder's name, which its `findall` depends on. The shared pattern keeps
+# the group, since a capturing group changes nothing for the `search` callers.
+TEMPLATE_PLACEHOLDER_RE = re.compile(r"\{\{([^}]+)\}\}")
 
 
 @dataclass(frozen=True)

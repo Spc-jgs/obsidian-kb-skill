@@ -128,3 +128,26 @@ def test_the_feature_guide_only_advertises_helpers_that_exist():
         f"the feature guide advertises helpers that do not exist: "
         f"{sorted(cited - helpers)}"
     )
+
+
+def test_the_filing_reference_names_the_draft_tag_the_code_defaults_to():
+    """The reference tells an Agent what runs when it passes no `--draft-tag`.
+
+    The default is a Vault vocabulary this Skill does not own, so the reference
+    has to state it — an Agent that reads `incomplete` here and finds the code
+    checking something else would tell the user their drafts are protected when
+    they are not. The CLI help derives its text from the constant; prose cannot,
+    so it is asserted instead.
+    """
+    from obsidian_kb_skill.scripts.process_inbox import DEFAULT_DRAFT_TAGS
+
+    reference = (
+        ROOT / "core" / "references" / "process-inbox.md"
+    ).read_text(encoding="utf-8")
+
+    assert DEFAULT_DRAFT_TAGS, "filing checks for no draft tag at all"
+    for tag in DEFAULT_DRAFT_TAGS:
+        assert f"`{tag}`" in reference, (
+            f"the reference never names the default draft tag {tag!r}, so an "
+            "Agent cannot know what it checks when passing nothing"
+        )

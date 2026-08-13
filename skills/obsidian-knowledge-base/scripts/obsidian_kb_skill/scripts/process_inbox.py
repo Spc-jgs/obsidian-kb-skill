@@ -32,6 +32,7 @@ from obsidian_kb_skill.scripts.note_catalog import (
     DEFAULT_TAG_BY_TYPE,
     ENTITY_FOLDERS,
     FOLDER_TO_DEFAULT_TYPE,
+    TEMPLATE_PLACEHOLDER_RE,
     TYPE_TO_FOLDER,
 )
 from obsidian_kb_skill.scripts.vault_paths import (
@@ -87,6 +88,44 @@ SOURCE_REMOVAL_FAILED = "source-removal-failed"
 # because an Agent that reads it as an ordinary skip will report a clean run
 # over a split note.
 PARTIAL_APPLY = "partial-apply"
+
+# Skip code for a note that says it is not finished. Filing is what turns an
+# Inbox capture into a note that reads as settled knowledge, so the Skill's own
+# rules make this a refusal rather than a warning: `note-creation.md` forbids
+# presenting Inbox content as finished, and `web-capture.md` forbids producing
+# an incomplete Inbox bookmark except by the user's explicit choice. Promoting
+# one out of the Inbox is that same downgrade running backwards, unasked.
+DRAFT_INCOMPLETE = "draft-incomplete"
+
+# The word a Vault uses to mark a draft is the Vault's, not this Skill's — this
+# project never writes the tag, and hardcoding someone else's vocabulary is how
+# the English project-note template drifted out of the resume contract (#115).
+# The default is the word this Skill's own references already use for the state
+# ("an explicitly incomplete Inbox capture"); a Vault that says it differently
+# declares that through `--draft-tag`, which replaces this list rather than
+# extending it, so a Vault using `incomplete` for something else can opt out.
+DEFAULT_DRAFT_TAGS = ("incomplete",)
+
+
+def _draft_signals(
+    text: str, metadata: dict[str, Any] | None, draft_tags: tuple[str, ...]
+) -> list[str]:
+    """Ways this note declares itself unfinished, as evidence not inference.
+
+    Both signals are things the note states about itself. Neither reads prose
+    for meaning: a body saying "待后续补充" is a judgement about content, and
+    filing does not make those.
+    """
+    signals: list[str] = []
+    raw_tags = (metadata or {}).get("tags") or []
+    tags = raw_tags if isinstance(raw_tags, list) else [raw_tags]
+    wanted = {tag.lower() for tag in draft_tags}
+    for tag in tags:
+        if isinstance(tag, str) and tag.strip().lower() in wanted:
+            signals.append(f"tag:{tag.strip()}")
+    if TEMPLATE_PLACEHOLDER_RE.search(text):
+        signals.append("unresolved-template-placeholder")
+    return signals
 
 
 def scan_inbox(inbox: Path) -> tuple[list[Path], list[Path]]:
@@ -151,7 +190,11 @@ def _issue_payload(issue: FrontmatterIssue) -> dict[str, Any]:
     }
 
 
-def plan_note(path: Path, vault: Path) -> dict[str, Any]:
+def plan_note(
+    path: Path,
+    vault: Path,
+    draft_tags: tuple[str, ...] = DEFAULT_DRAFT_TAGS,
+) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8")
     parsed = parse_frontmatter(text, source=path.as_posix())
     result: dict[str, Any] = {
@@ -169,6 +212,20 @@ def plan_note(path: Path, vault: Path) -> dict[str, Any]:
         return result
 
     metadata = parsed.metadata
+    # Checked before routing, and reported as a refusal rather than a plan
+    # entry: a user approving a long plan reads the list, not every line, so a
+    # draft that only fails at apply time still needs the attention this exists
+    # to replace.
+    signals = _draft_signals(text, metadata, draft_tags)
+    if signals:
+        result["skip"] = (
+            "declares itself unfinished (" + ", ".join(signals) + "); "
+            "complete it and clear the marker, then file it"
+        )
+        result["skip_code"] = DRAFT_INCOMPLETE
+        result["draft_signals"] = signals
+        return result
+
     target = infer_target(text, metadata)
     result["target"] = target
     # An entity folder groups by *which* project a note belongs to, and that is
@@ -341,11 +398,12 @@ def process_vault(
     apply: bool,
     inbox_name: str = "00-Inbox",
     silent: bool = False,
+    draft_tags: tuple[str, ...] = DEFAULT_DRAFT_TAGS,
 ) -> list[dict[str, Any]]:
     vault = vault.resolve()
     inbox = vault / inbox_name
     sources, unsafe = scan_inbox(inbox)
-    plans = [plan_note(path, vault) for path in sources]
+    plans = [plan_note(path, vault, draft_tags) for path in sources]
     plans.extend(
         {
             "path": path,
@@ -400,6 +458,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--inbox", default="00-Inbox", help="Inbox folder name")
     parser.add_argument(
+        "--draft-tag",
+        action="append",
+        metavar="TAG",
+        help=(
+            "Tag this Vault uses to mark an unfinished draft; repeatable. "
+            f"Replaces the default ({', '.join(DEFAULT_DRAFT_TAGS)}) rather "
+            "than extending it. Read the Vault's governance to learn its word."
+        ),
+    )
+    parser.add_argument(
         "--json", action="store_true", help="Emit the plan(s) as JSON instead of text"
     )
     args = parser.parse_args(argv)
@@ -420,7 +488,13 @@ def main(argv: list[str] | None = None) -> int:
     except VaultPathError as exc:
         return report_cli_violation(exc, param="--inbox", json_mode=args.json)
 
-    plans = process_vault(vault, apply=args.apply, inbox_name=args.inbox, silent=args.json)
+    plans = process_vault(
+        vault,
+        apply=args.apply,
+        inbox_name=args.inbox,
+        silent=args.json,
+        draft_tags=tuple(args.draft_tag) if args.draft_tag else DEFAULT_DRAFT_TAGS,
+    )
     if args.json:
         serial = [
             {k: (v.as_posix() if isinstance(v, Path) else v) for k, v in plan.items()}
