@@ -27,7 +27,8 @@ or a topic tag.
 python <skill-root>/scripts/run_helper.py search-vault \
   "<vault>" --query "<user query>" --top-k 5 --json \
   [--type <slug>]... [--tag <tag>]... \
-  [--after YYYY-MM-DD] [--before YYYY-MM-DD] [--no-expand]
+  [--after YYYY-MM-DD] [--before YYYY-MM-DD] \
+  [--updated-after YYYY-MM-DD] [--updated-before YYYY-MM-DD] [--no-expand]
 ```
 
 - `--type` and `--tag` are repeatable. Repeats within one flag are OR; different
@@ -42,6 +43,33 @@ python <skill-root>/scripts/run_helper.py search-vault \
 
 Filters are hard constraints applied before ranking, so `score` keeps meaning
 exactly what it means below.
+
+### `date` and `updated` answer different questions
+
+"7月写的日报" is a question about `date`. "最近改过的项目" is a question about
+`updated`, and using `date` for it is wrong in a way that looks right: on the
+reference Vault a project note dated `2026-06-09` was updated `2026-08-12`, so
+`--after 2026-08-01` returns five notes and silently omits the one that actually
+changed that month.
+
+Pick by what the user asked:
+
+| The user said | Flag |
+|---|---|
+| 写于 / 记录于 / dated / from July | `--after` / `--before` |
+| 更新 / 变化 / 活动 / changed / touched recently | `--updated-after` / `--updated-before` |
+
+Both may be combined; they AND together. `--updated-*` reads `updated` **only**.
+A note without one is excluded and counted as `missing-updated` — it is never
+treated as if its `date` were the answer, because "written in June" is not
+evidence about when it last changed. Only `project-note` and `person-note` are
+required to carry `updated`, so a large `missing-updated` count over other types
+is expected rather than a Vault problem.
+
+`review-projects` answers activity differently on purpose: it reads `updated`
+falling back to `date`, because a project note with no `updated` still has an
+age worth ranking. Do not describe the two as the same filter. If a user wants
+that fallback here, say it is not available rather than approximating it.
 
 ### Reading `filters`
 

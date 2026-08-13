@@ -4,7 +4,7 @@
     "agents/openai.yaml": "a8cc92153803b94afcfecf55ff57c846d76c9707793decc1a37b66b96fb2f8d6",
     "references/resume-project.md": "3e61505462bd1a8e53863fd6c8049c26373c616ff757f34a2f5a7bcc311edaa8",
     "references/review-projects.md": "6ffcece04e3a247589fe98fd5a0398d76d2100a36942fd3bbded25e34a5e22e2",
-    "references/search.md": "125002a9d5857fb6b5b1970b328d3030d83e2b85c3a87e5ec0153800b7d46588",
+    "references/search.md": "31bc1f20ff0583f9e0e53e7872cef238e65cbeb24c056925535716a6259185d4",
     "references/shared-errors.md": "6534c5b22b7f96c87f88dd1a79bdf03dfb3586c865ec7c9ab9ce995267ff32d2",
     "scripts/obsidian_kb_skill/__init__.py": "b6f9cfd724f0d4944bcc4f8d2d04e70c33ff378503cb21498a6d306362901763",
     "scripts/obsidian_kb_skill/scripts/__init__.py": "ea3771d4d955569ada4adce0855760a4ba997fc8b7ab87e3d871f68b9def9ee7",
@@ -17,7 +17,7 @@
     "scripts/obsidian_kb_skill/scripts/resume_project.py": "f01428af5e629d3b9c8bf7ebc14e35db5745031ac7316dc6fe50c57f0229e820",
     "scripts/obsidian_kb_skill/scripts/retrieval_vault_info.py": "af952ed626b49bbe84841302ace7796e777e68ad2c8f005998389395162164ec",
     "scripts/obsidian_kb_skill/scripts/review_projects.py": "94fe4b6471200299b2106ecf2172d7d5b2d92b3a18411f52f720783c8e2fe7e1",
-    "scripts/obsidian_kb_skill/scripts/search_vault.py": "8d17c3ae0612f763d5f1b477c41d4c0bb8b17746eccfe7bde96b06029d2b6cc0",
+    "scripts/obsidian_kb_skill/scripts/search_vault.py": "3a5c007e7c366be90ac61459a540ec2e4969fc8a021f9a969964cd585a82611f",
     "scripts/obsidian_kb_skill/scripts/text_tokens.py": "61e7f86e9ea231b3f4fa7684b00b59141fce5c95c12552492b98c55b60115f13",
     "scripts/obsidian_kb_skill/scripts/vault_paths.py": "5eb90ea7b46258b79c3e6e4f2361736639fd9a668e97361c1cde0205c55aec2d",
     "scripts/run_helper.py": "5864006e86956a17280971f7e7f96c6ec0460ccd8d457426956ff965c66d261b"

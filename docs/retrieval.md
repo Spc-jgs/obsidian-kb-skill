@@ -97,6 +97,24 @@ python <retrieval-skill-root>/scripts/run_helper.py search-vault \
 
 `--scope` 必须是 Vault 内已经存在的目录；绝对路径逃逸、`..` 穿越和指向 Vault 外部的 symlink 都会被拒绝。
 
+## 「写于何时」与「何时改过」是两个问题
+
+上面那个「最近的项目风险」的例子，问的其实是**何时改过**。用 `date` 回答它会错得很像对的：
+
+```bash
+# 八月改动过的项目
+--query "项目风险" --type project-note --updated-after 2026-08-01
+
+# 七月写的日报
+--query "日报" --type daily-note --after 2026-07-01 --before 2026-07-31
+```
+
+`--updated-after` / `--updated-before` 读的是 frontmatter 的 `updated`，闭区间，解析规则与 `date` 完全相同，可与 `--after/--before` 同时使用（AND）。
+
+**它只读 `updated`，不回落到 `date`。** 一篇没有 `updated` 的笔记会被排除并计入 `filters.excluded.missing-updated`，而不是拿它的 `date` 冒充答案——「六月写的」不是关于「何时改过」的证据。YAML 规范只要求 `project-note` 与 `person-note` 带 `updated`，所以其他类型出现大量 `missing-updated` 是预期，不是 Vault 有问题。
+
+`review-projects` 对「活动时间」的定义不同：它用 `updated` 回落到 `date`，因为没有 `updated` 的项目笔记仍然有一个值得排序的年龄。两者是**有意不同的两个语义**，不要当成同一个过滤器描述。
+
 ## 如何理解结果
 
 每个结果包含：

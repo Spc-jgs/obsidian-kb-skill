@@ -102,6 +102,11 @@ class SearchDocument:
     field_tokens: dict[str, Counter[str]]
     note_type: str | None = None
     note_date: str | None = None
+    # When the note says it last changed. Deliberately separate from
+    # `note_date`, and never filled in from it: "written in July" and "changed
+    # recently" are different questions, and one field answering both makes a
+    # project touched yesterday look two months stale.
+    note_updated: str | None = None
 
     @property
     def weighted_length(self) -> float:
@@ -216,10 +221,24 @@ class Filters:
     tags: tuple[str, ...] = ()
     after: str | None = None
     before: str | None = None
+    # A window over `updated`, never over `date`. `review-projects` reads
+    # activity as "updated falling back to date" and that is a different
+    # question with a different answer; folding a fallback in here would give
+    # this Vault two definitions of "recent" again, which is the drift row 22
+    # was written for. See row 28.
+    updated_after: str | None = None
+    updated_before: str | None = None
 
     @property
     def active(self) -> bool:
-        return bool(self.types or self.tags or self.after or self.before)
+        return bool(
+            self.types
+            or self.tags
+            or self.after
+            or self.before
+            or self.updated_after
+            or self.updated_before
+        )
 
     def applied(self) -> dict[str, Any]:
         payload: dict[str, Any] = {}
@@ -231,6 +250,10 @@ class Filters:
             payload["after"] = self.after
         if self.before:
             payload["before"] = self.before
+        if self.updated_after:
+            payload["updated_after"] = self.updated_after
+        if self.updated_before:
+            payload["updated_before"] = self.updated_before
         return payload
 
     def select(
@@ -263,6 +286,22 @@ class Filters:
                 continue
             if self.before and document.note_date > self.before:
                 excluded["before"] += 1
+                continue
+            # Counted apart from the date dimensions and apart from each other:
+            # "nobody recorded when this changed" is a governance fact about the
+            # Vault, while "it changed outside your window" is the filter
+            # working. Merging them would tell a user their note is old when the
+            # truth is that its `updated` was never written.
+            if (
+                self.updated_after or self.updated_before
+            ) and document.note_updated is None:
+                excluded["missing-updated"] += 1
+                continue
+            if self.updated_after and document.note_updated < self.updated_after:
+                excluded["updated-after"] += 1
+                continue
+            if self.updated_before and document.note_updated > self.updated_before:
+                excluded["updated-before"] += 1
                 continue
             kept.append(document)
         return kept, dict(excluded)
@@ -308,6 +347,7 @@ def _document(path: Path, vault: Path, text: str) -> tuple[SearchDocument | None
             field_tokens=fields,
             note_type=_scalar(metadata.get("type")),
             note_date=parse_note_date(metadata.get("date")),
+            note_updated=parse_note_date(metadata.get("updated")),
         ),
         None,
     )
@@ -570,6 +610,8 @@ def search_vault(
     tags: list[str] | None = None,
     after: str | None = None,
     before: str | None = None,
+    updated_after: str | None = None,
+    updated_before: str | None = None,
     expand: bool = True,
 ) -> dict[str, Any]:
     """Search a validated Vault without writing files or persistent cache."""
@@ -582,6 +624,8 @@ def search_vault(
         tags=tuple(tags or ()),
         after=after,
         before=before,
+        updated_after=updated_after,
+        updated_before=updated_before,
     )
     root = validate_vault_root(vault)
     selected_scope = (
@@ -655,6 +699,7 @@ def search_vault(
                 "signals": signals,
                 "type": document.note_type,
                 "date": document.note_date,
+                "updated": document.note_updated,
             }
         )
     scope_relative = selected_scope.relative_to(root).as_posix()
@@ -826,6 +871,18 @@ def main(argv: list[str] | None = None) -> int:
         "--before", help="Keep notes dated on or before this ISO date (YYYY-MM-DD)"
     )
     parser.add_argument(
+        "--updated-after",
+        help=(
+            "Keep notes whose `updated` is on or after this ISO date. Reads "
+            "`updated` only — a note without one is excluded, never treated "
+            "as if its `date` were the answer"
+        ),
+    )
+    parser.add_argument(
+        "--updated-before",
+        help="Keep notes whose `updated` is on or before this ISO date",
+    )
+    parser.add_argument(
         "--no-expand",
         dest="expand",
         action="store_false",
@@ -857,19 +914,28 @@ def main(argv: list[str] | None = None) -> int:
     # Relative time ("上周", "recently") is resolved by the caller, which knows
     # today's date and the user's language; this helper takes absolute dates so
     # its behaviour stays deterministic and testable.
-    for flag in ("after", "before"):
+    for flag in ("after", "before", "updated_after", "updated_before"):
         value = getattr(args, flag)
         if value is None:
             continue
         if not _is_iso_date(value):
             return refuse(
                 "invalid-date",
-                f"--{flag} must be an ISO calendar date (YYYY-MM-DD); "
-                "resolve relative expressions before calling",
+                f"--{flag.replace('_', '-')} must be an ISO calendar date "
+                "(YYYY-MM-DD); resolve relative expressions before calling",
             )
     if args.after and args.before and args.after > args.before:
         return refuse(
             "invalid-date-range", "--after must not be later than --before"
+        )
+    if (
+        args.updated_after
+        and args.updated_before
+        and args.updated_after > args.updated_before
+    ):
+        return refuse(
+            "invalid-date-range",
+            "--updated-after must not be later than --updated-before",
         )
     for value in args.types:
         if value not in VALID_NOTE_TYPES:
@@ -920,6 +986,8 @@ def main(argv: list[str] | None = None) -> int:
             tags=args.tags,
             after=args.after,
             before=args.before,
+            updated_after=args.updated_after,
+            updated_before=args.updated_before,
             expand=args.expand,
         )
     except LexiconError as exc:
