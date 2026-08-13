@@ -175,3 +175,60 @@ def test_both_retrieval_helpers_mean_the_same_thing_by_next_actions():
     assert review_projects.NEXT_ACTION_HEADINGS == {
         heading.lower() for heading in shared
     }, "the radar's heading set is not the shared one"
+
+
+def test_every_bash_invoking_installer_test_is_named_for_the_windows_skip():
+    """The Windows skip is a name prefix, and nothing checked that it was used.
+
+    `tests/test_installers.py` exempts bash lifecycle tests on Windows with an
+    autouse fixture keyed on `test_bash_`. A test that runs `install.sh` under
+    any other name runs on Windows, where POSIX path semantics do not hold, and
+    fails in CI — which is how this assertion came to exist. A convention that
+    only a reviewer enforces is the shape the registry exists for.
+
+    Reading `install.sh` as text is fine anywhere; only invoking it is not, so
+    the predicate looks for the `"bash"` argument rather than the filename.
+    """
+    import ast
+
+    source = (ROOT / "tests" / "test_installers.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    functions = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+
+    def spawns_bash(node) -> bool:
+        return any(
+            isinstance(child, ast.Constant) and child.value == "bash"
+            for child in ast.walk(node)
+        )
+
+    helpers = {
+        node.name
+        for node in functions
+        if not node.name.startswith("test_") and spawns_bash(node)
+    }
+    assert helpers, "no bash-spawning helper found; the predicate has gone stale"
+
+    def calls_a_helper(node) -> bool:
+        return any(
+            isinstance(child, ast.Call)
+            and isinstance(child.func, ast.Name)
+            and child.func.id in helpers
+            for child in ast.walk(node)
+        )
+
+    offenders = sorted(
+        node.name
+        for node in functions
+        if node.name.startswith("test_")
+        and not node.name.startswith("test_bash_")
+        and (spawns_bash(node) or calls_a_helper(node))
+    )
+
+    assert not offenders, (
+        "these tests run install.sh but are not named `test_bash_*`, so the "
+        f"Windows skip does not cover them: {offenders}"
+    )

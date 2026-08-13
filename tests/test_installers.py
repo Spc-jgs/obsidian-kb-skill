@@ -1111,7 +1111,7 @@ def test_bash_runtime_only_refuses_an_explicit_platform_list(tmp_path):
     assert "--runtime-only" in combined and "--platforms" in combined
 
 
-def test_a_normal_install_is_unchanged_by_the_new_mode(tmp_path):
+def test_bash_a_normal_install_is_unchanged_by_the_new_mode(tmp_path):
     """Hard negative: the default path still delivers every platform."""
     home = tmp_path / "home"
     vault = tmp_path / "vault"
