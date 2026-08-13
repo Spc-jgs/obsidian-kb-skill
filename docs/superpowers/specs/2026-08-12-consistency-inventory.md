@@ -47,10 +47,19 @@ It is a list of the boundaries, and the discipline of adding to it.
 | 15 | Digest section names ↔ the resume contract that uses them | `test_digest_heading_variants_are_derived_not_copied` |
 | 16 | Installer paths ↔ Skill × platform matrix | **none — #91**, 20 hand-copied paths across two languages |
 | 17 | Managed-link decision in `install.sh` ↔ `install.ps1` ↔ `tests/windows_installer_smoke.ps1` | `test_bash_install_does_not_clobber_a_managed_skill_symlink` (POSIX behaviour) and `test_powershell_installer_has_managed_symlink_parity` (reads `install.ps1` text only) — **the smoke script is unguarded**, and only Windows CI executes it |
+| 18 | Headings the resume report calls recognized ↔ headings its matcher can match | `test_every_known_variant_is_both_matchable_and_reported_as_matched` |
+| 19 | `core/templates/*/project-note.md` headings ↔ the resume vocabulary that reads them | `test_this_projects_own_templates_are_fully_readable_by_the_extractor` |
 
 Guards 12, 13 and 14 were added by this work. The rest already existed; several
 had caught the author earlier the same day. Row 17 arrived late, in #114 — see
-below.
+below. Rows 18 and 19 came with #115.
+
+Row 19 is row 15's other half, and it had already drifted when it was written:
+`core/templates/en/project-note.md` says `## Overview` while the vocabulary knew
+only `project overview`, so every note written from this project's own English
+template reported its goal as missing. The digest side was derived from a
+contract and stayed correct; the project-note side was hand-copied and did not.
+Writing the assertion is what found it.
 
 ## What the guards are not
 

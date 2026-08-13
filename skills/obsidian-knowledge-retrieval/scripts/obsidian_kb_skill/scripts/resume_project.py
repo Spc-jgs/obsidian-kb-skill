@@ -67,7 +67,13 @@ def _digest_section(index: int) -> tuple[str, ...]:
 # than a guess assembled from arbitrary prose.
 RESUME_SECTIONS: dict[str, dict[str, tuple[str, ...]]] = {
     "goal": {
-        "project-note": ("项目概览", "project overview"),
+        # `overview` is what `core/templates/en/project-note.md` actually
+        # writes; `project overview` is what the real Vault's oldest English
+        # note uses. Both are observed. Until
+        # `test_this_projects_own_templates_are_fully_readable_by_the_extractor`
+        # was written, only the second was here, so every note written from this
+        # project's own English template reported `goal` as missing.
+        "project-note": ("项目概览", "overview", "project overview"),
         "conversation-digest": _digest_section(0),
     },
     "constraints": {
@@ -84,7 +90,13 @@ RESUME_SECTIONS: dict[str, dict[str, tuple[str, ...]]] = {
         "project-note": ("风险与阻塞", "risks and blockers", "risks & blockers"),
     },
     "next_actions": {
-        "project-note": ("下一步行动", "next actions", "next steps"),
+        # `后续行动` is observed, not invented: it is the heading in
+        # `40-Projects/etianqu/2026-07-09 AI对话上下文与落库设计复盘.md` on the
+        # reference Vault, and the note #115 was filed from. Every variant here
+        # must come from a template or a real note — a guessed synonym makes the
+        # vocabulary look complete while it still fails silently, which is the
+        # defect itself rather than a fix for it.
+        "project-note": ("下一步行动", "后续行动", "next actions", "next steps"),
         "conversation-digest": _digest_section(4),
     },
 }
@@ -109,6 +121,46 @@ ORIGIN_INSTANCE_DIRECTORY = "instance-directory"
 DEFAULT_MAX_SOURCES = 5
 
 
+def _normalize_heading(text: str) -> str:
+    """The single definition of "this heading is that heading".
+
+    Both the matcher and the heading report call this. Two independent notions
+    of equality would let the report claim a heading was recognized that the
+    matcher never matched — the reader would then be told to stop looking.
+    """
+    return text.strip().lower()
+
+
+def _heading_report(text: str, note_type: str) -> dict[str, list[str]]:
+    """Split the note's headings into the ones this vocabulary knows and the rest.
+
+    `missing_sections` alone cannot distinguish "the note never recorded this"
+    from "the note recorded it under a name the vocabulary does not have", and
+    those two readings lead a user in opposite directions (#115). The pack does
+    not guess which unmatched heading holds what — #86 rules that out — it
+    reports what it did not claim and lets the reader look.
+
+    Recognition is by name only. A heading that is in the vocabulary but has an
+    empty body appears here as matched while its field is still missing, which
+    tells the reader the section exists and is empty.
+    """
+    known = {
+        _normalize_heading(variant)
+        for per_type in RESUME_SECTIONS.values()
+        for variant in per_type.get(note_type, ())
+    }
+    matched: list[str] = []
+    unmatched: list[str] = []
+    for line in text.splitlines():
+        match = HEADING_RE.match(line)
+        if not match:
+            continue
+        heading = match.group(2).strip()
+        target = matched if _normalize_heading(heading) in known else unmatched
+        target.append(heading)
+    return {"matched": matched, "unmatched": unmatched}
+
+
 def _section_text(
     text: str, headings: tuple[str, ...]
 ) -> tuple[str, int] | None:
@@ -118,10 +170,10 @@ def _section_text(
     subsection stays with its parent rather than truncating it.
     """
     lines = text.splitlines()
-    wanted = {heading.lower() for heading in headings}
+    wanted = {_normalize_heading(heading) for heading in headings}
     for index, line in enumerate(lines):
         match = HEADING_RE.match(line)
-        if not match or match.group(2).strip().lower() not in wanted:
+        if not match or _normalize_heading(match.group(2)) not in wanted:
             continue
         level = len(match.group(1))
         end = len(lines)
@@ -322,6 +374,11 @@ def build(
             if value is not None and field in from_sources
         ),
         "missing_sections": missing,
+        # Read with `missing_sections`, never apart from it: a missing field
+        # whose note has unmatched headings may well be recorded under one of
+        # them. Both lists empty means the note has no headings at all, the one
+        # case where missing does mean absent.
+        "headings": _heading_report(project_text, expected_type),
         "instance_directory": (
             project.parent.relative_to(vault).as_posix()
             if in_instance_directory

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime
+import re
 from pathlib import Path
 
 from obsidian_kb_skill.scripts import resume_project
@@ -208,6 +209,262 @@ def test_a_missing_section_is_reported_not_guessed(tmp_path):
         "decisions",
         "next_actions",
     }
+
+
+# The structure of `40-Projects/etianqu/2026-07-09 AI对话上下文与落库设计复盘.md`
+# on the reference Vault, trimmed to the headings that matter here. It is the
+# note #115 was filed from: written from a conversation rather than from the
+# template, it answers every resume question in prose the vocabulary cannot see.
+PROJECT_BODY_FREEFORM = """# AI 对话上下文与落库设计复盘
+
+## 项目概览
+
+梳理对话上下文如何注入与落库。
+
+## TL;DR
+
+现状可用，1.0 走直连。
+
+## 1.0 推荐方案
+
+- 直连 DashScope，不经代理层
+
+## Redis 优先级结论
+
+- 先不引入 Redis，JVM 内存足够
+
+## 后续行动
+
+- [ ] 改造 Farui 上下文链路
+"""
+
+
+def test_unrecognized_headings_are_listed_so_missing_is_not_read_as_absent(
+    tmp_path,
+):
+    """`missing` and `unrecognized` mean opposite things to a reader.
+
+    #115: this note answers decisions under `1.0 推荐方案` and
+    `Redis 优先级结论`. Reporting only `missing_sections: [decisions]` tells the
+    reader the project never recorded a decision, and someone acting on that
+    writes a document that already exists. The pack cannot judge whether those
+    headings hold decisions — #86 rules that out — but it can say which headings
+    it did not claim, and let the reader look.
+    """
+    vault = make_vault(tmp_path)
+    instance = vault / "40-Projects" / "etianqu"
+    write_note(
+        instance / "Project.md",
+        "project-note",
+        status="active",
+        body=PROJECT_BODY_FREEFORM,
+    )
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/etianqu/Project.md"), as_of=AS_OF
+    )
+
+    unmatched = payload["headings"]["unmatched"]
+    assert "1.0 推荐方案" in unmatched
+    assert "Redis 优先级结论" in unmatched
+    # The heading the pack did claim must not also be offered as unclaimed.
+    assert "项目概览" in payload["headings"]["matched"]
+    assert "项目概览" not in unmatched
+    assert "decisions" in payload["missing_sections"]
+
+
+def test_a_note_with_no_headings_at_all_is_distinguishable(tmp_path):
+    """The one case where `missing` really does mean the content is absent.
+
+    Both lists empty is the note saying nothing, not the vocabulary failing.
+    Without this the reader cannot tell the two apart, which is #115.
+    """
+    vault = make_vault(tmp_path)
+    instance = vault / "40-Projects" / "bare"
+    write_note(
+        instance / "Project.md",
+        "project-note",
+        status="active",
+        body="Just prose. No headings anywhere in this note.\n",
+    )
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/bare/Project.md"), as_of=AS_OF
+    )
+
+    assert payload["headings"] == {"matched": [], "unmatched": []}
+    assert "decisions" in payload["missing_sections"]
+
+
+def test_a_template_note_matches_every_field_and_leaves_nothing_unclaimed(
+    tmp_path,
+):
+    """The control case: written to the template, nothing is missing."""
+    vault = make_vault(tmp_path)
+    instance = vault / "40-Projects" / "ai-bug-workflow"
+    write_note(
+        instance / "Project.md",
+        "project-note",
+        status="active",
+        body=PROJECT_BODY_ZH,
+    )
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/ai-bug-workflow/Project.md"), as_of=AS_OF
+    )
+
+    assert payload["missing_sections"] == []
+    assert set(payload["headings"]["matched"]) == {
+        "项目概览",
+        "风险与阻塞",
+        "决策记录",
+        "下一步行动",
+    }
+    # Only the note's own title is left over.
+    assert payload["headings"]["unmatched"] == ["鹅天渠"]
+
+
+def test_reported_headings_cover_every_heading_the_matcher_could_have_read(
+    tmp_path,
+):
+    """The report must describe the matcher's whole search space.
+
+    `_section_text` scans headings at every level, so every level can match. A
+    report that silently omitted one would send the reader looking for a section
+    the pack claims does not exist — the same silent gap as #115, one level up.
+    """
+    body = "\n".join(
+        f"{'#' * level} H{level}\n\ncontent {level}\n" for level in range(1, 7)
+    )
+    vault = make_vault(tmp_path)
+    instance = vault / "40-Projects" / "deep"
+    write_note(
+        instance / "Project.md", "project-note", status="active", body=body
+    )
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/deep/Project.md"), as_of=AS_OF
+    )
+
+    reported = payload["headings"]["matched"] + payload["headings"]["unmatched"]
+    assert sorted(reported) == [f"H{level}" for level in range(1, 7)]
+
+
+def test_next_actions_accepts_the_variant_the_reference_vault_actually_uses(
+    tmp_path,
+):
+    """`后续行动` is observed, not invented.
+
+    Every variant in `RESUME_SECTIONS` must come from a template or a real note;
+    this one is from `40-Projects/etianqu/...设计复盘.md`. Guessing at synonyms
+    is what makes a vocabulary look complete while still failing silently.
+    """
+    vault = make_vault(tmp_path)
+    instance = vault / "40-Projects" / "etianqu"
+    write_note(
+        instance / "Project.md",
+        "project-note",
+        status="active",
+        body=PROJECT_BODY_FREEFORM,
+    )
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/etianqu/Project.md"), as_of=AS_OF
+    )
+
+    assert payload["resume"]["next_actions"] is not None
+    assert "Farui" in payload["resume"]["next_actions"]["text"]
+    assert "next_actions" not in payload["missing_sections"]
+
+
+def test_every_known_variant_is_both_matchable_and_reported_as_matched():
+    """The report's "recognized" must be the matcher's "matched", exactly.
+
+    Two independent notions of heading equality would let the pack tell a
+    reader a heading was recognized that the matcher never reads — the reader
+    then stops looking, which is #115 with the arrow reversed. Both sides call
+    `_normalize_heading`; this asserts the consequence rather than the call.
+    """
+    for note_type in ("project-note", "conversation-digest"):
+        variants = [
+            variant
+            for per_type in resume_project.RESUME_SECTIONS.values()
+            for variant in per_type.get(note_type, ())
+        ]
+        assert variants, f"{note_type} has no headings at all"
+        for variant in variants:
+            text = f"## {variant}\n\nbody\n"
+            assert resume_project._section_text(text, (variant,)) is not None, (
+                f"matcher cannot find its own variant: {variant!r}"
+            )
+            report = resume_project._heading_report(text, note_type)
+            assert report["matched"] == [variant], (
+                f"{variant!r} is matchable but reported as unclaimed: {report}"
+            )
+
+
+def test_a_recognized_but_empty_section_is_matched_and_still_missing(tmp_path):
+    """Recognition is by name; content is a separate question.
+
+    Calling an empty `决策记录` unmatched would send the reader hunting for a
+    section that is right there and blank. The pair says exactly that: the
+    heading was understood, and it holds nothing.
+    """
+    vault = make_vault(tmp_path)
+    instance = vault / "40-Projects" / "empty-section"
+    write_note(
+        instance / "Project.md",
+        "project-note",
+        status="active",
+        body="# P\n\n## 决策记录\n\n## 下一步行动\n\n- [ ] 继续\n",
+    )
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/empty-section/Project.md"), as_of=AS_OF
+    )
+
+    assert "决策记录" in payload["headings"]["matched"]
+    assert "决策记录" not in payload["headings"]["unmatched"]
+    assert "decisions" in payload["missing_sections"]
+
+
+def test_this_projects_own_templates_are_fully_readable_by_the_extractor():
+    """A note written from our template must not have unreadable fields.
+
+    The project-note vocabulary is a hand-copy of the templates' headings, the
+    same mirror shape row 15 guards on the digest side — and it had already
+    drifted: `core/templates/en/project-note.md` says `## Overview` while the
+    vocabulary only knew `project overview`, so every note written from this
+    project's own English template reported `goal` as missing. Found by writing
+    this assertion, not by a user, which is the whole point of having it.
+
+    Asserted behaviourally, per locale, with no hand-kept mapping from heading
+    to field: a second mapping would be one more thing to keep in step.
+    """
+    heading_re = re.compile(r"^#{1,6}[ \t]+(.+?)\s*$", re.M)
+    templates = sorted(
+        (Path("core") / "templates").glob("**/project-note.md")
+    )
+    assert len(templates) >= 2, f"expected both locales, found {templates}"
+
+    for template in templates:
+        headings = {
+            match.group(1).strip().lower()
+            for match in heading_re.finditer(
+                template.read_text(encoding="utf-8")
+            )
+        }
+        for field in resume_project.PROJECT_NOTE_FIELDS:
+            variants = {
+                variant.lower()
+                for variant in resume_project.RESUME_SECTIONS[field][
+                    "project-note"
+                ]
+            }
+            assert variants & headings, (
+                f"{template}: its heading for {field!r} is not in the "
+                f"vocabulary, so this template's own notes report it missing"
+            )
 
 
 def test_digest_heading_variants_are_derived_not_copied():
