@@ -1,0 +1,361 @@
+{
+  "schema_version": 1,
+  "recorded_against": "a5228ff94e3e743ef938ecb1da3a21409f862f17",
+  "note": "Outcome of the current ranker, not a statement that it is correct. See tests/test_retrieval_adversarial_eval.py.",
+  "known_limitations": {
+    "whole-document-length-normalisation": "adv-dilution-01: the note holding the exact evidence paragraph is pushed out of Top-5 by six notes that only mention the terms in passing. SearchDocument.weighted_length sums every field over the whole document, so a 30 KB note pays for text the query never asked about. Tracked by #118.",
+    "no-top-k-diversity": "adv-crowding-01: five near-identical dailies take all five slots and the note holding the conclusion does not appear. Top-K selection does not consider redundancy.",
+    "expansion-reintroduces-ambiguity": "adv-ambiguity-01/02/03: 代理 is in AMBIGUOUS_TERMS and expands into both the agent and proxy concepts. adv-ambiguity-03 shows this is not only a query-time problem: the unambiguous 智能体 expands to 代理, which then matches 反向代理 in the other reading.",
+    "term-overlap-is-treated-as-evidence": "every no-answer case returns hits. A query sharing one strong term with a note produces that note, with no notion of insufficient evidence. The stable corpus scores 1.0 here because its no-answer queries share nothing with any note.",
+    "title-weight-outranks-the-answer": "adv-field-01/03: a stub whose title matches ranks above the note that answers the question. FIELD_WEIGHTS[title] is 6x body."
+  },
+  "cases": [
+    {
+      "id": "adv-dilution-01",
+      "group": "dilution",
+      "returned": 5,
+      "rank": 1,
+      "must_see_missing": [
+        "20-Learning/retry/backoff-handbook.md"
+      ],
+      "must_see_ranks": {
+        "20-Learning/retry/backoff-compact.md": 1,
+        "20-Learning/retry/backoff-handbook.md": null
+      },
+      "hard_negative_hits": [],
+      "family_occupancy": {
+        "agent-reading": 1,
+        "retry-evidence": 1,
+        "retry-passing-mention": 3
+      }
+    },
+    {
+      "id": "adv-dilution-02",
+      "group": "dilution",
+      "returned": 5,
+      "rank": 1,
+      "must_see_missing": [],
+      "must_see_ranks": {
+        "20-Learning/retry/backoff-handbook.md": 2
+      },
+      "hard_negative_hits": [],
+      "family_occupancy": {
+        "proxy-reading": 1,
+        "retry-evidence": 2,
+        "retry-passing-mention": 2
+      }
+    },
+    {
+      "id": "adv-dilution-03",
+      "group": "dilution",
+      "returned": 2,
+      "rank": 1,
+      "must_see_missing": [],
+      "must_see_ranks": {
+        "20-Learning/retry/backoff-handbook.md": 2
+      },
+      "hard_negative_hits": [],
+      "family_occupancy": {
+        "retry-evidence": 2
+      }
+    },
+    {
+      "id": "adv-dilution-04",
+      "group": "dilution",
+      "returned": 5,
+      "rank": 1,
+      "must_see_missing": [],
+      "must_see_ranks": {
+        "20-Learning/retry/backoff-compact.md": 1
+      },
+      "hard_negative_hits": [],
+      "family_occupancy": {
+        "cache-stub": 1,
+        "retry-evidence": 2,
+        "retry-passing-mention": 2
+      }
+    },
+    {
+      "id": "adv-crowding-01",
+      "group": "crowding",
+      "returned": 5,
+      "rank": null,
+      "must_see_missing": [
+        "30-Insights/throttle-conclusion.md"
+      ],
+      "must_see_ranks": {
+        "30-Insights/throttle-conclusion.md": null
+      },
+      "hard_negative_hits": [],
+      "family_occupancy": {
+        "throttle-daily": 5
+      }
+    },
+    {
+      "id": "adv-crowding-02",
+      "group": "crowding",
+      "returned": 2,
+      "rank": 1,
+      "must_see_missing": [],
+      "must_see_ranks": {
+        "30-Insights/throttle-conclusion.md": 1
+      },
+      "hard_negative_hits": [],
+      "family_occupancy": {
+        "proxy-reading": 1,
+        "throttle-summary": 1
+      }
+    },
+    {
+      "id": "adv-crowding-03",
+      "group": "crowding",
+      "returned": 5,
+      "rank": 1,
+      "must_see_missing": [],
+      "must_see_ranks": {},
+      "hard_negative_hits": [],
+      "family_occupancy": {
+        "throttle-daily": 5
+      }
+    },
+    {
+      "id": "adv-crowding-04",
+      "group": "crowding",
+      "returned": 5,
+      "rank": 1,
+      "must_see_missing": [],
+      "must_see_ranks": {
+        "30-Insights/throttle-conclusion.md": 1
+      },
+      "hard_negative_hits": [],
+      "family_occupancy": {
+        "throttle-daily": 4,
+        "throttle-summary": 1
+      }
+    },
+    {
+      "id": "adv-ambiguity-01",
+      "group": "ambiguity",
+      "returned": 5,
+      "rank": 1,
+      "must_see_missing": [],
+      "must_see_ranks": {
+        "20-Learning/network/upstream-timeout.md": 1
+      },
+      "hard_negative_hits": [
+        "20-Learning/agent/tool-loop.md"
+      ],
+      "family_occupancy": {
+        "agent-reading": 1,
+        "proxy-reading": 1,
+        "retry-evidence": 1,
+        "retry-passing-mention": 2
+      }
+    },
+    {
+      "id": "adv-ambiguity-02",
+      "group": "ambiguity",
+      "returned": 2,
+      "rank": 1,
+      "must_see_missing": [],
+      "must_see_ranks": {
+        "20-Learning/agent/tool-loop.md": 1
+      },
+      "hard_negative_hits": [
+        "20-Learning/network/upstream-timeout.md"
+      ],
+      "family_occupancy": {
+        "agent-reading": 1,
+        "proxy-reading": 1
+      }
+    },
+    {
+      "id": "adv-ambiguity-03",
+      "group": "ambiguity",
+      "returned": 2,
+      "rank": 1,
+      "must_see_missing": [],
+      "must_see_ranks": {
+        "20-Learning/agent/tool-loop.md": 1
+      },
+      "hard_negative_hits": [
+        "20-Learning/network/upstream-timeout.md"
+      ],
+      "family_occupancy": {
+        "agent-reading": 1,
+        "proxy-reading": 1
+      }
+    },
+    {
+      "id": "adv-ambiguity-04",
+      "group": "ambiguity",
+      "returned": 5,
+      "rank": null,
+      "must_see_missing": [],
+      "must_see_ranks": {},
+      "hard_negative_hits": [
+        "20-Learning/agent/tool-loop.md",
+        "20-Learning/network/upstream-timeout.md"
+      ],
+      "family_occupancy": {
+        "agent-reading": 1,
+        "proxy-reading": 1,
+        "throttle-daily": 2,
+        "throttle-summary": 1
+      }
+    },
+    {
+      "id": "adv-field-01",
+      "group": "field",
+      "returned": 2,
+      "rank": 2,
+      "must_see_missing": [],
+      "must_see_ranks": {
+        "20-Learning/cache/hotkey-rebuild.md": 2
+      },
+      "hard_negative_hits": [],
+      "family_occupancy": {
+        "cache-evidence": 1,
+        "cache-stub": 1
+      }
+    },
+    {
+      "id": "adv-field-02",
+      "group": "field",
+      "returned": 1,
+      "rank": 1,
+      "must_see_missing": [],
+      "must_see_ranks": {
+        "20-Learning/cache/hotkey-rebuild.md": 1
+      },
+      "hard_negative_hits": [],
+      "family_occupancy": {
+        "cache-evidence": 1
+      }
+    },
+    {
+      "id": "adv-field-03",
+      "group": "field",
+      "returned": 2,
+      "rank": 2,
+      "must_see_missing": [],
+      "must_see_ranks": {
+        "20-Learning/cache/hotkey-rebuild.md": 2
+      },
+      "hard_negative_hits": [],
+      "family_occupancy": {
+        "cache-evidence": 1,
+        "cache-stub": 1
+      }
+    },
+    {
+      "id": "adv-field-04",
+      "group": "field",
+      "returned": 3,
+      "rank": 1,
+      "must_see_missing": [],
+      "must_see_ranks": {
+        "20-Learning/cache/cache-breakdown-stub.md": 1
+      },
+      "hard_negative_hits": [],
+      "family_occupancy": {
+        "cache-evidence": 1,
+        "cache-stub": 1,
+        "retry-evidence": 1
+      }
+    },
+    {
+      "id": "adv-noanswer-01",
+      "group": "no-answer",
+      "returned": 5,
+      "rank": null,
+      "must_see_missing": [],
+      "must_see_ranks": {},
+      "hard_negative_hits": [
+        "20-Learning/retry/backoff-compact.md"
+      ],
+      "family_occupancy": {
+        "retry-evidence": 1,
+        "retry-passing-mention": 4
+      }
+    },
+    {
+      "id": "adv-noanswer-02",
+      "group": "no-answer",
+      "returned": 5,
+      "rank": null,
+      "must_see_missing": [],
+      "must_see_ranks": {},
+      "hard_negative_hits": [
+        "30-Insights/throttle-conclusion.md"
+      ],
+      "family_occupancy": {
+        "throttle-daily": 4,
+        "throttle-summary": 1
+      }
+    },
+    {
+      "id": "adv-noanswer-03",
+      "group": "no-answer",
+      "returned": 2,
+      "rank": null,
+      "must_see_missing": [],
+      "must_see_ranks": {},
+      "hard_negative_hits": [
+        "20-Learning/cache/cache-breakdown-stub.md"
+      ],
+      "family_occupancy": {
+        "cache-evidence": 1,
+        "cache-stub": 1
+      }
+    },
+    {
+      "id": "adv-noanswer-04",
+      "group": "no-answer",
+      "returned": 5,
+      "rank": null,
+      "must_see_missing": [],
+      "must_see_ranks": {},
+      "hard_negative_hits": [
+        "20-Learning/network/upstream-timeout.md"
+      ],
+      "family_occupancy": {
+        "agent-reading": 1,
+        "proxy-reading": 1,
+        "throttle-daily": 2,
+        "throttle-summary": 1
+      }
+    },
+    {
+      "id": "adv-noanswer-05",
+      "group": "no-answer",
+      "returned": 5,
+      "rank": null,
+      "must_see_missing": [],
+      "must_see_ranks": {},
+      "hard_negative_hits": [
+        "20-Learning/retry/backoff-handbook.md"
+      ],
+      "family_occupancy": {
+        "retry-evidence": 2,
+        "retry-passing-mention": 3
+      }
+    },
+    {
+      "id": "adv-noanswer-06",
+      "group": "no-answer",
+      "returned": 3,
+      "rank": null,
+      "must_see_missing": [],
+      "must_see_ranks": {},
+      "hard_negative_hits": [
+        "30-Insights/throttle-conclusion.md"
+      ],
+      "family_occupancy": {
+        "proxy-reading": 1,
+        "retry-passing-mention": 1,
+        "throttle-summary": 1
+      }
+    }
+  ]
+}

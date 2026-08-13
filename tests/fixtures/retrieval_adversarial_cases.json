@@ -1,0 +1,536 @@
+{
+  "schema_version": 1,
+  "notes": [
+    {
+      "path": "20-Learning/retry/backoff-compact.md",
+      "title": "重试退避的短笔记",
+      "aliases": [],
+      "tags": [
+        "retry"
+      ],
+      "date": "2026-06-01",
+      "type": "learning-note",
+      "family": "retry-evidence",
+      "body": "重试策略采用指数退避，jitter 上限固定为 800 毫秒，超过上限的抖动会被截断。The retry budget is consumed per attempt, not per request.",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "20-Learning/retry/backoff-handbook.md",
+      "title": "重试退避的长手册",
+      "aliases": [],
+      "tags": [
+        "retry"
+      ],
+      "date": "2026-06-02",
+      "type": "learning-note",
+      "family": "retry-evidence",
+      "body": "重试策略采用指数退避，jitter 上限固定为 800 毫秒，超过上限的抖动会被截断。The retry budget is consumed per attempt, not per request.",
+      "filler_paragraphs": 120
+    },
+    {
+      "path": "20-Learning/ops/queue-consumer.md",
+      "title": "队列消费者的重试",
+      "aliases": [],
+      "tags": [
+        "ops"
+      ],
+      "date": "2026-03-01",
+      "type": "learning-note",
+      "family": "retry-passing-mention",
+      "body": "消费失败后走重试队列，退避交给中间件，本文不展开 jitter 的取值。",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "20-Learning/ops/http-client.md",
+      "title": "HTTP 客户端默认值",
+      "aliases": [],
+      "tags": [
+        "ops"
+      ],
+      "date": "2026-03-02",
+      "type": "learning-note",
+      "family": "retry-passing-mention",
+      "body": "客户端默认开启重试，退避为固定间隔；生产环境应显式配置。",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "20-Learning/ops/grpc-deadline.md",
+      "title": "gRPC deadline 与重试",
+      "aliases": [],
+      "tags": [
+        "ops"
+      ],
+      "date": "2026-03-03",
+      "type": "learning-note",
+      "family": "retry-passing-mention",
+      "body": "deadline 到期后重试没有意义，指数退避也救不回来。",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "20-Learning/ops/idempotency.md",
+      "title": "幂等键与重试安全",
+      "aliases": [],
+      "tags": [
+        "ops"
+      ],
+      "date": "2026-03-04",
+      "type": "learning-note",
+      "family": "retry-passing-mention",
+      "body": "没有幂等键就不要重试写操作，退避多久都不安全。",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "20-Learning/ops/circuit-breaker.md",
+      "title": "熔断与退避的关系",
+      "aliases": [],
+      "tags": [
+        "ops"
+      ],
+      "date": "2026-03-05",
+      "type": "learning-note",
+      "family": "retry-passing-mention",
+      "body": "熔断打开期间不应继续重试，退避窗口由熔断器接管。",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "20-Learning/ops/jitter-note.md",
+      "title": "jitter 的三种写法",
+      "aliases": [],
+      "tags": [
+        "ops"
+      ],
+      "date": "2026-03-06",
+      "type": "learning-note",
+      "family": "retry-passing-mention",
+      "body": "full jitter、equal jitter、decorrelated jitter 各有取舍，此处只列名字。",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "15-Daily/2026-07-01.md",
+      "title": "2026-07-01 日报",
+      "aliases": [],
+      "tags": [
+        "daily"
+      ],
+      "date": "2026-07-01",
+      "type": "daily-note",
+      "family": "throttle-daily",
+      "body": "今天继续做限流阈值调优。把网关的每秒许可从 400 调到 430，观察错误率。限流阈值调优的效果需要连续几天的数据才能确认。",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "15-Daily/2026-07-02.md",
+      "title": "2026-07-02 日报",
+      "aliases": [],
+      "tags": [
+        "daily"
+      ],
+      "date": "2026-07-02",
+      "type": "daily-note",
+      "family": "throttle-daily",
+      "body": "今天继续做限流阈值调优。把网关的每秒许可从 400 调到 460，观察错误率。限流阈值调优的效果需要连续几天的数据才能确认。",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "15-Daily/2026-07-03.md",
+      "title": "2026-07-03 日报",
+      "aliases": [],
+      "tags": [
+        "daily"
+      ],
+      "date": "2026-07-03",
+      "type": "daily-note",
+      "family": "throttle-daily",
+      "body": "今天继续做限流阈值调优。把网关的每秒许可从 400 调到 490，观察错误率。限流阈值调优的效果需要连续几天的数据才能确认。",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "15-Daily/2026-07-04.md",
+      "title": "2026-07-04 日报",
+      "aliases": [],
+      "tags": [
+        "daily"
+      ],
+      "date": "2026-07-04",
+      "type": "daily-note",
+      "family": "throttle-daily",
+      "body": "今天继续做限流阈值调优。把网关的每秒许可从 400 调到 520，观察错误率。限流阈值调优的效果需要连续几天的数据才能确认。",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "15-Daily/2026-07-05.md",
+      "title": "2026-07-05 日报",
+      "aliases": [],
+      "tags": [
+        "daily"
+      ],
+      "date": "2026-07-05",
+      "type": "daily-note",
+      "family": "throttle-daily",
+      "body": "今天继续做限流阈值调优。把网关的每秒许可从 400 调到 550，观察错误率。限流阈值调优的效果需要连续几天的数据才能确认。",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "30-Insights/throttle-conclusion.md",
+      "title": "限流调优的结论",
+      "aliases": [],
+      "tags": [
+        "throttle"
+      ],
+      "date": "2026-07-06",
+      "type": "insight-note",
+      "family": "throttle-summary",
+      "body": "限流阈值调优的结论：每秒许可定在 520，再高会让下游连接池排队。这个数字来自连续五天的观察，单日数据不足以支撑。调优过程中真正起作用的是连接池上限，不是网关许可本身。",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "20-Learning/agent/tool-loop.md",
+      "title": "工具循环的轮次上限",
+      "aliases": [],
+      "tags": [
+        "agent"
+      ],
+      "date": "2026-05-10",
+      "type": "learning-note",
+      "family": "agent-reading",
+      "body": "智能体的工具循环：每一轮把工具结果重新喂回模型，直到没有新的工具调用。循环需要一个最大轮次，否则模型可以无限自我调用。",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "20-Learning/network/upstream-timeout.md",
+      "title": "上游超时与重试边界",
+      "aliases": [],
+      "tags": [
+        "network"
+      ],
+      "date": "2026-05-11",
+      "type": "learning-note",
+      "family": "proxy-reading",
+      "body": "反向代理的超时重试：upstream 读超时设为 30 秒，重试只在连接失败时发生，读超时不重试，否则下游会收到重复写入。",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "20-Learning/cache/cache-breakdown-stub.md",
+      "title": "缓存击穿",
+      "aliases": [
+        "缓存击穿笔记"
+      ],
+      "tags": [
+        "cache"
+      ],
+      "date": "2026-04-01",
+      "type": "learning-note",
+      "family": "cache-stub",
+      "body": "这篇只是占位，内容还没写。等有空再补。",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "20-Learning/cache/hotkey-rebuild.md",
+      "title": "热点键重建锁",
+      "aliases": [],
+      "tags": [
+        "cache"
+      ],
+      "date": "2026-04-02",
+      "type": "learning-note",
+      "family": "cache-evidence",
+      "body": "缓存击穿的处理：热点键过期瞬间会有大量请求直接打到数据库。解决办法是给热点键加互斥重建锁，重建期间其他请求读旧值。缓存击穿与缓存雪崩不同，雪崩是大批键同时过期，击穿是单个热点键。",
+      "filler_paragraphs": 40
+    }
+  ],
+  "queries": [
+    {
+      "id": "adv-dilution-01",
+      "group": "dilution",
+      "query": "指数退避 jitter 上限",
+      "expected": [
+        "20-Learning/retry/backoff-compact.md",
+        "20-Learning/retry/backoff-handbook.md"
+      ],
+      "must_see": [
+        "20-Learning/retry/backoff-compact.md",
+        "20-Learning/retry/backoff-handbook.md"
+      ],
+      "hard_negatives": [],
+      "demonstrates": "identical evidence in a 0.2 KB and a 30 KB note; whole-document length normalisation charges the long note for text the query never asked about"
+    },
+    {
+      "id": "adv-dilution-02",
+      "group": "dilution",
+      "query": "retry budget consumed per attempt",
+      "expected": [
+        "20-Learning/retry/backoff-compact.md",
+        "20-Learning/retry/backoff-handbook.md"
+      ],
+      "must_see": [
+        "20-Learning/retry/backoff-handbook.md"
+      ],
+      "hard_negatives": [],
+      "demonstrates": "same pair, English side of the evidence paragraph"
+    },
+    {
+      "id": "adv-dilution-03",
+      "group": "dilution",
+      "query": "抖动会被截断",
+      "expected": [
+        "20-Learning/retry/backoff-compact.md",
+        "20-Learning/retry/backoff-handbook.md"
+      ],
+      "must_see": [
+        "20-Learning/retry/backoff-handbook.md"
+      ],
+      "hard_negatives": [
+        "30-Insights/throttle-conclusion.md"
+      ],
+      "demonstrates": "a phrase unique to the shared paragraph, no title help"
+    },
+    {
+      "id": "adv-dilution-04",
+      "group": "dilution",
+      "query": "重试退避的短笔记",
+      "expected": [
+        "20-Learning/retry/backoff-compact.md"
+      ],
+      "must_see": [
+        "20-Learning/retry/backoff-compact.md"
+      ],
+      "hard_negatives": [],
+      "demonstrates": "control: an exact title must still win outright, so a fix for the cases above cannot be a blanket length bonus"
+    },
+    {
+      "id": "adv-crowding-01",
+      "group": "crowding",
+      "query": "限流阈值调优",
+      "expected": [
+        "30-Insights/throttle-conclusion.md"
+      ],
+      "must_see": [
+        "30-Insights/throttle-conclusion.md"
+      ],
+      "hard_negatives": [],
+      "max_family_occupancy": {
+        "throttle-daily": 4
+      },
+      "demonstrates": "five near-identical dailies and one conclusion; the dailies are not wrong, but they must not take every slot"
+    },
+    {
+      "id": "adv-crowding-02",
+      "group": "crowding",
+      "query": "连接池排队",
+      "expected": [
+        "30-Insights/throttle-conclusion.md"
+      ],
+      "must_see": [
+        "30-Insights/throttle-conclusion.md"
+      ],
+      "hard_negatives": [],
+      "demonstrates": "the conclusion holds evidence no daily repeats"
+    },
+    {
+      "id": "adv-crowding-03",
+      "group": "crowding",
+      "query": "网关的每秒许可从 400 调到",
+      "expected": [
+        "15-Daily/2026-07-01.md",
+        "15-Daily/2026-07-02.md",
+        "15-Daily/2026-07-03.md",
+        "15-Daily/2026-07-04.md",
+        "15-Daily/2026-07-05.md"
+      ],
+      "must_see": [],
+      "hard_negatives": [],
+      "demonstrates": "control: when the dailies really are the answer, several of them in Top-K is correct — repetition is not by itself a defect"
+    },
+    {
+      "id": "adv-crowding-04",
+      "group": "crowding",
+      "query": "限流调优的结论",
+      "expected": [
+        "30-Insights/throttle-conclusion.md"
+      ],
+      "must_see": [
+        "30-Insights/throttle-conclusion.md"
+      ],
+      "hard_negatives": [],
+      "demonstrates": "control: an exact title beats the crowd"
+    },
+    {
+      "id": "adv-ambiguity-01",
+      "group": "ambiguity",
+      "query": "反向代理的读超时要不要重试",
+      "expected": [
+        "20-Learning/network/upstream-timeout.md"
+      ],
+      "must_see": [
+        "20-Learning/network/upstream-timeout.md"
+      ],
+      "hard_negatives": [
+        "20-Learning/agent/tool-loop.md"
+      ],
+      "demonstrates": "`代理` expands into both the agent and proxy concepts; the surrounding words say which reading is meant"
+    },
+    {
+      "id": "adv-ambiguity-02",
+      "group": "ambiguity",
+      "query": "代理的工具循环轮次",
+      "expected": [
+        "20-Learning/agent/tool-loop.md"
+      ],
+      "must_see": [
+        "20-Learning/agent/tool-loop.md"
+      ],
+      "hard_negatives": [
+        "20-Learning/network/upstream-timeout.md"
+      ],
+      "demonstrates": "the other reading of the same ambiguous term"
+    },
+    {
+      "id": "adv-ambiguity-03",
+      "group": "ambiguity",
+      "query": "智能体的工具循环",
+      "expected": [
+        "20-Learning/agent/tool-loop.md"
+      ],
+      "must_see": [
+        "20-Learning/agent/tool-loop.md"
+      ],
+      "hard_negatives": [
+        "20-Learning/network/upstream-timeout.md"
+      ],
+      "demonstrates": "control: the unambiguous synonym must not drift"
+    },
+    {
+      "id": "adv-ambiguity-04",
+      "group": "ambiguity",
+      "query": "代理的许可证条款",
+      "expected": [],
+      "must_see": [],
+      "hard_negatives": [
+        "20-Learning/agent/tool-loop.md",
+        "20-Learning/network/upstream-timeout.md"
+      ],
+      "demonstrates": "hard negative: both readings exist in the Vault and neither covers licensing — expansion must not manufacture an answer"
+    },
+    {
+      "id": "adv-field-01",
+      "group": "field",
+      "query": "缓存击穿怎么处理",
+      "expected": [
+        "20-Learning/cache/hotkey-rebuild.md"
+      ],
+      "must_see": [
+        "20-Learning/cache/hotkey-rebuild.md"
+      ],
+      "hard_negatives": [],
+      "demonstrates": "a title-only stub competes with a long note holding the actual answer; title weight is 6x body weight"
+    },
+    {
+      "id": "adv-field-02",
+      "group": "field",
+      "query": "互斥重建锁 读旧值",
+      "expected": [
+        "20-Learning/cache/hotkey-rebuild.md"
+      ],
+      "must_see": [
+        "20-Learning/cache/hotkey-rebuild.md"
+      ],
+      "hard_negatives": [
+        "20-Learning/cache/cache-breakdown-stub.md"
+      ],
+      "demonstrates": "evidence terms appear only in the long note's body"
+    },
+    {
+      "id": "adv-field-03",
+      "group": "field",
+      "query": "缓存雪崩与击穿的区别",
+      "expected": [
+        "20-Learning/cache/hotkey-rebuild.md"
+      ],
+      "must_see": [
+        "20-Learning/cache/hotkey-rebuild.md"
+      ],
+      "hard_negatives": [],
+      "demonstrates": "the distinction is stated only in the long note"
+    },
+    {
+      "id": "adv-field-04",
+      "group": "field",
+      "query": "缓存击穿笔记",
+      "expected": [
+        "20-Learning/cache/cache-breakdown-stub.md"
+      ],
+      "must_see": [
+        "20-Learning/cache/cache-breakdown-stub.md"
+      ],
+      "hard_negatives": [],
+      "demonstrates": "control: the stub's own alias must still retrieve it, so a fix cannot simply demote short notes"
+    },
+    {
+      "id": "adv-noanswer-01",
+      "group": "no-answer",
+      "query": "指数退避在 Kafka 消费者里的实现",
+      "expected": [],
+      "must_see": [],
+      "hard_negatives": [
+        "20-Learning/retry/backoff-compact.md",
+        "20-Learning/retry/backoff-handbook.md"
+      ],
+      "demonstrates": "shares a strong term with two notes that do not answer it; a partial term overlap is not evidence"
+    },
+    {
+      "id": "adv-noanswer-02",
+      "group": "no-answer",
+      "query": "限流阈值调优的成本核算",
+      "expected": [],
+      "must_see": [],
+      "hard_negatives": [
+        "30-Insights/throttle-conclusion.md"
+      ],
+      "demonstrates": "the topic exists, the question does not"
+    },
+    {
+      "id": "adv-noanswer-03",
+      "group": "no-answer",
+      "query": "缓存击穿的法律责任",
+      "expected": [],
+      "must_see": [],
+      "hard_negatives": [
+        "20-Learning/cache/cache-breakdown-stub.md"
+      ],
+      "demonstrates": "a title match must not carry an unrelated question"
+    },
+    {
+      "id": "adv-noanswer-04",
+      "group": "no-answer",
+      "query": "反向代理的许可证审计流程",
+      "expected": [],
+      "must_see": [],
+      "hard_negatives": [
+        "20-Learning/network/upstream-timeout.md"
+      ],
+      "demonstrates": "expansion plus a title term must not add up to a hit"
+    },
+    {
+      "id": "adv-noanswer-05",
+      "group": "no-answer",
+      "query": "重试退避的长手册在哪一年出版",
+      "expected": [],
+      "must_see": [],
+      "hard_negatives": [
+        "20-Learning/retry/backoff-handbook.md"
+      ],
+      "demonstrates": "an exact title plus a question the note never answers"
+    },
+    {
+      "id": "adv-noanswer-06",
+      "group": "no-answer",
+      "query": "连接池排队的监控告警配置",
+      "expected": [],
+      "must_see": [],
+      "hard_negatives": [
+        "30-Insights/throttle-conclusion.md"
+      ],
+      "demonstrates": "a phrase from one note, a question no note answers"
+    }
+  ]
+}
