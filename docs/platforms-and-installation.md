@@ -105,12 +105,43 @@ Vault：
 
 单独复制一个指令文件既不是完整标准 Skill，也不会初始化 Vault。需要手工安装时，应复制完整 Skill 目录并自行保证 Python 3.11+ 与 PyYAML 可用；更推荐官方安装器。
 
+## 与 Skill 管理器共存
+
+如果本机由 skill-hub 之类的管理器接管了 `~/.claude/skills/` 等位置，那些条目是指向管理器 store 的符号链接。安装器做六件事，其中只有一件与管理器冲突：
+
+| 职责 | 产物 | 管理器能否替代 |
+|---|---|---|
+| Python 运行时 | `~/.obsidian-kb-skill/vendor/` | 否 |
+| 解释器选择 | `~/.obsidian-kb-skill/runtime.json` | 否 |
+| Vault 路径配置 | `~/.obsidian-kb-config` | 否 |
+| Vault 结构与模板 | Vault 内的目录与 `Templates/` | 否 |
+| 诊断副本 | `~/.obsidian-kb-skill/skill/` 等 | 否（不冲突） |
+| **各平台 Skill 分发** | `~/.claude/skills/` 等五处 | **是** |
+
+前五件没有管理器提供，所以「只用管理器」会得到一个缺少 vendor 与 Vault 配置的安装，helper 第一次调用就 `ModuleNotFoundError`。用 `--runtime-only` 只做前五件：
+
+```bash
+bash install.sh --vault "/你的/Vault" --runtime-only
+```
+
+```powershell
+.\install.ps1 -VaultPath "C:\你的\Vault" -RuntimeOnly
+```
+
+然后照常用管理器安装两个 Skill。顺序无所谓，两边互不依赖。
+
+`--runtime-only` 与 `--platforms` 不能同时给：前者不写任何平台文件，后者没有可选的东西，静默接受其中一个会让你以为另一个生效了。
+
+默认模式（不加 `--runtime-only`）现在也不会破坏管理器的链接：指向本 checkout 之外的 Skill 目录符号链接会被跳过并报出目标，结尾给出跳过数量。`--force` / `-Force` 可以覆盖，但那会把链接换成真实目录，管理器随后会报 drift。
+
 ## 升级
 
 ```bash
 git pull --ff-only
 bash install.sh --vault "/你的/Vault"
 ```
+
+**由管理器接管 Skill 位置时，升级命令是 `--runtime-only` 那条**，再让管理器刷新它自己的副本。重跑默认安装不会再破坏链接，但也不会更新管理器 store 里的内容。
 
 升级后验证：
 

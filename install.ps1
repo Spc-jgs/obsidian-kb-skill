@@ -21,6 +21,13 @@ param(
 
     [switch]$Force,
 
+    # Install everything except the platform Skill files. Distributing those is
+    # the only job here a Skill manager also does; the vendored runtime, the
+    # interpreter record, the Vault path and the Vault's own structure are not
+    # provided by any manager, so "just use the manager" yields an install whose
+    # first helper call fails to import. See #113.
+    [switch]$RuntimeOnly,
+
     [switch]$Help,
 
     [switch]$Uninstall,
@@ -270,6 +277,9 @@ if ($Help) {
     Write-Host "  -Platforms LIST    Comma-separated: qoderwork,claude-code,codex,cursor,workbuddy (default: all)"
     Write-Host "  -Locale LOCALE     Template language: zh-CN or en (default: zh-CN)"
     Write-Host "  -Force             Overwrite existing templates and refresh installed skill content"
+    Write-Host "  -RuntimeOnly       Install the runtime, config and Vault structure only; write no"
+    Write-Host "                     platform Skill files. Use this when a Skill manager owns those"
+    Write-Host "                     locations. Cannot be combined with -Platforms"
     Write-Host "  -Uninstall         Remove installed skills and legacy marker blocks"
     Write-Host "  -PurgeConfig       With -Uninstall, also remove Vault and backup settings"
     Write-Host "  -Help              Show this help message"
@@ -282,12 +292,23 @@ if ($Help) {
     exit 0
 }
 
-$platformList = @($Platforms -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-$validPlatforms = @("qoderwork", "claude-code", "codex", "cursor", "workbuddy")
-if ($platformList.Count -eq 0) { throw "No platforms selected." }
-foreach ($platform in $platformList) {
-    if ($validPlatforms -notcontains $platform) {
-        throw "Unknown platform: $platform"
+# Two contradictory instructions. Silently honouring one would leave the user
+# believing the other took effect, which on a managed machine is exactly the
+# wrong belief to hold about whether Skill files were written.
+if ($RuntimeOnly -and $PSBoundParameters.ContainsKey('Platforms')) {
+    throw "-RuntimeOnly writes no platform Skill files, so -Platforms has nothing to select. Drop one of them."
+}
+
+if ($RuntimeOnly) {
+    $platformList = @()
+} else {
+    $platformList = @($Platforms -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $validPlatforms = @("qoderwork", "claude-code", "codex", "cursor", "workbuddy")
+    if ($platformList.Count -eq 0) { throw "No platforms selected." }
+    foreach ($platform in $platformList) {
+        if ($validPlatforms -notcontains $platform) {
+            throw "Unknown platform: $platform"
+        }
     }
 }
 
@@ -478,7 +499,11 @@ if ($null -ne $settingsStream) {
 Write-Host ""
 Write-Host "=== Obsidian Knowledge Base Skill Installer ===" -ForegroundColor Cyan
 Write-Host "Vault path: $VaultPath"
-Write-Host "Platforms:  $Platforms"
+if ($RuntimeOnly) {
+    Write-Host "Platforms:  (none -- runtime only)"
+} else {
+    Write-Host "Platforms:  $Platforms"
+}
 Write-Host "Locale:     $Locale"
 if ($Force) { Write-Host "Mode:       FORCE (overwrite existing templates and skill blocks)" -ForegroundColor Yellow }
 Write-Host ""
@@ -722,6 +747,12 @@ Write-Host "-> Vault structure ready." -ForegroundColor Green
 Write-Host ""
 
 # Step 3: Install platform files
+if ($RuntimeOnly) {
+    Write-Host "-> Runtime only: no platform Skill files written."
+    Write-Host "   Install the Skills through your Skill manager; this run supplied the"
+    Write-Host "   vendored runtime, interpreter record, Vault config and Vault structure,"
+    Write-Host "   which no manager provides."
+}
 foreach ($platform in $platformList) {
     switch ($platform) {
         "qoderwork" {

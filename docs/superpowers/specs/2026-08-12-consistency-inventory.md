@@ -52,10 +52,30 @@ It is a list of the boundaries, and the discipline of adding to it.
 | 20 | The unreplaced-placeholder rule across `audit-vault`, `template-contract` and `process-inbox` | **relation removed** — one `TEMPLATE_PLACEHOLDER_RE` in `note_catalog`, shared by object; `test_the_placeholder_rule_is_the_audits_rule_not_a_second_copy` asserts identity so a local copy cannot come back |
 | 21 | Default draft tag in `process_inbox` ↔ the reference an Agent reads | `test_the_filing_reference_names_the_draft_tag_the_code_defaults_to` |
 | 22 | Next-actions headings in `review_projects` ↔ `resume_project` | **relation removed** — one `PROJECT_NOTE_NEXT_ACTION_HEADINGS` in `note_catalog`; `test_both_retrieval_helpers_mean_the_same_thing_by_next_actions` asserts both derive from it |
+| 23 | `--runtime-only` in `install.sh` ↔ `-RuntimeOnly` in `install.ps1` ↔ `tests/windows_installer_smoke.ps1` | `test_bash_runtime_only_*` (POSIX behaviour), `test_powershell_installer_has_runtime_only_parity` (text), and the smoke script now exercises the Windows **behaviour** — the coverage row 17 lacked |
+| 24 | Installer flag names ↔ the READMEs and installation guide | `test_the_docs_explain_installing_alongside_a_skill_manager`, `test_both_installers_document_runtime_only_in_their_help` |
+| 25 | Tests that invoke `install.sh` ↔ the `test_bash_` prefix the Windows skip keys on | `test_every_bash_invoking_installer_test_is_named_for_the_windows_skip` |
 
 Guards 12, 13 and 14 were added by this work. The rest already existed; several
 had caught the author earlier the same day. Row 17 arrived late, in #114 — see
 below. Rows 18 and 19 came with #115.
+
+Row 25 was written from a red CI run, and the boundary is a *naming
+convention*: `tests/test_installers.py` skips bash lifecycle tests on Windows
+through an autouse fixture keyed on the prefix `test_bash_`. Nothing checked
+that a test running `install.sh` carried it, so a correctly-written hard
+negative under a different name ran on Windows and failed. This is the registry's
+own claim in miniature — a rule enforced only by whoever notices — and it is
+mechanically checkable, which is why it is a row and not a comment.
+
+Row 23 is row 17 with its gap closed, and it is the reason to read row 17's
+guard column rather than its name. Row 17 records a parity assertion that reads
+`install.ps1` and stops there; the Windows *behaviour* it is named after is
+exercised by exactly one file, which runs only in CI. The new mode therefore
+shipped with a scenario added to that file in the same change — the step #114
+skipped. Nothing local can run it: `pwsh` is absent on the development machine,
+so "the tests pass here" says nothing about the Windows half. That is a fact
+about this repository worth stating plainly rather than rediscovering.
 
 Row 22 is the registry's first same-day catch of its own author. #125 widened
 one of two vocabularies for *next actions* and left the other alone, without a

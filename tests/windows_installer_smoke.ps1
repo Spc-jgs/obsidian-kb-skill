@@ -211,6 +211,26 @@ try {
     & (Join-Path $Release "install.ps1") -VaultPath $Vault -Platforms "codex" -Uninstall -PurgeConfig
     Assert-True (-not (Test-Path (Join-Path $HomeDir ".obsidian-kb-config"))) "Purge did not remove config"
     Assert-True (-not (Test-Path $Settings)) "Purge did not remove backup settings"
+
+    # -RuntimeOnly (#113). The bash side has behavioural tests for this; the
+    # PowerShell side had only a text assertion over install.ps1 until now, and
+    # that exact gap is how #114 shipped a parity guard that could not see the
+    # drift it was written for. Nothing runs install.ps1 in CI except this file.
+    $Codex = Join-Path $HomeDir ".codex\skills\obsidian-knowledge-base"
+    if (Test-Path $Codex) { Remove-Item $Codex -Recurse -Force }
+    & (Join-Path $Release "install.ps1") -VaultPath $Vault -RuntimeOnly
+    Assert-True (-not (Test-Path $Codex)) "-RuntimeOnly wrote a platform Skill"
+    Assert-True (Test-Path (Join-Path $HomeDir ".obsidian-kb-config")) "-RuntimeOnly skipped the Vault config"
+    Assert-True (Test-Path (Join-Path $HomeDir ".obsidian-kb-skill\runtime.json")) "-RuntimeOnly skipped the interpreter record"
+    Assert-True (Test-Path (Join-Path $Vault "Templates\Project Note.md")) "-RuntimeOnly skipped the Vault templates"
+
+    $Conflict = $false
+    try {
+        & (Join-Path $Release "install.ps1") -VaultPath $Vault -RuntimeOnly -Platforms "codex"
+    } catch {
+        $Conflict = $true
+    }
+    Assert-True $Conflict "-RuntimeOnly with -Platforms was silently accepted"
 } finally {
     $env:USERPROFILE = $OldUserProfile
     $env:HOME = $OldHome
