@@ -51,6 +51,37 @@ still be describing a constraint a digest settled months ago.
 custom templates may legitimately have none of the standard sections; say what
 is unavailable rather than assembling an answer out of surrounding prose.
 
+## Never read `missing_sections` on its own
+
+`missing_sections` says the pack could not fill a field. It does **not** say the
+project never recorded one. Read it together with `headings`, which splits the
+note's own headings into `matched` (names this pack understands) and
+`unmatched` (everything else):
+
+- **`unmatched` is non-empty** — the field may well be recorded under one of
+  those headings. Say "not under a heading I recognise; the note also has
+  `<names>`" and let the user look. Never say the project has no decisions.
+- **Both lists are empty** — the note has no headings at all. This is the one
+  case where a missing field really does mean the content is absent.
+- **`matched` contains the field's own heading while the field is still
+  missing** — the section exists and is empty.
+
+The pack does not guess which unmatched heading holds what, and neither should
+you from the names alone: reading them is a judgement about content, so open the
+note before saying anything about it. This distinction exists because the two
+readings send a user in opposite directions — one goes looking, the other writes
+a decisions log that is already there.
+
+Heading names are matched literally, in the locales the templates declare plus
+variants observed in real Vaults. A note that writes `后续行动` where the
+template says `下一步行动` is understood; a synonym nobody has seen yet is not,
+and shows up in `unmatched` rather than being guessed at.
+
+Source notes get no such report. A source contributing nothing is the ordinary
+case — a meeting note in the project folder was never expected to answer these
+fields — so its `fields: []` is not a signal of anything. The project note is
+different: answering these fields is what it is for.
+
 ## Bounds
 
 `--max-sources` (default 5) keeps the pack a known number of reads. Sources are
