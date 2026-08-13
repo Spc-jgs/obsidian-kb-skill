@@ -568,3 +568,178 @@ def test_a_date_that_does_not_exist_is_not_a_date():
     assert parse_note_date("2026-08-06") == "2026-08-06"
     assert parse_note_date("2026-13-45") is None
     assert parse_note_date("2026-02-30") is None
+
+
+# --- "No results" is not one fact (#120) -------------------------------------
+#
+# `results: []` currently means at least four different things: the scope holds
+# nothing searchable, filters emptied the candidates, the query overlaps no
+# token, or the files that would have answered were skipped. Each has a
+# different next step, and the text output said the same sentence for all of
+# them. The helper already counts everything needed to tell them apart.
+
+
+def test_a_scope_with_nothing_searchable_says_so(tmp_path):
+    vault = _vault(tmp_path)
+
+    payload = search_vault(vault, "任何问题")
+
+    assert payload["results"] == []
+    assert payload["diagnostics"]["primary_reason"] == "no-searchable-documents"
+    assert payload["diagnostics"]["facts"]["candidates"] == 0
+
+
+def test_filters_that_emptied_the_candidates_are_named_as_the_cause(tmp_path):
+    vault = _vault(tmp_path)
+    _note(
+        vault / "20-Learning" / "cache.md",
+        title="缓存击穿",
+        body="热点键重建锁的写法。",
+    )
+
+    payload = search_vault(vault, "缓存击穿", types=["meeting-note"])
+
+    assert payload["results"] == []
+    diagnostics = payload["diagnostics"]
+    assert diagnostics["primary_reason"] == "all-candidates-filtered"
+    assert diagnostics["facts"]["candidates"] == 1
+    assert diagnostics["facts"]["matched"] == 0
+    # The existing filters block is the evidence and must stay compatible.
+    assert payload["filters"]["applied"] == {"type": ["meeting-note"]}
+    assert payload["filters"]["excluded"] == {"type": 1}
+
+
+def test_candidates_without_token_overlap_never_suggest_an_empty_vault(tmp_path):
+    """Hard negative from #120: the Vault is not empty, the words did not meet.
+
+    Telling a user their Vault holds nothing when it holds notes that simply do
+    not use their words is the same defect as #115 — a fact about the tool
+    reported as a fact about the Vault.
+    """
+    vault = _vault(tmp_path)
+    _note(
+        vault / "20-Learning" / "cache.md",
+        title="缓存击穿",
+        body="热点键重建锁的写法。",
+    )
+
+    payload = search_vault(vault, "quantum chromodynamics lattice")
+
+    assert payload["results"] == []
+    diagnostics = payload["diagnostics"]
+    assert diagnostics["primary_reason"] == "no-token-overlap"
+    assert diagnostics["facts"]["candidates"] == 1
+    assert diagnostics["facts"]["matched"] == 1
+    assert "no-searchable-documents" not in json.dumps(diagnostics)
+
+
+def test_skipped_files_outrank_an_empty_scope_as_the_reason(tmp_path):
+    """Priority: unreadable is not the same as absent.
+
+    A scope whose only notes could not be parsed has something to fix; a scope
+    that is genuinely empty has nothing. Reporting the second when the first is
+    true sends the user to create notes they already have.
+    """
+    vault = _vault(tmp_path)
+    (vault / "20-Learning" / "broken.md").write_text(
+        "---\ntype: [unclosed\n---\n# Broken\n", encoding="utf-8"
+    )
+
+    payload = search_vault(vault, "缓存击穿")
+
+    assert payload["results"] == []
+    assert payload["issues"], "the malformed note should be reported"
+    assert payload["diagnostics"]["primary_reason"] == "material-files-skipped"
+    assert payload["diagnostics"]["facts"]["files_skipped"] == len(payload["issues"])
+
+
+def test_a_filter_outranks_a_missing_overlap_as_the_reason(tmp_path):
+    """Priority: the filter is the proximate cause the user just introduced."""
+    vault = _vault(tmp_path)
+    _note(
+        vault / "20-Learning" / "cache.md",
+        title="缓存击穿",
+        body="热点键重建锁的写法。",
+    )
+
+    payload = search_vault(
+        vault, "quantum chromodynamics", types=["meeting-note"]
+    )
+
+    assert payload["diagnostics"]["primary_reason"] == "all-candidates-filtered"
+
+
+def test_expansion_is_reported_as_a_fact_not_as_the_reason(tmp_path):
+    """#120 is explicit: a lexicon miss does not prove the lexicon is wrong."""
+    vault = _vault(tmp_path)
+    _note(
+        vault / "20-Learning" / "cache.md",
+        title="缓存击穿",
+        body="热点键重建锁的写法。",
+    )
+
+    payload = search_vault(vault, "zzz qqq wwww")
+
+    diagnostics = payload["diagnostics"]
+    assert diagnostics["primary_reason"] == "no-token-overlap"
+    assert diagnostics["facts"]["expansion_triggered"] is False
+
+
+def test_every_reason_offers_a_retry_the_user_performs(tmp_path):
+    """Suggestions only. The helper never re-runs and never widens by itself."""
+    vault = _vault(tmp_path)
+    _note(
+        vault / "20-Learning" / "cache.md",
+        title="缓存击穿",
+        body="热点键重建锁的写法。",
+    )
+
+    payload = search_vault(vault, "quantum chromodynamics")
+
+    retries = payload["diagnostics"]["safe_retries"]
+    assert retries, "a reason with no next step tells the user nothing"
+    assert all(isinstance(item, str) for item in retries)
+
+
+def test_diagnostics_are_absent_when_something_matched(tmp_path):
+    """A found result needs no explanation of why nothing was found."""
+    vault = _vault(tmp_path)
+    _note(
+        vault / "20-Learning" / "cache.md",
+        title="缓存击穿",
+        body="热点键重建锁的写法。",
+    )
+
+    payload = search_vault(vault, "缓存击穿")
+
+    assert payload["results"]
+    assert "diagnostics" not in payload
+
+
+def test_diagnostics_carry_no_absolute_path(tmp_path):
+    vault = _vault(tmp_path)
+    (vault / "20-Learning" / "broken.md").write_text(
+        "---\ntype: [unclosed\n---\n# Broken\n", encoding="utf-8"
+    )
+
+    payload = search_vault(vault, "缓存击穿")
+
+    serialized = json.dumps(payload["diagnostics"], ensure_ascii=False)
+    assert str(tmp_path) not in serialized
+    assert "/Users/" not in serialized
+
+
+def test_the_text_mode_says_the_same_reason_as_the_json(tmp_path):
+    """One reason table drives both, so the two answers cannot disagree."""
+    vault = _vault(tmp_path)
+    _note(
+        vault / "20-Learning" / "cache.md",
+        title="缓存击穿",
+        body="热点键重建锁的写法。",
+    )
+
+    payload = search_vault(vault, "quantum chromodynamics")
+    result = _run(str(vault), "--query", "quantum chromodynamics")
+
+    assert result.returncode == 0
+    assert payload["diagnostics"]["primary_reason"] in result.stdout

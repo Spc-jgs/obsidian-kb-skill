@@ -232,3 +232,22 @@ def test_every_bash_invoking_installer_test_is_named_for_the_windows_skip():
         "these tests run install.sh but are not named `test_bash_*`, so the "
         f"Windows skip does not cover them: {offenders}"
     )
+
+
+def test_every_zero_result_reason_is_documented_for_the_agent_that_reads_it():
+    """A reason code an Agent cannot look up is a code it will paraphrase.
+
+    The retrieval Skill ships `search.md` and nothing else about these; a code
+    present in the helper but absent there leaves the Agent to invent what it
+    means, which for `no-token-overlap` means telling the user their Vault is
+    empty — the exact reading the code exists to prevent.
+    """
+    from obsidian_kb_skill.scripts.search_vault import ZERO_RESULT_REASONS
+
+    reference = (
+        ROOT / "core" / "retrieval-references" / "search.md"
+    ).read_text(encoding="utf-8")
+
+    assert ZERO_RESULT_REASONS, "the helper diagnoses nothing at all"
+    for code in ZERO_RESULT_REASONS:
+        assert f"`{code}`" in reference, f"undocumented zero-result reason: {code}"
