@@ -55,6 +55,8 @@ It is a list of the boundaries, and the discipline of adding to it.
 | 23 | `--runtime-only` in `install.sh` ↔ `-RuntimeOnly` in `install.ps1` ↔ `tests/windows_installer_smoke.ps1` | `test_bash_runtime_only_*` (POSIX behaviour), `test_powershell_installer_has_runtime_only_parity` (text), and the smoke script now exercises the Windows **behaviour** — the coverage row 17 lacked |
 | 24 | Installer flag names ↔ the READMEs and installation guide | `test_the_docs_explain_installing_alongside_a_skill_manager`, `test_both_installers_document_runtime_only_in_their_help` |
 | 25 | Tests that invoke `install.sh` ↔ the `test_bash_` prefix the Windows skip keys on | `test_every_bash_invoking_installer_test_is_named_for_the_windows_skip` |
+| 26 | Zero-result reason in JSON ↔ the same reason in text mode | **relation removed** — one `ZERO_RESULT_REASONS` table, read by both `search_vault()` and `main()` |
+| 27 | Zero-result reason codes ↔ the reference the retrieval Agent reads | `test_every_zero_result_reason_is_documented_for_the_agent_that_reads_it` |
 
 Guards 12, 13 and 14 were added by this work. The rest already existed; several
 had caught the author earlier the same day. Row 17 arrived late, in #114 — see

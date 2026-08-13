@@ -137,6 +137,33 @@ five result files and keep the user's requested scope.
 Malformed or unreadable notes appear in the bounded `issues` list. Report a
 material skipped file without exposing unrelated absolute paths.
 
+## When nothing came back
+
+`results: []` is not one fact. A zero-result response carries `diagnostics`
+with the one reason the helper can prove, the counts behind it, and retries the
+**user** performs:
+
+| `primary_reason` | What is true | What it is not |
+|---|---|---|
+| `all-candidates-filtered` | Candidates existed and the active filters removed all of them | Not an empty Vault. Read `filters.excluded` for the dimension |
+| `material-files-skipped` | Nothing in scope could be read, and notes were skipped | Not an empty folder — it is a broken one, and the fix is repair, not writing new notes |
+| `no-searchable-documents` | The scope holds no searchable note | Says nothing about the rest of the Vault when a `--scope` is set |
+| `no-token-overlap` | Notes exist; none share a word with this query | **Never report this as "your Vault has nothing on this."** It is a fact about the words, not about the knowledge |
+
+`facts.expansion_triggered: false` means no concept matched, so only the typed
+words were searched. That is a fact, never the reason: a lexicon that added
+nothing has not been shown to be wrong.
+
+`safe_retries` are **suggestions, not authorisation**. The helper never re-runs
+itself, never widens a filter, never drops a scope, and never rewrites the
+query. Show the user what would change and let them ask for it — a retry you
+perform on your own initiative is a decision they did not make. In particular,
+"ask the user to approve a term pair" is a request to *them*; editing the
+Vault's lexicon is a write and belongs to the other Skill.
+
+The same reason and counts print in text mode, generated from the same table,
+so the JSON and the human-readable answer cannot disagree.
+
 ## Refusal Codes
 
 With `--json` the helper refuses through `{"error": {"code", "message"}}` and

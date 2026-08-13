@@ -683,7 +683,111 @@ def search_vault(
             "matched": len(documents),
             "excluded": filter_excluded,
         }
+    if not results:
+        # `results: []` was one shape for four different facts, each with a
+        # different next step. Present only when there is nothing to explain
+        # away: a found result needs no account of why nothing was found.
+        payload["diagnostics"] = _diagnose(
+            candidates=candidates,
+            matched=len(documents),
+            issues=issues,
+            filters=filters,
+            expansion=expansion,
+            scope=scope_relative or ".",
+        )
     return payload
+
+
+# One table, two consumers. #120 requires the text hint and the JSON code to
+# come from the same place: two independent answers to "why nothing" is the
+# defect this diagnosis exists to remove, reproduced one level up.
+ZERO_RESULT_REASONS: dict[str, str] = {
+    "all-candidates-filtered": "the active filters excluded every candidate",
+    "material-files-skipped": "nothing in scope could be read",
+    "no-searchable-documents": "the scope holds no searchable note",
+    "no-token-overlap": "candidates exist, but none share a word with the query",
+}
+
+
+def _diagnose(
+    *,
+    candidates: int,
+    matched: int,
+    issues: list[dict[str, Any]],
+    filters: "Filters",
+    expansion: Any,
+    scope: str,
+) -> dict[str, Any]:
+    """Why this search returned nothing, from counts already in hand.
+
+    Only mechanically provable reasons. The helper does not guess at spelling,
+    synonyms, or what the user meant, and it never re-runs: `safe_retries` are
+    sentences the *user* acts on. A suggestion is a next step, not permission.
+
+    Several reasons can hold at once, so one is named primary and the rest stay
+    in `facts`. The order is by proximate cause: a filter the user just added
+    explains the emptiness better than the words not overlapping, and an
+    unreadable note explains it better than an empty folder — that scope is not
+    empty, it is broken, and telling the user to write notes they already have
+    is the wrong next step.
+    """
+    if matched == 0 and candidates > 0:
+        reason = "all-candidates-filtered"
+    elif candidates == 0 and issues:
+        reason = "material-files-skipped"
+    elif candidates == 0:
+        reason = "no-searchable-documents"
+    else:
+        reason = "no-token-overlap"
+
+    retries: list[str] = []
+    if reason == "all-candidates-filtered":
+        applied = ", ".join(sorted(filters.applied())) or "the active filters"
+        retries.append(f"widen or drop the filter(s) you set: {applied}")
+        retries.append("run the same query with no filter to see what exists")
+    elif reason == "material-files-skipped":
+        retries.append(
+            "repair the note(s) reported in `issues`, then search again"
+        )
+    elif reason == "no-searchable-documents":
+        if scope != ".":
+            retries.append(f"drop --scope {scope} to search the whole Vault")
+        retries.append("confirm this folder holds notes with a `.md` extension")
+    else:
+        if getattr(expansion, "active", False):
+            retries.append(
+                "compare with --no-expand: if that also returns nothing, the "
+                "expansion is not what is missing"
+            )
+        else:
+            retries.append(
+                "no concept matched, so only the words you typed were searched"
+            )
+        retries.append("try a word the notes themselves use, not a synonym")
+        retries.append(
+            "if a term pair is genuinely missing, ask the user to approve it "
+            "before editing the Vault's lexicon"
+        )
+
+    return {
+        "primary_reason": reason,
+        "explanation": ZERO_RESULT_REASONS[reason],
+        # Everything true at once, so a second reason is visible rather than
+        # discarded. `expansion_triggered` is a fact here and never a primary
+        # reason: a lexicon that added nothing does not prove it is wrong.
+        #
+        # `scanned` is deliberately absent: the payload already carries it at
+        # the top level, and a second copy here would be one more pair that has
+        # to agree. Read it from there.
+        "facts": {
+            "candidates": candidates,
+            "matched": matched,
+            "files_skipped": len(issues),
+            "expansion_triggered": bool(getattr(expansion, "active", False)),
+            "filters_active": filters.active,
+        },
+        "safe_retries": retries,
+    }
 
 
 def _json_error(code: str, message: str) -> str:
@@ -838,6 +942,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"also searched ({expansion['weight']:.2f} weight): {concepts}")
     if not payload["results"]:
         print(f"No results for: {args.query}")
+        diagnostics = payload.get("diagnostics")
+        if diagnostics:
+            # Same table as the JSON, so the two can never give different
+            # answers to the same question.
+            print(
+                f"reason: {diagnostics['primary_reason']} — "
+                f"{diagnostics['explanation']}"
+            )
+            facts = diagnostics["facts"]
+            print(
+                f"indexed {payload['scanned'].get('indexed', 0)}, "
+                f"candidates {facts['candidates']}, "
+                f"matched {facts['matched']}, "
+                f"skipped {facts['files_skipped']}"
+            )
+            for retry in diagnostics["safe_retries"]:
+                print(f"  try: {retry}")
         return 0
     for result in payload["results"]:
         location = f"{result['path']}:{result['line']}" if result["line"] else result["path"]
