@@ -12,6 +12,20 @@ from dataclasses import dataclass
 # the group, since a capturing group changes nothing for the `search` callers.
 TEMPLATE_PLACEHOLDER_RE = re.compile(r"\{\{([^}]+)\}\}")
 
+# Headings that mean "what this project does next". `review-projects` locates a
+# project's next action here and `resume-project` extracts the same section, and
+# each used to hold its own literal set. Widening one alone is exactly what
+# happened in #125, unnoticed because nothing tied them together.
+#
+# Each variant names where it came from; a guessed synonym makes the vocabulary
+# look complete while it still fails silently.
+PROJECT_NOTE_NEXT_ACTION_HEADINGS: tuple[str, ...] = (
+    "下一步行动",      # core/templates/project-note.md
+    "后续行动",        # observed: 40-Projects/etianqu/…AI对话上下文与落库设计复盘.md
+    "next actions",   # core/templates/en/project-note.md
+    "next steps",     # inherited from the radar's original set; no known source
+)
+
 
 @dataclass(frozen=True)
 class NoteTypeSpec:
