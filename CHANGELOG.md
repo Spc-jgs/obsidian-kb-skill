@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 
   A link pointing *into this checkout* is still replaced without `--force`, because copying would otherwise follow it and write back into the source tree being installed — that contract predates this change and its tests are unmodified. A link pointing anywhere else is now skipped with the target named, and `--force` overrides, matching how `--force` already governs template overwrites. Both installers report a count at the end and say how to refresh through the owning tool.
 
+  The boundary this creates — one decision stated in `install.sh`, in `install.ps1`, and in the Windows smoke script — is registered as row 17 of the consistency inventory. The parity assertion shipped with the fix reads `install.ps1` and does not cover the smoke script, which is precisely what then broke; only Windows CI executes that file. Recording what a guard actually covers, rather than what it is named after, is the point of the row. Leaving that observation in a commit message put a known risk where nobody reads it.
+
 ## [1.32.0] - 2026-08-12
 
 ### Added
