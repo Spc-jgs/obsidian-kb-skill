@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- `suggest-directed-links` proposes the notes a note declares it **depends on**, with the sentence that says so. `explore-neighborhood` shows every link; this answers the narrower question a reader has when following one — which of these does the note lean on, and for what.
+
+  The judgement is deliberately not similarity, and #75's frozen labels are why. All sixteen of its hard negatives share a *word* with their source and nothing else: `Release Quality Gate` against `Airport Departure Gates`, `Source Archive Format` against `Museum Archive Visit`, `Read-only Retrieval` against `Reading List`. A ranker built on word overlap scores every one of them highly — the set exists to punish exactly the approach `search-vault` uses. What separates the sixteen positives is that the source says, in its own text, what it uses the target for: it *cites*, *delegates to*, *imports*, *follows*, *is expressed as a multiple of*.
+
+  So a candidate needs an explicit reference **and** a dependency phrase, in one sentence. A bare link is not a dependency: a note whose `See also` lists five links has declared five links and no dependencies, and `links_without_a_dependency` counts them so "nothing found" reads differently from "nothing linked". There is no score, no threshold and no confidence number — a candidate either has a declared dependency or is not a candidate.
+
+  The threshold was pre-registered on the issue before any code existed, as #75 requires, with a falsifiable prediction: that the negatives would score **zero** rather than "below a threshold", and that needing to tune a number would mean the criterion was wrong. It held — 16/16 positives found with evidence, 0/16 negatives proposed, and zero references seen on the negative side at all.
+
+  The labels shipped in v1.30 with no corpus: they name notes that never existed as files, and the pre-existing test only checked the labels' own structure. The corpus was written from the labels alone, before the scorer was designed, with two assertions tying them together (rows 39 and 40) — row 40 checks each negative's claimed word overlap is real, since a negative rejected for being about nothing alike would make 16/16 meaningless.
+
+  On the reference Vault: 195 notes, 5 candidates, 256 links correctly rejected. The five are real — a note citing another as its `选型依据`, and the Python series' prerequisite chain, where iterators depend on generators depend on comprehensions. **Five out of 262 is the finding, not a defect**: the helper does what the labels specify, and what they specify is something this Vault does about twice per hundred links. Loosening the criterion to raise that number would readmit all sixteen hard negatives.
+
+  Two vocabulary entries were added from forms *observed* in that Vault, on the terms `PROJECT_NOTE_NEXT_ACTION_HEADINGS` set — a count and a location, never a guessed synonym: `前置知识` ×3 and `前序知识` ×2, which took the Vault from 1 candidate to 5. Measured in the same pass and deliberately not added: `详见` ×4 and `参考` ×2, which are pointers rather than dependencies.
+
+  Breaking the guards on purpose found two things the tests were not saying. Deleting the dependency requirement entirely still rejects all sixteen negatives — they guard against inferring from a shared word, and prove nothing about link-with-dependency versus link-without, which now rests on two named cases and an assertion that records the division. And the same-sentence rule was **unguarded**: widening it to the whole note broke nothing. Both are now tested and both are stated in the eval report rather than left for a reader to over-read 16/16.
+
 ## [1.33.0] - 2026-08-14
 
 ### Added

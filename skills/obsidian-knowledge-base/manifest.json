@@ -57,6 +57,7 @@
     "scripts/obsidian_kb_skill/scripts/preflight_cache.py": "6de69f93c8e1c78293c261bf7ce30c4afd92758f64d5bbff2d402d368a31915a",
     "scripts/obsidian_kb_skill/scripts/process_inbox.py": "a8d3c74b560db1da5ac69b97066f71a58fb4730a5d76c585b0b232dd79390eb1",
     "scripts/obsidian_kb_skill/scripts/query_expansion.py": "11ab6592cb5695b54a4a86ef4de28a250eebb356b1f77723befa0762814c7209",
+    "scripts/obsidian_kb_skill/scripts/relatedness.py": "d021f58578ea98344c0e95d1542fc662ccd7c902ce99cc0f5f23413a5d26454f",
     "scripts/obsidian_kb_skill/scripts/resource_locator.py": "31ac692b36ca0a7dd14747e651b9e29db1705c39706cd16f804951be8816baeb",
     "scripts/obsidian_kb_skill/scripts/resume_project.py": "65af8f72bd2e09bbc1454ea5fa8ad6ef4870db2f870360085799ae09b9c9667e",
     "scripts/obsidian_kb_skill/scripts/retrieval_vault_info.py": "af952ed626b49bbe84841302ace7796e777e68ad2c8f005998389395162164ec",
@@ -71,7 +72,7 @@
     "scripts/obsidian_kb_skill/scripts/update_note.py": "866c116fd7030e12c8480b68df52fc49ae9937701479c0a61f31cec3ea070182",
     "scripts/obsidian_kb_skill/scripts/vault_info.py": "bfafe57fa569f07ecf640ea99c5770af0e0590b7b5204ce2b17c152128ef9f47",
     "scripts/obsidian_kb_skill/scripts/vault_paths.py": "5eb90ea7b46258b79c3e6e4f2361736639fd9a668e97361c1cde0205c55aec2d",
-    "scripts/run_helper.py": "0afaac0ec916ba5f6e96dd03c4915a59615ce1af847e393557e2eb8c3e7def2f"
+    "scripts/run_helper.py": "b46ebe2ca530510b6626bbef7deb34b6312de9593d3b4b14bdc8f8d4d31610e9"
   },
   "product": "obsidian-kb-skill",
   "schema_version": 1,
