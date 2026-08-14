@@ -35,6 +35,7 @@ HELPERS = {
 # that was working the whole time.
 PEER_SKILL = "obsidian-knowledge-retrieval"
 PEER_HELPERS = frozenset({
+    "explore-neighborhood",
     "resume-project",
     "review-projects",
     "search-vault",

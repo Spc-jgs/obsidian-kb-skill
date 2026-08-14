@@ -12,6 +12,7 @@ import sys
 
 HELPERS = {
     "doctor": "obsidian_kb_skill.scripts.doctor",
+    "explore-neighborhood": "obsidian_kb_skill.scripts.explore_neighborhood",
     "resume-project": "obsidian_kb_skill.scripts.resume_project",
     "review-projects": "obsidian_kb_skill.scripts.review_projects",
     "search-vault": "obsidian_kb_skill.scripts.search_vault",

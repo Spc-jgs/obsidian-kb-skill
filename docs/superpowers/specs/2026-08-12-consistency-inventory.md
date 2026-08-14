@@ -64,6 +64,7 @@ It is a list of the boundaries, and the discipline of adding to it.
 | 32 | Cases the adversarial fixture runs ↔ cases the frozen baseline records | the `unrecorded` assertion in `test_the_recorded_baseline_still_describes_this_ranker` |
 | 33 | The unit a result is ranked on ↔ the unit it is cited from | **relation removed** — `_bm25_score` returns the winning `Passage` and `_snippet`, `_field_matches` and `_expansion_signals` all read it; `test_the_citation_comes_from_the_section_that_won` and `test_a_body_signal_names_only_words_in_the_section_that_won` |
 | 34 | `field_tokens["body"]` ↔ the union of the note's passages | **relation removed** — the body counter is summed from the passages rather than tokenized again, which the tokenizer's own definition makes exact: `TOKEN_RUN_RE` matches runs of Latin or CJK and a newline is neither, so no run can span a line break |
+| 35 | What a wikilink resolves to for the audit ↔ what it resolves to for retrieval | **relation removed** — one `link_graph` module, imported by `audit_vault` and `explore_neighborhood`; the alternative was a second implementation of Obsidian's alias-and-stem resolution in a bundle that cannot import the first |
 
 Guards 12, 13 and 14 were added by this work. The rest already existed; several
 had caught the author earlier the same day. Row 17 arrived late, in #114 — see
@@ -103,6 +104,15 @@ checkbox anywhere in the note. It surfaced a few hours later while scoping that
 very count to the section, where the drift would have zeroed out the one project
 whose checkboxes all sit under the widened heading. An unregistered boundary
 does not announce itself; it waits for the change that depends on it.
+
+Row 35 is worth reading beside what *did not* need a row. Adding a helper
+(#121) crossed six boundaries in this list, and five of them — the peer helper
+lists, the retrieval bundle's import graph, the runner registries, the console
+scripts, and the codes an Agent can receive — **failed immediately, by name, on
+the first test run**, each error naming its own fix. That is the whole return on
+this document: the work of registering a boundary is paid once, and collected
+every time someone extends the thing. Only the sixth was new, and it is a
+deletion rather than a guard.
 
 Row 33 is a boundary that existed for as long as the ranker did and nobody had
 named: a note was ranked whole, then a snippet was chosen from it afterwards, so
