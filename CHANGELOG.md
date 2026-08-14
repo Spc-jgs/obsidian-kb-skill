@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.33.0] - 2026-08-14
 
 ### Added
 
@@ -32,23 +32,6 @@ All notable changes to this project will be documented in this file.
 
   Adding a helper crossed six registered boundaries and five of them failed by name on the first test run — peer helper lists, the bundle's import graph, both runner registries, the console scripts, and the reference an Agent is sent to for these codes — each error naming its own fix. Only the sixth was new, and it is a deletion rather than a guard.
 
-### Changed
-
-- `search-vault` ranks a note on its **best section** instead of on everything it contains, and cites from that same section. The two used different units before: BM25 charged a note for every word in it, then a snippet was picked afterwards, so the reason a note ranked and the place the reader was sent could be different parts of the same note.
-
-  The cost of the old unit was measured, not assumed. On #117's adversarial set the identical evidence paragraph scored 11.9 in a 0.3 KB note and 2.2 in a 75 KB one, and neither long note appeared in Top-5 while five notes that mention the terms in passing did. The sectioned long note now enters at rank 2; its unstructured twin, same evidence and same size, stays absent — which is the measurement working rather than a number moving, because a section can compete on its own content only where sections exist. Across the 23 cases, dilution improves (MRR 0.867 → 0.9, one fewer must-see miss) and the four other families are unchanged on every metric they record.
-
-  One formula and one normalisation, as before; only the unit changed. Title, aliases, tags, headings and links describe the whole note and enter every section's score, while the body is partitioned and the best section counts. A note without headings has one section equal to its whole body, so short unstructured notes — most of a Vault — score exactly as they did.
-
-  A section is charged at no less than a typical section of its own note. BM25 rewards short documents, which is right for a short note and wrong for a short slice of a long one: reaching it still means opening the long note. #118 listed this risk before the code existed and the first implementation had it — a stub reading `jitter 上限。` outscored a note whose section explains the answer, 0.580 to 0.504. The floor uses no constant and is inert where the section *is* the note.
-
-  `heading`, `line`, `snippet` and the `body` signal now all describe one section. A word the user typed that appears elsewhere in the note is no longer reported, because saying so tells the reader it is in the passage in front of them; that too was listed as a risk, implemented wrongly anyway, and caught by reading the output rather than by the assertion written for it, which was vacuous on its first draft.
-
-  Latency on the reference Vault is P50 139 ms against 125 ms before, P95 144 ms against 138 ms — 1.04x at P95, against the 2x budget #118 set. Getting there meant not tokenizing the body twice: the counts are summed from the passages instead, which is exact rather than approximate because `TOKEN_RUN_RE` matches runs of Latin or CJK characters and a newline is neither, so no run can span a line break. Registered as rows 33 and 34.
-
-  `matched_passages` is deliberately not shipped. #118 lists it as optional, and growing the payload contract in the same change that reorders every result is two decisions where one will do.
-
-### Added
 
 - The resume pack gathers the two source kinds #86 named and never shipped. PR #107/#108 delivered membership-by-location and closed that issue, so `project` frontmatter and the project note's own `related` list lost their tracker. They matter most where location cannot help: a project note directly under `40-Projects` has no instance directory, #95 made migrating one a non-goal, and until now such a project's pack was the note and nothing else. On the reference Vault that is exactly what happened — `40-Projects/2026-07-09 项目小结实践…` returned zero sources and now returns the learning note its own `related` list points at.
 
@@ -89,6 +72,21 @@ All notable changes to this project will be documented in this file.
   The word `incomplete` is the Vault's, not this Skill's: the project never writes that tag, and hardcoding another system's vocabulary is exactly how the English project-note template drifted out of the resume contract. It is the default because it is the word this Skill's own references already use for the state, and `--draft-tag` declares a different one — replacing the default rather than extending it, so a Vault that uses `incomplete` to mean something else can opt out. Registered as row 21; the filing reference must name whatever the default is.
 
 ### Changed
+
+- `search-vault` ranks a note on its **best section** instead of on everything it contains, and cites from that same section. The two used different units before: BM25 charged a note for every word in it, then a snippet was picked afterwards, so the reason a note ranked and the place the reader was sent could be different parts of the same note.
+
+  The cost of the old unit was measured, not assumed. On #117's adversarial set the identical evidence paragraph scored 11.9 in a 0.3 KB note and 2.2 in a 75 KB one, and neither long note appeared in Top-5 while five notes that mention the terms in passing did. The sectioned long note now enters at rank 2; its unstructured twin, same evidence and same size, stays absent — which is the measurement working rather than a number moving, because a section can compete on its own content only where sections exist. Across the 23 cases, dilution improves (MRR 0.867 → 0.9, one fewer must-see miss) and the four other families are unchanged on every metric they record.
+
+  One formula and one normalisation, as before; only the unit changed. Title, aliases, tags, headings and links describe the whole note and enter every section's score, while the body is partitioned and the best section counts. A note without headings has one section equal to its whole body, so short unstructured notes — most of a Vault — score exactly as they did.
+
+  A section is charged at no less than a typical section of its own note. BM25 rewards short documents, which is right for a short note and wrong for a short slice of a long one: reaching it still means opening the long note. #118 listed this risk before the code existed and the first implementation had it — a stub reading `jitter 上限。` outscored a note whose section explains the answer, 0.580 to 0.504. The floor uses no constant and is inert where the section *is* the note.
+
+  `heading`, `line`, `snippet` and the `body` signal now all describe one section. A word the user typed that appears elsewhere in the note is no longer reported, because saying so tells the reader it is in the passage in front of them; that too was listed as a risk, implemented wrongly anyway, and caught by reading the output rather than by the assertion written for it, which was vacuous on its first draft.
+
+  Latency on the reference Vault is P50 139 ms against 125 ms before, P95 144 ms against 138 ms — 1.04x at P95, against the 2x budget #118 set. Getting there meant not tokenizing the body twice: the counts are summed from the passages instead, which is exact rather than approximate because `TOKEN_RUN_RE` matches runs of Latin or CJK characters and a newline is neither, so no run can span a line break. Registered as rows 33 and 34.
+
+  `matched_passages` is deliberately not shipped. #118 lists it as optional, and growing the payload contract in the same change that reorders every result is two decisions where one will do.
+
 
 - The revival queue says where its task count came from. `open_tasks` counted every unchecked box in a note, and that number ordered the queue — so a note holding a *reusable* checklist outranked projects with real work. On the reference Vault one project note ends with fifteen checklist items for landing some *other* project, while its own plan is a P0/P1/P2 numbered list with no checkbox at all; it ranked as the busiest project in the Vault and reported `测试或发布基线是什么；` — a checklist question — as its next step.
 
