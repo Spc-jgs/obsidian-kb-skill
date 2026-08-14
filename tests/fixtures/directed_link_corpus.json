@@ -1,0 +1,294 @@
+{
+  "schema_version": 1,
+  "purpose": "Notes realising the v1.30 directional labels in directed_link_eval_cases.json. Written from those labels before any scorer existed; every dependency sentence restates that case's own `evidence` field. Synthetic: no real Vault content.",
+  "notes": [
+    {
+      "path": "20-Learning/design/Alias Matching Design.md",
+      "title": "Alias Matching Design",
+      "role": "source",
+      "body": "## What this decides\n\nHow an alias in frontmatter resolves to the note that declares it.\n\n## Why\n\nThe design references the scalar and list examples in [[Frontmatter Alias Examples]].\n"
+    },
+    {
+      "path": "20-Learning/design/Bilingual Query Expansion.md",
+      "title": "Bilingual Query Expansion",
+      "role": "source",
+      "body": "## What this decides\n\nHow a query written in one language reaches notes written in the other.\n\n## Why\n\nEvery expansion term is traced to [[Vault Terminology Table]].\n"
+    },
+    {
+      "path": "20-Learning/design/Capture Receipt Contract.md",
+      "title": "Capture Receipt Contract",
+      "role": "source",
+      "body": "## What this decides\n\nWhat a capture receipt must bind so a note can be checked later.\n\n## Why\n\nCandidate identity is delegated to [[Candidate Hash Algorithm]].\n"
+    },
+    {
+      "path": "20-Learning/design/Deterministic Ranking.md",
+      "title": "Deterministic Ranking",
+      "role": "source",
+      "body": "## What this decides\n\nWhy two runs over an unchanged Vault return the same order.\n\n## Why\n\nEqual scores are resolved by importing the path-order rule from [[Tie-break Specification]].\n"
+    },
+    {
+      "path": "20-Learning/design/Material Image Capture.md",
+      "title": "Material Image Capture",
+      "role": "source",
+      "body": "## What this decides\n\nWhen an image is material to a capture, and what to do when it is missing.\n\n## Why\n\nThe capture flow branches on the availability states in [[Image Availability Matrix]].\n"
+    },
+    {
+      "path": "20-Learning/design/No-answer Gate.md",
+      "title": "No-answer Gate",
+      "role": "source",
+      "body": "## What this decides\n\nWhen retrieval should return nothing rather than the closest of several answers.\n\n## Why\n\nThe gate's corpus is selected from the cases in [[False-positive Casebook]].\n"
+    },
+    {
+      "path": "20-Learning/design/Offline Search Decision.md",
+      "title": "Offline Search Decision",
+      "role": "source",
+      "body": "## What this decides\n\nWhy search runs locally rather than against a hosted index.\n\n## Why\n\nThis decision names [[Index Privacy Threat Model]] as the privacy constraint it answers to.\n"
+    },
+    {
+      "path": "20-Learning/design/Read-only Retrieval.md",
+      "title": "Read-only Retrieval",
+      "role": "source",
+      "body": "## What this decides\n\nThe guarantee that retrieval never changes a file.\n\n## Why\n\nImmutability is proven with the before-and-after hashes from [[Filesystem Snapshot Method]].\n"
+    },
+    {
+      "path": "20-Learning/design/Release Quality Gate.md",
+      "title": "Release Quality Gate",
+      "role": "source",
+      "body": "## What this decides\n\nWhat has to hold before a release goes out.\n\n## Why\n\nThe gate fails when any run in [[Reference Agent Runs]] has a hard failure.\n"
+    },
+    {
+      "path": "20-Learning/design/Retry Policy.md",
+      "title": "Retry Policy",
+      "role": "source",
+      "body": "## What this decides\n\nHow this service retries a failed call, and where the delay stops growing.\n\n## Why\n\nThe ceiling cites the saturation point measured in [[Backoff Measurements]].\n"
+    },
+    {
+      "path": "20-Learning/design/Search Latency Budget.md",
+      "title": "Search Latency Budget",
+      "role": "source",
+      "body": "## What this decides\n\nHow slow a search is allowed to be before it counts as a regression.\n\n## Why\n\nThe budget is expressed as a multiple of the P95 in [[Vault Scan Benchmark]].\n"
+    },
+    {
+      "path": "20-Learning/design/Semantic Candidate Order.md",
+      "title": "Semantic Candidate Order",
+      "role": "source",
+      "body": "## What this decides\n\nThe order candidates are considered in, and why it is not alphabetical.\n\n## Why\n\nCandidate priority follows the failure categories in [[Lexical Baseline Report]].\n"
+    },
+    {
+      "path": "20-Learning/design/Source Archive Format.md",
+      "title": "Source Archive Format",
+      "role": "source",
+      "body": "## What this decides\n\nThe byte-level format an archived source is written in.\n\n## Why\n\nReconstructability is verified by [[Archive Replay Test]], which consumes an archive in this format.\n"
+    },
+    {
+      "path": "20-Learning/design/Template Compatibility Policy.md",
+      "title": "Template Compatibility Policy",
+      "role": "source",
+      "body": "## What this decides\n\nHow this project treats a Vault whose templates differ from its own.\n\n## Why\n\nThis policy cites the incompatible custom headings found by [[Customized Vault Survey]].\n"
+    },
+    {
+      "path": "20-Learning/design/Verified Capture Workflow.md",
+      "title": "Verified Capture Workflow",
+      "role": "source",
+      "body": "## What this decides\n\nThe stricter capture path, and what makes a capture verified.\n\n## Why\n\nThe workflow links to [[Independent Audit Procedure]] for its verification stage.\n"
+    },
+    {
+      "path": "20-Learning/design/Zero-write Failure Rule.md",
+      "title": "Zero-write Failure Rule",
+      "role": "source",
+      "body": "## What this decides\n\nWhat happens when a capture cannot complete: nothing is written.\n\n## Why\n\nThis rule was adopted in response to [[Unavailable Source Incident]].\n"
+    },
+    {
+      "path": "20-Learning/evidence/Archive Replay Test.md",
+      "title": "Archive Replay Test",
+      "role": "positive-target",
+      "body": "## What this records\n\nReplaying an archive to confirm the original can still be reconstructed byte for byte.\n"
+    },
+    {
+      "path": "20-Learning/evidence/Backoff Measurements.md",
+      "title": "Backoff Measurements",
+      "role": "positive-target",
+      "body": "## What this records\n\nMeasured latency under load. Saturation appears at 800 ms; past that, added delay buys nothing.\n"
+    },
+    {
+      "path": "20-Learning/evidence/Candidate Hash Algorithm.md",
+      "title": "Candidate Hash Algorithm",
+      "role": "positive-target",
+      "body": "## What this records\n\nThe hash used to identify a candidate: input normalisation, algorithm, and what a collision would mean.\n"
+    },
+    {
+      "path": "20-Learning/evidence/Customized Vault Survey.md",
+      "title": "Customized Vault Survey",
+      "role": "positive-target",
+      "body": "## What this records\n\nA survey of Vaults with custom templates. Which headings differ, and how far.\n"
+    },
+    {
+      "path": "20-Learning/evidence/False-positive Casebook.md",
+      "title": "False-positive Casebook",
+      "role": "positive-target",
+      "body": "## What this records\n\nCases where a confident answer was wrong, grouped by what produced the confidence.\n"
+    },
+    {
+      "path": "20-Learning/evidence/Filesystem Snapshot Method.md",
+      "title": "Filesystem Snapshot Method",
+      "role": "positive-target",
+      "body": "## What this records\n\nHashing every file before and after an operation to prove nothing changed.\n"
+    },
+    {
+      "path": "20-Learning/evidence/Frontmatter Alias Examples.md",
+      "title": "Frontmatter Alias Examples",
+      "role": "positive-target",
+      "body": "## What this records\n\nAlias frontmatter as it appears in the wild: a bare scalar, a list, and the empty forms.\n"
+    },
+    {
+      "path": "20-Learning/evidence/Image Availability Matrix.md",
+      "title": "Image Availability Matrix",
+      "role": "positive-target",
+      "body": "## What this records\n\nEvery availability state an image can be in, and what each one permits.\n"
+    },
+    {
+      "path": "20-Learning/evidence/Independent Audit Procedure.md",
+      "title": "Independent Audit Procedure",
+      "role": "positive-target",
+      "body": "## What this records\n\nThe second pass: who runs it, what they re-check, and what they are not allowed to see first.\n"
+    },
+    {
+      "path": "20-Learning/evidence/Index Privacy Threat Model.md",
+      "title": "Index Privacy Threat Model",
+      "role": "positive-target",
+      "body": "## What this records\n\nWhat an attacker learns from a hosted index: query contents, timing, and the shape of the corpus.\n"
+    },
+    {
+      "path": "20-Learning/evidence/Lexical Baseline Report.md",
+      "title": "Lexical Baseline Report",
+      "role": "positive-target",
+      "body": "## What this records\n\nWhere lexical ranking misses, grouped into failure categories with counts.\n"
+    },
+    {
+      "path": "20-Learning/evidence/Reference Agent Runs.md",
+      "title": "Reference Agent Runs",
+      "role": "positive-target",
+      "body": "## What this records\n\nRepeated runs against the reference Vault, each recorded with its outcome.\n"
+    },
+    {
+      "path": "20-Learning/evidence/Tie-break Specification.md",
+      "title": "Tie-break Specification",
+      "role": "positive-target",
+      "body": "## What this records\n\nHow equal scores are ordered: by path, case-folded first, then raw.\n"
+    },
+    {
+      "path": "20-Learning/evidence/Unavailable Source Incident.md",
+      "title": "Unavailable Source Incident",
+      "role": "positive-target",
+      "body": "## What this records\n\nThe incident: a source went unavailable mid-capture and a half-written note was left behind.\n"
+    },
+    {
+      "path": "20-Learning/evidence/Vault Scan Benchmark.md",
+      "title": "Vault Scan Benchmark",
+      "role": "positive-target",
+      "body": "## What this records\n\nScan timings over a 200-note Vault. P50 and P95, measured cold and warm.\n"
+    },
+    {
+      "path": "20-Learning/evidence/Vault Terminology Table.md",
+      "title": "Vault Terminology Table",
+      "role": "positive-target",
+      "body": "## What this records\n\nThe bounded table of term pairs this Vault uses across its two languages.\n"
+    },
+    {
+      "path": "20-Learning/unrelated/Airport Departure Gates.md",
+      "title": "Airport Departure Gates",
+      "role": "negative-target",
+      "body": "## What this records\n\nHow departure gates are assigned, why they change late, and how far the walk is from security.\n"
+    },
+    {
+      "path": "20-Learning/unrelated/Camera Capture Settings.md",
+      "title": "Camera Capture Settings",
+      "role": "negative-target",
+      "body": "## What this records\n\nSettings for capture on the camera: shutter, ISO, and the bracketing preset used indoors.\n"
+    },
+    {
+      "path": "20-Learning/unrelated/Election Candidates.md",
+      "title": "Election Candidates",
+      "role": "negative-target",
+      "body": "## What this records\n\nThe candidates standing this cycle and where each of them differs from the others.\n"
+    },
+    {
+      "path": "20-Learning/unrelated/Empty File Cleanup.md",
+      "title": "Empty File Cleanup",
+      "role": "negative-target",
+      "body": "## What this records\n\nA housekeeping routine that removes zero-byte files left behind by interrupted downloads.\n"
+    },
+    {
+      "path": "20-Learning/unrelated/HTTP Client Library Survey.md",
+      "title": "HTTP Client Library Survey",
+      "role": "negative-target",
+      "body": "## What this records\n\nA comparison of client libraries. Each section lists timeouts, connection pooling and whether the library retries by default.\n"
+    },
+    {
+      "path": "20-Learning/unrelated/Image Compression Tips.md",
+      "title": "Image Compression Tips",
+      "role": "negative-target",
+      "body": "## What this records\n\nGetting an image smaller without visible loss: format choice, quality settings, and when to stop.\n"
+    },
+    {
+      "path": "20-Learning/unrelated/Interview Answers.md",
+      "title": "Interview Answers",
+      "role": "negative-target",
+      "body": "## What this records\n\nAnswers prepared for interview questions, with the ones that landed badly marked.\n"
+    },
+    {
+      "path": "20-Learning/unrelated/Language Learning Schedule.md",
+      "title": "Language Learning Schedule",
+      "role": "negative-target",
+      "body": "## What this records\n\nA weekly plan for studying two languages: which mornings go to which, and how review is spaced.\n"
+    },
+    {
+      "path": "20-Learning/unrelated/Museum Archive Visit.md",
+      "title": "Museum Archive Visit",
+      "role": "negative-target",
+      "body": "## What this records\n\nA visit to the museum archive. What the reading room allows, how requests are queued, and what could be photographed.\n"
+    },
+    {
+      "path": "20-Learning/unrelated/Presentation Templates.md",
+      "title": "Presentation Templates",
+      "role": "negative-target",
+      "body": "## What this records\n\nSlide templates: title layouts, the chart palette, and which template to use for an external deck.\n"
+    },
+    {
+      "path": "20-Learning/unrelated/Quarterly Budget Notes.md",
+      "title": "Quarterly Budget Notes",
+      "role": "negative-target",
+      "body": "## What this records\n\nWhere the quarter's budget went. Headcount, tooling, and the line items that came in over.\n"
+    },
+    {
+      "path": "20-Learning/unrelated/Reading List.md",
+      "title": "Reading List",
+      "role": "negative-target",
+      "body": "## What this records\n\nBooks to read, with the ones already read struck through and a line on each.\n"
+    },
+    {
+      "path": "20-Learning/unrelated/Receipt Printer Review.md",
+      "title": "Receipt Printer Review",
+      "role": "negative-target",
+      "body": "## What this records\n\nA thermal receipt printer tested for a small shop. Paper cost, cutter reliability, and how legible the receipt is after a week in a wallet.\n"
+    },
+    {
+      "path": "20-Learning/unrelated/Search Icon Design.md",
+      "title": "Search Icon Design",
+      "role": "negative-target",
+      "body": "## What this records\n\nNotes on the magnifying-glass icon: stroke weight, optical size, and how the search affordance reads at 16px.\n"
+    },
+    {
+      "path": "20-Learning/unrelated/Shell Alias Collection.md",
+      "title": "Shell Alias Collection",
+      "role": "negative-target",
+      "body": "## What this records\n\nAliases collected over the years. Short names for long commands, and the two that turned out to be dangerous.\n"
+    },
+    {
+      "path": "20-Learning/unrelated/University Rankings.md",
+      "title": "University Rankings",
+      "role": "negative-target",
+      "body": "## What this records\n\nHow universities are ranked, which inputs dominate, and why the order moves so little year to year.\n"
+    }
+  ]
+}

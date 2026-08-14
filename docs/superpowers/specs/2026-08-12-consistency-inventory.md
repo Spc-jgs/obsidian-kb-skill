@@ -68,6 +68,8 @@ It is a list of the boundaries, and the discipline of adding to it.
 | 36 | A view's field names ↔ `search_vault`'s actual signature | `test_every_view_field_maps_to_a_parameter_search_vault_really_has`, which reads the live signature with `inspect` rather than a second list |
 | 37 | The plan a view reports ↔ the search it actually ran | `test_the_resolved_plan_is_shown_and_reproduces_the_same_results` re-runs the reported plan through `search_vault` and compares the result paths |
 | 38 | A module's import block ↔ the names it actually uses | `test_no_module_declares_a_dependency_it_does_not_use`; a deliberate re-export declares `__all__` so intent is stated rather than special-cased |
+| 39 | The v1.30 directional labels ↔ the corpus written to realise them | `test_the_corpus_realises_every_label_and_invents_no_pair` and `test_each_source_names_its_positive_target_and_never_its_negative` |
+| 40 | Each hard negative's claimed word overlap ↔ the overlap the corpus actually has | `test_each_hard_negative_really_does_collide_lexically` — a negative rejected for being about nothing alike proves nothing about a scorer that had to tell a real collision apart |
 
 Guards 12, 13 and 14 were added by this work. The rest already existed; several
 had caught the author earlier the same day. Row 17 arrived late, in #114 — see
@@ -107,6 +109,20 @@ checkbox anywhere in the note. It surfaced a few hours later while scoping that
 very count to the section, where the drift would have zeroed out the one project
 whose checkboxes all sit under the widened heading. An unregistered boundary
 does not announce itself; it waits for the change that depends on it.
+
+Rows 39 and 40 guard an evaluation against the person who builds for it. The
+v1.30 labels were committed on 2026-08-09 with `purpose` reading "v1.30 adds no
+scorer" — a commitment about what a scorer would have to achieve, written before
+one existed, which makes them the only half of #75's evaluation not authored to
+make the implementation look good. The corpus realising them was written five
+days later by the same hand that then wrote the scorer, so what needs guarding
+is that the corpus did not drift toward what was convenient.
+
+Row 40 is the sharper of the two. Every hard negative claims a shared word —
+`Release Quality Gate` against `Airport Departure Gates`. If the corpus failed
+to reproduce that overlap, all sixteen would be rejected for being about nothing
+alike, the scorer would score 16/16, and the number would mean nothing. The
+guard checks the collision is real before crediting the rejection.
 
 Row 38 came out of reviewing the four changes above, and it is the smallest
 boundary in this list — which is why it went unnamed for so long. An import

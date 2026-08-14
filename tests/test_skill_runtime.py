@@ -41,6 +41,7 @@ RETRIEVAL_HELPERS = (
     "review-projects",
     "run-retrieval-view",
     "search-vault",
+    "suggest-directed-links",
     "vault-info",
 )
 
