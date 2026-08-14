@@ -63,6 +63,16 @@ really can be a wall of text — and keeping the pair is what lets a result say
 Recorded in `tests/fixtures/retrieval_adversarial_baseline.json` against the
 commit named in that file. **13 of 23 cases reproduce a limitation.**
 
+> **Superseded in part by #118.** The section below records what the ranker did
+> *before* section-level ranking, which is what the numbers in this document
+> were measured against. The frozen baseline in
+> `retrieval_adversarial_baseline.json` has since been re-recorded: on
+> `adv-dilution-01` the sectioned 75 KB note now enters at rank 2 while its
+> unstructured twin stays absent, dilution's MRR moves 0.867 → 0.9, and the four
+> other families are unchanged on every metric. The limitation is narrower now,
+> not gone — a long note *without* headings has one section and no remedy here
+> at all.
+
 ### 1. Whole-document length normalisation
 
 `adv-dilution-01` — **both** notes holding the exact evidence paragraph are

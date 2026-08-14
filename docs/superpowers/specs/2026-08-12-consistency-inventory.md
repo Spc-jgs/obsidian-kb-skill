@@ -62,6 +62,8 @@ It is a list of the boundaries, and the discipline of adding to it.
 | 30 | What each Skill means by "this note is an index" | **relation removed** — one `INDEX_TYPES` in `note_catalog`, from which `VALID_NOTE_TYPES` also derives; `test_both_skills_mean_the_same_thing_by_an_index_note` asserts identity across `audit_vault` and `resume_project` |
 | 31 | The shape of a long note in the adversarial fixture ↔ the shape long notes actually have | `test_a_long_note_is_long_the_way_real_long_notes_are`, with the reference-Vault measurement recorded beside the constant it justifies |
 | 32 | Cases the adversarial fixture runs ↔ cases the frozen baseline records | the `unrecorded` assertion in `test_the_recorded_baseline_still_describes_this_ranker` |
+| 33 | The unit a result is ranked on ↔ the unit it is cited from | **relation removed** — `_bm25_score` returns the winning `Passage` and `_snippet`, `_field_matches` and `_expansion_signals` all read it; `test_the_citation_comes_from_the_section_that_won` and `test_a_body_signal_names_only_words_in_the_section_that_won` |
+| 34 | `field_tokens["body"]` ↔ the union of the note's passages | **relation removed** — the body counter is summed from the passages rather than tokenized again, which the tokenizer's own definition makes exact: `TOKEN_RUN_RE` matches runs of Latin or CJK and a newline is neither, so no run can span a line break |
 
 Guards 12, 13 and 14 were added by this work. The rest already existed; several
 had caught the author earlier the same day. Row 17 arrived late, in #114 — see
@@ -101,6 +103,25 @@ checkbox anywhere in the note. It surfaced a few hours later while scoping that
 very count to the section, where the drift would have zeroed out the one project
 whose checkboxes all sit under the widened heading. An unregistered boundary
 does not announce itself; it waits for the change that depends on it.
+
+Row 33 is a boundary that existed for as long as the ranker did and nobody had
+named: a note was ranked whole, then a snippet was chosen from it afterwards, so
+the ranking's reason and the citation's location were two independent decisions
+about the same note. Nothing was wrong while both looked at the whole note.
+Section-level ranking (#118) made them separable, and the first implementation
+promptly separated them — a result citing a section holding only `jitter`
+reported `body: jitter, 毫秒`, with `毫秒` three sections away. The issue had
+listed exactly this risk before the code existed; writing the risk down did not
+prevent it, and the assertion written to cover it was *vacuous on its first
+draft* and passed. What caught it was printing the output and reading it.
+
+Row 34 is a relation deliberately created, because the alternative was worse.
+Deriving the body's token counts from the passages rather than tokenizing the
+body a second time is a real coupling — but it is exact by the tokenizer's own
+definition rather than by agreement, and tokenizing twice cost 60% of query
+latency on the reference Vault for an identical result. A relation whose
+correctness follows from a definition needs the definition recorded, which is
+what the row is for.
 
 Rows 31 and 32 are the registry reaching a place it had not covered: a *test
 asset*. Both boundaries were invisible because the file that would notice them

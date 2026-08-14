@@ -153,14 +153,34 @@ Each result contains:
 - Vault-relative `path`;
 - note `title`;
 - deterministic `score` used only for ordering;
-- nearest `heading` and one-based `line`;
-- bounded reader-visible `snippet`;
+- the `heading` of the section the result was ranked on, and its one-based `line`;
+- bounded reader-visible `snippet`, taken from that same section;
 - explainable `signals` such as title, alias, tag, heading, link, body, or
   `expansion` — the last meaning the lexicon, not the user, supplied the word.
 
-The score is not confidence or truth. Prefer results whose evidence directly
-answers the question. When snippets are insufficient, read no more than the top
-five result files and keep the user's requested scope.
+A note is ranked on its **best section**, not on everything it contains. A long
+note is usually long because it has many sections, and charging it for all of
+them buried the one that answered: on the reference Vault the identical evidence
+paragraph scored six times higher in a 0.3 KB note than in a 75 KB one, and the
+long note did not appear at all. Sections compete; notes are what you get back,
+one result each.
+
+So `heading`, `line`, `snippet` and the `body` signal all describe **one
+section** — the section the ranking chose. A word the user typed that appears
+elsewhere in the note is not reported, because saying so would tell the reader
+it is in the passage in front of them. Other sections of the same note may hold
+more, and the way to find out is to open the note.
+
+The score is not confidence or truth, and a section score is not a claim that
+the section is correct. Prefer results whose evidence directly answers the
+question. When snippets are insufficient, read no more than the top five result
+files and keep the user's requested scope.
+
+A note without headings is one section, so nothing about it changed: short
+focused notes still win on being short. What cannot be helped is a long note
+with no headings — there is no section to compete with, and its evidence stays
+diluted by everything around it. That is a fact about the note, worth saying
+plainly rather than working around.
 
 Malformed or unreadable notes appear in the bounded `issues` list. Report a
 material skipped file without exposing unrelated absolute paths.

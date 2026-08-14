@@ -926,3 +926,265 @@ def test_the_date_filters_are_untouched_by_the_new_ones(tmp_path):
         "after": "2026-07-01",
         "before": "2026-07-31",
     }
+
+
+# --- Section-level ranking (#118) -------------------------------------------
+
+# Neutral padding, Latin so it cannot collide with a query token. Sized to make
+# a note long enough that whole-document normalisation would bury the section
+# that answers, the way it does on the reference Vault's 30–55 KB notes.
+_PAD = " ".join(
+    "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod "
+    "tempor incididunt ut labore et dolore magna aliqua".split()
+    * 12
+)
+
+
+def _sectioned(sections: int, *, answer: str, answer_at: int) -> str:
+    """A long body divided into sections, with the answer in exactly one."""
+    blocks = []
+    for index in range(sections):
+        blocks.append(f"## section {index}\n\n{_PAD}")
+        if index == answer_at:
+            blocks.append(answer)
+    return "\n\n".join(blocks)
+
+
+def test_a_section_competes_on_its_own_evidence(tmp_path):
+    """#118's whole point, as the paired experiment that shows it.
+
+    Two long notes carry the same answer and the same padding. One is divided
+    into sections, one is a single wall of text. Whole-document normalisation
+    charges both for everything they contain, so neither can win; a section
+    that competes on its own content rescues the divided one and cannot rescue
+    the other, because the other has no sections to compete with.
+    """
+    vault = _vault(tmp_path)
+    answer = "指数退避的 jitter 上限固定为 800 毫秒。"
+    _note(
+        vault / "20-Learning" / "divided.md",
+        title="分节手册",
+        body=_sectioned(20, answer=answer, answer_at=7),
+    )
+    _note(
+        vault / "20-Learning" / "wall.md",
+        title="整块手册",
+        body=f"{answer}\n\n" + "\n\n".join([_PAD] * 20),
+    )
+
+    payload = search_vault(vault, "jitter 上限 毫秒", top_k=5)
+    paths = [item["path"] for item in payload["results"]]
+
+    assert "20-Learning/divided.md" in paths, (
+        "the section holding the answer never competed on its own content"
+    )
+    divided = next(
+        item for item in payload["results"] if item["path"] == "20-Learning/divided.md"
+    )
+    wall = next(
+        (item for item in payload["results"] if item["path"] == "20-Learning/wall.md"),
+        None,
+    )
+    assert wall is None or divided["score"] > wall["score"], (
+        "a note with no sections gained as much as one with sections, so "
+        "whatever moved was not section-level ranking"
+    )
+
+
+def test_the_citation_comes_from_the_section_that_won(tmp_path):
+    """Ranking granularity and citation granularity are now the same thing.
+
+    Before this, a note was ranked whole and then a snippet was chosen; the two
+    could disagree about which part of the note mattered. A reader following the
+    line number would land somewhere the ranking never considered.
+    """
+    vault = _vault(tmp_path)
+    _note(
+        vault / "20-Learning" / "manual.md",
+        title="手册",
+        body=_sectioned(12, answer="退避上限固定为 800 毫秒。", answer_at=9),
+    )
+
+    payload = search_vault(vault, "退避上限 毫秒", top_k=3)
+    result = payload["results"][0]
+
+    assert result["heading"] == "section 9", (
+        f"cited {result['heading']!r}, which is not the section that won"
+    )
+    lines = (vault / "20-Learning" / "manual.md").read_text(
+        encoding="utf-8"
+    ).splitlines()
+    assert "800" in lines[result["line"] - 1], (
+        "the cited line does not hold the evidence the section won on"
+    )
+
+
+def test_one_note_still_occupies_one_result(tmp_path):
+    """Sections compete; notes are what the reader gets back.
+
+    A note answering in three sections must not take three of five slots — the
+    bound is a number of notes to open, and #118 says the main result path
+    appears once.
+    """
+    vault = _vault(tmp_path)
+    answer = "退避上限固定为 800 毫秒。"
+    body = "\n\n".join(
+        f"## section {index}\n\n{answer}\n\n{_PAD}" for index in range(3)
+    )
+    _note(vault / "20-Learning" / "repeated.md", title="重复", body=body)
+    _note(vault / "20-Learning" / "other.md", title="别的", body="不相关的内容。")
+
+    payload = search_vault(vault, "退避上限 毫秒", top_k=5)
+    paths = [item["path"] for item in payload["results"]]
+
+    assert paths.count("20-Learning/repeated.md") == 1
+
+
+def test_a_note_without_headings_has_exactly_one_passage(tmp_path):
+    """The change is a no-op on unstructured notes, and that is deliberate.
+
+    Most notes in a Vault are short and unstructured. If a note has no headings
+    its single passage is its whole body, so its score is what it always was —
+    which is why this change reorders long structured notes and leaves the rest
+    alone.
+    """
+    from obsidian_kb_skill.scripts.search_vault import _passages
+
+    vault = _vault(tmp_path)
+    _note(vault / "20-Learning" / "flat.md", title="平", body="一段话。\n\n另一段。")
+
+    payload = search_vault(vault, "一段话", top_k=1)
+    assert payload["results"][0]["path"] == "20-Learning/flat.md"
+    assert len(_passages("一段话。\n\n另一段。")) == 1
+
+
+def test_filters_still_decide_before_any_section_is_scored(tmp_path):
+    """A section cannot smuggle a note past a filter it does not satisfy."""
+    vault = _vault(tmp_path)
+    _note(
+        vault / "20-Learning" / "typed.md",
+        title="手册",
+        body=_sectioned(8, answer="退避上限固定为 800 毫秒。", answer_at=3),
+    )
+
+    payload = search_vault(vault, "退避上限 毫秒", types=["insight-note"])
+
+    assert payload["results"] == []
+    assert payload["filters"]["excluded"] == {"type": 1}
+
+
+def test_a_stub_section_cannot_win_by_being_short(tmp_path):
+    """The hard negative #118 asked for before the code existed.
+
+    BM25 rewards short documents, and rightly — a short note is focused and
+    cheap to read. A short *section* of a long note is neither: reaching it
+    still means opening the long note. Scoring a three-word section as though
+    it were a three-word document hands it that bonus unearned.
+
+    Measured while implementing, before the floor existed: a stub reading
+    `jitter 上限。` scored 0.580 against 0.504 for a note whose section actually
+    explains the answer. Charging a section at no less than a typical section of
+    its own note reverses that to 0.440 against 0.368.
+    """
+    vault = _vault(tmp_path)
+    _note(
+        vault / "20-Learning" / "explains.md",
+        title="退避实践",
+        body=(
+            "## 退避与抖动\n\n"
+            "重试采用指数退避，jitter 上限固定为 800 毫秒，超过上限会被截断。\n\n"
+            f"## 其他\n\n{_PAD}"
+        ),
+    )
+    _note(
+        vault / "20-Learning" / "stub.md",
+        title="杂记",
+        body=f"## 前言\n\n{_PAD}\n\n## 退避\n\njitter 上限。\n\n## 后记\n\n{_PAD}",
+    )
+
+    payload = search_vault(vault, "jitter 上限", top_k=5)
+    ranking = [item["path"] for item in payload["results"]]
+
+    assert ranking.index("20-Learning/explains.md") < ranking.index(
+        "20-Learning/stub.md"
+    ), "a section that only names the terms outranked one that explains them"
+
+
+def test_a_short_unstructured_note_keeps_the_advantage_it_always_had(tmp_path):
+    """The floor must be inert where the section *is* the note.
+
+    A note without headings has one section equal to its whole body, so its
+    length is its own mean and the floor cannot bind. Short focused notes are
+    supposed to win; the change is a no-op on them, and this is what says so.
+    """
+    vault = _vault(tmp_path)
+    _note(
+        vault / "20-Learning" / "short.md",
+        title="抖动上限",
+        body="jitter 上限固定为 800 毫秒。",
+    )
+    _note(
+        vault / "20-Learning" / "long.md",
+        title="长文",
+        body=f"jitter 上限固定为 800 毫秒。\n\n{_PAD}\n\n{_PAD}",
+    )
+
+    payload = search_vault(vault, "jitter 上限 毫秒", top_k=5)
+
+    assert payload["results"][0]["path"] == "20-Learning/short.md"
+
+
+def test_a_body_signal_names_only_words_in_the_section_that_won(tmp_path):
+    """#118: a signal must not point at a match outside the cited section.
+
+    Written once as a vacuous assertion and caught by reading the output rather
+    than the green tick. The two words sit in different sections; the result
+    cites the one holding `jitter`, and the first implementation still reported
+    `body: jitter, 毫秒` — telling the reader that a word three sections away
+    was in the passage in front of them.
+    """
+    vault = _vault(tmp_path)
+    _note(
+        vault / "20-Learning" / "split.md",
+        title="拆开",
+        body=(
+            f"## 甲\n\njitter 的取值讨论。\n\n{_PAD}\n\n"
+            f"## 乙\n\n毫秒级的超时预算。\n\n{_PAD}"
+        ),
+    )
+
+    payload = search_vault(vault, "jitter 毫秒", top_k=1)
+    result = payload["results"][0]
+    body = [
+        signal["detail"]
+        for signal in result["signals"]
+        if signal["kind"] == "body"
+    ]
+
+    assert result["heading"] == "甲"
+    assert body == ["jitter"], (
+        f"cited section 甲 but the body signal says {body}; 毫秒 is in 乙"
+    )
+
+
+def test_a_note_whose_body_holds_no_words_is_still_findable(tmp_path):
+    """Found on the real Vault, not here — the suite had no such note.
+
+    An empty body yields no passages at all, and the first implementation
+    reached for a fallback section it had built wrong. The note can still match
+    on its title, tags or aliases, so it is scored with one empty section rather
+    than dropped: a stub filed under a good name is exactly what someone
+    searching for that name is looking for.
+    """
+    vault = _vault(tmp_path)
+    _note(
+        vault / "20-Learning" / "stub-only.md",
+        title="退避上限备忘",
+        tags=["retry"],
+        body="",
+    )
+
+    payload = search_vault(vault, "退避上限备忘", top_k=3)
+
+    assert payload["results"][0]["path"] == "20-Learning/stub-only.md"
+    assert payload["results"][0]["snippet"] == ""
