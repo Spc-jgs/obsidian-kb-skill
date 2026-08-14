@@ -69,6 +69,39 @@ def _filler(paragraphs: int) -> str:
     return "\n\n".join(lines)
 
 
+def _filler_heading(index: int) -> str:
+    """A section title drawn from the filler, so it answers no query either.
+
+    A heading built from meaningful words would hand the sectioned note a
+    `FIELD_WEIGHTS["headings"]` boost its unstructured twin does not have, and
+    the pair would then differ in two ways instead of one. Structure is the
+    variable under test; everything else is held equal.
+    """
+    start = (index * 5) % len(FILLER_WORDS)
+    return " ".join((FILLER_WORDS[start:] + FILLER_WORDS[:start])[:4])
+
+
+def _sectioned_body(note: dict) -> str:
+    """A long note shaped the way the reference Vault's long notes are shaped.
+
+    The evidence sits in its own section, the filler is distributed over
+    `filler_sections` further sections, and `late_body` — when present — goes in
+    the last one, so a query for it has to reach past everything else.
+    """
+    paragraphs = _filler(note.get("filler_paragraphs", 0)).split("\n\n")
+    sections = note["filler_sections"]
+    per_section = max(len(paragraphs) // sections, 1)
+    blocks = [f"## {_filler_heading(0)}\n\n{note['body']}"]
+    for index in range(sections):
+        chunk = paragraphs[index * per_section:(index + 1) * per_section]
+        if not chunk:
+            continue
+        blocks.append(f"## {_filler_heading(index + 1)}\n\n" + "\n\n".join(chunk))
+    if note.get("late_body"):
+        blocks.append(f"## {_filler_heading(sections + 1)}\n\n{note['late_body']}")
+    return "\n\n".join(blocks)
+
+
 def _load(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -89,8 +122,11 @@ def _build_vault(tmp_path: Path, fixture: dict) -> Path:
     for note in fixture["notes"]:
         path = vault / note["path"]
         path.parent.mkdir(parents=True, exist_ok=True)
-        filler = _filler(note.get("filler_paragraphs", 0))
-        body = note["body"] if not filler else f"{note['body']}\n\n{filler}"
+        if note.get("filler_sections"):
+            body = _sectioned_body(note)
+        else:
+            filler = _filler(note.get("filler_paragraphs", 0))
+            body = note["body"] if not filler else f"{note['body']}\n\n{filler}"
         path.write_text(
             "---\n"
             f'date: "{note["date"]}"\n'
@@ -310,6 +346,59 @@ def test_the_long_notes_are_actually_long(tmp_path):
     assert handbook > compact * 50
 
 
+# Real long notes are long *because they have many sections*. Measured on the
+# reference Vault (186 notes, excluding `95-Sources`, `Templates` and
+# `Attachments`): of the 19 notes at or above 10 KB, the fewest headings any of
+# them carries is 12, the median is 30, the most is 100, and **not one** has a
+# single heading. The three longest are 55.3 KB / 30 headings, 31.8 KB / 14, and
+# 31.7 KB / 55.
+#
+# The set shipped with only the other shape — one heading and a wall of filler —
+# which does occur (an archived clipping can be unstructured) but cannot stand
+# for "a long note". The consequence was concrete: a passage-ranking candidate
+# scored byte-identically to master on this set, because a note with one heading
+# has exactly one passage and any heading-based split is a no-op on it. The set
+# could not answer the question #118 exists to ask.
+MIN_REAL_LONG_NOTE_HEADINGS = 12
+
+
+def _heading_count(path: Path) -> int:
+    return sum(
+        1
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.startswith("#") and line.lstrip("#").startswith((" ", "\t"))
+    )
+
+
+def test_a_long_note_is_long_the_way_real_long_notes_are(tmp_path):
+    """Both shapes of long note, because they fail differently.
+
+    A structurally long note is the one the real Vault has, and it is the only
+    one on which section-level ranking can be measured at all. The unstructured
+    one stays: it is a real boundary case, and keeping both is what lets a
+    result say *which* shape a change helped.
+    """
+    fixture = _load(FIXTURE)
+    vault = _build_vault(tmp_path, fixture)
+
+    structured = vault / "20-Learning/retry/backoff-manual.md"
+    unstructured = vault / "20-Learning/retry/backoff-handbook.md"
+
+    assert structured.is_file(), (
+        "the dilution family has no structurally long note, so it cannot "
+        "measure section-level ranking — see #136"
+    )
+    assert _heading_count(structured) >= MIN_REAL_LONG_NOTE_HEADINGS, (
+        f"{structured.name} carries {_heading_count(structured)} headings; the "
+        f"least any real long note has is {MIN_REAL_LONG_NOTE_HEADINGS}"
+    )
+    assert structured.stat().st_size > 25_000, "the structured note is not long"
+    assert _heading_count(unstructured) <= 1, (
+        "the unstructured shape is gone; both shapes must be present or a "
+        "result cannot say which one a change helped"
+    )
+
+
 # --- The frozen baseline ----------------------------------------------------
 
 
@@ -329,6 +418,15 @@ def test_the_recorded_baseline_still_describes_this_ranker(tmp_path):
     assert _snapshot(vault) == before, "retrieval wrote to the Vault"
     recorded = _load(BASELINE)["cases"]
     by_id = {case["id"]: case for case in report}
+    # The comparison below walks the *recorded* cases, so a query added to the
+    # fixture without a baseline row would be checked by nothing at all — it
+    # would look frozen while being free. Found when #136 added
+    # `adv-dilution-05`, whose row nothing would have missed.
+    unrecorded = sorted(set(by_id) - {case["id"] for case in recorded})
+    assert not unrecorded, (
+        f"these cases run but are not in the baseline: {unrecorded}. A case "
+        "outside the frozen file is not held to anything."
+    )
     drifted = [
         case_id
         for case_id, expected in {c["id"]: c for c in recorded}.items()

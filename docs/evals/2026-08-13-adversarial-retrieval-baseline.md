@@ -17,12 +17,12 @@ change measured against it can only look neutral or better.
 
 ## The set
 
-`tests/fixtures/retrieval_adversarial_cases.json` — 18 notes, 22 queries, five
+`tests/fixtures/retrieval_adversarial_cases.json` — 20 notes, 23 queries, five
 families, each with controls:
 
 | Family | What it puts under stress | Control it carries |
 |---|---|---|
-| `dilution` | The same evidence paragraph in a 0.2 KB and a 30 KB note, with six notes that mention the terms only in passing | An exact title must still win outright, so no fix can be a blanket length bonus |
+| `dilution` | The same evidence paragraph in a 0.2 KB note and in **two** 30 KB notes — one an unstructured wall of text, one divided into 32 sections — with notes that mention the terms only in passing | An exact title must still win outright, so no fix can be a blanket length bonus |
 | `crowding` | Five near-identical dailies against one insight note holding the conclusion | When the dailies really are the answer, several of them in Top-K is correct |
 | `ambiguity` | `代理` is in `AMBIGUOUS_TERMS` and expands into both the `agent` and `proxy` concepts | The unambiguous synonym `智能体` must not drift |
 | `field` | A stub whose title matches against a long note whose body answers the question | The stub's own alias must still retrieve it, so no fix can demote short notes wholesale |
@@ -30,30 +30,78 @@ families, each with controls:
 
 Filler is Latin, generated deterministically from `filler_paragraphs`, and
 asserted to share no token with any query: its only contribution is length.
+Section titles are drawn from the same filler, so a sectioned note gains no
+`headings` weight its unstructured twin lacks — structure is the only variable
+between the two.
+
+### The set shipped able to fail, but not at the question it was for (#136)
+
+The first version generated every long note the same way: append unstructured
+filler. Measured afterwards on the reference Vault — 186 notes, excluding
+`95-Sources`, `Templates` and `Attachments`:
+
+```
+notes >= 10 KB: 19
+  headings  median 30   min 12   max 100
+  with <= 1 heading: 0
+```
+
+The three longest are 55.3 KB / 30 headings, 31.8 KB / 14, and 31.7 KB / 55.
+**A real long note is long because it has many sections**, and the shape the
+fixture used occurs zero times. The consequence was not theoretical: a
+passage-ranking candidate scored byte-identically to master across all 22
+cases, because a note with one heading has exactly one passage and any
+heading-based split is a no-op on it. The set could not answer the question
+#118 exists to ask.
+
+Both shapes are now present. The unstructured note stays — an archived clipping
+really can be a wall of text — and keeping the pair is what lets a result say
+*which* shape a change helped, rather than that something moved.
 
 ## Baseline
 
 Recorded in `tests/fixtures/retrieval_adversarial_baseline.json` against the
-commit named in that file. **12 of 22 cases reproduce a limitation.**
+commit named in that file. **13 of 23 cases reproduce a limitation.**
 
 ### 1. Whole-document length normalisation
 
-`adv-dilution-01` — the note holding the exact evidence paragraph does not
-appear in Top-5 at all. What does appear:
+`adv-dilution-01` — **both** notes holding the exact evidence paragraph are
+absent from Top-5. What does appear:
 
 ```
-1. 13.180  20-Learning/retry/backoff-compact.md    ← same paragraph, short note
-2.  7.488  20-Learning/ops/grpc-deadline.md        ← mentions the terms in passing
-3.  4.011  20-Learning/ops/queue-consumer.md       ← mentions the terms in passing
-4.  3.472  20-Learning/ops/jitter-note.md          ← lists jitter variants by name
-5.  3.405  20-Learning/agent/tool-loop.md
-   (absent)  20-Learning/retry/backoff-handbook.md ← the same paragraph, 30 KB note
+1. 11.903  20-Learning/retry/backoff-compact.md    ← same paragraph, 0.3 KB
+2.  6.835  20-Learning/ops/grpc-deadline.md        ← mentions the terms in passing
+3.  3.700  20-Learning/ops/queue-consumer.md       ← mentions the terms in passing
+4.  3.382  20-Learning/ops/capacity-review.md      ← says outright it does not cover this
+5.  3.236  20-Learning/ops/jitter-note.md          ← lists jitter variants by name
+  (absent)  20-Learning/retry/backoff-handbook.md  ← same paragraph, 74.6 KB, 1 heading
+  (absent)  20-Learning/retry/backoff-manual.md    ← same paragraph, 75.6 KB, 33 headings
 ```
 
 `SearchDocument.weighted_length` sums every field across the whole document, so
-a long note pays for text the query never asked about. The identical paragraph
-scores 13.2 in a 0.2 KB note and under 3.4 in a 30 KB one. This is the case
-#118 exists for.
+a long note pays for text the query never asked about. Nothing between rank 2
+and rank 5 contains the paragraph.
+
+The two long notes are the measurement. They carry the same evidence, the same
+filler, and sizes within 1 KB of each other; the only difference is that one is
+divided into sections. A section-level ranker can help the second and cannot
+help the first, so a candidate that moves both — or neither — is doing something
+other than what it claims. This is the case #118 exists for, and #136 is why it
+can now be read that way.
+
+`adv-dilution-05` is the same limitation at depth, with a harder competitor:
+the answer sits in the *last* section of the sectioned note, while
+`capacity-review.md` names the same terms and states it does not cover them.
+The short note wins by a factor of five —
+
+```
+1. 29.059  20-Learning/ops/capacity-review.md      ← "具体的退避取值不在本文范围内"
+2.  5.838  20-Learning/agent/tool-loop.md
+3.  5.688  20-Learning/retry/backoff-manual.md     ← holds the answer
+```
+
+— because it is the whole document and pays no length penalty, while the note
+that answers is charged for thirty sections nobody asked about.
 
 ### 2. No Top-K diversity
 
@@ -139,8 +187,10 @@ run asserts the Vault is byte-identical afterwards.
 
 ## Latency
 
-P50 9 ms, P95 11 ms across 22 queries on an 18-note corpus containing two notes
-over 25 KB. Budgets in the test are set well above this so a slower CI machine
+P50 17 ms, P95 24 ms across 23 queries on a 20-note corpus containing three
+notes over 25 KB. Roughly double the 9/11 ms recorded before #136, which is
+what a second 75 KB note costs: the corpus is read on every query and no index
+is kept. Budgets in the test are set well above this so a slower CI machine
 does not turn a performance check into a flake.
 
 ## Explicit non-goals

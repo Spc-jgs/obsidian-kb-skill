@@ -28,6 +28,21 @@
       "filler_paragraphs": 120
     },
     {
+      "path": "20-Learning/retry/backoff-manual.md",
+      "title": "重试退避的分节手册",
+      "aliases": [],
+      "tags": [
+        "retry"
+      ],
+      "date": "2026-06-03",
+      "type": "learning-note",
+      "family": "retry-evidence",
+      "body": "重试策略采用指数退避，jitter 上限固定为 800 毫秒，超过上限的抖动会被截断。The retry budget is consumed per attempt, not per request.",
+      "late_body": "退避上限在每季度的容量复核里重新核定，核定结论写在本节而不是开头。",
+      "filler_paragraphs": 120,
+      "filler_sections": 30
+    },
+    {
       "path": "20-Learning/ops/queue-consumer.md",
       "title": "队列消费者的重试",
       "aliases": [],
@@ -77,6 +92,19 @@
       "type": "learning-note",
       "family": "retry-passing-mention",
       "body": "没有幂等键就不要重试写操作，退避多久都不安全。",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "20-Learning/ops/capacity-review.md",
+      "title": "季度容量复核的流程",
+      "aliases": [],
+      "tags": [
+        "ops"
+      ],
+      "date": "2026-04-01",
+      "type": "learning-note",
+      "family": "retry-passing-mention",
+      "body": "容量复核每季度做一次，重新核定各项上限；具体的退避取值不在本文范围内。",
       "filler_paragraphs": 0
     },
     {
@@ -245,14 +273,16 @@
       "query": "指数退避 jitter 上限",
       "expected": [
         "20-Learning/retry/backoff-compact.md",
-        "20-Learning/retry/backoff-handbook.md"
+        "20-Learning/retry/backoff-handbook.md",
+        "20-Learning/retry/backoff-manual.md"
       ],
       "must_see": [
         "20-Learning/retry/backoff-compact.md",
-        "20-Learning/retry/backoff-handbook.md"
+        "20-Learning/retry/backoff-handbook.md",
+        "20-Learning/retry/backoff-manual.md"
       ],
       "hard_negatives": [],
-      "demonstrates": "identical evidence in a 0.2 KB and a 30 KB note; whole-document length normalisation charges the long note for text the query never asked about"
+      "demonstrates": "the same evidence paragraph in a 0.2 KB note, a 30 KB wall of text, and a 30 KB note divided into sections. Whole-document length normalisation charges both long notes for text the query never asked about; only the sectioned one can be helped by ranking a section on its own evidence, which is what makes the pair a measurement"
     },
     {
       "id": "adv-dilution-02",
@@ -260,7 +290,8 @@
       "query": "retry budget consumed per attempt",
       "expected": [
         "20-Learning/retry/backoff-compact.md",
-        "20-Learning/retry/backoff-handbook.md"
+        "20-Learning/retry/backoff-handbook.md",
+        "20-Learning/retry/backoff-manual.md"
       ],
       "must_see": [
         "20-Learning/retry/backoff-handbook.md"
@@ -283,6 +314,21 @@
         "30-Insights/throttle-conclusion.md"
       ],
       "demonstrates": "a phrase unique to the shared paragraph, no title help"
+    },
+    {
+      "id": "adv-dilution-05",
+      "group": "dilution",
+      "query": "容量复核 重新核定 退避上限",
+      "expected": [
+        "20-Learning/retry/backoff-manual.md"
+      ],
+      "must_see": [
+        "20-Learning/retry/backoff-manual.md"
+      ],
+      "hard_negatives": [
+        "20-Learning/ops/capacity-review.md"
+      ],
+      "demonstrates": "the answer sits in the last section of a sectioned 30 KB note, while a short note that names the same terms says outright it does not cover them. Whole-document scoring puts the short note first: it is the whole document, so it pays no length penalty, while the note that answers is charged for thirty sections the query never asked about"
     },
     {
       "id": "adv-dilution-04",
