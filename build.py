@@ -132,6 +132,10 @@ RETRIEVAL_HELPER_FILES = (
     Path("scripts/console.py"),
     Path("scripts/doctor.py"),
     Path("scripts/frontmatter.py"),
+    # Resolving a wikilink the way Obsidian does, extracted from `audit_vault`
+    # so `explore-neighborhood` can reach it without dragging the write-side
+    # closure into this bundle (#121). Depends on `frontmatter` and nothing else.
+    Path("scripts/link_graph.py"),
     # Shared note domain: retrieval needs the same judgement about what is
     # a note as the write Skill, and the same tag identity rules.
     Path("scripts/note_catalog.py"),
@@ -143,6 +147,7 @@ RETRIEVAL_HELPER_FILES = (
     # rather than restating them, so the contract travels with it. Zero further
     # dependencies and ~2 KB, which is what makes deriving cheaper than copying.
     Path("scripts/conversation_digest_contract.py"),
+    Path("scripts/explore_neighborhood.py"),
     Path("scripts/resume_project.py"),
     Path("scripts/retrieval_vault_info.py"),
     Path("scripts/review_projects.py"),

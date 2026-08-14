@@ -40,6 +40,18 @@ from obsidian_kb_skill.scripts.folder_index_policy import (
     is_folder_index_excluded,
     read_folder_index_config,
 )
+from obsidian_kb_skill.scripts.link_graph import (
+    INLINE_CODE_RE,
+    LinkIndex,
+    WIKILINK_RE,
+    build_link_index,
+    candidate_paths as _candidate_paths,
+    clean_link_target as _clean_link_target,
+    declared_aliases as _declared_aliases,
+    resolve_target as _resolve_target,
+    without_code_examples as _without_code_examples,
+    without_fenced_code as _without_fenced_code,
+)
 from obsidian_kb_skill.scripts.note_catalog import (
     ENTITY_FOLDERS,
     ENTITY_INSTANCE_TYPE,
@@ -176,11 +188,6 @@ IGNORED_PARTS = {
     ".venv",
     ".workbuddy",  # agent working memory / metadata
 }
-WIKILINK_RE = re.compile(r"!?\[\[([^\]]+)\]\]")
-FENCE_OPEN_RE = re.compile(
-    r"^[ \t]{0,3}(?P<fence>`{3,}|~{3,})(?P<info>[^\r\n]*)$"
-)
-INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
 TAG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 FOLDER_INDEX_CONTENT_RE = re.compile(
     r"^\s*```folder-index-content(?:\s+[^\n]*)?\s*$", re.MULTILINE
@@ -246,83 +253,6 @@ def _all_linkable_files(vault: Path) -> list[Path]:
         for path in vault.rglob("*")
         if path.is_file() and not _is_ignored(path.relative_to(vault))
     )
-
-
-def _declared_aliases(path: Path) -> tuple[str, ...]:
-    """Return the aliases a note declares, reading only its head."""
-    metadata = parse_frontmatter(
-        read_frontmatter_head(path), source=path.name
-    ).metadata
-    if not metadata:
-        return ()
-    raw = metadata.get("aliases")
-    if raw is None:
-        raw = metadata.get("alias")
-    values = raw if isinstance(raw, list) else [raw]
-    return tuple(
-        str(value).strip()
-        for value in values
-        if isinstance(value, (str, int, float)) and str(value).strip()
-    )
-
-
-@dataclass
-class LinkIndex:
-    """Resolve a wikilink target to files the way Obsidian does.
-
-    Obsidian resolves `[[alias]]` through the target note's frontmatter
-    `aliases`, so an index that only knows filenames calls a working link broken
-    — and calls the note it points at an orphan, because the inbound link was
-    never counted. `search_vault` already scores aliases; only the audit did not
-    know about them.
-
-    The alias map costs one pass over the Vault, so it is built on first need. A
-    Vault whose links all resolve by filename never pays for it, which keeps the
-    per-note audit that runs on every write as cheap as it was.
-    """
-
-    by_name: dict[str, list[Path]]
-    by_stem: dict[str, list[Path]]
-    linkable: list[Path]
-    _aliases: dict[str, list[Path]] | None = None
-
-    def _alias_map(self) -> dict[str, list[Path]]:
-        if self._aliases is None:
-            found: dict[str, list[Path]] = defaultdict(list)
-            for path in self.linkable:
-                if path.suffix.lower() != ".md":
-                    continue
-                for alias in _declared_aliases(path):
-                    found[alias].append(path)
-            self._aliases = dict(found)
-        return self._aliases
-
-    def matches(self, target: str) -> list[Path]:
-        """Return every file a bare (non-path) wikilink target could mean.
-
-        The stem lookup is not gated on the target "looking extensionless".
-        `Path("Qwen3.6-27B实战").suffix` is `.6-27B实战` as far as pathlib is
-        concerned, so any note whose title contains a dot was skipped here and
-        reported as a broken link to a file that exists. A filename match still
-        wins; trying the stem afterwards can only resolve links that would
-        otherwise be called broken.
-        """
-        key = Path(target).name
-        found = self.by_name.get(key, [])
-        if not found:
-            found = self.by_stem.get(key, [])
-        if not found:
-            found = self._alias_map().get(key, [])
-        return found
-
-
-def build_link_index(linkable: list[Path]) -> LinkIndex:
-    by_name: dict[str, list[Path]] = defaultdict(list)
-    by_stem: dict[str, list[Path]] = defaultdict(list)
-    for path in linkable:
-        by_name[path.name].append(path)
-        by_stem[path.stem].append(path)
-    return LinkIndex(dict(by_name), dict(by_stem), linkable)
 
 
 def _frontmatter(text: str) -> tuple[dict[str, Any] | None, str | None]:
@@ -802,71 +732,6 @@ def _audit_empty_template(
         )
 
 
-def _candidate_paths(source: Path, target: str, vault: Path) -> Iterable[Path]:
-    raw = Path(target)
-    candidates = [vault / raw, source.parent / raw]
-    if raw.suffix == "":
-        candidates.extend((vault / f"{target}.md", source.parent / f"{target}.md"))
-    return candidates
-
-
-def _clean_link_target(raw: str) -> str:
-    target = raw.split("|", 1)[0]
-    target = target.split("#", 1)[0]
-    target = target.split("^", 1)[0]
-    return target.strip()
-
-
-def _without_fenced_code(text: str) -> tuple[str, bool]:
-    """Return Markdown outside fenced code and whether one fence is unclosed.
-
-    A fence marker inside an HTML comment is invisible to the reader and opens
-    nothing, so it must not be reported as unclosed. Inside a fence the reverse
-    holds: `<!--` is literal code and changes no state.
-    """
-    output: list[str] = []
-    fence_character: str | None = None
-    fence_length = 0
-    inside_comment = False
-    for line in text.splitlines(keepends=True):
-        candidate = line.rstrip("\r\n")
-        if fence_character is None:
-            if inside_comment:
-                output.append(line)
-                if "-->" in candidate:
-                    inside_comment = False
-                continue
-            opening = candidate.find("<!--")
-            if opening >= 0 and "-->" not in candidate[opening:]:
-                inside_comment = True
-                output.append(line)
-                continue
-            match = FENCE_OPEN_RE.fullmatch(candidate)
-            if match is None:
-                output.append(line)
-                continue
-            fence = match.group("fence")
-            info = match.group("info")
-            if fence[0] == "`" and "`" in info:
-                output.append(line)
-                continue
-            fence_character = fence[0]
-            fence_length = len(fence)
-            continue
-        if re.fullmatch(
-            rf"[ \t]{{0,3}}{re.escape(fence_character)}{{{fence_length},}}[ \t]*",
-            candidate,
-        ):
-            fence_character = None
-            fence_length = 0
-    return "".join(output), fence_character is not None
-
-
-def _without_code_examples(text: str) -> str:
-    outside, _ = _without_fenced_code(text)
-    return INLINE_CODE_RE.sub("", outside)
-
-
 def _h2_sections(text: str) -> dict[str, str]:
     """Return visible level-two section bodies outside frontmatter and code.
 
@@ -990,17 +855,6 @@ def _audit_links(
             _add(findings, "ambiguous-wikilink", relative, f"ambiguous wikilink: {target}")
         else:
             _add(findings, "broken-wikilink", relative, f"unresolved wikilink: {target}")
-
-
-def _resolve_target(
-    target: str,
-    source: Path,
-    vault: Path,
-    index: LinkIndex,
-) -> list[Path]:
-    if "/" in target:
-        return [candidate for candidate in _candidate_paths(source, target, vault) if candidate.is_file()]
-    return [candidate for candidate in index.matches(target) if candidate.is_file()]
 
 
 def _collect_references(

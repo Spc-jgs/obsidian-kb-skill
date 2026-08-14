@@ -36,6 +36,7 @@ HELPERS = (
 )
 RETRIEVAL_HELPERS = (
     "doctor",
+    "explore-neighborhood",
     "resume-project",
     "review-projects",
     "search-vault",

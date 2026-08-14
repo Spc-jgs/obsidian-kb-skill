@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `explore-neighborhood` answers the question a reader has *after* finding a good note: what does this Vault say is connected to it. Search answers "which notes mention these words"; nothing answered "what is around this one", and the edges to answer it were already written down — body wikilinks, frontmatter `related`, and the same seen from the other end as backlinks.
+
+  Every edge is a declaration and none is an inference. Nothing is scored, no link is proposed, and a link is never read as *supports* or *is evidence for*: #75 owns discovering new candidates and #85 owns evidence lineage, and doing either here would let a guess read as something the user wrote. Notes sharing a subject, a folder, or a date are not connected. The node order is a stable path sort and the reference says outright that it is not a ranking — presenting the first as most relevant would invent the one thing this helper refuses to compute.
+
+  An ambiguous name lists its `candidates` and uses none, on #110's reasoning. An unresolved one is returned rather than dropped, because a note with three stale links should not look like a note with fewer connections. A link inside a code fence is syntax being quoted — the Vault's own notes quote it constantly — and a note linking to itself is not its own neighbour.
+
+  Folder indexes and source archives are excluded by default and counted in `excluded`. An index links every note in its folder, so following it returns the folder rather than a neighbourhood (#133 settled that an index is a listing), and an archive is evidence reached from the note citing it rather than a knowledge neighbour. `--include-structural` follows them, because "this note is only reachable through its index" is a real question.
+
+  One hop. On the reference Vault: a project retrospective returns one neighbour reached two ways at once — a body link *and* a `related` entry, deduplicated with both origins named — while the AI Bug workflow retrospective honestly returns **zero**, because it has no wikilinks and an empty `related`, and says in its own text that it deliberately made no links. Four notes explored in ~136 ms each, Vault byte-identical afterwards.
+
+- Wikilink resolution moved out of `audit_vault` into a shared `link_graph`, so retrieval can reach it without the write-side closure. Obsidian resolves `[[alias]]` through the target's frontmatter, and a second implementation of that in the retrieval bundle would be a copy that agrees until it does not. `audit_vault` lost 146 lines to the move and gained an import. Registered as row 35.
+
+  Adding a helper crossed six registered boundaries and five of them failed by name on the first test run — peer helper lists, the bundle's import graph, both runner registries, the console scripts, and the reference an Agent is sent to for these codes — each error naming its own fix. Only the sixth was new, and it is a deletion rather than a guard.
+
 ### Changed
 
 - `search-vault` ranks a note on its **best section** instead of on everything it contains, and cites from that same section. The two used different units before: BM25 charged a note for every word in it, then a snippet was picked afterwards, so the reason a note ranked and the place the reader was sent could be different parts of the same note.
