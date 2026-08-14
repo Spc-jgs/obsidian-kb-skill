@@ -61,6 +61,12 @@ A link the note makes to itself is not an edge. A link written inside a code
 fence or inline code is syntax being quoted, not a link, and is not an edge
 either.
 
+`nodes` is the same information collapsed to one entry per neighbour, which is
+what you usually want to report. Each carries `directions` and `origins` —
+every way that note was reached, so a neighbour both linked to *and* named in
+`related` appears once with both recorded rather than twice. Two origins is a
+stronger statement than one; say so when it matters.
+
 ## What is left out by default
 
 `excluded` counts the structural neighbours that were not followed:

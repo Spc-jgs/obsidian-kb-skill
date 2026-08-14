@@ -56,7 +56,6 @@ from obsidian_kb_skill.scripts.template_contract import (
     template_sha256,
 )
 from obsidian_kb_skill.scripts.vault_paths import (
-    EXIT_PATH_VIOLATION,
     InvalidVaultRootError,
     PathNotFoundError,
     VaultPathError,

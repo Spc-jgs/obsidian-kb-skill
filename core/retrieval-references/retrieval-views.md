@@ -48,6 +48,11 @@ checkable: running that plan through `search-vault` directly gives the same
 results, and saying "this came from the `recent-learning` view" without saying
 what the view resolved to tells the user nothing they can verify.
 
+The window appears as `after`/`before` or as `updated_after`/`updated_before`,
+according to the view's `date_field`; the other pair is `null`. Which pair is
+filled is itself information — it says whether this view is asking about when
+notes were *written* or when they *changed*.
+
 Report the window in dates. "The last 7 days" is what the config says;
 `2026-08-08` to `2026-08-14` is what ran.
 
