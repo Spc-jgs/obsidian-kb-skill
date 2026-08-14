@@ -89,6 +89,28 @@ HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 
 @dataclass(frozen=True)
+class Passage:
+    """One visible Markdown section of a note's body, scored on its own.
+
+    A note is ranked whole and cited by line, and until #118 those two used
+    different units: BM25 charged the note for every word it contained, then a
+    snippet was picked from whatever survived. On the reference Vault the notes
+    that lost most to this are the ones worth reading — of the 19 notes at or
+    above 10 KB, the fewest headings any carries is 12 and the median is 30,
+    because a real note is long *because* it has sections.
+
+    `heading` is `None` for the text before the first heading, which is a
+    section like any other and must be able to answer.
+    """
+
+    heading: str | None
+    start_line: int
+    end_line: int
+    tokens: Counter[str]
+    length: int
+
+
+@dataclass(frozen=True)
 class SearchDocument:
     path: Path
     relative: str
@@ -100,6 +122,7 @@ class SearchDocument:
     body: str
     body_start_line: int
     field_tokens: dict[str, Counter[str]]
+    passages: tuple[Passage, ...] = ()
     note_type: str | None = None
     note_date: str | None = None
     # When the note says it last changed. Deliberately separate from
@@ -110,10 +133,115 @@ class SearchDocument:
 
     @property
     def weighted_length(self) -> float:
+        """Every field over the whole document. Kept for what it honestly says.
+
+        No longer what BM25 normalises against — see `scoring_length`. A note's
+        total size is still the right answer to "how big is this note", and
+        conflating that with "how big is the unit being scored" is what made a
+        30 KB note pay for text the query never asked about.
+        """
         return sum(
             FIELD_WEIGHTS[field] * sum(tokens.values())
             for field, tokens in self.field_tokens.items()
         )
+
+    @property
+    def name_length(self) -> float:
+        """Weighted length of everything that is not body text.
+
+        Title, aliases, tags, headings and links describe the whole note, so
+        every passage carries them. Only the body is partitioned.
+        """
+        return sum(
+            FIELD_WEIGHTS[field] * sum(tokens.values())
+            for field, tokens in self.field_tokens.items()
+            if field != "body"
+        )
+
+    @property
+    def mean_passage_length(self) -> float:
+        """What a section of *this* note typically costs to read."""
+        if not self.passages:
+            return 0.0
+        return sum(passage.length for passage in self.passages) / len(self.passages)
+
+    def scoring_length(self, passage: Passage) -> float:
+        """Names plus one section, charged at no less than a typical section.
+
+        BM25 rewards short documents, and rightly: a short note is focused and
+        cheap to read. A short *section* of a long note is neither — reaching it
+        still means opening the long note. Scoring a three-word section as
+        though it were a three-word document hands it that bonus unearned, and
+        it is not hypothetical: a stub reading `jitter 上限。` outscored a note
+        whose section actually explains the answer, 0.580 to 0.504. #118 listed
+        this risk before the code existed.
+
+        So a section is charged at least what a typical section of its own note
+        costs. No constant is involved, and the floor is inert exactly where it
+        should be: a note without headings has one section equal to its whole
+        body, so `passage.length` *is* the mean and short unstructured notes
+        keep the advantage they have always had.
+
+        A note cannot escape by chopping itself into many small sections
+        either — that lowers the mean for every section at once, including the
+        ones that would have won.
+        """
+        return self.name_length + FIELD_WEIGHTS["body"] * max(
+            passage.length, self.mean_passage_length
+        )
+
+    @property
+    def average_scoring_length(self) -> float:
+        """This note's contribution to the corpus average, as one sample.
+
+        One sample per note rather than one per passage: the ranker returns
+        notes, and letting a 100-section note supply a hundred measurements
+        would let a handful of documents set the yardstick everything else is
+        judged against.
+        """
+        return self.name_length + FIELD_WEIGHTS["body"] * self.mean_passage_length
+
+
+EMPTY_PASSAGE = Passage(
+    heading=None, start_line=0, end_line=0, tokens=Counter(), length=0
+)
+
+
+def _passages(body: str) -> tuple[Passage, ...]:
+    """Split a body at its visible headings, one passage per section.
+
+    Line numbers are body-relative and 0-based; the caller adds
+    `body_start_line`. A section with no tokens at all — a heading with nothing
+    under it — is dropped, since it can never score and would only pull the
+    corpus average down. A body with no headings yields exactly one passage
+    equal to the whole body, which is what makes this change a no-op on the
+    short unstructured notes that make up most of a Vault.
+    """
+    starts: list[int] = [0]
+    headings: list[str | None] = [None]
+    lines = body.splitlines()
+    for index, line in enumerate(lines):
+        match = HEADING_RE.match(line)
+        if match:
+            starts.append(index)
+            headings.append(match.group(2).strip())
+    bounds = starts[1:] + [len(lines)]
+    passages: list[Passage] = []
+    for heading, start, end in zip(headings, starts, bounds):
+        tokens = Counter(tokenize("\n".join(lines[start:end])))
+        total = sum(tokens.values())
+        if not total:
+            continue
+        passages.append(
+            Passage(
+                heading=heading,
+                start_line=start,
+                end_line=end,
+                tokens=tokens,
+                length=total,
+            )
+        )
+    return tuple(passages)
 
 
 def _normalize_name(text: str) -> str:
@@ -325,13 +453,22 @@ def _document(path: Path, vault: Path, text: str) -> tuple[SearchDocument | None
     tags = _string_values(metadata.get("tags") or [])
     headings = _headings(visible_body)
     links = _wikilink_text(visible_body)
+    passages = _passages(visible_body)
+    # Derived, not tokenized a second time. `TOKEN_RUN_RE` matches runs of Latin
+    # or CJK characters and a newline is neither, so a run can never span a line
+    # break — partitioning the body at line boundaries preserves the token
+    # multiset exactly. Tokenizing twice cost 60% of query latency on the
+    # reference Vault (P50 125 → 204 ms) for an identical result.
+    body_tokens: Counter[str] = Counter()
+    for passage in passages:
+        body_tokens += passage.tokens
     fields = {
         "title": Counter(tokenize(title)),
         "aliases": Counter(tokenize(" ".join(aliases))),
         "tags": Counter(tokenize(" ".join(tags))),
         "headings": Counter(tokenize(" ".join(headings))),
         "links": Counter(tokenize(" ".join(links))),
-        "body": Counter(tokenize(visible_body)),
+        "body": body_tokens,
     }
     return (
         SearchDocument(
@@ -345,6 +482,7 @@ def _document(path: Path, vault: Path, text: str) -> tuple[SearchDocument | None
             body=visible_body,
             body_start_line=_body_start_line(parsed),
             field_tokens=fields,
+            passages=passages,
             note_type=_scalar(metadata.get("type")),
             note_date=parse_note_date(metadata.get("date")),
             note_updated=parse_note_date(metadata.get("updated")),
@@ -434,8 +572,19 @@ def _document_frequencies(
 
 
 def _field_matches(
-    document: SearchDocument, query_tokens: list[str]
+    document: SearchDocument,
+    query_tokens: list[str],
+    passage: Passage | None = None,
 ) -> list[dict[str, str]]:
+    """Which of the reader's words matched, and where.
+
+    The name fields describe the whole note, so they are read note-wide. `body`
+    is read from the section that won, because that is the section being cited:
+    reporting a word found three sections away tells the reader it is in the
+    passage in front of them. #118 named this before the code existed, and the
+    first implementation did it anyway — a result citing a section holding only
+    `jitter` reported `body: jitter, 毫秒`, with `毫秒` in a different section.
+    """
     signals: list[dict[str, str]] = []
     labels = {
         "title": "title",
@@ -446,12 +595,13 @@ def _field_matches(
         "body": "body",
     }
     for field in ("title", "aliases", "tags", "headings", "links", "body"):
+        counts = (
+            passage.tokens
+            if field == "body" and passage is not None
+            else document.field_tokens[field]
+        )
         matches = sorted(
-            {
-                token
-                for token in query_tokens
-                if document.field_tokens[field].get(token, 0)
-            }
+            {token for token in query_tokens if counts.get(token, 0)}
         )
         if matches:
             signals.append(
@@ -495,56 +645,91 @@ def _bm25_score(
     document_frequencies: Counter[str],
     document_count: int,
     average_length: float,
-) -> float:
-    """Weighted BM25. A typed token weighs 1.0; an expanded one weighs less.
+) -> tuple[float, Passage | None]:
+    """Weighted BM25 over the note's best section, and which section that was.
 
-    The weight multiplies the term's finished contribution rather than its raw
-    frequency, so an expanded token is worth a fixed fraction of the same token
-    typed directly, independent of how often the note repeats it.
+    A typed token weighs 1.0; an expanded one weighs less. The weight multiplies
+    the term's finished contribution rather than its raw frequency, so an
+    expanded token is worth a fixed fraction of the same token typed directly,
+    independent of how often the note repeats it.
+
+    One formula and one normalisation, exactly as before; what changed is the
+    unit. The names — title, aliases, tags, headings, links — describe the whole
+    note and so enter every section's frequency and length, while the body is
+    partitioned and only the best-scoring section counts. A note without
+    headings has one section equal to its whole body, so its score is unchanged.
+
+    Document frequency stays note-level. "How rare is this word in the Vault" is
+    a question about notes, and counting sections would make a word common
+    merely because one note repeats it in thirty places.
     """
     if document_count == 0:
-        return 0.0
+        return 0.0, None
     k1 = 1.5
     b = 0.75
-    length = document.weighted_length
-    score = 0.0
-    for token, weight in token_weights.items():
-        frequency = sum(
-            FIELD_WEIGHTS[field] * counts.get(token, 0)
-            for field, counts in document.field_tokens.items()
-        )
-        if frequency <= 0:
-            continue
-        df = document_frequencies[token]
-        inverse_frequency = math.log(
-            1.0 + (document_count - df + 0.5) / (df + 0.5)
-        )
-        normalization = k1 * (
-            1.0 - b + b * length / max(average_length, 1.0)
-        )
-        score += weight * inverse_frequency * (
-            frequency * (k1 + 1.0) / (frequency + normalization)
-        )
-    return score
+    names = {
+        field: counts
+        for field, counts in document.field_tokens.items()
+        if field != "body"
+    }
+    best_score = 0.0
+    best_passage: Passage | None = None
+    # A note whose body holds no tokens at all — empty, or headings only — has
+    # no passages. It can still match on its title, tags or aliases, so it gets
+    # one empty section rather than being dropped from scoring entirely.
+    for passage in document.passages or (EMPTY_PASSAGE,):
+        length = document.scoring_length(passage)
+        score = 0.0
+        for token, weight in token_weights.items():
+            frequency = sum(
+                FIELD_WEIGHTS[field] * counts.get(token, 0)
+                for field, counts in names.items()
+            ) + FIELD_WEIGHTS["body"] * passage.tokens.get(token, 0)
+            if frequency <= 0:
+                continue
+            df = document_frequencies[token]
+            inverse_frequency = math.log(
+                1.0 + (document_count - df + 0.5) / (df + 0.5)
+            )
+            normalization = k1 * (
+                1.0 - b + b * length / max(average_length, 1.0)
+            )
+            score += weight * inverse_frequency * (
+                frequency * (k1 + 1.0) / (frequency + normalization)
+            )
+        if best_passage is None or score > best_score:
+            best_score, best_passage = score, passage
+    return best_score, best_passage
 
 
 def _expansion_signals(
-    document: SearchDocument, expansion: QueryExpansion
+    document: SearchDocument,
+    expansion: QueryExpansion,
+    passage: Passage | None = None,
 ) -> list[dict[str, str]]:
     """Name the concepts that actually reached this note, and nothing else.
 
     A concept that fired on the query but matched nothing here would be noise in
     the result; a concept that matched must be visible, or the reader cannot
     tell which words were the search's idea rather than their own.
+
+    Same rule as `_field_matches`: names are read note-wide, body from the
+    section being cited.
     """
     signals: list[dict[str, str]] = []
+    fields = {
+        field: (
+            passage.tokens
+            if field == "body" and passage is not None
+            else counts
+        )
+        for field, counts in document.field_tokens.items()
+    }
     for concept in expansion.concepts:
         hits = [
             token
             for token in concept.added
-            if any(
-                counts.get(token, 0) for counts in document.field_tokens.values()
-            )
+            if any(counts.get(token, 0) for counts in fields.values())
         ]
         if hits:
             signals.append(
@@ -557,9 +742,38 @@ def _expansion_signals(
 
 
 def _snippet(
-    document: SearchDocument, query_tokens: list[str]
+    document: SearchDocument,
+    query_tokens: list[str],
+    passage: Passage | None = None,
+) -> tuple[str | None, int | None, str]:
+    """Cite from the section the ranking chose, when there was one.
+
+    Before #118 the note was ranked whole and the snippet picked afterwards, so
+    the two could point at different parts of the same note and a reader
+    following the line number landed somewhere the ranking never weighed.
+    Restricting the search to the winning section makes them one decision.
+    """
+    if passage is not None:
+        return _snippet_within(document, query_tokens, passage)
+    return _snippet_within(
+        document,
+        query_tokens,
+        Passage(
+            heading=None,
+            start_line=0,
+            end_line=len(document.body.splitlines()),
+            tokens=Counter(),
+            length=0,
+        ),
+    )
+
+
+def _snippet_within(
+    document: SearchDocument, query_tokens: list[str], passage: Passage
 ) -> tuple[str | None, int | None, str]:
     lines = document.body.splitlines()
+    window_start = max(0, passage.start_line)
+    window_end = min(len(lines), passage.end_line)
     current_heading: str | None = None
     headings: list[str | None] = []
     scores: list[int] = []
@@ -569,6 +783,9 @@ def _snippet(
         if match:
             current_heading = match.group(2).strip()
         headings.append(current_heading)
+        if not window_start <= index < window_end:
+            scores.append(0)
+            continue
         plain = line.strip()
         if plain and not match:
             visible_indexes.append(index)
@@ -589,9 +806,13 @@ def _snippet(
     )
     if best_index is None:
         return None, None, ""
+    # The context window stays inside the winning section too. A line borrowed
+    # from the section above reads as part of the evidence and is not.
     window = [
         lines[index].strip()
-        for index in range(max(0, best_index - 1), min(len(lines), best_index + 2))
+        for index in range(
+            max(window_start, best_index - 1), min(window_end, best_index + 2)
+        )
         if lines[index].strip() and not HEADING_RE.match(lines[index])
     ]
     text = re.sub(r"\s+", " ", " ".join(window)).strip()
@@ -652,14 +873,20 @@ def search_vault(
     token_weights.update({token: 1.0 for token in query_tokens})
     scoring_tokens = query_tokens + added
     frequencies = _document_frequencies(documents, set(scoring_tokens))
+    # The yardstick must describe the same unit the scorer compares against —
+    # names plus one section — or every note is normalised against a length no
+    # document in the corpus actually has.
     average_length = (
-        sum(document.weighted_length for document in documents) / len(documents)
+        sum(document.average_scoring_length for document in documents)
+        / len(documents)
         if documents
         else 0.0
     )
-    scored: list[tuple[float, SearchDocument, list[dict[str, str]]]] = []
+    scored: list[
+        tuple[float, SearchDocument, list[dict[str, str]], Passage | None]
+    ] = []
     for document in documents:
-        lexical = _bm25_score(
+        lexical, passage = _bm25_score(
             document,
             token_weights,
             frequencies,
@@ -679,14 +906,17 @@ def search_vault(
                 bonus_signals
                 # Direct matches first, then what the lexicon contributed, so a
                 # `body` signal never names a word the reader did not type.
-                + _field_matches(document, query_tokens)
-                + _expansion_signals(document, expansion),
+                + _field_matches(document, query_tokens, passage)
+                + _expansion_signals(document, expansion, passage),
+                passage,
             )
         )
     scored.sort(key=lambda item: (-item[0], item[1].relative.casefold(), item[1].relative))
     results: list[dict[str, Any]] = []
-    for rank, (score, document, signals) in enumerate(scored[:top_k], start=1):
-        heading, line, snippet = _snippet(document, scoring_tokens)
+    for rank, (score, document, signals, passage) in enumerate(
+        scored[:top_k], start=1
+    ):
+        heading, line, snippet = _snippet(document, scoring_tokens, passage)
         results.append(
             {
                 "rank": rank,

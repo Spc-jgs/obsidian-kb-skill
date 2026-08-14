@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "recorded_against": "062accde912ad47bd60706cd3cf8b013b10e88a6",
+  "recorded_against": "70b820fcc43807b02e9666abde91e340791c33c7",
   "note": "Outcome of the current ranker, not a statement that it is correct. See tests/test_retrieval_adversarial_eval.py.",
   "known_limitations": {
-    "whole-document-length-normalisation": "adv-dilution-01: the note holding the exact evidence paragraph is pushed out of Top-5 by notes that only mention the terms in passing, in both long shapes — the unstructured wall of text and the note divided into sections. SearchDocument.weighted_length sums every field over the whole document, so a 30 KB note pays for text the query never asked about. adv-dilution-05 is the same limitation at depth: evidence in the last section of a sectioned note. Only the sectioned shape can be helped by ranking a section on its own content, which is what makes the pair a measurement rather than a complaint. Tracked by #118.",
     "no-top-k-diversity": "adv-crowding-01: five near-identical dailies take all five slots and the note holding the conclusion does not appear. Top-K selection does not consider redundancy.",
     "expansion-reintroduces-ambiguity": "adv-ambiguity-01/02/03: 代理 is in AMBIGUOUS_TERMS and expands into both the agent and proxy concepts. adv-ambiguity-03 shows this is not only a query-time problem: the unambiguous 智能体 expands to 代理, which then matches 反向代理 in the other reading.",
     "term-overlap-is-treated-as-evidence": "every no-answer case returns hits. A query sharing one strong term with a note produces that note, with no notion of insufficient evidence. The stable corpus scores 1.0 here because its no-answer queries share nothing with any note.",
-    "title-weight-outranks-the-answer": "adv-field-01/03: a stub whose title matches ranks above the note that answers the question. FIELD_WEIGHTS[title] is 6x body."
+    "title-weight-outranks-the-answer": "adv-field-01/03: a stub whose title matches ranks above the note that answers the question. FIELD_WEIGHTS[title] is 6x body.",
+    "section-length-normalisation": "adv-dilution-01: section-level ranking (#118) brings the sectioned 75 KB note into Top-5 at rank 2 and leaves the unstructured one absent, which is the measurement working — a section can compete on its own evidence only where sections exist. What remains is that the unstructured shape has no remedy here at all: one heading means one passage, and no split can help it. adv-dilution-05 still returns a short note that names the terms and says it does not cover them, above the section that answers, because term overlap is still treated as evidence — see below."
   },
   "cases": [
     {
@@ -16,18 +16,17 @@
       "returned": 5,
       "rank": 1,
       "must_see_missing": [
-        "20-Learning/retry/backoff-handbook.md",
-        "20-Learning/retry/backoff-manual.md"
+        "20-Learning/retry/backoff-handbook.md"
       ],
       "must_see_ranks": {
         "20-Learning/retry/backoff-compact.md": 1,
         "20-Learning/retry/backoff-handbook.md": null,
-        "20-Learning/retry/backoff-manual.md": null
+        "20-Learning/retry/backoff-manual.md": 2
       },
       "hard_negative_hits": [],
       "family_occupancy": {
-        "retry-evidence": 1,
-        "retry-passing-mention": 4
+        "retry-evidence": 2,
+        "retry-passing-mention": 3
       }
     },
     {
@@ -37,7 +36,7 @@
       "rank": 1,
       "must_see_missing": [],
       "must_see_ranks": {
-        "20-Learning/retry/backoff-handbook.md": 2
+        "20-Learning/retry/backoff-handbook.md": 3
       },
       "hard_negative_hits": [],
       "family_occupancy": {
@@ -53,7 +52,7 @@
       "rank": 1,
       "must_see_missing": [],
       "must_see_ranks": {
-        "20-Learning/retry/backoff-handbook.md": 2
+        "20-Learning/retry/backoff-handbook.md": 3
       },
       "hard_negative_hits": [],
       "family_occupancy": {
@@ -64,10 +63,10 @@
       "id": "adv-dilution-05",
       "group": "dilution",
       "returned": 5,
-      "rank": 3,
+      "rank": 2,
       "must_see_missing": [],
       "must_see_ranks": {
-        "20-Learning/retry/backoff-manual.md": 3
+        "20-Learning/retry/backoff-manual.md": 2
       },
       "hard_negative_hits": [
         "20-Learning/ops/capacity-review.md"
@@ -168,8 +167,8 @@
       "family_occupancy": {
         "agent-reading": 1,
         "proxy-reading": 1,
-        "retry-evidence": 1,
-        "retry-passing-mention": 2
+        "retry-evidence": 2,
+        "retry-passing-mention": 1
       }
     },
     {
@@ -399,8 +398,8 @@
       "dilution": {
         "cases": 5,
         "recall_at_5": 1.0,
-        "mrr": 0.867,
-        "must_see_misses": 2,
+        "mrr": 0.9,
+        "must_see_misses": 1,
         "hard_negative_hits": 1
       },
       "field": {
