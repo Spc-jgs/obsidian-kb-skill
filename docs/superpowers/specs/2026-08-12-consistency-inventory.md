@@ -67,6 +67,7 @@ It is a list of the boundaries, and the discipline of adding to it.
 | 35 | What a wikilink resolves to for the audit ↔ what it resolves to for retrieval | **relation removed** — one `link_graph` module, imported by `audit_vault` and `explore_neighborhood`; the alternative was a second implementation of Obsidian's alias-and-stem resolution in a bundle that cannot import the first |
 | 36 | A view's field names ↔ `search_vault`'s actual signature | `test_every_view_field_maps_to_a_parameter_search_vault_really_has`, which reads the live signature with `inspect` rather than a second list |
 | 37 | The plan a view reports ↔ the search it actually ran | `test_the_resolved_plan_is_shown_and_reproduces_the_same_results` re-runs the reported plan through `search_vault` and compares the result paths |
+| 38 | A module's import block ↔ the names it actually uses | `test_no_module_declares_a_dependency_it_does_not_use`; a deliberate re-export declares `__all__` so intent is stated rather than special-cased |
 
 Guards 12, 13 and 14 were added by this work. The rest already existed; several
 had caught the author earlier the same day. Row 17 arrived late, in #114 — see
@@ -106,6 +107,16 @@ checkbox anywhere in the note. It surfaced a few hours later while scoping that
 very count to the section, where the drift would have zeroed out the one project
 whose checkboxes all sit under the widened heading. An unregistered boundary
 does not announce itself; it waits for the change that depends on it.
+
+Row 38 came out of reviewing the four changes above, and it is the smallest
+boundary in this list — which is why it went unnamed for so long. An import
+block is a claim about what a module needs. Extracting `LinkIndex` into
+`link_graph` left five names imported into `audit_vault` and used nowhere;
+nothing failed, and the next reader deciding what may safely move is handed a
+dependency map that is wrong in five places. Six more had been sitting in other
+modules for longer. The guard is trivial to satisfy and trivial to check, and
+the only judgement it needs — "is this a re-export or a leftover?" — is made
+declarable by `__all__` rather than by exempting a filename.
 
 Rows 36 and 37 guard a configuration format, which is the first time this list
 covers something a *user* writes. A view's schema is a second spelling of

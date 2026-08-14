@@ -8,10 +8,9 @@ import json
 import re
 import difflib
 import sys
-from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.conversation_digest_contract import (
@@ -28,10 +27,7 @@ from obsidian_kb_skill.scripts.deep_capture_contract import (
     formatted_deep_capture_variants,
     matches_deep_capture_contract,
 )
-from obsidian_kb_skill.scripts.frontmatter import (
-    parse_frontmatter,
-    read_frontmatter_head,
-)
+from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
 from obsidian_kb_skill.scripts.capture_receipt import CAPTURE_DEPTHS
 from obsidian_kb_skill.scripts.folder_index_policy import (
     FolderIndexConfig,
@@ -41,13 +37,11 @@ from obsidian_kb_skill.scripts.folder_index_policy import (
     read_folder_index_config,
 )
 from obsidian_kb_skill.scripts.link_graph import (
-    INLINE_CODE_RE,
     LinkIndex,
     WIKILINK_RE,
     build_link_index,
     candidate_paths as _candidate_paths,
     clean_link_target as _clean_link_target,
-    declared_aliases as _declared_aliases,
     resolve_target as _resolve_target,
     without_code_examples as _without_code_examples,
     without_fenced_code as _without_fenced_code,
@@ -72,8 +66,6 @@ from obsidian_kb_skill.scripts.template_contract import (
 )
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
-    VaultPathError,
-    report_cli_violation,
     resolve_existing_within_vault,
     resolve_target_within_vault,
     validate_vault_root,

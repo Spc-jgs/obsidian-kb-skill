@@ -6,7 +6,6 @@ import argparse
 import hashlib
 import json
 import re
-import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any

@@ -320,3 +320,60 @@ def test_every_resume_origin_is_ranked_in_the_reference():
     assert len(ORIGIN_TRUST) == len(set(ORIGIN_TRUST)), "duplicate origin"
     for origin in ORIGIN_TRUST:
         assert f"`{origin}`" in reference, f"unranked resume origin: {origin}"
+
+
+def test_no_module_declares_a_dependency_it_does_not_use():
+    """An import block is a claim about what a module needs.
+
+    Extracting `LinkIndex` into `link_graph` (#121) left five names imported
+    into `audit_vault` and used nowhere — `INLINE_CODE_RE`, `declared_aliases`,
+    `Iterable`, `defaultdict`, `read_frontmatter_head`. Nothing failed, and the
+    reader is told the module still depends on things it no longer touches,
+    which is exactly the wrong map to hand someone deciding what may move next.
+
+    `__future__` is excluded because its effect is not a name, and anything a
+    module re-exports through `__all__` is a deliberate pass-through.
+    """
+    import ast
+
+    scripts = ROOT / "obsidian_kb_skill" / "scripts"
+    unused: dict[str, list[str]] = {}
+    for path in sorted(scripts.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        bound: dict[str, int] = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+                continue
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                for alias in node.names:
+                    name = alias.asname or alias.name.split(".")[0]
+                    bound[name] = node.lineno
+        if not bound:
+            continue
+        used = {
+            node.id for node in ast.walk(tree) if isinstance(node, ast.Name)
+        } | {
+            node.value.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+        } | {
+            element.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "__all__"
+                for target in node.targets
+            )
+            and isinstance(node.value, (ast.List, ast.Tuple))
+            for element in node.value.elts
+            if isinstance(element, ast.Constant)
+        }
+        dead = sorted(name for name in bound if name not in used)
+        if dead:
+            unused[path.name] = dead
+
+    assert not unused, (
+        f"these modules import names they never use: {unused}. An import block "
+        "that outlived its use tells the next reader the module still depends "
+        "on something it does not."
+    )
