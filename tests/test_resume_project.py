@@ -825,3 +825,136 @@ def test_proximity_still_never_establishes_membership(tmp_path):
     )
 
     assert payload["sources"] == []
+
+
+INDEX_BODY = "# etianqu\n\n```folder-index-content\n```\n"
+
+
+def test_a_folder_index_in_the_instance_directory_is_not_a_source(tmp_path):
+    """#133, in the shape the reference Vault actually has.
+
+    An index is generated from the directory's contents, so it answers nothing
+    a pack built from those same contents does not already hold. Measured on
+    the reference Vault before this change: three of the four projects returned
+    exactly one source, and in all three it was the project's own folder index,
+    contributing `fields: []`.
+
+    Returning nothing is the honest answer for a project whose directory holds
+    only its note and a listing. Returning the listing spends a bounded slot on
+    a file with no content and tells the reader there is material here.
+    """
+    vault = make_vault(tmp_path)
+    instance = vault / "40-Projects" / "etianqu"
+    write_note(instance / "Project.md", "project-note", status="active")
+    write_note(instance / "etianqu.md", "folder-index", body=INDEX_BODY)
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/etianqu/Project.md"), as_of=AS_OF
+    )
+
+    assert payload["sources"] == []
+
+
+def test_a_moc_is_excluded_the_same_way_a_folder_index_is(tmp_path):
+    """`moc` makes the same claim: this note maps other notes, it is not one.
+
+    The write side has never distinguished them — every place `audit_vault`
+    asks "is this an index" exempts both, from the `missing-date` rule to the
+    connectivity candidates. Splitting them here would create the disagreement
+    this change exists to remove.
+    """
+    vault = make_vault(tmp_path)
+    instance = vault / "40-Projects" / "etianqu"
+    write_note(instance / "Project.md", "project-note", status="active")
+    write_note(instance / "Map.md", "moc", body="# Map\n\n- [[Project]]\n")
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/etianqu/Project.md"), as_of=AS_OF
+    )
+
+    assert payload["sources"] == []
+
+
+def test_an_index_is_recognized_by_its_type_not_by_its_filename(tmp_path):
+    """The criterion is the declaration, so a misplaced index is still an index.
+
+    `audit-vault` reports this file as `misnamed-folder-index`: it declares the
+    type but does not sit where the config expects an index. A criterion built
+    on the expected path would let it through precisely because it is misnamed
+    — which is backwards, since a misnamed index is no more readable than a
+    correctly named one.
+    """
+    vault = make_vault(tmp_path)
+    instance = vault / "40-Projects" / "etianqu"
+    write_note(instance / "Project.md", "project-note", status="active")
+    write_note(instance / "Old Index.md", "folder-index", body=INDEX_BODY)
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/etianqu/Project.md"), as_of=AS_OF
+    )
+
+    assert payload["sources"] == []
+
+
+def test_a_note_named_after_its_directory_is_still_a_source(tmp_path):
+    """Hard negative for the criterion this change deliberately did not pick.
+
+    #133 proposed excluding whatever `expected_folder_index` names. That path
+    is `<folder>/<folder>.md` even on a Vault with the Folder Index plugin
+    disabled, because the config defaults say so — so a real note that happens
+    to carry its directory's name would vanish from the pack with nothing said.
+    Trading one silent omission for another is not a fix, and this test is what
+    stops that criterion from arriving later.
+    """
+    vault = make_vault(tmp_path)
+    instance = vault / "40-Projects" / "etianqu"
+    write_note(instance / "Project.md", "project-note", status="active")
+    write_note(
+        instance / "etianqu.md",
+        "conversation-digest",
+        date="2026-08-05",
+        body="# etianqu\n\n## 决定\n\n用同名文件写了一篇真的笔记。\n",
+    )
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/etianqu/Project.md"), as_of=AS_OF
+    )
+
+    assert [source["path"] for source in payload["sources"]] == [
+        "40-Projects/etianqu/etianqu.md"
+    ]
+
+
+def test_a_declared_link_to_an_index_is_excluded_and_says_so(tmp_path):
+    """The two routes are filtered alike, but only one of them stays quiet.
+
+    Skipping the index during the directory sweep is the sweep's documented
+    rule, and announcing it once per project would be noise. A `related` entry
+    is different: the user wrote that name down, and #110 established that a
+    declared link the pack does not use is reported rather than dropped — a
+    pack that quietly shrinks reads as a project with less material.
+    """
+    vault = make_vault(tmp_path)
+    write_note(
+        vault / "40-Projects" / "Summary.md",
+        "project-note",
+        status="active",
+        extra='related:\n  - "[[etianqu]]"\n',
+    )
+    write_note(
+        vault / "40-Projects" / "etianqu" / "etianqu.md",
+        "folder-index",
+        body=INDEX_BODY,
+    )
+
+    payload = resume_project.build(
+        vault, note=Path("40-Projects/Summary.md"), as_of=AS_OF
+    )
+
+    assert payload["sources"] == []
+    excluded = [
+        issue for issue in payload["issues"] if issue["code"] == "index-note-excluded"
+    ]
+    assert len(excluded) == 1
+    assert excluded[0]["path"] == "40-Projects/etianqu/etianqu.md"
+    assert excluded[0]["origin"] == "related-link"

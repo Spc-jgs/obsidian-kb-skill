@@ -31,6 +31,7 @@ from obsidian_kb_skill.scripts.note_catalog import (
     ENTITY_FOLDERS,
     ENTITY_INSTANCE_TYPE,
     EXEMPT_NAMES,
+    INDEX_TYPES,
     PROJECT_NOTE_NEXT_ACTION_HEADINGS,
 )
 from obsidian_kb_skill.scripts.vault_paths import (
@@ -275,8 +276,8 @@ def _instance_sources(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Every readable note in the instance directory except the project note.
 
-    Index files are excluded: a folder index lists the directory's contents and
-    would add nothing to a pack built from those same contents.
+    Notes typed as an index are excluded — see `_source_entry`, which applies
+    that rule to every route into the pack rather than this one alone.
     """
     sources: list[dict[str, Any]] = []
     issues: list[dict[str, Any]] = []
@@ -308,10 +309,36 @@ def _source_entry(
             "code": "unreadable-frontmatter",
             "message": error,
         }
+    note_type = (metadata or {}).get("type")
+    if note_type in INDEX_TYPES:
+        # An index is generated from the notes around it, so it answers nothing
+        # a pack built from those same notes already holds — and it costs one of
+        # a bounded number of slots. The criterion is the note's declared type,
+        # matching what the write Skill means by an index; the filename is not
+        # consulted, so a misplaced index is caught and a real note that happens
+        # to carry its directory's name is not.
+        #
+        # How that is reported depends on the route, which the origin already
+        # says. The directory sweep skips it quietly: that is the sweep's rule,
+        # and announcing it once per project would be noise. A declaration is
+        # different — the user wrote that name down, and #110 settled that a
+        # declared link the pack does not use gets reported rather than dropped,
+        # because a pack that quietly shrinks reads as a project with less
+        # material than it has.
+        if origin == ORIGIN_INSTANCE_DIRECTORY:
+            return None, None
+        return None, {
+            "path": relative.as_posix(),
+            "code": "index-note-excluded",
+            "origin": origin,
+            "message": (
+                f"{relative.as_posix()} is typed {note_type!r}, an index of "
+                "other notes rather than material of its own; it was not used"
+            ),
+        }
     entry = _note_payload(relative, metadata)
     entry["origin"] = origin
     entry["origins"] = [origin]
-    note_type = (metadata or {}).get("type")
     contributed, _ = _extract(
         path.read_text(encoding="utf-8"),
         relative,
