@@ -177,6 +177,34 @@ def test_both_retrieval_helpers_mean_the_same_thing_by_next_actions():
     }, "the radar's heading set is not the shared one"
 
 
+def test_both_skills_mean_the_same_thing_by_an_index_note():
+    """One concept, one set — and `VALID_NOTE_TYPES` derives rather than repeats.
+
+    `{"folder-index", "moc"}` existed twice: `audit_vault.INDEX_TYPES` exempting
+    them from the note contract, the connectivity candidates and the title
+    index, while `note_catalog.VALID_NOTE_TYPES` spelled the same two literals
+    out inline. Nothing tied them together, and #133 made retrieval a third
+    place that needs the judgement — a resume pack must not offer a project's
+    own directory listing as material.
+
+    Identity, not equality: two sets that happen to agree today can drift apart
+    and back without anyone knowing which one was right in between.
+    """
+    from obsidian_kb_skill.scripts import audit_vault, note_catalog, resume_project
+
+    shared = note_catalog.INDEX_TYPES
+    assert shared, "no type marks a note as an index at all"
+    assert audit_vault.INDEX_TYPES is shared, (
+        "the audit holds its own copy of what an index is"
+    )
+    assert resume_project.INDEX_TYPES is shared, (
+        "the resume pack holds its own copy of what an index is"
+    )
+    assert shared <= note_catalog.VALID_NOTE_TYPES, (
+        "an index type the audit honours would be reported as `invalid-type`"
+    )
+
+
 def test_every_bash_invoking_installer_test_is_named_for_the_windows_skip():
     """The Windows skip is a name prefix, and nothing checked that it was used.
 

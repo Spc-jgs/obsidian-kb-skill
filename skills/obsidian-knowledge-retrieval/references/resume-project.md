@@ -44,6 +44,16 @@ Only explicit declarations count. Sitting nearby, sharing a subject, or being
 linked from the project note's *body* establishes nothing — a body wikilink is
 a reference, not a claim of membership.
 
+A note typed `folder-index` or `moc` is never a source, by any route. An index
+is generated from the notes around it and a MOC curates them, so neither holds
+anything a pack built from those notes does not already have — and each would
+cost one of a bounded number of slots. The criterion is the note's **declared
+type**, not its filename: an index sitting where the Vault's config does not
+expect one is still an index, and a real note that happens to carry its
+directory's name is still a source. An index declaring no type is not
+recognised, which is the same rule as everywhere else here — what is not
+declared is not guessed at.
+
 ## What the pack answers
 
 `resume` holds what the **project note** says, one entry per field, each with
@@ -139,6 +149,12 @@ entries appear there, both about links the pack refused to follow:
 - `unresolved-related-link` — the name matches no note at all. The link is
   stale or the note was renamed; say so rather than treating the project as
   having less material.
+- `index-note-excluded` — the declaration resolved to a note typed as an index,
+  which is not project material. Reported with the `origin` that named it, so
+  the user can see which of their declarations went nowhere. Nothing is wrong
+  with the Vault here; the pack is simply not passing off a listing as
+  material. The equivalent skip during the directory sweep is not reported —
+  that is the sweep's own rule rather than something a user wrote down.
 
 See `shared-errors.md` for the path and Vault guards this helper shares with
 the rest of the Skill.

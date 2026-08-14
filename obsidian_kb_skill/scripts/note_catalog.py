@@ -92,10 +92,23 @@ SOURCE_ARCHIVE_TYPE = "source-archive"
 AUDIT_COMPATIBILITY_TYPES = frozenset({
     "daily-report", "weekly-report", "archive-note",
 })
+# Types whose note *is* a listing rather than content. An index is generated
+# from the notes around it and a MOC curates them, so neither answers anything
+# a reader could not get from those notes themselves.
+#
+# Both Skills need this judgement and each held its own copy: `audit_vault` as
+# an `INDEX_TYPES` set exempting them from the note contract, the connectivity
+# candidates and the title index, while `VALID_NOTE_TYPES` here spelled the same
+# two literals out inline. Nothing tied the two together. Retrieval needs it as
+# well — a resume pack must not spend a bounded slot on the project's own
+# directory listing (#133), which is what happened to three of the four projects
+# on the reference Vault.
+INDEX_TYPES = frozenset({"folder-index", "moc"})
 VALID_NOTE_TYPES = (
     frozenset(NOTE_TYPES)
     | AUDIT_COMPATIBILITY_TYPES
-    | {"folder-index", "moc", SOURCE_ARCHIVE_TYPE}
+    | INDEX_TYPES
+    | {SOURCE_ARCHIVE_TYPE}
 )
 MANAGED_NOTE_FOLDERS = (
     "00-Inbox", "10-Work", "15-Daily", "20-Learning",

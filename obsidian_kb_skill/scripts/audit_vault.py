@@ -44,6 +44,7 @@ from obsidian_kb_skill.scripts.note_catalog import (
     ENTITY_FOLDERS,
     ENTITY_INSTANCE_TYPE,
     EXEMPT_NAMES,
+    INDEX_TYPES,
     NON_INSTANCE_STATUSES,
     SOURCE_ARCHIVE_FOLDER,
     TEMPLATE_PLACEHOLDER_RE,
@@ -143,7 +144,6 @@ def finding_severity(code: str) -> str:
     return FINDING_SEVERITY.get(code, DEFAULT_SEVERITY)
 
 
-INDEX_TYPES = {"folder-index", "moc"}
 # Periodic logs. A daily or weekly report that links nothing is doing its job,
 # so connectivity is not measured for them. On the reference Vault they are 36
 # of the 57 notes with no links at all — reporting them would bury the 21 that

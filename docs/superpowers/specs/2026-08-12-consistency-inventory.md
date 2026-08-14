@@ -59,7 +59,7 @@ It is a list of the boundaries, and the discipline of adding to it.
 | 27 | Zero-result reason codes ↔ the reference the retrieval Agent reads | `test_every_zero_result_reason_is_documented_for_the_agent_that_reads_it` |
 | 28 | `search-vault --updated-*` (reads `updated` only) ↔ `review-projects` activity (`updated` falling back to `date`) | `test_the_two_activity_semantics_are_documented_as_different` — **deliberately different**, guarded as a documented distinction rather than unified |
 | 29 | `resume_project.ORIGIN_TRUST` ↔ the reference that ranks each origin's reliability | `test_every_resume_origin_is_ranked_in_the_reference` |
-| 30 | "a folder index is excluded" in `resume-project.md` ↔ what `_instance_sources` excludes | **none — #133**, the reference promises an exclusion the code does not make |
+| 30 | What each Skill means by "this note is an index" | **relation removed** — one `INDEX_TYPES` in `note_catalog`, from which `VALID_NOTE_TYPES` also derives; `test_both_skills_mean_the_same_thing_by_an_index_note` asserts identity across `audit_vault` and `resume_project` |
 
 Guards 12, 13 and 14 were added by this work. The rest already existed; several
 had caught the author earlier the same day. Row 17 arrived late, in #114 — see
@@ -99,6 +99,26 @@ checkbox anywhere in the note. It surfaced a few hours later while scoping that
 very count to the section, where the drift would have zeroed out the one project
 whose checkboxes all sit under the widened heading. An unregistered boundary
 does not announce itself; it waits for the change that depends on it.
+
+Row 30 was filed as `guard: none` on the strength of a quotation, and the
+quotation was attributed to the wrong file. #133 said the promise "index files
+are excluded" sat in `core/retrieval-references/resume-project.md`; that file
+contains no occurrence of the word *index*. The sentence was a docstring in
+`resume_project.py`. The defect was real and the fix is the one below, but the
+row as first written described a boundary between a reference and the code,
+which is not the boundary that existed — and the issue's proposed direction
+followed from the wrong description. Attribution is part of a claim: a quotation
+without the read that produced it is an assertion about a file nobody opened.
+
+The row's real content is that `{"folder-index", "moc"}` existed twice —
+`audit_vault.INDEX_TYPES` and `note_catalog.VALID_NOTE_TYPES`' inline literals —
+with nothing tying them together, and #133 was about to make retrieval a third.
+Sharing one object removes the boundary. Two criteria were available and the
+positional one was rejected: `expected_folder_index` returns
+`<folder>/<folder>.md` even when the Folder Index plugin is disabled, so it
+would silently drop a real note that happened to carry its directory's name.
+`test_a_note_named_after_its_directory_is_still_a_source` is the hard negative
+that keeps that criterion from arriving later, and it fails when it is applied.
 
 Row 20 is the shape this whole document prefers: the relation was **deleted**
 rather than guarded. Three modules were about to hold the same placeholder rule;
