@@ -1,9 +1,10 @@
 {
   "files": {
-    "SKILL.md": "294a36168f38dd79370ef6871a96a07e35435eecadd536cd543af1385d65a7c0",
+    "SKILL.md": "e6a629a62c08c4c91edf9887e338dd376d417e5e08926c35466527a034c99eaf",
     "agents/openai.yaml": "a8cc92153803b94afcfecf55ff57c846d76c9707793decc1a37b66b96fb2f8d6",
     "references/explore-neighborhood.md": "0179fd9ed5fb43e3e3375600343789fa39a82f888cd001667af3d54c372f02b8",
     "references/resume-project.md": "19885cfa691ab4308d4817ad1a63cbbbe85ccd280d6bfe0acde4c3177c4c5fb8",
+    "references/retrieval-views.md": "cbecd4de9048d402c38b6c787501ff425a96d49454b53000c72f111f38a94dfd",
     "references/review-projects.md": "6ffcece04e3a247589fe98fd5a0398d76d2100a36942fd3bbded25e34a5e22e2",
     "references/search.md": "e5e894bbb4c895530d34638b3cf4d4f12eb1fd438f266c294acccc6b2db71dff",
     "references/shared-errors.md": "6534c5b22b7f96c87f88dd1a79bdf03dfb3586c865ec7c9ab9ce995267ff32d2",
@@ -19,11 +20,12 @@
     "scripts/obsidian_kb_skill/scripts/query_expansion.py": "11ab6592cb5695b54a4a86ef4de28a250eebb356b1f77723befa0762814c7209",
     "scripts/obsidian_kb_skill/scripts/resume_project.py": "65af8f72bd2e09bbc1454ea5fa8ad6ef4870db2f870360085799ae09b9c9667e",
     "scripts/obsidian_kb_skill/scripts/retrieval_vault_info.py": "af952ed626b49bbe84841302ace7796e777e68ad2c8f005998389395162164ec",
+    "scripts/obsidian_kb_skill/scripts/retrieval_views.py": "d42c32ab5292cfcde789644b346e2d75cdcc28f76251fd9084edb5978a528236",
     "scripts/obsidian_kb_skill/scripts/review_projects.py": "94fe4b6471200299b2106ecf2172d7d5b2d92b3a18411f52f720783c8e2fe7e1",
     "scripts/obsidian_kb_skill/scripts/search_vault.py": "f21e35a8383a910d295df20016f9789120cb9e11d2da6c084001d947e2ca0e1e",
     "scripts/obsidian_kb_skill/scripts/text_tokens.py": "61e7f86e9ea231b3f4fa7684b00b59141fce5c95c12552492b98c55b60115f13",
     "scripts/obsidian_kb_skill/scripts/vault_paths.py": "5eb90ea7b46258b79c3e6e4f2361736639fd9a668e97361c1cde0205c55aec2d",
-    "scripts/run_helper.py": "dd9e259de34d79f939c85532090b27c0cd4c39901b16088fb6abf082932450d3"
+    "scripts/run_helper.py": "c4926254f21c91eb2c9662b25fc7c60675c789ef034023f79a08056f7f8ad8e7"
   },
   "product": "obsidian-kb-skill",
   "schema_version": 1,
