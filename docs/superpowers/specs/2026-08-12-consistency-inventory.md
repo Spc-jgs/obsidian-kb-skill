@@ -65,6 +65,8 @@ It is a list of the boundaries, and the discipline of adding to it.
 | 33 | The unit a result is ranked on ↔ the unit it is cited from | **relation removed** — `_bm25_score` returns the winning `Passage` and `_snippet`, `_field_matches` and `_expansion_signals` all read it; `test_the_citation_comes_from_the_section_that_won` and `test_a_body_signal_names_only_words_in_the_section_that_won` |
 | 34 | `field_tokens["body"]` ↔ the union of the note's passages | **relation removed** — the body counter is summed from the passages rather than tokenized again, which the tokenizer's own definition makes exact: `TOKEN_RUN_RE` matches runs of Latin or CJK and a newline is neither, so no run can span a line break |
 | 35 | What a wikilink resolves to for the audit ↔ what it resolves to for retrieval | **relation removed** — one `link_graph` module, imported by `audit_vault` and `explore_neighborhood`; the alternative was a second implementation of Obsidian's alias-and-stem resolution in a bundle that cannot import the first |
+| 36 | A view's field names ↔ `search_vault`'s actual signature | `test_every_view_field_maps_to_a_parameter_search_vault_really_has`, which reads the live signature with `inspect` rather than a second list |
+| 37 | The plan a view reports ↔ the search it actually ran | `test_the_resolved_plan_is_shown_and_reproduces_the_same_results` re-runs the reported plan through `search_vault` and compares the result paths |
 
 Guards 12, 13 and 14 were added by this work. The rest already existed; several
 had caught the author earlier the same day. Row 17 arrived late, in #114 — see
@@ -104,6 +106,19 @@ checkbox anywhere in the note. It surfaced a few hours later while scoping that
 very count to the section, where the drift would have zeroed out the one project
 whose checkboxes all sit under the widened heading. An unregistered boundary
 does not announce itself; it waits for the change that depends on it.
+
+Rows 36 and 37 guard a configuration format, which is the first time this list
+covers something a *user* writes. A view's schema is a second spelling of
+`search_vault`'s signature: renaming a parameter would leave the mapping
+pointing at nothing and fail in someone's Vault rather than in CI, so row 36
+reads the live signature with `inspect` instead of comparing two hand-kept
+lists — the check cannot be satisfied by editing it.
+
+Row 37 guards something subtler. The helper returns a `plan` so its answer is
+reproducible, and a plan that does not describe the call actually made is worse
+than no plan: it is a wrong answer wearing the costume of a checkable one. The
+assertion re-runs the reported plan through `search_vault` and compares, so the
+two cannot drift while continuing to look consistent.
 
 Row 35 is worth reading beside what *did not* need a row. Adding a helper
 (#121) crossed six boundaries in this list, and five of them — the peer helper

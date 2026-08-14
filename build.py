@@ -149,6 +149,7 @@ RETRIEVAL_HELPER_FILES = (
     Path("scripts/conversation_digest_contract.py"),
     Path("scripts/explore_neighborhood.py"),
     Path("scripts/resume_project.py"),
+    Path("scripts/retrieval_views.py"),
     Path("scripts/retrieval_vault_info.py"),
     Path("scripts/review_projects.py"),
     Path("scripts/search_vault.py"),

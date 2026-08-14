@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- `run-retrieval-view` runs a search the Vault has already written down. The questions a user asks repeatedly are not infinite — "learning notes from the last week", "current project risks" — and each time an Agent re-translates one into flags it may translate it differently, so the same question quietly gets a different answer. A view is that translation, made once and kept in `.obsidian-kb/retrieval-views.json`.
+
+  Structured fields only: no command, no pipe, no template, no environment interpolation, and no field `search-vault` does not already have. A view can only narrow, and it reaches the same validated parameters a direct call reaches, so it can never get past a guard an ordinary search would face. An unknown key is refused rather than ignored — dropping one silently runs a search the file does not describe, which is the whole failure this exists to prevent.
+
+  `--as-of` is required and the helper never reads the clock. A window whose meaning came from "now" gives different answers on different runs, which is the opposite of the point; "上周" is a phrase the Agent turns into a date, never a value a config can hold. `window_days: 7` resolves to an inclusive ISO pair, and `date_field` picks `date` or `updated` without blurring the distinction registry row 28 keeps deliberately apart.
+
+  The resolved `plan` is returned beside the results, and a test re-runs that plan through `search-vault` and compares — a plan that does not describe the call actually made is worse than no plan, because it is a wrong answer wearing the costume of a checkable one. Registered as rows 36 and 37; row 36 reads `search_vault`'s live signature with `inspect` rather than comparing two hand-kept lists, so it cannot be satisfied by editing it.
+
+  A view scoped to a folder that no longer exists returns `invalid-view-scope` rather than falling back to the whole Vault: a view that silently widened would keep working, return more than it ever did, and say nothing. A corrupt config refuses outright. `missing-view-config` is the ordinary state for a Vault with no views and says so rather than reading as a fault.
+
+  Measured on a 214-note copy of the reference Vault: a 30-day `date` window resolved to `2026-07-16 → 2026-08-14` in 83 ms, a 90-day `updated` window returned the project note whose `风险与阻塞` section answers it, a moved scope refused, and an unknown name listed the three that exist. The plan reproduced the results exactly in both real views, and the copy was byte-identical afterwards. Nothing was written to the user's own Vault at any point — creating a view is theirs to do, and this Skill never writes to `.obsidian-kb/`.
+
 - `explore-neighborhood` answers the question a reader has *after* finding a good note: what does this Vault say is connected to it. Search answers "which notes mention these words"; nothing answered "what is around this one", and the edges to answer it were already written down — body wikilinks, frontmatter `related`, and the same seen from the other end as backlinks.
 
   Every edge is a declaration and none is an inference. Nothing is scored, no link is proposed, and a link is never read as *supports* or *is evidence for*: #75 owns discovering new candidates and #85 owns evidence lineage, and doing either here would let a guess read as something the user wrote. Notes sharing a subject, a folder, or a date are not connected. The node order is a stable path sort and the reference says outright that it is not a ranking — presenting the first as most relevant would invent the one thing this helper refuses to compute.

@@ -38,6 +38,7 @@ PEER_HELPERS = frozenset({
     "explore-neighborhood",
     "resume-project",
     "review-projects",
+    "run-retrieval-view",
     "search-vault",
 })
 

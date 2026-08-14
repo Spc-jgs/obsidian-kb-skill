@@ -27,6 +27,7 @@ RETRIEVAL_REFERENCE_DIR = ROOT / "core" / "retrieval-references"
 RETRIEVAL_MODULES = {
     "explore_neighborhood.py": RETRIEVAL_REFERENCE_DIR / "explore-neighborhood.md",
     "resume_project.py": RETRIEVAL_REFERENCE_DIR / "resume-project.md",
+    "retrieval_views.py": RETRIEVAL_REFERENCE_DIR / "retrieval-views.md",
     "retrieval_vault_info.py": RETRIEVAL_REFERENCE_DIR / "search.md",
     "review_projects.py": RETRIEVAL_REFERENCE_DIR / "review-projects.md",
     "search_vault.py": RETRIEVAL_REFERENCE_DIR / "search.md",
