@@ -125,8 +125,23 @@ class AgentBackend:
     credential_files: tuple[str, ...] = ()
     credential_dir = ""
 
+    executable = ""
+
     def version(self) -> str:
         raise NotImplementedError
+
+    def ensure_available(self) -> str:
+        """Resolve the product's binary, or refuse before any run starts.
+
+        Deliberately not done while building a command: constructing one is how
+        the safety assertions inspect a backend, and a check with a side effect
+        there means those assertions can only run on a machine with every
+        supported product installed. CI has none of them.
+        """
+        resolved = shutil.which(self.executable)
+        if resolved is None:
+            raise SystemExit(f"{self.name}: {self.executable} not found on PATH")
+        return resolved
 
     def seed_home(self, home: Path) -> list[str]:
         """Copy the credential into the disposable HOME, and nothing else.
@@ -183,6 +198,7 @@ class CodexBackend(AgentBackend):
     """Codex CLI, the product v1.30's stored baseline was measured with."""
 
     name = "codex"
+    executable = "codex"
     default_model = "gpt-5.6-sol"
     inherits_operator_environment = True
     attaches_material = True
@@ -204,7 +220,7 @@ class CodexBackend(AgentBackend):
         vault = workspace / "vault"
         cache = workspace / ".preflight-cache"
         command = [
-            "codex",
+            shutil.which(self.executable) or self.executable,
             "exec",
             "--ephemeral",
             "--ignore-user-config",
@@ -282,6 +298,7 @@ class GrokBackend(AgentBackend):
     """
 
     name = "grok"
+    executable = "grok"
     default_model = "grok-4.6"
     credential_dir = ".grok"
     credential_files = ("auth.json",)
@@ -302,12 +319,11 @@ class GrokBackend(AgentBackend):
     ) -> list[str]:
         # Resolved against the operator's PATH, because the environment handed
         # to the run deliberately holds a minimal one — an isolated PATH is
-        # part of the point, and it does not contain this binary.
-        executable = shutil.which("grok")
-        if executable is None:
-            raise SystemExit("grok: not found on PATH")
+        # part of the point, and it does not contain this binary. Falls back to
+        # the bare name so a command can still be built for inspection where
+        # the product is not installed; `ensure_available` is what refuses.
         command = [
-            executable,
+            shutil.which(self.executable) or self.executable,
             "--cwd",
             str(workspace),
             "--always-approve",
@@ -1098,6 +1114,7 @@ def main() -> int:
         # errors or is silently ignored — and a summary reporting a model the
         # run did not use is worse than either.
         model = backend.default_model
+    backend.ensure_available()
     if args.jobs < 1:
         raise SystemExit("--jobs must be positive")
     if args.timeout_seconds < 1:

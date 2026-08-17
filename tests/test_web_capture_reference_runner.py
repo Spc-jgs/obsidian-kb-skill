@@ -13,6 +13,18 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "evals" / "run_web_capture_reference.py"
 
 
+def unescaped(rendered: str) -> str:
+    """Undo JSON's backslash doubling before looking for a path.
+
+    A backend may embed paths with `json.dumps`, which is identity for a POSIX
+    path and doubles every separator in a Windows one. Searching the raw text
+    for `C:\\Users\\...` then finds nothing, and the isolation assertion fails
+    on Windows while passing everywhere its author ran it — the assertion was
+    about the path being named, never about how it was quoted.
+    """
+    return rendered.replace("\\\\", "\\")
+
+
 def test_reference_runner_keeps_vaults_disposable_and_outputs_explicit():
     source = RUNNER.read_text(encoding="utf-8")
 
@@ -54,7 +66,7 @@ def test_every_backend_points_the_agent_at_the_disposable_workspace(tmp_path: Pa
             model=backend.default_model,
             prompt="prompt",
         )
-        rendered = " ".join(command) + " " + json.dumps(environment)
+        rendered = unescaped(" ".join(command) + " " + json.dumps(environment))
 
         assert str(vault) in rendered, name
         assert str(workspace / ".home") in rendered, name
@@ -67,7 +79,7 @@ def test_every_backend_points_the_agent_at_the_disposable_workspace(tmp_path: Pa
             # The product applies the disposable HOME to the tools it spawns
             # rather than to itself, so the command has to carry it — the
             # environment legitimately still holds the operator's.
-            assert str(workspace / ".home") in " ".join(command), name
+            assert str(workspace / ".home") in unescaped(" ".join(command)), name
         else:
             # No such mechanism, so the product runs under the disposable HOME
             # itself and its own environment is the only place that can say so.
@@ -827,3 +839,21 @@ def test_a_run_says_when_the_isolation_check_had_nothing_to_compare(tmp_path: Pa
 
     assert graded(None)["isolation_check"] == "no-operator-vault-to-compare"
     assert graded("/Users/someone/Vault")["isolation_check"] == "checked"
+
+
+def test_a_windows_path_is_still_found_after_json_doubled_its_separators():
+    """The isolation assertion is about naming a path, not about quoting it.
+
+    Codex embeds paths with `json.dumps`, which is identity on POSIX and
+    doubles every separator on Windows. The assertion that the disposable
+    workspace is named therefore passed on the author's machine and failed on
+    Windows CI, against a command that named the path correctly. Written with
+    literal strings so it checks the same thing on every platform.
+    """
+    windows = r"C:\Users\runner\Temp\workspace\vault"
+    embedded = json.dumps(windows)
+
+    assert windows not in embedded
+    assert windows in unescaped(embedded)
+    # POSIX paths are untouched, so the repair cannot mask a real miss there.
+    assert unescaped('"/tmp/workspace/vault"') == '"/tmp/workspace/vault"'
