@@ -1,16 +1,24 @@
 #!/usr/bin/env python3
-"""Run the synthetic Web Capture gate with an isolated Codex CLI reference Agent.
+"""Run the synthetic Web Capture gate with an isolated reference Agent.
 
 What this scorer can and cannot establish, stated once so no report has to
 overclaim it: every rule here is mechanical. It checks a declared outcome, the
 shape of a stated blocker, and whether specific term sets appear as unnegated
 assertions. It cannot read a note and decide whether its claims are true, and a
 run with zero hard failures means only that nothing tripped these rules.
+
+The depth and refusal rules being graded live in Skill prose, so only a real
+Agent exercises them, and *which* Agent is a property of a run rather than of
+the eval. Two products do not produce comparable numbers: a baseline is only a
+baseline for the agent that produced it. `summary.json` records the agent, and
+`reference_agent` in the fixture names the one a stored baseline came from
+rather than pinning every future run to it.
 """
 from __future__ import annotations
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 import hashlib
 import json
 import os
@@ -46,8 +54,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--case", action="append", dest="case_ids")
     parser.add_argument("--repeats", type=int)
     parser.add_argument(
+        "--agent",
+        choices=sorted(AGENT_BACKENDS),
+        help=(
+            "Reference-Agent product to drive. Defaults to the one the fixture "
+            "records for its stored baseline. Results from two products are "
+            "not comparable and summary.json records which produced them"
+        ),
+    )
+    parser.add_argument(
         "--model",
-        help="Override the fixture-pinned Codex model for every selected run",
+        help="Override the selected agent's default model for every run",
     )
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--timeout-seconds", type=int, default=600)
@@ -62,6 +79,312 @@ def snapshot(root: Path) -> dict[str, str]:
     }
 
 
+@dataclass(frozen=True)
+class CommandExecution:
+    """One shell command an Agent ran, in a shape no backend's format leaks into.
+
+    The receipt check needs the command line, its exit status and its output.
+    Each product streams those differently, so each backend normalises to this
+    and the grading rules stay written once.
+    """
+
+    command: str
+    exit_code: int | None
+    output: str
+
+
+class AgentBackend:
+    """One reference-Agent product the gate can be driven with.
+
+    A backend owns three things a scorer must not know about: how the product
+    is invoked, how its event stream encodes shell commands, and which file in
+    `$HOME` carries its credential. Everything else — isolation, scaffolding,
+    grading — is shared, so adding a product cannot quietly change what passes.
+    """
+
+    name = ""
+    default_model: str | None = None
+    # Where the disposable HOME is applied, which is not the same choice for
+    # every product. Codex authenticates from the operator's own HOME and
+    # injects the disposable one into the tools it spawns, so it inherits.
+    # A product without that mechanism must run under the disposable HOME
+    # itself, which is why its credential has to be copied there.
+    inherits_operator_environment = False
+    # Files copied from the real HOME into the disposable one. Credentials
+    # only. A product's config file is deliberately never copied: this
+    # machine's grok config enables a plugin and pins a reasoning effort, and
+    # importing either would make the eval measure the operator's setup as
+    # much as the Skill. Model and effort are passed as flags instead, so a
+    # summary states them rather than inheriting them invisibly.
+    credential_files: tuple[str, ...] = ()
+    credential_dir = ""
+
+    def version(self) -> str:
+        raise NotImplementedError
+
+    def seed_home(self, home: Path) -> list[str]:
+        """Copy the credential into the disposable HOME, and nothing else.
+
+        Redirecting HOME is what keeps the run away from the operator's own
+        global Skills — on this machine `~/.agents/skills/obsidian-knowledge-base`
+        is a symlink to an installed copy of the very Skill under test — and
+        away from the real `~/.obsidian-kb-skill/runtime.json`. The credential
+        has to follow, or the product cannot authenticate at all.
+        """
+        if not self.credential_files:
+            return []
+        target = home / self.credential_dir
+        target.mkdir(parents=True, exist_ok=True)
+        target.chmod(0o700)
+        copied: list[str] = []
+        for name in self.credential_files:
+            source = Path.home() / self.credential_dir / name
+            if not source.is_file():
+                continue
+            destination = target / name
+            shutil.copy2(source, destination)
+            destination.chmod(0o600)
+            copied.append(name)
+        if not copied:
+            raise SystemExit(
+                f"{self.name}: no credential found under ~/{self.credential_dir}; "
+                f"expected one of {', '.join(self.credential_files)}"
+            )
+        return copied
+
+    def command(
+        self,
+        *,
+        workspace: Path,
+        final_path: Path,
+        material: Path | None,
+        model: str | None,
+        prompt: str,
+    ) -> list[str]:
+        raise NotImplementedError
+
+    def environment(self, workspace: Path, vault: Path, cache: Path) -> dict[str, str]:
+        raise NotImplementedError
+
+    def executions(self, stdout: str) -> list[CommandExecution]:
+        raise NotImplementedError
+
+    def final_message(self, stdout: str, final_path: Path) -> str:
+        raise NotImplementedError
+
+
+class CodexBackend(AgentBackend):
+    """Codex CLI, the product v1.30's stored baseline was measured with."""
+
+    name = "codex"
+    default_model = "gpt-5.6-sol"
+    inherits_operator_environment = True
+
+    def version(self) -> str:
+        return subprocess.run(
+            ["codex", "--version"], capture_output=True, text=True, check=False
+        ).stdout.strip()
+
+    def command(
+        self,
+        *,
+        workspace: Path,
+        final_path: Path,
+        material: Path | None,
+        model: str | None,
+        prompt: str,
+    ) -> list[str]:
+        vault = workspace / "vault"
+        cache = workspace / ".preflight-cache"
+        command = [
+            "codex",
+            "exec",
+            "--ephemeral",
+            "--ignore-user-config",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "workspace-write",
+            "--json",
+            "-C",
+            str(workspace),
+            "-o",
+            str(final_path),
+            "-c",
+            "model_reasoning_effort=\"medium\"",
+            "-c",
+            "tools.web_search=false",
+            "-c",
+            "shell_environment_policy.inherit=\"core\"",
+            "-c",
+            "shell_environment_policy.set={"
+            f"HOME={json.dumps(str(workspace / '.home'))},"
+            f"OBSIDIAN_KB_VAULT={json.dumps(str(vault))},"
+            f"OBSIDIAN_KB_PREFLIGHT_CACHE={json.dumps(str(cache))}"
+            "}",
+        ]
+        if model:
+            command.extend(("--model", model))
+        if material:
+            command.extend(("--image", str(material)))
+        # --image accepts one or more values, so a following option is required
+        # to keep the positional prompt from being consumed as another image.
+        command.extend(("--color", "never"))
+        command.append(prompt)
+        return command
+
+    def environment(self, workspace: Path, vault: Path, cache: Path) -> dict[str, str]:
+        # Codex injects the run's environment into the tools it spawns through
+        # its own config, so the parent process keeps the operator's.
+        return os.environ.copy()
+
+    def executions(self, stdout: str) -> list[CommandExecution]:
+        found: list[CommandExecution] = []
+        for line in stdout.splitlines():
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            item = event.get("item", {})
+            if (
+                event.get("type") != "item.completed"
+                or item.get("type") != "command_execution"
+            ):
+                continue
+            command = item.get("command")
+            found.append(
+                CommandExecution(
+                    command=command if isinstance(command, str) else "",
+                    exit_code=item.get("exit_code"),
+                    output=item.get("aggregated_output") or "",
+                )
+            )
+        return found
+
+    def final_message(self, stdout: str, final_path: Path) -> str:
+        return final_path.read_text(encoding="utf-8") if final_path.is_file() else ""
+
+
+class GrokBackend(AgentBackend):
+    """grok CLI.
+
+    Chosen over the other locally installed products for one measured reason:
+    its credential is a file, so the disposable HOME that provides this eval's
+    isolation can carry it. The alternative keeps its credential in the system
+    keyring keyed to the real HOME and re-prompts for an interactive login
+    under a redirected one, which a batch run cannot answer.
+    """
+
+    name = "grok"
+    default_model = "grok-4.6"
+    credential_dir = ".grok"
+    credential_files = ("auth.json",)
+
+    def version(self) -> str:
+        return subprocess.run(
+            ["grok", "--version"], capture_output=True, text=True, check=False
+        ).stdout.strip()
+
+    def command(
+        self,
+        *,
+        workspace: Path,
+        final_path: Path,
+        material: Path | None,
+        model: str | None,
+        prompt: str,
+    ) -> list[str]:
+        # Resolved against the operator's PATH, because the environment handed
+        # to the run deliberately holds a minimal one — an isolated PATH is
+        # part of the point, and it does not contain this binary.
+        executable = shutil.which("grok")
+        if executable is None:
+            raise SystemExit("grok: not found on PATH")
+        command = [
+            executable,
+            "--cwd",
+            str(workspace),
+            "--always-approve",
+            "--disable-web-search",
+            "--output-format",
+            "streaming-json",
+            "--reasoning-effort",
+            "medium",
+        ]
+        if model:
+            command.extend(("--model", model))
+        command.extend(("-p", prompt))
+        return command
+
+    def environment(self, workspace: Path, vault: Path, cache: Path) -> dict[str, str]:
+        # A named environment rather than the operator's: HOME is the whole
+        # isolation mechanism here, since it is what decides which Skills are
+        # in scope and which runtime record the helpers read.
+        return {
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+            "HOME": str(workspace / ".home"),
+            "TMPDIR": str(workspace / ".tmp"),
+            "TERM": "dumb",
+            "LANG": "en_US.UTF-8",
+            "OBSIDIAN_KB_VAULT": str(vault),
+            "OBSIDIAN_KB_PREFLIGHT_CACHE": str(cache),
+        }
+
+    def executions(self, stdout: str) -> list[CommandExecution]:
+        # Only the terminal update carries the finished command's exit code and
+        # full output; the in-progress ones repeat it partially, and counting
+        # those would let a receipt be "seen" in a command still running.
+        found: list[CommandExecution] = []
+        for line in stdout.splitlines():
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("type") != "tool_call_update" or event.get("status") != "completed":
+                continue
+            raw = event.get("rawOutput")
+            if not isinstance(raw, dict) or raw.get("type") != "Bash":
+                continue
+            command = raw.get("command")
+            found.append(
+                CommandExecution(
+                    command=command if isinstance(command, str) else "",
+                    exit_code=raw.get("exit_code"),
+                    output=raw.get("output_for_prompt") or "",
+                )
+            )
+        return found
+
+    def final_message(self, stdout: str, final_path: Path) -> str:
+        """Return the assistant text of the last turn, not of the whole run.
+
+        `text` deltas are emitted before each tool call as well as after the
+        last one, and Codex's `-o` writes only the closing message. Grading the
+        concatenation would put narration the other backend never saw in front
+        of the forbidden-claim and dismissal rules, so a run would be graded on
+        which product it used. A tool call ends a turn; the last turn's text is
+        the final message.
+        """
+        turn: list[str] = []
+        for line in stdout.splitlines():
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            kind = event.get("type")
+            if kind == "text":
+                data = event.get("data")
+                if isinstance(data, str):
+                    turn.append(data)
+            elif kind in ("tool_call", "tool_call_update"):
+                turn.clear()
+        return "".join(turn)
+
+
+AGENT_BACKENDS: dict[str, AgentBackend] = {
+    backend.name: backend for backend in (CodexBackend(), GrokBackend())
+}
+
+
 def scaffold_workspace(base: Path, case: dict[str, object]) -> tuple[Path, Path, Path | None]:
     workspace = base / "workspace"
     vault = workspace / "vault"
@@ -69,6 +392,9 @@ def scaffold_workspace(base: Path, case: dict[str, object]) -> tuple[Path, Path,
     skill = workspace / ".agents" / "skills" / "obsidian-knowledge-base"
     shutil.copytree(SKILL_SOURCE, skill)
     runtime_dir.mkdir(parents=True)
+    # A scratch directory inside the disposable workspace, so a backend given a
+    # named environment has a TMPDIR that dies with the run.
+    (workspace / ".tmp").mkdir()
     (runtime_dir / "runtime.json").write_text(
         json.dumps({"schema_version": 1, "python": [sys.executable]}) + "\n",
         encoding="utf-8",
@@ -174,7 +500,16 @@ def label_present(text: str, label: str) -> bool:
 
 
 CLAUSE_SPLIT_RE = re.compile(
-    r"(?<=\.)\s+|(?<=[!?;。！？；])\s*|\b(?:but|however|yet)\b|(?:但是|但|然而|不过)",
+    # `，` and `、` are clause boundaries here while English `,` is not, and the
+    # asymmetry is the point rather than an oversight: Chinese chains
+    # independent clauses with `，` where English would start a new sentence,
+    # so treating a comma-joined run as one clause makes an unrelated pair of
+    # terms look like one assertion. Measured on this eval: a note recording
+    # `原文把 2.4.1 和 Python 3.12 绑定，并单独排除 3.10` was graded as
+    # asserting that Python 3.10 is supported, from two terms belonging to
+    # different statements. A genuine assertion still sits inside one comma
+    # clause, so the gate keeps its bite.
+    r"(?<=\.)\s+|(?<=[!?;。！？；，、])\s*|\b(?:but|however|yet)\b|(?:但是|但|然而|不过)",
     re.I,
 )
 NEGATION_MARKERS = (
@@ -221,9 +556,14 @@ def is_negated(clause: str) -> bool:
         r"cannot|can't|won't|isn't|aren't|doesn't|don't|didn't|no\s+(?:evidence|proof|note))\b",
         folded,
     )
-    chinese_negation = re.search(
-        r"(?:未|没有)(?:成功)?(?:保存|沉淀|写入|创建|完成)", clause
-    )
+    # Chinese negates a predicate with a closed class of particles placed
+    # directly before it. The write-outcome verbs were the only ones listed,
+    # which read as coverage and was a list of four: a note recording the
+    # source's own `不支持 Python 3.10` — a required fact, and the exact
+    # opposite of the forbidden claim — was graded as asserting it. Any of the
+    # particles before any predicate now negates its clause, matching how the
+    # English branch already treats one `not` as negating the whole clause.
+    chinese_negation = re.search(r"[不未没][㐀-䶿一-鿿]|无法|并非|均非", clause)
     return bool(english_negation or chinese_negation) or any(
         marker in folded for marker in NEGATION_MARKERS
     )
@@ -384,18 +724,11 @@ def option_value(arguments: list[str], name: str) -> str | None:
     return arguments[index + 1] if index + 1 < len(arguments) else None
 
 
-def receipt_binds_note(agent_events: str, note: Path) -> bool:
+def receipt_binds_note(executions: list[CommandExecution], note: Path) -> bool:
     """Prove that helper apply accepted a receipt bound to the written bytes."""
     note_sha256 = hashlib.sha256(note.read_bytes()).hexdigest()
-    for line in agent_events.splitlines():
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        item = event.get("item", {})
-        if event.get("type") != "item.completed" or item.get("type") != "command_execution":
-            continue
-        arguments = helper_apply_arguments(item.get("command"))
+    for execution in executions:
+        arguments = helper_apply_arguments(execution.command)
         receipt_argument = (
             option_value(arguments, "--expect-capture-receipt-sha256")
             if arguments is not None
@@ -414,13 +747,13 @@ def receipt_binds_note(agent_events: str, note: Path) -> bool:
         ):
             continue
         try:
-            payload = json.loads(item.get("aggregated_output", ""))
+            payload = json.loads(helper_json_output(execution.output))
         except (json.JSONDecodeError, TypeError):
             continue
         receipt = payload.get("semantic_receipt", {})
         audit = payload.get("audit", {})
         if (
-            item.get("exit_code") == 0
+            execution.exit_code == 0
             and payload.get("applied") is True
             and audit.get("ok") is True
             and receipt.get("ok") is True
@@ -430,6 +763,22 @@ def receipt_binds_note(agent_events: str, note: Path) -> bool:
         ):
             return True
     return False
+
+
+def helper_json_output(output: str) -> str:
+    """Return the helper's JSON payload from one command's captured output.
+
+    A backend may prefix the output it reports with a status line of its own —
+    grok's `output_for_prompt` starts with `exit: 0` — and a receipt proved by
+    the *Agent's* framing rather than the helper's would be no proof at all.
+    The payload is an object, so the first `{` at the start of a line is where
+    it begins; anything before that belongs to whoever captured it.
+    """
+    stripped = output.strip()
+    if stripped.startswith("{"):
+        return stripped
+    match = re.search(r"(?m)^\{", output)
+    return output[match.start():].strip() if match else ""
 
 
 def select_repeat_count(argument: int | None, fixture_default: int) -> int:
@@ -448,6 +797,7 @@ def score_run(
     duration_seconds: float,
     agent_events: str,
     forbidden_vault_value: str | None,
+    executions: list[CommandExecution],
 ) -> dict[str, object]:
     after = snapshot(vault)
     notes = knowledge_notes(vault)
@@ -486,7 +836,7 @@ def score_run(
             hard_failures.append("dismissed-required-material")
     elif len(notes) != 1:
         hard_failures.append("missing-or-multiple-note")
-    elif case["requires_receipt"] and not receipt_binds_note(agent_events, notes[0]):
+    elif case["requires_receipt"] and not receipt_binds_note(executions, notes[0]):
         hard_failures.append("receipt-candidate-mismatch")
 
     forbidden = forbidden_assertions(assessed_text, case["forbidden_claims"])
@@ -549,49 +899,28 @@ def run_case(
     output_dir: Path,
     model: str | None,
     timeout_seconds: int,
+    backend: AgentBackend,
 ) -> dict[str, object]:
     with tempfile.TemporaryDirectory(prefix=f"obsidian-eval-{case['id']}-") as raw:
         workspace, vault, material = scaffold_workspace(Path(raw), case)
         cache = workspace / ".preflight-cache"
+        backend.seed_home(workspace / ".home")
         before = snapshot(vault)
         final_path = output_dir / f"{case['id']}-{repeat}-final.md"
         events_path = output_dir / f"{case['id']}-{repeat}-events.jsonl"
-        command = [
-            "codex",
-            "exec",
-            "--ephemeral",
-            "--ignore-user-config",
-            "--skip-git-repo-check",
-            "--sandbox",
-            "workspace-write",
-            "--json",
-            "-C",
-            str(workspace),
-            "-o",
-            str(final_path),
-            "-c",
-            "model_reasoning_effort=\"medium\"",
-            "-c",
-            "tools.web_search=false",
-            "-c",
-            "shell_environment_policy.inherit=\"core\"",
-            "-c",
-            "shell_environment_policy.set={"
-            f"HOME={json.dumps(str(workspace / '.home'))},"
-            f"OBSIDIAN_KB_VAULT={json.dumps(str(vault))},"
-            f"OBSIDIAN_KB_PREFLIGHT_CACHE={json.dumps(str(cache))}"
-            "}",
-        ]
-        if model:
-            command.extend(("--model", model))
-        if material:
-            command.extend(("--image", str(material)))
-        # --image accepts one or more values, so a following option is required
-        # to keep the positional prompt from being consumed as another image.
-        command.extend(("--color", "never"))
-        command.append(prompt_for(case))
-        env = os.environ.copy()
-        forbidden_vault_value = env.get("OBSIDIAN_KB_VAULT")
+        command = backend.command(
+            workspace=workspace,
+            final_path=final_path,
+            material=material,
+            model=model,
+            prompt=prompt_for(case),
+        )
+        env = backend.environment(workspace, vault, cache)
+        # The operator's own Vault path, read from the environment this process
+        # was started in rather than the one handed to the Agent: a backend that
+        # builds a clean environment would otherwise have nothing to compare
+        # against, and the breach check would pass by having nothing to find.
+        forbidden_vault_value = os.environ.get("OBSIDIAN_KB_VAULT")
         started = time.perf_counter()
         try:
             completed = subprocess.run(
@@ -611,7 +940,12 @@ def run_case(
             completed = subprocess.CompletedProcess(command, 124, stdout=output)
         duration = time.perf_counter() - started
         events_path.write_text(completed.stdout, encoding="utf-8")
-        final_message = final_path.read_text(encoding="utf-8") if final_path.is_file() else ""
+        final_message = backend.final_message(completed.stdout, final_path)
+        if not final_path.is_file():
+            # Backends that stream the closing message rather than writing it
+            # leave `--rescore-messages` nothing to re-grade offline. Saving it
+            # here keeps that path working for every backend.
+            final_path.write_text(final_message, encoding="utf-8")
         result = score_run(
             case,
             vault,
@@ -621,6 +955,7 @@ def run_case(
             duration,
             completed.stdout,
             forbidden_vault_value,
+            backend.executions(completed.stdout),
         )
         note_artifacts: list[str] = []
         for index, note in enumerate(knowledge_notes(vault), start=1):
@@ -723,7 +1058,18 @@ def main() -> int:
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    model = args.model or fixture["reference_agent"]["model"]
+    fixture_agent = fixture["reference_agent"].get("agent", CodexBackend.name)
+    backend = AGENT_BACKENDS[args.agent or fixture_agent]
+    if args.model:
+        model = args.model
+    elif backend.name == fixture_agent:
+        model = fixture["reference_agent"]["model"]
+    else:
+        # The fixture's model names a product this run is not using. Falling
+        # back to it would pass a Codex model id to another CLI, which either
+        # errors or is silently ignored — and a summary reporting a model the
+        # run did not use is worse than either.
+        model = backend.default_model
     if args.jobs < 1:
         raise SystemExit("--jobs must be positive")
     if args.timeout_seconds < 1:
@@ -743,6 +1089,7 @@ def main() -> int:
                     output_dir,
                     model,
                     args.timeout_seconds,
+                    backend,
                 )
                 futures[future] = repeat
             case_results = []
@@ -762,9 +1109,9 @@ def main() -> int:
     summary = {
         "schema_version": 1,
         "fixture_schema_version": fixture["schema_version"],
-        "codex_version": subprocess.run(
-            ["codex", "--version"], capture_output=True, text=True, check=False
-        ).stdout.strip(),
+        "agent": backend.name,
+        "agent_version": backend.version(),
+        "comparable_with_fixture_baseline": backend.name == fixture_agent,
         "model": model,
         "reasoning_effort": "medium",
         "timeout_seconds": args.timeout_seconds,
