@@ -110,6 +110,12 @@ class AgentBackend:
     # A product without that mechanism must run under the disposable HOME
     # itself, which is why its credential has to be copied there.
     inherits_operator_environment = False
+    # Whether the product takes a material asset as an attachment. A backend
+    # that cannot must be given the path in the prompt instead: the case whose
+    # whole point is "read the diagram" would otherwise be graded on a run that
+    # was never shown one, and it would still score well, because that case's
+    # required facts all happen to be recoverable from the text.
+    attaches_material = False
     # Files copied from the real HOME into the disposable one. Credentials
     # only. A product's config file is deliberately never copied: this
     # machine's grok config enables a plugin and pins a reasoning effort, and
@@ -179,6 +185,7 @@ class CodexBackend(AgentBackend):
     name = "codex"
     default_model = "gpt-5.6-sol"
     inherits_operator_environment = True
+    attaches_material = True
 
     def version(self) -> str:
         return subprocess.run(
@@ -424,17 +431,25 @@ def scaffold_workspace(base: Path, case: dict[str, object]) -> tuple[Path, Path,
     return workspace, vault, material_path
 
 
-def prompt_for(case: dict[str, object]) -> str:
+def prompt_for(case: dict[str, object], material_path: str | None = None) -> str:
     availability = (
         "This snapshot is the complete, adequate representation of the public source."
         if case["expected_outcome"] == "write"
         else "This snapshot accurately describes the incomplete or blocked representation available."
     )
-    material = (
-        " The attached image is a material source asset and must be inspected."
-        if case.get("material_asset")
-        else ""
-    )
+    if not case.get("material_asset"):
+        material = ""
+    elif material_path is None:
+        material = " The attached image is a material source asset and must be inspected."
+    else:
+        # Naming the file is the same instruction as attaching it for a product
+        # with no attachment flag. Saying "the attached image" to a run with
+        # nothing attached points at nothing, and the run proceeds without the
+        # material rather than reporting that it is missing.
+        material = (
+            f" The image at `{material_path}`, relative to the working directory,"
+            " is a material source asset and must be opened and inspected."
+        )
     # The outcome block is the scorer's structured input. Asking for prose and
     # then guessing at it with regexes is what let "Your note is ready." pass a
     # zero-write case: the grader had to infer a status nobody ever declared.
@@ -874,6 +889,14 @@ def score_run(
     return {
         "returncode": returncode,
         "duration_seconds": round(duration_seconds, 3),
+        # `isolation-breach` looks for the operator's own Vault path in the
+        # transcript, and there is nothing to look for when that path is not in
+        # the environment — the check then passes by having no subject, which
+        # reads from a summary exactly like passing by being safe. Reported so
+        # a run cannot be quoted as evidence of isolation it never tested.
+        "isolation_check": (
+            "checked" if forbidden_vault_value else "no-operator-vault-to-compare"
+        ),
         "vault_changed": after != before,
         "note_count": len(notes),
         "note_paths": [path.relative_to(vault).as_posix() for path in notes],
@@ -908,12 +931,17 @@ def run_case(
         before = snapshot(vault)
         final_path = output_dir / f"{case['id']}-{repeat}-final.md"
         events_path = output_dir / f"{case['id']}-{repeat}-events.jsonl"
+        material_path = (
+            None
+            if material is None or backend.attaches_material
+            else material.relative_to(workspace).as_posix()
+        )
         command = backend.command(
             workspace=workspace,
             final_path=final_path,
             material=material,
             model=model,
-            prompt=prompt_for(case),
+            prompt=prompt_for(case, material_path),
         )
         env = backend.environment(workspace, vault, cache)
         # The operator's own Vault path, read from the environment this process

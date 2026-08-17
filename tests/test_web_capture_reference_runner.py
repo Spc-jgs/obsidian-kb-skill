@@ -745,3 +745,85 @@ def test_the_note_that_stopped_the_first_grok_run_now_grades_clean():
     note = Path(__file__).with_name("fixtures") / "grok_chinese_capture_note.md"
 
     assert forbidden_assertions(note.read_text(encoding="utf-8"), CHINESE_CLAIM) == []
+
+
+def test_a_backend_without_attachments_is_told_where_the_material_is():
+    """"The attached image" points at nothing when nothing was attached.
+
+    The grok backend accepted the material argument and never used it, so the
+    one case whose prompt says the diagram is key evidence ran without ever
+    being shown one. It still scored well, because that case's required facts
+    all happen to be recoverable from the text — the run looked fine and the
+    instruction had not been carried out.
+    """
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    prompt_for = namespace["prompt_for"]
+
+    def case_with(**extra: object) -> dict[str, object]:
+        case = minimal_case(outcome="write")
+        case.update({"prompt": "沉淀这份说明。", "source_markdown": "# source"})
+        case.update(extra)
+        return case
+
+    with_material = case_with(material_asset="docs/assets/diagram.webp")
+    attached = prompt_for(with_material, None)
+    by_path = prompt_for(with_material, "source-assets/diagram.webp")
+
+    assert "attached image" in attached
+    assert "source-assets/diagram.webp" in by_path
+    assert "attached image" not in by_path
+    # A case with no material must gain neither sentence, whichever backend.
+    assert "material source asset" not in prompt_for(case_with(), None)
+
+
+def test_every_backend_either_attaches_the_material_or_is_told_to_name_it():
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+
+    for name, backend in namespace["AGENT_BACKENDS"].items():
+        rendered = " ".join(
+            backend.command(
+                workspace=Path("/tmp/workspace"),
+                final_path=Path("/tmp/final.md"),
+                material=Path("/tmp/workspace/source-assets/diagram.webp"),
+                model=backend.default_model,
+                prompt="prompt",
+            )
+        )
+        if backend.attaches_material:
+            assert "diagram.webp" in rendered, name
+        else:
+            # It must not silently drop it: the path goes in the prompt, which
+            # `run_case` builds from `attaches_material`, so the flag is the
+            # whole contract and a backend claiming to attach must really do it.
+            assert "diagram.webp" not in rendered, name
+
+
+def test_a_run_says_when_the_isolation_check_had_nothing_to_compare(tmp_path: Path):
+    """A guard with no subject must not read as a guard that passed.
+
+    `isolation-breach` searches the transcript for the operator's own Vault
+    path. That path comes from `OBSIDIAN_KB_VAULT`, which is simply unset on
+    some machines — including the one this eval was run on — and the check then
+    cannot fire at all. Zero hard failures would otherwise be quoted as proof
+    of isolation the run never tested.
+    """
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    score_run = namespace["score_run"]
+    vault = tmp_path / "vault"
+    vault.mkdir()
+
+    def graded(forbidden: str | None) -> dict:
+        return score_run(
+            minimal_case(outcome="zero-write"),
+            vault,
+            {},
+            "I stopped." + declared("stopped", "the material is unavailable"),
+            0,
+            0.1,
+            "",
+            forbidden,
+            [],
+        )
+
+    assert graded(None)["isolation_check"] == "no-operator-vault-to-compare"
+    assert graded("/Users/someone/Vault")["isolation_check"] == "checked"
