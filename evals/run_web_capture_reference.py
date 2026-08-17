@@ -111,10 +111,11 @@ class AgentBackend:
     # itself, which is why its credential has to be copied there.
     inherits_operator_environment = False
     # Whether the product takes a material asset as an attachment. A backend
-    # that cannot must be given the path in the prompt instead: the case whose
-    # whole point is "read the diagram" would otherwise be graded on a run that
-    # was never shown one, and it would still score well, because that case's
-    # required facts all happen to be recoverable from the text.
+    # that cannot must be given the path in the prompt instead. Leaving it out
+    # does not hide the file — it sits in the workspace and the runs measured
+    # here went and found it — but it leaves the case to chance, and an agent
+    # that did not explore would write the note blind while still scoring well,
+    # because that case's other facts are all recoverable from the text.
     attaches_material = False
     # Files copied from the real HOME into the disposable one. Credentials
     # only. A product's config file is deliberately never copied: this
@@ -188,6 +189,23 @@ class AgentBackend:
         raise NotImplementedError
 
     def executions(self, stdout: str) -> list[CommandExecution]:
+        raise NotImplementedError
+
+    def inspected(self, stdout: str, material: Path) -> bool:
+        """Whether the run actually opened the material asset.
+
+        A required fact drawn from an image cannot tell reading it apart from
+        guessing a plausible answer — "the left path is blue" is both a
+        finding and a good guess. The evidence that the image was opened lives
+        in the transcript, not in the note, so the gate has to look there.
+
+        A backend that attaches the asset has put it in the context by
+        construction and needs no search. Any other must say how it knows —
+        the filename merely appearing in the transcript is not knowing, since
+        a directory listing prints it without anything having read it.
+        """
+        if self.attaches_material:
+            return True
         raise NotImplementedError
 
     def final_message(self, stdout: str, final_path: Path) -> str:
@@ -377,6 +395,27 @@ class GrokBackend(AgentBackend):
             )
         return found
 
+    # Tools that put a file's *content* in front of the model. `list_dir` and
+    # `grep` are deliberately absent: both print the name of an image without
+    # anyone having looked at it, and on the 2026-08-17 baseline the runs that
+    # were never handed the asset still found it by listing the workspace.
+    READING_TOOLS = frozenset({"read_file", "view_image"})
+
+    def inspected(self, stdout: str, material: Path) -> bool:
+        for line in stdout.splitlines():
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("type") != "tool_call":
+                continue
+            if event.get("toolName") not in self.READING_TOOLS:
+                continue
+            arguments = json.dumps(event.get("rawInput", {}), ensure_ascii=False)
+            if material.name in arguments:
+                return True
+        return False
+
     def final_message(self, stdout: str, final_path: Path) -> str:
         """Return the assistant text of the last turn, not of the whole run.
 
@@ -517,6 +556,28 @@ def semantic_contains(text: str, value: str) -> bool:
     """Match facts across harmless Markdown and separator differences."""
     normalize = lambda item: "".join(character for character in item.casefold() if character.isalnum())
     return normalize(value) in normalize(text)
+
+
+def fact_forms(fact: object) -> list[str]:
+    """Return the ways one required fact may legitimately be written.
+
+    A fact used to be one English literal against a Chinese prompt, so the
+    score partly measured which language the note came out in. Measured on the
+    2026-08-17 baseline: two notes for the same case both recorded all five
+    facts in Chinese, and one scored 5/5 while the other scored 1/5 — the whole
+    difference being whether the note happened to echo each English term once
+    somewhere. They preserved the same knowledge.
+
+    Every alternative form in the fixture was written by a real run and is
+    listed in `fact_form_provenance` with its count, on the rule #75 set: a
+    vocabulary grows from forms that were observed, never from forms that
+    sound plausible.
+    """
+    return [str(fact)] if isinstance(fact, str) else [str(form) for form in fact]
+
+
+def fact_present(text: str, fact: object) -> bool:
+    return any(semantic_contains(text, form) for form in fact_forms(fact))
 
 
 def label_present(text: str, label: str) -> bool:
@@ -829,6 +890,7 @@ def score_run(
     agent_events: str,
     forbidden_vault_value: str | None,
     executions: list[CommandExecution],
+    material_inspected: bool | None,
 ) -> dict[str, object]:
     after = snapshot(vault)
     notes = knowledge_notes(vault)
@@ -870,13 +932,19 @@ def score_run(
     elif case["requires_receipt"] and not receipt_binds_note(executions, notes[0]):
         hard_failures.append("receipt-candidate-mismatch")
 
+    if material_inspected is False:
+        # The prompt for these cases says the asset must be inspected, and a
+        # note can name a plausible colour without having looked. Only the
+        # transcript can tell the two apart.
+        hard_failures.append("material-not-inspected")
+
     forbidden = forbidden_assertions(assessed_text, case["forbidden_claims"])
     if forbidden:
         hard_failures.append("forbidden-claim")
 
     facts = case["required_facts"]
     labels = case["required_labels"]
-    fact_hits = [fact for fact in facts if semantic_contains(note_text, fact)]
+    fact_hits = [fact for fact in facts if fact_present(note_text, fact)]
     label_hits = [label for label in labels if label_present(note_text, label)]
     if (
         case["expected_outcome"] == "write"
@@ -910,6 +978,7 @@ def score_run(
         # the environment — the check then passes by having no subject, which
         # reads from a summary exactly like passing by being safe. Reported so
         # a run cannot be quoted as evidence of isolation it never tested.
+        "material_inspected": material_inspected,
         "isolation_check": (
             "checked" if forbidden_vault_value else "no-operator-vault-to-compare"
         ),
@@ -1000,6 +1069,7 @@ def run_case(
             completed.stdout,
             forbidden_vault_value,
             backend.executions(completed.stdout),
+            None if material is None else backend.inspected(completed.stdout, material),
         )
         note_artifacts: list[str] = []
         for index, note in enumerate(knowledge_notes(vault), start=1):

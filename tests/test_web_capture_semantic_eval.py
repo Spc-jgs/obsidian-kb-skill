@@ -18,7 +18,7 @@ def test_semantic_eval_has_twelve_balanced_cases_and_three_repeats():
     fixture = load_fixture()
     cases = fixture["cases"]
 
-    assert fixture["schema_version"] == 2
+    assert fixture["schema_version"] == 3
     assert fixture["reference_agent"]["repeats"] == 3
     assert Counter(case["group"] for case in cases) == {
         "standard": 4,
@@ -36,6 +36,13 @@ def test_every_case_declares_hard_gate_inputs():
         assert case["source_markdown"].strip()
         assert case["source_url"].startswith("https://")
         assert isinstance(case["required_facts"], list)
+        for fact in case["required_facts"]:
+            # Schema 3: a fact is one form, or a list of forms any of which
+            # counts. The second form exists because the prompts are Chinese
+            # and the facts were English literals, so the score partly
+            # measured which language the note came out in.
+            forms = [fact] if isinstance(fact, str) else fact
+            assert forms and all(isinstance(f, str) and f.strip() == f and f for f in forms)
         assert isinstance(case["required_labels"], list)
         assert case["forbidden_claims"]
         for claim in case["forbidden_claims"]:

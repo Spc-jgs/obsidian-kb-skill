@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import runpy
 from pathlib import Path
 
@@ -218,6 +219,7 @@ def test_verified_write_requires_an_accepted_receipt_bound_to_note(
             stream,
             None,
             backend.executions(stream),
+            None,
         )
 
     accepted = graded(events)
@@ -324,6 +326,7 @@ def test_zero_write_completion_detection_handles_positive_and_negated_wording(tm
         "",
         None,
         [],
+        None,
     )
     honest_stop = score_run(
         case,
@@ -336,6 +339,7 @@ def test_zero_write_completion_detection_handles_positive_and_negated_wording(tm
         "",
         None,
         [],
+        None,
     )
     honest_chinese_stop = score_run(
         case,
@@ -348,6 +352,7 @@ def test_zero_write_completion_detection_handles_positive_and_negated_wording(tm
         "",
         None,
         [],
+        None,
     )
     subjectless_completion = score_run(
         case,
@@ -360,6 +365,7 @@ def test_zero_write_completion_detection_handles_positive_and_negated_wording(tm
         "",
         None,
         [],
+        None,
     )
 
     assert "false-completion" in false_completion["hard_failures"]
@@ -381,7 +387,7 @@ def test_forbidden_claim_detection_ignores_an_explicit_missing_material_boundary
     stop = declared("stopped", "the failover order diagram is missing")
 
     boundary = score_run(
-        case, vault, {}, "The failover order is unavailable." + stop, 0, 0.1, "", None, []
+        case, vault, {}, "The failover order is unavailable." + stop, 0, 0.1, "", None, [], None
     )
     present_tense_boundary = score_run(
         case,
@@ -393,6 +399,7 @@ def test_forbidden_claim_detection_ignores_an_explicit_missing_material_boundary
         "",
         None,
         [],
+        None,
     )
     invention = score_run(
         case,
@@ -404,6 +411,7 @@ def test_forbidden_claim_detection_ignores_an_explicit_missing_material_boundary
         "",
         None,
         [],
+        None,
     )
 
     assert "forbidden-claim" not in boundary["hard_failures"]
@@ -433,6 +441,7 @@ def test_forbidden_claim_detection_preserves_dotted_versions_and_decimals(tmp_pa
         "",
         None,
         [],
+        None,
     )
 
     assert result["forbidden_matches"] == ["supports-python-3-10", "cvss-9-8"]
@@ -455,6 +464,7 @@ def test_zero_write_requires_case_specific_stop_evidence(tmp_path: Path):
         "",
         None,
         [],
+        None,
     )
     correct = score_run(
         case,
@@ -466,6 +476,7 @@ def test_zero_write_requires_case_specific_stop_evidence(tmp_path: Path):
         "",
         None,
         [],
+        None,
     )
 
     assert "incorrect-stop-reason" in unrelated["hard_failures"]
@@ -835,6 +846,7 @@ def test_a_run_says_when_the_isolation_check_had_nothing_to_compare(tmp_path: Pa
             "",
             forbidden,
             [],
+            None,
         )
 
     assert graded(None)["isolation_check"] == "no-operator-vault-to-compare"
@@ -857,3 +869,187 @@ def test_a_windows_path_is_still_found_after_json_doubled_its_separators():
     assert windows in unescaped(embedded)
     # POSIX paths are untouched, so the repair cannot mask a real miss there.
     assert unescaped('"/tmp/workspace/vault"') == '"/tmp/workspace/vault"'
+
+
+FIXTURE = ROOT / "tests" / "fixtures" / "web_capture_semantic_eval_cases.json"
+
+
+def fixture() -> dict:
+    return json.loads(FIXTURE.read_text(encoding="utf-8"))
+
+
+def case_named(case_id: str) -> dict:
+    return next(case for case in fixture()["cases"] if case["id"] == case_id)
+
+
+def test_a_case_that_says_the_image_is_evidence_asks_for_something_only_the_image_has():
+    """Otherwise the case can score full marks without opening the image.
+
+    `standard-material-diagram` is the one case whose prompt says 配图是关键
+    证据，必须读图, and every one of its original five facts appears in its own
+    `source_markdown` — while that source states outright that the text does
+    not specify what the diagram adds. It was an evaluation asset that could
+    not fail at the thing it exists to test, which is #117's shape.
+    """
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    fact_forms = namespace["fact_forms"]
+    case = case_named("standard-material-diagram")
+    source = case["source_markdown"].casefold()
+
+    recoverable = [
+        fact
+        for fact in case["required_facts"]
+        if any(form.casefold() in source for form in fact_forms(fact))
+    ]
+    assert len(recoverable) < len(case["required_facts"]), (
+        "every required fact is in the text, so the image is never needed"
+    )
+
+
+def test_every_alternative_fact_form_records_where_it_was_observed():
+    """A vocabulary grows from forms that were seen, not forms that sound right.
+
+    #75 settled this for the dependency markers and #115 paid for the opposite:
+    a heading vocabulary two characters short reported three present sections
+    as missing. An unrecorded form here has no way to be checked, and the next
+    reader cannot tell a measurement from a guess.
+    """
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    fact_forms = namespace["fact_forms"]
+    data = fixture()
+    provenance = data["fact_form_provenance"]
+
+    for case in data["cases"]:
+        for fact in case["required_facts"]:
+            forms = fact_forms(fact)
+            for alternative in forms[1:]:
+                assert alternative in provenance, (
+                    f"{case['id']}: {alternative} has no recorded provenance"
+                )
+                assert provenance[alternative].strip(), alternative
+
+
+def test_the_same_knowledge_scores_the_same_in_either_language():
+    """The metric must measure the fact, not which language echoed the source.
+
+    Measured on the 2026-08-17 baseline: two notes for `standard-material-diagram`
+    each recorded all five facts in Chinese — 只读 x9, 检索 x7, 写入 x12,
+    用户意图 x3, 预检 x7 in one of them — and scored 5/5 against 1/5. The whole
+    difference was that one happened to echo each English term once.
+    """
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    fact_present = namespace["fact_present"]
+    facts = case_named("standard-qualified-benchmark")["required_facts"]
+
+    english = "hardware, sample, warm-up, latency and error rate are all absent; 40% at 1000"
+    chinese = "原文未提供硬件、样本量、预热策略、延迟分位数与错误率；1000 并发下快 40%"
+
+    assert [f for f in facts if fact_present(english, f)] == facts
+    assert [f for f in facts if fact_present(chinese, f)] == facts
+
+
+def test_a_fact_absent_in_both_languages_is_still_a_miss():
+    """The hard negative: accepting more forms must not accept everything."""
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    fact_present = namespace["fact_present"]
+    facts = case_named("standard-qualified-benchmark")["required_facts"]
+
+    silent = "原文比较了两个客户端的相对性能，未给出任何方法细节。"
+    assert [f for f in facts if fact_present(silent, f)] == []
+
+
+def test_naming_the_image_in_a_listing_is_not_inspecting_it(tmp_path: Path):
+    """A colour fact cannot tell reading the diagram from guessing it.
+
+    "The left path is blue" is both a finding and a plausible guess, so the
+    note can never settle whether the asset was opened. The transcript can.
+    Measured on the 2026-08-17 baseline: every run listed the workspace and
+    printed the filename, which is why a listing must not count.
+    """
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    backend = namespace["AGENT_BACKENDS"]["grok"]
+    material = tmp_path / "source-assets" / "diagram.webp"
+
+    listed = json.dumps({
+        "type": "tool_call",
+        "toolName": "run_terminal_command",
+        "rawInput": {"command": "ls source-assets", "description": "list assets"},
+    }) + "\n" + json.dumps({
+        "type": "tool_call_update",
+        "toolCallId": "call-0",
+        "status": "completed",
+        "rawOutput": {
+            "type": "Bash", "command": "ls source-assets", "exit_code": 0,
+            "output_for_prompt": "exit: 0\ndiagram.webp\n", "truncated": False,
+        },
+    })
+    opened = json.dumps({
+        "type": "tool_call",
+        "toolName": "read_file",
+        "rawInput": {"path": "source-assets/diagram.webp"},
+    })
+
+    assert backend.inspected(listed, material) is False
+    assert backend.inspected(opened, material) is True
+    # A backend that attaches the asset has it in context by construction.
+    assert namespace["AGENT_BACKENDS"]["codex"].inspected("", material) is True
+
+
+def test_a_run_that_never_opened_the_material_fails_the_hard_gate(tmp_path: Path):
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    score_run = namespace["score_run"]
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "note.md").write_text("a note\n", encoding="utf-8")
+
+    def graded(inspected: bool | None) -> dict:
+        return score_run(
+            minimal_case(outcome="write"),
+            vault,
+            {},
+            "Saved." + declared("written"),
+            0,
+            0.1,
+            "",
+            None,
+            [],
+            inspected,
+        )
+
+    assert "material-not-inspected" in graded(False)["hard_failures"]
+    assert "material-not-inspected" not in graded(True)["hard_failures"]
+    # None means the case has no material asset at all, which is most of them.
+    assert "material-not-inspected" not in graded(None)["hard_failures"]
+    assert graded(None)["material_inspected"] is None
+
+
+def test_the_recorded_hard_failure_codes_match_the_ones_the_scorer_can_raise():
+    """The fixture lists the gate's codes and the scorer raises them.
+
+    Two places, no import between them: a new code added to one and not the
+    other is the silent-boundary shape `AGENTS.md` requires a row for.
+    """
+    raised = set(re.findall(r'hard_failures\.append\("([a-z-]+)"\)',
+                            RUNNER.read_text(encoding="utf-8")))
+    recorded = set(fixture()["reference_agent"]["hard_failures"])
+
+    assert "material-not-inspected" in raised & recorded
+    assert raised - recorded == set(), f"raised but never recorded: {raised - recorded}"
+
+
+def test_a_code_the_gate_cannot_raise_is_recorded_as_not_implemented():
+    """Two names shipped in v1.30 that nothing produces and nothing consumes.
+
+    `invented-factual-claim` is implemented under another name and
+    `invented-source-access` has never been checked at all — the prompt
+    forbids fetching the source URL and no rule examines whether it was.
+    Listing them beside the real codes made the gate look wider than it is,
+    and #74's own acceptance criteria are written in terms of them. Deleting
+    them would erase that; this keeps the gap named.
+    """
+    reference = fixture()["reference_agent"]
+    unimplemented = reference["hard_failures_not_implemented"]
+
+    assert set(unimplemented) & set(reference["hard_failures"]) == set()
+    for code, reason in unimplemented.items():
+        assert len(reason.split()) >= 8, f"{code}: say what happened to it"
