@@ -98,11 +98,18 @@ runs below, and every one of them says `capture_depth: standard`.
 
 `standard-material-diagram` was run twice. The first three runs are **discarded**
 and are not in the table: the grok backend was dropping the material asset, so
-the case whose prompt says the diagram is key evidence ran with nothing attached.
-The runs above are after that repair, with the image path named in the prompt.
-Depth was 3/3 both times, so the correction does not change this document's
-conclusion — but a baseline for a case that never received its material is not a
-baseline for that case.
+the case whose prompt says the diagram is key evidence was never handed one, and
+its prompt's "the attached image" pointed at nothing. The runs above are after
+that repair, with the image path named in the prompt. Depth was 3/3 both times.
+
+**Correction to an earlier draft of this document**, which said those runs were
+"never shown" the image. They were not *given* it, but `scaffold_workspace`
+copies the asset into the workspace, and the transcripts show all three finding
+it and issuing `read_file` against the `.webp` anyway — as do all three of the
+repaired runs, six for six. The defect was that the eval left this to chance:
+an agent that did not think to explore would have written the note blind, and
+nothing would have said so. That is now a hard failure, `material-not-inspected`,
+checked against the transcript rather than the note.
 
 Against v1.30's 8/12 with the other product, concentrated in the two cases that
 misupgraded 2 times in 3 each:

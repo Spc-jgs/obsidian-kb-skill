@@ -2,9 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.34.0] - 2026-08-17
 
 ### Added
+
+- `next_action_heading` must now be named whenever an Agent repeats a project's next action — every time, not only when the item looks suspicious, because deciding it looks fine is the judgement the reader needs to be able to check. The revival queue reports which heading an item came from; on the reference Vault a reusable checklist and the real P0 plan are sibling subsections of one `下一步行动`, and nothing structural separates them.
+
+  What separates them is what the author called them, and this project has now declined three times to let a helper read a heading for what it means — #86 while designing the resume pack, #115 when free-form notes returned almost nothing, and #109 from the other direction. Those rulings lived in three issue comments, so a fourth issue would have had to find all of them to learn this is a settled boundary rather than an oversight. It is now `docs/superpowers/specs/2026-08-17-heading-semantics-boundary-decision.md`, with the rejected alternatives and what would reopen it.
+
+  The counting behaviour is unchanged, including `open_tasks_in_next_actions = 15` for the note above. That number is correct for what it measures, and why it misleads is recorded rather than corrected away.
 
 - `suggest-directed-links` proposes the notes a note declares it **depends on**, with the sentence that says so. `explore-neighborhood` shows every link; this answers the narrower question a reader has when following one — which of these does the note lean on, and for what.
 
@@ -21,6 +27,32 @@ All notable changes to this project will be documented in this file.
   Two vocabulary entries were added from forms *observed* in that Vault, on the terms `PROJECT_NOTE_NEXT_ACTION_HEADINGS` set — a count and a location, never a guessed synonym: `前置知识` ×3 and `前序知识` ×2, which took the Vault from 1 candidate to 5. Measured in the same pass and deliberately not added: `详见` ×4 and `参考` ×2, which are pointers rather than dependencies.
 
   Breaking the guards on purpose found two things the tests were not saying. Deleting the dependency requirement entirely still rejects all sixteen negatives — they guard against inferring from a shared word, and prove nothing about link-with-dependency versus link-without, which now rests on two named cases and an assertion that records the division. And the same-sentence rule was **unguarded**: widening it to the whole note broke nothing. Both are now tested and both are stated in the eval report rather than left for a reader to over-read 16/16.
+
+### Changed
+
+- `AGENTS.md` gained two rules about how a conclusion is reached, beside the existing one about two places agreeing. A survey conclusion — how many, which ones, what fraction — must cite a command whose output can be recounted; and a new assertion must be seen red at least once.
+
+  Both name instances this project has already produced rather than reading as general advice. #93's body says tightening the reachability predicate would mark six helpers unreachable while the breakdown printed beneath it implies one and the predicate prints two today; the same habit put the wrong file in #133's quotation, which led that issue to propose the wrong fix. On the other side, row 17 of the inventory asserts truthfully and covers less than its name suggests, #118 shipped a signals assertion that was vacuous and let a wrong output through, and deleting the criterion two of #75's guards were written for changed nothing they asserted.
+
+  Neither rule can be checked mechanically — what they govern leaves no trace in the tree — and the paragraph says so, to stop a future reader from building the regex-over-commit-messages check the inventory's own `Rejected` section warns about.
+
+- The Web Capture reference runner drives more than one Agent product. `#74`'s first acceptance criterion asks for twelve runs with the model v1.30 used, and this project no longer runs that product, so the criterion is unmeetable as written and its 8/12 is no longer a comparable baseline. The absolute bar is replaced by a within-agent comparison, and `summary.json` records `agent`, `agent_version` and `comparable_with_fixture_baseline` so one product's numbers cannot be read as another's.
+
+  **The measured answer is that there is nothing to fix.** Depth selection is correct **12 out of 12** against the current instructions, confirmed by reading `capture_depth` in all fifteen notes written. Against v1.30's 8/12, and 6/6 against 2/6 on the two cases that used to misupgrade — a rate difference with probability `(1/3)^6 ≈ 0.0014` under the old rate. The prediction registered before the run said a 12/12 baseline means the candidate wording has no signal to move and should not be merged, and it was not. That does not establish that the instructions are unambiguous: the ambiguity diagnosed on the issue is really in `web-capture.md:26`, where the words naming *verified*'s trigger also occur when a request describes what a source contains. One agent is not fooled by it.
+
+- Required facts in the semantic eval accept the forms a note may legitimately use, instead of one English literal against a Chinese prompt. Two notes for the same case each recorded all five facts in Chinese — `只读` x9, `检索` x7, `写入` x12, `用户意图` x3, `预检` x7 in one of them — and scored 5/5 against 1/5, the whole difference being whether the note happened to echo each English term once somewhere. They preserved the same knowledge.
+
+  Every alternative form was written by a real run and is listed in `fact_form_provenance` with its count, on the rule #75 set for vocabulary: forms that were observed, never forms that sound plausible. An assertion enforces it, so a guessed translation cannot be added quietly (registry row 42).
+
+### Fixed
+
+- The one eval case whose prompt says the diagram is key evidence can no longer score full marks without it. All five of its required facts appeared in its own source text, while that source states outright that the text does not specify what the diagram adds — an evaluation asset that could not fail at the thing it exists to test, which is #117's shape and #136's other half.
+
+  Two facts now come only from the image, and inspection is checked where it can be: `material-not-inspected` reads the transcript for a tool call that opened the asset. A colour fact cannot tell reading a diagram from guessing a plausible one, and a directory listing prints an image's name without anyone having looked at it, so neither the note nor the filename is evidence. Measured on the runs to hand, all six opened it.
+
+- The eval's hard-failure contract lists what the gate can actually raise. It recorded 8 of 14 codes and named two the scorer never raises: one implemented under a different name, one — `invented-source-access` — never checked at all, so the prompt's ban on fetching the source URL has never been a gate. The pair is kept in `hard_failures_not_implemented` with what happened to each rather than deleted, since #74's acceptance criteria are written in terms of them. Registered as row 41.
+
+- Chinese negation and Chinese clause boundaries in the eval scorer, two long-standing false positives that stopped a run. A note recording the source's own `不支持 Python 3.10` — a required fact, and the exact opposite of a forbidden claim — was graded as asserting it, because negation was recognised only as `未`/`没有` before one of four writing verbs. And `，` was not a clause boundary, so `原文把 2.4.1 和 Python 3.12 绑定，并单独排除 3.10` put both terms of a claim in one "clause" from two statements that each say something else. English `,` is deliberately still not a boundary. The earlier baseline never hit either; that was phrasing, not soundness.
 
 ## [1.33.0] - 2026-08-14
 
