@@ -50,12 +50,19 @@ from before treating it as workload:
 - `open_tasks_scope` says which of the two ordered the queue.
 - `next_action_heading` names the heading the next action was taken from.
 
-Read that last one before repeating a next action. A checklist can sit *inside*
-the next-actions section, and no structure separates it from real work — on the
-reference Vault, `可复用的项目落地检查表` and `P0：下一次迭代前完成` are both
-subsections of `下一步行动`. What separates them is what the author called them,
-which is a judgement about content that this helper does not make. When the
-heading reads like reusable material rather than this project's plan, say so
+**Name `next_action_heading` whenever you repeat a next action.** Not when it
+looks suspicious — every time, because deciding it looks fine is the judgement
+the reader needs to be able to check.
+
+A checklist can sit *inside* the next-actions section, and no structure
+separates it from real work — on the reference Vault, `可复用的项目落地检查表`
+and `P0：下一次迭代前完成` are both subsections of `下一步行动`. What separates
+them is what the author called them. That is a judgement about content, and this
+helper does not make it, by decision rather than by omission: reading a heading
+for what it means is the same line these helpers refuse to cross when they
+report an unrecognised section instead of guessing what it holds. So the helper
+names the heading and you judge — out loud, where the user can disagree. When
+the heading reads like reusable material rather than this project's plan, say so
 instead of repeating the item as the next step.
 
 A `next_action` of `null` where the section exists means the project wrote its
