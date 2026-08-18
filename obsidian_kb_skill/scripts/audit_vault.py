@@ -845,6 +845,17 @@ def _audit_links(
             continue
         if len(matches) > 1:
             _add(findings, "ambiguous-wikilink", relative, f"ambiguous wikilink: {target}")
+            return
+        dated = index.dated_matches(target)
+        if dated:
+            names = ", ".join(sorted(p.stem for p in dated))
+            _add(
+                findings,
+                "broken-wikilink",
+                relative,
+                f"unresolved wikilink: {target} — the note exists as {names}; "
+                f"write the filename into the link, for example [[{sorted(p.stem for p in dated)[0]}|{target}]]",
+            )
         else:
             _add(findings, "broken-wikilink", relative, f"unresolved wikilink: {target}")
 
