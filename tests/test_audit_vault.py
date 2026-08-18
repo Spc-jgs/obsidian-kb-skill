@@ -1974,3 +1974,65 @@ def test_two_identical_titles_are_never_called_a_series():
     assert _is_dated_series("6.22 日报", "6.22 日报") is False
     assert _is_dated_series("2026 计划", "2026 计划") is False
     assert _is_dated_series("6.22 日报", "6.23 日报") is True
+
+
+def test_a_broken_link_says_which_file_it_should_have_named(tmp_path: Path):
+    """Two situations share this code, and only one of them is repairable.
+
+    Measured on a real Vault: 28 findings, 25 distinct targets. Four name a
+    note that exists under a `YYYY-MM-DD ` prefix and are repaired by writing
+    the filename into the link. The other 21 are concept names — AGI, CQRS,
+    MySQL, 系统架构与设计 — and nothing mechanical separates those from a note
+    that was deleted, so both keep the `defect` grade a deletion deserves.
+    What changes is that the repairable ones now say what to write.
+
+    An earlier draft of this split them into a second, informational code. The
+    hypothesis was that a concept stub is linked from several notes and a
+    deleted note from one; the Vault says otherwise — MySQL, CQRS and every
+    other stub there is linked exactly once, the same as a deletion. The split
+    would have downgraded real damage on a guess.
+    """
+    vault = tmp_path / "vault"
+    write_titled_note(vault, "20-Learning/2026-06-10 检索原理.md", "检索原理")
+    source = vault / "20-Learning/note.md"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text(
+        "---\ntype: note\ndate: '2026-08-17'\ntags:\n- x\n---\n\n"
+        "# 引用\n\n见 [[检索原理]] 与 [[还没写的概念]]。\n",
+        encoding="utf-8",
+    )
+
+    broken = [f.message for f in audit_vault(vault) if f.code == "broken-wikilink"]
+
+    repairable = [m for m in broken if "检索原理" in m]
+    assert repairable, broken
+    # Both halves are asserted apart: the example link contains the filename
+    # too, so a single membership test passed with the naming clause deleted.
+    assert "the note exists as 2026-06-10 检索原理" in repairable[0]
+    assert "[[2026-06-10 检索原理|检索原理]]" in repairable[0]
+
+    # Still reported, still a defect, and with nothing to suggest.
+    unwritten = [m for m in broken if "还没写的概念" in m]
+    assert unwritten, broken
+    assert "2026-" not in unwritten[0]
+
+
+
+def test_dated_matches_only_answers_for_date_prefixed_files():
+    """A contract of the index, not reachable through the audit.
+
+    A file with no date prefix already resolves by name, so the audit never
+    asks about one — dropping the prefix condition changed no test. It stays
+    because without it the map answers for every note in the Vault, and the
+    repair hint would tell the reader to rename a link that is already right.
+    """
+    from obsidian_kb_skill.scripts.link_graph import build_link_index
+
+    index = build_link_index([
+        Path("20-Learning/2026-06-10 检索原理.md"),
+        Path("20-Learning/检索原理.md"),
+        Path("20-Learning/别的笔记.md"),
+    ])
+
+    assert [p.stem for p in index.dated_matches("检索原理")] == ["2026-06-10 检索原理"]
+    assert index.dated_matches("别的笔记") == []

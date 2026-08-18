@@ -48,6 +48,9 @@ def declared_aliases(path: Path) -> tuple[str, ...]:
     )
 
 
+_DATE_PREFIX = re.compile(r"^\d{4}-\d{2}-\d{2}\s+")
+
+
 @dataclass
 class LinkIndex:
     """Resolve a wikilink target to files the way Obsidian does.
@@ -67,6 +70,7 @@ class LinkIndex:
     by_stem: dict[str, list[Path]]
     linkable: list[Path]
     _aliases: dict[str, list[Path]] | None = field(default=None)
+    _undated: dict[str, list[Path]] | None = field(default=None)
 
     def _alias_map(self) -> dict[str, list[Path]]:
         if self._aliases is None:
@@ -78,6 +82,26 @@ class LinkIndex:
                     found[alias].append(path)
             self._aliases = dict(found)
         return self._aliases
+
+    def dated_matches(self, target: str) -> list[Path]:
+        """Files named `YYYY-MM-DD <target>.md`, for a target that resolved to none.
+
+        Deliberately not part of `matches`: Obsidian does not resolve a link
+        this way either, so the link really is broken. What this separates is
+        a broken link that can be repaired by naming the file from one that
+        points at a note nobody has written — the second is how a concept gets
+        stubbed, and grading it the same buried the first under it.
+        """
+        if self._undated is None:
+            found: dict[str, list[Path]] = defaultdict(list)
+            for path in self.linkable:
+                if path.suffix.lower() != ".md":
+                    continue
+                undated = _DATE_PREFIX.sub("", path.stem)
+                if undated != path.stem:
+                    found[undated].append(path)
+            self._undated = dict(found)
+        return self._undated.get(Path(target).name, [])
 
     def matches(self, target: str) -> list[Path]:
         """Return every file a bare (non-path) wikilink target could mean.

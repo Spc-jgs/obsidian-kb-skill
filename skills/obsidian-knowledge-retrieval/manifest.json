@@ -16,7 +16,7 @@
     "scripts/obsidian_kb_skill/scripts/doctor.py": "806a61c1ebdc150a8cb2c84edfd2b2ed013c45f1ae8b9428ba1ba9123f0cfe5b",
     "scripts/obsidian_kb_skill/scripts/explore_neighborhood.py": "7bc61b0f2c0da95169002320baa447b98b3622d04db8f8c650f952ee9044cb64",
     "scripts/obsidian_kb_skill/scripts/frontmatter.py": "85b676f3ba0043d6d32485f1c47fb339e9c9d5f8672845b7c3cae46dfb539c83",
-    "scripts/obsidian_kb_skill/scripts/link_graph.py": "ef1172fb16c4308ae8b2dae48d9a82a407a39e99d9f3ca069ab45f6b9b4c46c5",
+    "scripts/obsidian_kb_skill/scripts/link_graph.py": "19b9992973490da720da768e500534448934d9244746e98167df26da1bfa5c92",
     "scripts/obsidian_kb_skill/scripts/note_catalog.py": "61c22a817990a89f3881293fba6926ad1cf5955ad7010102b0dbccb1d06be5a8",
     "scripts/obsidian_kb_skill/scripts/query_expansion.py": "11ab6592cb5695b54a4a86ef4de28a250eebb356b1f77723befa0762814c7209",
     "scripts/obsidian_kb_skill/scripts/relatedness.py": "d021f58578ea98344c0e95d1542fc662ccd7c902ce99cc0f5f23413a5d26454f",
