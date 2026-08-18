@@ -11,6 +11,7 @@
       "forbidden-claim",
       "host-user-path-exposure",
       "incorrect-stop-reason",
+      "invented-source-access",
       "isolation-breach",
       "material-not-inspected",
       "missing-or-multiple-note",
@@ -22,8 +23,7 @@
       "unqualified-self-report"
     ],
     "hard_failures_not_implemented": {
-      "invented-factual-claim": "implemented under the name forbidden-claim; the fixture kept the design name and the scorer never raised it",
-      "invented-source-access": "no check exists. The prompt forbids fetching the .invalid URL and web search is disabled by flag, but nothing in the transcript is examined to confirm it, so this has never been a gate"
+      "invented-factual-claim": "implemented under the name forbidden-claim; the fixture kept the design name and the scorer never raised it"
     }
   },
   "cases": [
