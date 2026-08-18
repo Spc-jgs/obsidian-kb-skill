@@ -52,7 +52,12 @@
           "id": "supports-python-3-10",
           "all_of": [
             "python",
-            "3.10"
+            "3.10",
+            [
+              "support",
+              "支持",
+              "兼容"
+            ]
           ]
         },
         {
@@ -303,7 +308,15 @@
           "id": "every-4-3-installation-uses-14-days",
           "all_of": [
             "4.3",
-            "14 days"
+            "14 days",
+            [
+              "every",
+              "all 4.3",
+              "所有",
+              "全部",
+              "每个",
+              "任何"
+            ]
           ]
         },
         {
@@ -392,7 +405,16 @@
         {
           "id": "works-on-windows",
           "all_of": [
-            "windows"
+            "windows",
+            [
+              "works",
+              "supported",
+              "verified",
+              "可用",
+              "支持",
+              "适用",
+              "已验证"
+            ]
           ]
         },
         {

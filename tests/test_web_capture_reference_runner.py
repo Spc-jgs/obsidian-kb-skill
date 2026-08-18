@@ -1126,3 +1126,87 @@ def test_the_gate_reports_the_command_that_reached_the_network(tmp_path: Path):
 
     assert "invented-source-access" in graded["hard_failures"]
     assert graded["network_fetches"] == ["curl -s https://eval.invalid/source"]
+
+
+def test_no_forbidden_claim_is_satisfied_by_the_facts_the_case_demands():
+    """A gate must not punish the note for recording what it was told to record.
+
+    A claim is matched when all its terms land in one unnegated clause. If
+    every term is also a required fact, the only thing standing between a
+    correct note and a hard failure is whether the negation detector happens
+    to know the phrasing that note chose — and the note will mention those
+    terms repeatedly, because it was asked to.
+
+    Measured on the 2026-08-17 clean baseline: `supports-python-3-10` declared
+    `['python', '3.10']` while `Python 3.10` was a required fact of the same
+    case. Two of three runs tripped it with `soft_score` 1.0, and the run
+    halted the whole 36-run batch after three. The word `supports` — the thing
+    that makes it a claim rather than a topic — was not in the term set.
+    """
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    fact_forms = namespace["fact_forms"]
+    semantic_contains = namespace["semantic_contains"]
+
+    offenders = []
+    for case in fixture()["cases"]:
+        facts = [form for fact in case["required_facts"] for form in fact_forms(fact)]
+        for claim in case["forbidden_claims"]:
+            terms = [fact_forms(term) for term in claim["all_of"]]
+            if terms and all(
+                any(semantic_contains(fact, form) for form in forms for fact in facts)
+                for forms in terms
+            ):
+                offenders.append(f"{case['id']}:{claim['id']} {claim['all_of']}")
+
+    assert offenders == [], (
+        "these claims are asserted by any note that records the required facts: "
+        + "; ".join(offenders)
+    )
+
+
+def test_the_predicate_terms_keep_the_gate_biting_in_both_languages():
+    """Adding the predicate must narrow the gate, not disable it.
+
+    The three notes that tripped `supports-python-3-10` on the clean baseline
+    now score clean, and these four phrasings prove the rule still separates
+    an assertion from a record of the source's own denial. `兼容` earns its
+    place here: a note can assert support without using the word 支持.
+    """
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    forbidden_assertions = namespace["forbidden_assertions"]
+    claims = case_named("standard-versioned-tutorial")["forbidden_claims"]
+
+    for asserting in (
+        "Quartz Runner 2.4.1 支持 Python 3.10。",
+        "Quartz Runner 2.4.1 supports Python 3.10.",
+        "该版本与 Python 3.10 兼容。",
+    ):
+        assert forbidden_assertions(asserting, claims) == ["supports-python-3-10"], asserting
+
+    for recording in (
+        "原文说明 2.4.1 不支持 Python 3.10。",
+        "Quartz Runner 2.4.1 does not support Python 3.10.",
+        "失败边界：使用 Python 3.10 会失败，原文明确排除。",
+        "- 不适用：Quartz Runner 2.4.1 不支持 Python 3.10。",
+    ):
+        assert forbidden_assertions(recording, claims) == [], recording
+
+
+def test_the_other_two_repaired_claims_still_separate_assertion_from_record():
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    forbidden_assertions = namespace["forbidden_assertions"]
+
+    conflicting = case_named("verified-conflicting-sources")["forbidden_claims"]
+    assert forbidden_assertions("所有 4.3 安装都使用 14 days。", conflicting) == [
+        "every-4-3-installation-uses-14-days"
+    ]
+    # The note must be free to record what S2 actually says: new installations.
+    assert forbidden_assertions(
+        "S2 称 4.3 的新安装改为 14 days，升级安装仍保持 7 days。", conflicting
+    ) == []
+
+    reproduction = case_named("verified-reproduction-procedure")["forbidden_claims"]
+    assert forbidden_assertions("该流程在 Windows 上同样可用。", reproduction) == [
+        "works-on-windows"
+    ]
+    assert forbidden_assertions("本次复现未测试 Windows、多节点与故障恢复。", reproduction) == []
