@@ -37,6 +37,7 @@ PEER_SKILL = "obsidian-knowledge-retrieval"
 PEER_HELPERS = frozenset({
     "explore-neighborhood",
     "resume-project",
+    "review-captures",
     "review-projects",
     "run-retrieval-view",
     "suggest-directed-links",

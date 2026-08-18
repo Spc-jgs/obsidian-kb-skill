@@ -152,6 +152,9 @@ RETRIEVAL_HELPER_FILES = (
     Path("scripts/resume_project.py"),
     Path("scripts/retrieval_views.py"),
     Path("scripts/retrieval_vault_info.py"),
+    # Reading is read-only, and "which captures were never reopened" is a
+    # question the retrieval side must answer without the write closure.
+    Path("scripts/review_captures.py"),
     Path("scripts/review_projects.py"),
     Path("scripts/search_vault.py"),
     Path("scripts/text_tokens.py"),

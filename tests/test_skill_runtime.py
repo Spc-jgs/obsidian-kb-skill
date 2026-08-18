@@ -38,6 +38,7 @@ RETRIEVAL_HELPERS = (
     "doctor",
     "explore-neighborhood",
     "resume-project",
+    "review-captures",
     "review-projects",
     "run-retrieval-view",
     "search-vault",
@@ -682,12 +683,13 @@ def test_skill_runner_doctor_survives_invalid_runtime_record(tmp_path):
 # time; only the signpost was absent.
 
 
-def test_write_runner_points_at_the_retrieval_skill_for_its_helpers(tmp_path):
+@pytest.mark.parametrize("helper", ("review-projects", "review-captures"))
+def test_write_runner_points_at_the_retrieval_skill_for_its_helpers(tmp_path, helper):
     result = subprocess.run(
         [
             sys.executable,
             str(STANDARD_SKILL / "scripts" / "run_helper.py"),
-            "review-projects",
+            helper,
         ],
         cwd=tmp_path,
         capture_output=True,
