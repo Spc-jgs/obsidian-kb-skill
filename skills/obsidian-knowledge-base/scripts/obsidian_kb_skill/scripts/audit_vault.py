@@ -1269,6 +1269,8 @@ def _audit_titles(
             norm_j, shown_j, rel_j = title_list[j]
             if norm_i == norm_j:
                 continue
+            if _is_dated_series(norm_i, norm_j):
+                continue
             ratio = difflib.SequenceMatcher(None, norm_i, norm_j).ratio()
             if ratio >= 0.85:
                 _add(
@@ -1279,6 +1281,32 @@ def _audit_titles(
                     f"'{shown_i}' ({rel_i.as_posix()}) ~ "
                     f"'{shown_j}' ({rel_j.as_posix()})",
                 )
+
+
+_SERIES_DIGITS = re.compile(r"[0-9]+")
+
+
+def _is_dated_series(left: str, right: str) -> bool:
+    """Whether two titles are entries in one numbered series, not duplicates.
+
+    Daily notes are supposed to share a title, and the comparison is
+    pairwise, so N of them yield N(N-1)/2 findings. On a real Vault this was
+    113 of 115 `similar-title` findings and 46% of the whole audit, which
+    buried the two genuine duplicates it did find.
+
+    A series is two different titles that are the same once their digits are
+    removed, with something left over: `2026` beside `2027` is two notes
+    named for a year and stays reported, while `6.22 日报` beside `6.23 日报`
+    does not. Identical titles keep their own `duplicate-title` code.
+    """
+    if left == right:
+        return False
+    # No digit comparison here: two different titles sharing a skeleton must
+    # already differ in their digits, so such a test cannot change any
+    # outcome. It was in the first draft and no input reached it.
+    skeleton_left = _SERIES_DIGITS.sub("", left).strip()
+    skeleton_right = _SERIES_DIGITS.sub("", right).strip()
+    return bool(skeleton_left) and skeleton_left == skeleton_right
 
 
 def _build_parser() -> argparse.ArgumentParser:
