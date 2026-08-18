@@ -1,6 +1,7 @@
 """Smoke tests for configuration-aware installer index generation."""
 from __future__ import annotations
 
+import re
 import json
 import os
 import shutil
@@ -1174,3 +1175,115 @@ def test_the_docs_explain_installing_alongside_a_skill_manager():
         ("README_EN.md", (ROOT / "README_EN.md").read_text(encoding="utf-8")),
     ):
         assert "--runtime-only" in text, f"{name} never mentions the mode"
+
+
+# The install matrix as reviewed on 2026-08-17, host directory to Skill names.
+# Cursor is deliberately asymmetric: its write-side integration is a rule file
+# at `.cursor/rules/obsidian-kb.mdc`, not a Skill directory, so only the
+# read-only Skill has an entry here.
+INSTALL_MATRIX = {
+    ("agents", "base"), ("agents", "retrieval"),
+    ("claude", "base"), ("claude", "retrieval"),
+    ("cursor", "retrieval"),
+    ("qoderwork", "base"), ("qoderwork", "retrieval"),
+    ("workbuddy", "base"), ("workbuddy", "retrieval"),
+}
+
+
+def installed_pairs(text: str, separator: str, home: str, assignment: str) -> set[tuple[str, str]]:
+    """Every (host directory, Skill) an installer writes to.
+
+    Resolves one level of indirection. Both installers build the Claude Code
+    paths through a variable — `CLAUDE_DIR="$HOME/.claude"` and its PowerShell
+    twin — so a literal search finds `.claude` half as often as the other hosts
+    and reads like a missing uninstall branch that is not there.
+    """
+    sep = re.escape(separator)
+    found: set[tuple[str, str]] = set()
+
+    # The host is discovered, never enumerated. A hard-coded list would make
+    # a brand-new host invisible to this check on the very script that added
+    # it — the guard would pass while the two installers disagreed, which is
+    # the one failure it exists to catch.
+    direct = rf"{re.escape(home)}[\s\"']*{sep}?\.([A-Za-z0-9_.-]+){sep}skills{sep}obsidian-knowledge-(base|retrieval)"
+    for match in re.finditer(direct, text):
+        found.add((match.group(1), match.group(2)))
+
+    for variable, host in re.findall(assignment, text):
+        via = rf"\$\{{?{re.escape(variable)}\}}?{sep}?[\s\"']*{sep}?skills{sep}obsidian-knowledge-(base|retrieval)"
+        for match in re.finditer(via, text):
+            found.add((host, match.group(1)))
+    return found
+
+
+def shell_pairs() -> set[tuple[str, str]]:
+    return installed_pairs(
+        (ROOT / "install.sh").read_text(encoding="utf-8"),
+        "/",
+        "$HOME",
+        r'(\w+)="\$HOME/\.([A-Za-z0-9_.-]+)"',
+    )
+
+
+def powershell_pairs() -> set[tuple[str, str]]:
+    return installed_pairs(
+        (ROOT / "install.ps1").read_text(encoding="utf-8"),
+        "\\",
+        "$env:USERPROFILE",
+        r'\$(\w+)\s*=\s*Join-Path \$env:USERPROFILE "\.([A-Za-z0-9_.-]+)"',
+    )
+
+
+def test_both_installers_write_to_the_same_hosts_and_skills():
+    """Row 16 of the consistency inventory, which had no guard until now.
+
+    Nine host-and-Skill pairs are hand-copied into two languages with no
+    import between them. A host added to one script and not the other, or a
+    Skill renamed on one side, installs correctly on the platform its author
+    was using and silently not on the other — found by a user, on the platform
+    the author does not run.
+    """
+    shell = shell_pairs()
+    powershell = powershell_pairs()
+
+    assert shell == powershell, (
+        f"only in install.sh: {sorted(shell - powershell)}; "
+        f"only in install.ps1: {sorted(powershell - shell)}"
+    )
+    assert shell == INSTALL_MATRIX, (
+        f"installers changed without updating INSTALL_MATRIX: "
+        f"added {sorted(shell - INSTALL_MATRIX)}, removed {sorted(INSTALL_MATRIX - shell)}"
+    )
+
+
+def test_every_host_is_reached_by_both_installing_and_uninstalling():
+    """A host that installs but never uninstalls leaves files behind.
+
+    Each pair is written twice per script — once where it is created and once
+    where it is removed — so a count below two means one of the two halves
+    does not know about that host.
+    """
+    for name, separator, home in (
+        ("install.sh", "/", "$HOME"),
+        ("install.ps1", "\\", "$env:USERPROFILE"),
+    ):
+        text = (ROOT / name).read_text(encoding="utf-8")
+        for host, skill in sorted(INSTALL_MATRIX):
+            sep = re.escape(separator)
+            literal = rf"\.{host}{sep}skills{sep}obsidian-knowledge-{skill}"
+            direct = len(re.findall(literal, text))
+            aliased = 0
+            for variable, alias_host in re.findall(
+                r'(\w+)="\$HOME/\.([A-Za-z0-9_.-]+)"'
+                if separator == "/"
+                else r'\$(\w+)\s*=\s*Join-Path \$env:USERPROFILE "\.([A-Za-z0-9_.-]+)"',
+                text,
+            ):
+                if alias_host != host:
+                    continue
+                via = rf"\$\{{?{re.escape(variable)}\}}?{sep}?[\s\"']*{sep}?skills{sep}obsidian-knowledge-{skill}"
+                aliased += len(re.findall(via, text))
+            assert direct + aliased >= 2, (
+                f"{name}: {host}/{skill} appears {direct + aliased} time(s); "
+                "install and uninstall must both know about it"
+            )
