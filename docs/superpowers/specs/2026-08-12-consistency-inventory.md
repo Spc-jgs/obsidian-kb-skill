@@ -45,7 +45,7 @@ It is a list of the boundaries, and the discipline of adding to it.
 | 13 | `[project.scripts]` ↔ runner registries | `test_every_helper_has_a_console_script_or_a_stated_exemption` |
 | 14 | Capability table ↔ helpers that exist | `test_the_feature_guide_only_advertises_helpers_that_exist` |
 | 15 | Digest section names ↔ the resume contract that uses them | `test_digest_heading_variants_are_derived_not_copied` |
-| 16 | Installer paths ↔ Skill × platform matrix | **none — #91**, 20 hand-copied paths across two languages |
+| 16 | Installer paths ↔ Skill × platform matrix | `test_both_installers_write_to_the_same_hosts_and_skills` and `test_every_host_is_reached_by_both_installing_and_uninstalling` — 32 hand-copied occurrences of 9 host-and-Skill pairs across two languages, counted with `grep -oE '\.[a-z]+[/\\]skills[/\\]obsidian-knowledge-(base|retrieval)' install.sh install.ps1 | wc -l`. The row previously said 20, which no command reproduces. The host is discovered rather than enumerated: a hard-coded host list made a brand-new host invisible on the script that added it, and the first draft of this guard passed that case. #91's refactor is still open; this only asserts the two scripts agree |
 | 17 | Managed-link decision in `install.sh` ↔ `install.ps1` ↔ `tests/windows_installer_smoke.ps1` | `test_bash_install_does_not_clobber_a_managed_skill_symlink` (POSIX behaviour) and `test_powershell_installer_has_managed_symlink_parity` (reads `install.ps1` text only) — **the smoke script is unguarded**, and only Windows CI executes it |
 | 18 | Headings the resume report calls recognized ↔ headings its matcher can match | `test_every_known_variant_is_both_matchable_and_reported_as_matched` |
 | 19 | `core/templates/*/project-note.md` headings ↔ the resume vocabulary that reads them | `test_this_projects_own_templates_are_fully_readable_by_the_extractor` |
@@ -276,9 +276,17 @@ Signals that a boundary is being created:
 - Anything copied "because the build syncs it anyway"
 
 If the relation cannot be asserted mechanically, the row still belongs here
-with its guard recorded as **none** and a reason. #91 has sat unguarded for
-months precisely because nothing named it — an unguarded boundary that is
-written down is a known risk; one that is not is a surprise waiting.
+with its guard recorded as **none** and a reason. Row 16 spent months that way
+and was the last such row; writing it down is what eventually got it guarded,
+which is the point — an unguarded boundary that is written down is a known
+risk, one that is not is a surprise waiting.
+
+Being written down is not the same as being guarded, and neither is having a
+test. Row 16's first guard enumerated the five known host directories, so a
+brand-new host added to one installer was invisible to the check on the very
+script that introduced it: the assertion passed on exactly the case it existed
+to catch. It was found by breaking the code on purpose, never by running the
+suite. Discovering the host instead of listing it is what made it real.
 
 ## Rejected: deriving the inventory from code
 
