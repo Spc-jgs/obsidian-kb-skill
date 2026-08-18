@@ -761,12 +761,24 @@ def forbidden_assertions(text: str, claims: list[dict[str, object]]) -> list[str
     rule, not comprehension — a rewrite that avoids every declared term still
     passes, and the fixture is where that gap gets closed, one curated term set
     at a time.
+
+    A term may be written as a list of forms, any one of which satisfies it,
+    for the same reason required facts may: the prompts are Chinese and the
+    terms are English, so a claim whose predicate exists only in English is
+    a gate that a Chinese note walks straight through.
+
+    Every term set must contain the predicate that makes it an assertion.
+    A set of nothing but the case's own required facts is matched by any note
+    that does its job, and then only the negation detector stands between a
+    correct note and a hard failure — `test_no_forbidden_claim_is_satisfied_
+    by_the_facts_the_case_demands` refuses that shape.
     """
     matches: list[str] = []
     for claim in claims:
-        terms = [str(term) for term in claim["all_of"]]
+        terms = [fact_forms(term) for term in claim["all_of"]]
         if any(
-            all(contains(clause, term) for term in terms) and not is_negated(clause)
+            all(any(contains(clause, form) for form in forms) for forms in terms)
+            and not is_negated(clause)
             for clause in clauses(text)
         ):
             matches.append(str(claim["id"]))

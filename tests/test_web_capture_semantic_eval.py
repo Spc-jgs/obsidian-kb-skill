@@ -50,7 +50,15 @@ def test_every_case_declares_hard_gate_inputs():
             # phrase to be matched verbatim: an equivalent rewrite used to score
             # clean, and a term set is the auditable middle ground.
             assert claim["id"] and claim["all_of"]
-            assert all(term.strip() == term and term for term in claim["all_of"])
+            for term in claim["all_of"]:
+                # Schema 3: a term is one form, or a list of forms any of which
+                # satisfies it — the prompts are Chinese and the terms English,
+                # so a predicate that exists only in English is a gate a
+                # Chinese note walks straight through.
+                forms = [term] if isinstance(term, str) else term
+                assert forms and all(
+                    isinstance(f, str) and f.strip() == f and f for f in forms
+                ), claim["id"]
         if case["expected_outcome"] == "write":
             assert len(case["required_facts"]) >= 5
             assert "stop_reason" not in case
