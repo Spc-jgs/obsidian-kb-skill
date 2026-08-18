@@ -1877,3 +1877,100 @@ def test_project_notes_at_the_entity_root_are_not_instances_of_each_other(tmp_pa
     _project_note(tmp_path / "40-Projects" / "Two.md", title="Two")
 
     assert "duplicate-project-note" not in codes(tmp_path)
+
+
+def write_titled_note(vault: Path, relative: str, title: str) -> None:
+    path = vault / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "---\ntype: note\ndate: '2026-08-17'\ntags:\n- x\n---\n\n"
+        f"# {title}\n\n正文。\n",
+        encoding="utf-8",
+    )
+
+
+def similar_title_messages(vault: Path) -> list[str]:
+    return [f.message for f in audit_vault(vault) if f.code == "similar-title"]
+
+
+def test_a_dated_series_is_not_a_pile_of_near_duplicates(tmp_path: Path):
+    """Measured on a real Vault: 113 of 115 `similar-title` findings were one.
+
+    Daily notes are supposed to share a title. The check compares every pair,
+    so N of them produce N(N-1)/2 findings — `similar-title` was 46% of all
+    252 findings in that Vault, and the two genuine duplicates it did find
+    were buried under them. A signal that fires this often reports nothing.
+    """
+    vault = tmp_path / "vault"
+    for day in range(22, 30):
+        write_titled_note(vault, f"10-Work/日报/2026-06-{day} 日报.md", f"6.{day} 日报")
+
+    assert similar_title_messages(vault) == []
+
+
+def test_two_captures_of_one_article_are_still_reported(tmp_path: Path):
+    """The two real finds from that Vault, which must survive the repair.
+
+    One article captured twice with half-width and full-width parentheses,
+    and a note beside its own supplement. Neither differs only in digits.
+    """
+    vault = tmp_path / "vault"
+    write_titled_note(vault, "20-Learning/a.md", "Harness 企业级落地(二) - 让 AI 读懂项目")
+    write_titled_note(vault, "20-Learning/b.md", "Harness 企业级落地（二）：让 AI 读懂项目")
+    write_titled_note(vault, "20-Learning/c.md", "掘金文章-7664904418249900084")
+    write_titled_note(vault, "20-Learning/d.md", "掘金文章-7664904418249900084-补充正文")
+
+    messages = similar_title_messages(vault)
+    assert any("Harness" in m for m in messages), messages
+    assert any("补充正文" in m for m in messages), messages
+
+
+def test_titles_that_differ_only_in_digits_but_are_not_a_series(tmp_path: Path):
+    """Two versions of one topic are distinct notes, not duplicates.
+
+    `Python 3.10 迁移` and `Python 3.12 迁移` differ only in digits and are
+    correctly silent — the same rule that quiets the daily notes. An identical
+    title is a different matter and keeps its own `duplicate-title` code.
+    """
+    vault = tmp_path / "vault"
+    write_titled_note(vault, "20-Learning/p310.md", "Python 3.10 迁移")
+    write_titled_note(vault, "20-Learning/p312.md", "Python 3.12 迁移")
+
+    assert similar_title_messages(vault) == []
+
+    write_titled_note(vault, "20-Learning/same-a.md", "完全一样的标题")
+    write_titled_note(vault, "30-Ref/same-b.md", "完全一样的标题")
+    codes = [f.code for f in audit_vault(vault)]
+    assert "duplicate-title" in codes
+
+
+def test_titles_made_of_nothing_but_digits_are_not_a_series(tmp_path: Path):
+    """Two all-digit titles are two notes, not one series.
+
+    Removing the digits leaves nothing to be a series *of*, so the skeleton
+    has to be non-empty. Deleting that condition changed no test until this
+    one existed. The titles are eight digits rather than four because four
+    only reach a 0.75 ratio and never come near the 0.85 threshold — the
+    first draft of this test asserted against a pair the check never saw.
+    """
+    vault = tmp_path / "vault"
+    write_titled_note(vault, "30-Ref/a.md", "20260622")
+    write_titled_note(vault, "30-Ref/b.md", "20260623")
+
+    assert similar_title_messages(vault) != []
+
+
+def test_two_identical_titles_are_never_called_a_series():
+    """A contract of the helper, not reachable through `audit_vault`.
+
+    The caller skips equal titles before asking, so this branch cannot fire
+    today and breaking it changed no test. It stays because dropping it makes
+    the helper answer "series" for a genuine duplicate — the one answer that
+    would silently hide the finding this whole check exists for. Tested
+    directly, since the audit path cannot reach it.
+    """
+    from obsidian_kb_skill.scripts.audit_vault import _is_dated_series
+
+    assert _is_dated_series("6.22 日报", "6.22 日报") is False
+    assert _is_dated_series("2026 计划", "2026 计划") is False
+    assert _is_dated_series("6.22 日报", "6.23 日报") is True
