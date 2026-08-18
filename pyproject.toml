@@ -35,6 +35,7 @@ obsidian-explore-neighborhood = "obsidian_kb_skill.scripts.explore_neighborhood:
 obsidian-run-retrieval-view = "obsidian_kb_skill.scripts.retrieval_views:main"
 obsidian-suggest-directed-links = "obsidian_kb_skill.scripts.relatedness:main"
 obsidian-resume-project = "obsidian_kb_skill.scripts.resume_project:main"
+obsidian-review-captures = "obsidian_kb_skill.scripts.review_captures:main"
 obsidian-review-projects = "obsidian_kb_skill.scripts.review_projects:main"
 obsidian-search-vault = "obsidian_kb_skill.scripts.search_vault:main"
 obsidian-suggest-links = "obsidian_kb_skill.scripts.suggest_links:main"
