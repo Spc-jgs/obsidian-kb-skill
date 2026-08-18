@@ -1053,3 +1053,76 @@ def test_a_code_the_gate_cannot_raise_is_recorded_as_not_implemented():
     assert set(unimplemented) & set(reference["hard_failures"]) == set()
     for code, reason in unimplemented.items():
         assert len(reason.split()) >= 8, f"{code}: say what happened to it"
+
+
+def executed(*commands: str) -> list:
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    return [
+        namespace["CommandExecution"](command=command, exit_code=0, output="")
+        for command in commands
+    ]
+
+
+def fetches(*commands: str) -> list[str]:
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    return namespace["network_fetches"](executed(*commands))
+
+
+def test_a_run_that_fetched_the_source_itself_is_a_hard_failure():
+    """The snapshot in the prompt is the acquisition result, by construction.
+
+    A run that went and got the material would be graded on text this eval
+    never controlled, and every forbidden-claim rule would be checking the
+    wrong thing. `invented-source-access` has been listed as a gate since
+    v1.30 and no rule has ever raised it — the prompt forbids fetching and
+    web search is off by flag, but the Agent has a shell.
+    """
+    assert fetches("curl -sSL https://eval.invalid/source > page.html")
+    assert fetches("wget https://example.com/spec")
+    assert fetches("cat urls.txt | xargs curl -s")
+    assert fetches("python3 -c \"import urllib.request; urllib.request.urlopen(u)\"")
+    assert fetches("git clone https://github.com/example/repo")
+
+
+def test_a_helper_command_carrying_the_source_url_is_not_a_fetch():
+    """The hard negative, and it is not hypothetical.
+
+    Every write puts `source: https://eval.invalid/...` in the note's
+    frontmatter, so the helper's own argv contains the URL. Sixty command
+    events in the 2026-08-17 baseline carry it. A rule that looked for a URL
+    anywhere in the command line would fail all twelve cases while the runs
+    were behaving exactly as intended.
+    """
+    real = (
+        'python3 /tmp/workspace/.agents/skills/obsidian-knowledge-base/scripts/run_helper.py '
+        'create-note "$OBSIDIAN_KB_VAULT" --source-url https://eval.invalid/client-benchmark '
+        '--from-preflight abc --apply --compact-json'
+    )
+    assert fetches(real) == []
+    assert fetches("ls source-assets", "cat snapshot.md", "python3 run_helper.py vault-info") == []
+    # `curl` named inside an argument is discussed, not run.
+    assert fetches('python3 run_helper.py create-note --body "run curl to verify"') == []
+
+
+def test_the_gate_reports_the_command_that_reached_the_network(tmp_path: Path):
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    score_run = namespace["score_run"]
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "note.md").write_text("a note\n", encoding="utf-8")
+
+    graded = score_run(
+        minimal_case(outcome="write"),
+        vault,
+        {},
+        "Saved." + declared("written"),
+        0,
+        0.1,
+        "",
+        None,
+        executed("curl -s https://eval.invalid/source"),
+        None,
+    )
+
+    assert "invented-source-access" in graded["hard_failures"]
+    assert graded["network_fetches"] == ["curl -s https://eval.invalid/source"]
