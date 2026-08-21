@@ -114,3 +114,76 @@ explicitly and is *not* covered by the existing markers. Sampling the field's
 values first, per #147's rule — only spellings with a countable source.
 
 *Refs #158, #147.*
+
+---
+
+## 3. A shell note cannot be told from a deliberately brief one by structure
+
+**Hypothesis** (#167). Two web-clips on the reference Vault are placeholders left
+by a failed capture — one is three lines saying the fetch was blocked, the other
+carries a full section skeleton whose every section reads `暂无内容，请后续补充`.
+`empty-template-note` misses both because it fires only when `content_chars == 0`,
+and placeholder prose is still characters. A structural predicate — what fraction
+of a note's sections are nearly empty — should separate them.
+
+**Criterion tried.** Split the body at headings, count sections whose non-whitespace
+content is under 20 characters, and report notes where that fraction is high.
+
+**How it died.** Measured over the 113 notes with at least three sections:
+
+```
+71%  5/7   15-Daily/2026-07-07.md
+71%  5/7   15-Daily/2026-07-06.md
+71%  5/7   00-Inbox/2026-08-13 Claude Artifact Capture 草稿.md
+67%  6/9   15-Daily/2026-07-05.md
+57%  4/7   15-Daily/2026-07-10.md
+57%  4/7   15-Daily/2026-07-09.md
+43%  3/7   20-Learning/…7664904418249900084.md   ← the actual shell
+```
+
+The top six are daily notes, whose template sections are legitimately unfilled.
+The real shell ranks **seventh**, below all of them. Median across the corpus is
+12%.
+
+Excluding periodic types (`daily-report`, `daily-note`, `weekly-report`,
+`folder-index`, `moc`) does not rescue it:
+
+| threshold | matched | actual shells | false positives |
+|---|---:|---:|---:|
+| ≥40% | 2 | 1 | 1 |
+| ≥50% | 1 | **0** | 1 |
+
+At ≥50% the only match is `Claude Artifact Capture 草稿.md` — a note the author
+deliberately left brief. **The predicate ranks an intentional draft above a
+genuine shell.**
+
+And it misses half the population by construction: the other shell has a single
+heading, so it never reaches the three-section precondition at all.
+
+**Why the obvious alternative is also closed.** What the two shells actually share
+is *semantic*: the text states that it is incomplete. Encoding that needs a word
+list, and #147 and #75 both settled that a word list may only contain forms with
+a countable source. The countable source here is **two notes** — far too few to
+define one, and a list drawn from two samples is exactly the想当然 word list those
+decisions rejected.
+
+**A correction to the issue's own proposal.** #167 suggested the wording could be
+treated as a repo constant, since a failed capture is something the Skill itself
+writes. That is wrong: `占位内容`, `未能自动抓取`, `暂无内容，请后续补充` appear
+**nowhere** in the Skill's code or references. No such write path exists —
+`web-capture.md`'s `Terminal Failure Means Zero Writes` forbids it outright. The
+two notes are prose an Agent composed while violating that rule, so there is no
+constant to key on.
+
+**What this leaves.** The rule already exists and the code has no path that breaks
+it; what is missing is any way to notice an Agent ignored it. That is the same
+shape as #74 — the judgement lives in instruction prose, not in code — and no
+predicate over the current corpus can stand in for it.
+
+**What would reopen it.** More samples. If failed captures recur, the forms they
+take become countable and a word list drawn from them would have the source #147
+requires. Until then the two existing notes are a data question — delete or
+complete them — not a detection question.
+
+*Refs #167, #147, #75, #74.*
+
