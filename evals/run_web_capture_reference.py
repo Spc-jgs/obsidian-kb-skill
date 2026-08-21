@@ -927,7 +927,21 @@ def option_value(arguments: list[str], name: str) -> str | None:
 
 
 def receipt_binds_note(executions: list[CommandExecution], note: Path) -> bool:
-    """Prove that helper apply accepted a receipt bound to the written bytes."""
+    """Prove that helper apply accepted a receipt bound to the written bytes.
+
+    The binding is read out of the helper's own output, never out of which flag
+    fed the body in. `create-note` takes three content sources — `--stdin`,
+    `--content-file`, and `--from-preflight` — and this check used to additionally
+    require `--from-preflight <note sha>`, so an Agent that staged its body in a
+    temp file failed a gate about receipts for choosing a different, documented
+    way to pass content. That is what hard-failed all three `verified-evidence-report`
+    repeats on 2026-08-18 at soft scores 0.927 / 0.964 / 1.0, and halted the batch.
+
+    Nothing is given up by dropping it. `semantic_receipt.content_sha256` must
+    still equal the bytes on disk and `path` must still be this note, both emitted
+    by the helper rather than framed by the Agent; a forged command never parses
+    as a helper apply in the first place.
+    """
     note_sha256 = hashlib.sha256(note.read_bytes()).hexdigest()
     for execution in executions:
         arguments = helper_apply_arguments(execution.command)
@@ -936,16 +950,10 @@ def receipt_binds_note(executions: list[CommandExecution], note: Path) -> bool:
             if arguments is not None
             else None
         )
-        preflight_argument = (
-            option_value(arguments, "--from-preflight")
-            if arguments is not None
-            else None
-        )
         if (
             arguments is None
             or "--apply" not in arguments
             or re.fullmatch(r"[0-9a-f]{64}", receipt_argument or "") is None
-            or preflight_argument != note_sha256
         ):
             continue
         try:

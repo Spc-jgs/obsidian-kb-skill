@@ -1315,3 +1315,116 @@ def test_the_summary_names_the_case_that_ended_a_truncated_run():
 
     assert '"stopped_after_case": stopped_after,' in source
     assert "stopped_after" in source.split("def main()")[1].split("summary = {")[0]
+
+
+def content_file_apply_command() -> str:
+    """The command shape a real Agent produced, as recorded in #154.
+
+    `--from-preflight` is one of three content sources `create-note` accepts,
+    alongside `--content-file` and `--stdin`. The 2026-08-18 run staged its body
+    in a temp file and passed `--capture-receipt-file`; `apply_command` above
+    only ever builds the `--from-preflight` shape, so the scorer was asserted
+    against the form it already recognised.
+    """
+    return (
+        "python .agents/skills/obsidian-knowledge-base/scripts/run_helper.py "
+        "create-note vault --type web-clip --title Study --folder 20-Learning "
+        "--content-file workspace/.tmp/study-body.md "
+        "--capture-receipt-file workspace/.tmp/study.receipt.json "
+        f"--expect-capture-receipt-sha256 {'a' * 64} "
+        "--apply --compact-json --suggest-links"
+    )
+
+
+@pytest.mark.parametrize("agent,build", (("codex", codex_events), ("grok", grok_events)))
+def test_a_receipt_is_accepted_whichever_content_source_the_agent_used(
+    tmp_path: Path, agent: str, build
+):
+    """The binding is proved by the helper's output, not by which flag fed it.
+
+    On the 2026-08-18 baseline `verified-evidence-report` hard-failed all three
+    repeats at soft scores 0.927 / 0.964 / 1.0 while the Agent had done exactly
+    what the case asks. The gate then halted the batch after 15 of 36 runs.
+
+    `receipt.content_sha256 == note_sha256` and `path == note` already prove the
+    receipt is bound to the bytes on disk, and the helper is the component that
+    emits them; requiring `--from-preflight` on top graded the Agent on which of
+    three legitimate content sources it chose.
+    """
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    backend = namespace["AGENT_BACKENDS"][agent]
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    note = vault / "note.md"
+    note.write_text("verified note\n", encoding="utf-8")
+    note_sha256 = hashlib.sha256(note.read_bytes()).hexdigest()
+    output = json.dumps(
+        {
+            "path": str(note.resolve()),
+            "applied": True,
+            "audit": {"ok": True},
+            "semantic_receipt": {
+                "ok": True,
+                "sha256": "a" * 64,
+                "content_sha256": note_sha256,
+            },
+        }
+    )
+    events = build(content_file_apply_command(), output)
+
+    graded = namespace["score_run"](
+        minimal_case(outcome="write", receipt=True),
+        vault,
+        {},
+        "The note was saved.",
+        0,
+        0.1,
+        events,
+        None,
+        backend.executions(events),
+        None,
+    )
+
+    assert "receipt-candidate-mismatch" not in graded["hard_failures"]
+
+
+@pytest.mark.parametrize("agent,build", (("codex", codex_events), ("grok", grok_events)))
+def test_a_content_file_apply_whose_receipt_names_other_bytes_still_fails(
+    tmp_path: Path, agent: str, build
+):
+    """Dropping the flag check must not drop the binding it stood in for."""
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    backend = namespace["AGENT_BACKENDS"][agent]
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    note = vault / "note.md"
+    note.write_text("verified note\n", encoding="utf-8")
+    output = json.dumps(
+        {
+            "path": str(note.resolve()),
+            "applied": True,
+            "audit": {"ok": True},
+            "semantic_receipt": {
+                "ok": True,
+                "sha256": "a" * 64,
+                # a receipt bound to some other content
+                "content_sha256": "0" * 64,
+            },
+        }
+    )
+    events = build(content_file_apply_command(), output)
+
+    graded = namespace["score_run"](
+        minimal_case(outcome="write", receipt=True),
+        vault,
+        {},
+        "The note was saved.",
+        0,
+        0.1,
+        events,
+        None,
+        backend.executions(events),
+        None,
+    )
+
+    assert "receipt-candidate-mismatch" in graded["hard_failures"]
