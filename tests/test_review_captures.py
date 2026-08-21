@@ -184,3 +184,51 @@ def test_the_helper_is_registered_in_both_skills():
             ROOT / "skills" / skill / "scripts" / "obsidian_kb_skill"
             / "scripts" / "review_captures.py"
         ).is_file(), skill
+
+
+def test_a_backup_copy_is_not_a_capture(tmp_path):
+    """`.obsidian-kb-backups/` holds tool-made copies, and they never get reopened.
+
+    Counting them guarantees the answer: nobody opens a backup, so every one of
+    them lands in `never_reopened` and drags the revisit rate down. On the
+    reference Vault three backed-up web-clips were counted as captures and two
+    of them were reported as never reopened — with `.obsidian-kb-backups/…` shown
+    to the reader as a note worth revisiting.
+    """
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    capture(vault, "20-Learning/Real.md", note_type="web-clip", date="2026-07-01")
+    capture(
+        vault,
+        ".obsidian-kb-backups/2026-07-01-120000/20-Learning/Real.md",
+        note_type="web-clip",
+        date="2026-07-01",
+    )
+
+    report = review_captures(vault, as_of=datetime.date(2026, 8, 1))
+
+    assert report["summary"]["captures"] == 1
+    paths = [item["path"] for item in report["items"]]
+    assert not [p for p in paths if ".obsidian-kb-backups" in p], paths
+
+
+def test_every_helper_that_walks_the_vault_skips_the_backup_directory():
+    """Three modules each keep their own exclusion list; nothing related them.
+
+    `audit_vault.IGNORED_PARTS` and `search_vault.IGNORED_DIRECTORY_NAMES` both
+    drop `.obsidian-kb-backups`; `review_captures.IGNORED_DIRECTORIES` did not,
+    which is how backups became captures. The lists stay separate on purpose —
+    they answer different questions — but a directory holding copies of notes is
+    not a question any of them should differ on.
+    """
+    from obsidian_kb_skill.scripts.audit_vault import IGNORED_PARTS
+    from obsidian_kb_skill.scripts.review_captures import IGNORED_DIRECTORIES
+    from obsidian_kb_skill.scripts.search_vault import IGNORED_DIRECTORY_NAMES
+
+    backups = ".obsidian-kb-backups"
+    for name, listing in (
+        ("audit_vault.IGNORED_PARTS", IGNORED_PARTS),
+        ("search_vault.IGNORED_DIRECTORY_NAMES", IGNORED_DIRECTORY_NAMES),
+        ("review_captures.IGNORED_DIRECTORIES", IGNORED_DIRECTORIES),
+    ):
+        assert backups in listing, f"{name} does not skip {backups}"
