@@ -393,3 +393,35 @@ def test_shared_note_judgements_have_exactly_one_definition():
 
     assert definitions["EXEMPT_NAMES"] == ["note_catalog.py"]
     assert definitions["normalize_tag_key"] == ["note_catalog.py"]
+
+
+def test_the_path_refusal_points_at_an_option_that_exists():
+    """`PATH_OUTSIDE_VAULT` now names `--stdin` as the way past a rejected
+    `--content-file`. If either option is renamed the advice sends the Agent at a
+    flag that does not exist, and the failure is silent — the Agent improvises,
+    which #154 shows means staging content inside the Vault instead.
+    """
+    row = next(
+        line
+        for line in REFERENCE.read_text(encoding="utf-8").splitlines()
+        if line.startswith("| `PATH_OUTSIDE_VAULT`")
+    )
+    named = {opt for opt in ("--content-file", "--stdin") if opt in row}
+    assert named == {"--content-file", "--stdin"}, (
+        f"the row names {sorted(named)}; both are needed for the advice to parse"
+    )
+
+    tree = ast.parse((SCRIPTS / "create_note.py").read_text(encoding="utf-8"))
+    declared = {
+        _const_str(arg)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "add_argument"
+        for arg in node.args
+    }
+    for opt in ("--content-file", "--stdin"):
+        assert opt in declared, (
+            f"{opt} is named in the refusal's action column but create-note "
+            "declares no such option"
+        )
