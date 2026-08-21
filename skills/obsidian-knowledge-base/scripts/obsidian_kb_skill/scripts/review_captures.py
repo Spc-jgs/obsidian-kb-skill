@@ -42,7 +42,14 @@ CAPTURE_TYPES = frozenset({
     "conversation-digest",
 })
 
-IGNORED_DIRECTORIES = frozenset({".obsidian", ".trash", ".git", "Templates"})
+# `.obsidian-kb-backups/` holds copies this Skill made before a write. A copy
+# is never reopened by anyone, so counting one guarantees it lands in
+# `never_reopened` and pulls the revisit rate down — and the reader is shown
+# a backup path as a note worth revisiting. `audit_vault` and `search_vault`
+# both skip it; this list did not.
+IGNORED_DIRECTORIES = frozenset(
+    {".obsidian", ".trash", ".git", "Templates", ".obsidian-kb-backups"}
+)
 
 _FRONTMATTER = re.compile(r"\A---\r?\n(.*?)\r?\n---", re.S)
 _TYPE = re.compile(r"^type:\s*[\"']?([A-Za-z0-9_-]+)", re.M)
