@@ -8,6 +8,7 @@ import pytest
 
 from obsidian_kb_skill.scripts.audit_vault import (
     _frontmatter,
+    audit_vault_with_stats,
     audit_note,
     audit_note_text,
     audit_vault,
@@ -2135,3 +2136,78 @@ def test_a_type_exempted_from_connectivity_is_still_watched_somewhere():
     assert watched_elsewhere, "the exemption set is only periodic types"
     for note_type in watched_elsewhere:
         assert note_type in CAPTURE_TYPES, note_type
+
+
+def _vault_with_archive_and_backup(tmp_path: Path) -> Path:
+    """Three real notes, one archived source, one backup copy."""
+    (tmp_path / ".obsidian").mkdir()
+    topic = tmp_path / "Topic"
+    topic.mkdir()
+    (topic / "Topic.md").write_text(
+        "---\ntype: folder-index\ntags: [moc]\n---\n"
+        "```folder-index-content\n```\n",
+        encoding="utf-8",
+    )
+    for name in ("A", "B"):
+        (topic / f"{name}.md").write_text(
+            f"---\ndate: '2026-07-07'\ntype: learning-note\ntags: [x]\n---\n"
+            f"# {name}\n\nProse.\n",
+            encoding="utf-8",
+        )
+    archive = tmp_path / "95-Sources"
+    archive.mkdir()
+    (archive / "Clip·原文.md").write_text("raw captured bytes\n", encoding="utf-8")
+    backup = tmp_path / ".obsidian-kb-backups" / "2026-07-07-120000" / "Topic"
+    backup.mkdir(parents=True)
+    (backup / "A.md").write_text("stale copy\n", encoding="utf-8")
+    return tmp_path
+
+
+def test_the_audit_reports_how_many_notes_its_findings_came_from(tmp_path):
+    """A finding count with no denominator cannot be read.
+
+    92 findings across 20 notes and across 200 notes are different situations
+    and the report renders them identically. `search-vault` already emits
+    `scanned`; the audit emitted only `count`, which counts findings.
+    """
+    vault = _vault_with_archive_and_backup(tmp_path)
+
+    findings, stats = audit_vault_with_stats(vault)
+
+    # Topic.md + A.md + B.md + the archived source; the backup copy is not a note.
+    assert stats["scanned"] == 4
+    # The archive is evidence, not a note, and note contracts never run over it.
+    assert stats["audited"] == 3
+    assert isinstance(findings, list)
+
+
+def test_audit_vault_keeps_its_signature_for_existing_callers(tmp_path):
+    """The stats are additive; nothing that called `audit_vault` has to change."""
+    vault = _vault_with_archive_and_backup(tmp_path)
+
+    plain = audit_vault(vault)
+    findings, _ = audit_vault_with_stats(vault)
+
+    assert [(f.code, f.path) for f in plain] == [(f.code, f.path) for f in findings]
+
+
+def test_the_json_report_carries_the_denominator(tmp_path):
+    """The number a reader quotes is `count`; it needs the population beside it."""
+    import subprocess
+    import sys
+
+    vault = _vault_with_archive_and_backup(tmp_path)
+
+    result = subprocess.run(
+        [sys.executable, "-m", "obsidian_kb_skill.scripts.audit_vault",
+         str(vault), "--json"],
+        capture_output=True, text=True, encoding="utf-8",
+        cwd=Path(__file__).resolve().parent.parent,
+        env={**__import__("os").environ,
+             "PYTHONPATH": str(Path(__file__).resolve().parent.parent)},
+    )
+
+    payload = json.loads(result.stdout)
+    assert payload["scanned"] == 4
+    assert payload["audited"] == 3
+    assert "count" in payload
