@@ -102,6 +102,7 @@ modules, so both Agents can receive these. -->
 | `partial-apply` | Rollback failed too: the note now exists in **both** places and needs manual cleanup | Stop. This is the only filing refusal that leaves the Vault changed. Report both paths and say the user must remove one by hand; never delete either copy to tidy up |
 | `invalid-utf8-input` | Supplied content is not valid UTF-8 | Re-encode the content as UTF-8 without BOM and retry |
 | `missing-required-metadata` | Required frontmatter fields are absent for this note type | Add the listed fields and re-run preflight; do not write a partial note |
+| `unfinished-template-body` | `create-note --apply` found template scaffolding still in the body: an instruction comment addressed to whoever writes the note, or an unreplaced `{{placeholder}}` | Nothing was written and the Vault is unchanged. Do what the comment asks and then delete it, or fill the placeholder, and retry. Never strip the comment without acting on it — it states what the section is for, and a note that ships it hands the reader an instruction meant for you |
 | `template-changed` | The Vault template changed after its contract was read | Re-read the template contract, re-render, then retry |
 | `unsupported-template-type` | No template exists for the requested note type | Pick a supported type, or create the category first |
 | `missing-template` | The Vault has no template file for this type | Ask before bootstrapping with `scaffold-templates`; do not invent the structure |
