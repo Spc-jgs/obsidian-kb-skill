@@ -55,7 +55,7 @@ issue 说「写着『原文未标明』的 web-clip 被报 `web-clip-missing-pub
 | 证据 | 统计写 `unknown` 的笔记与写 `原文未标明` 的笔记，在生成时间/其他字段上有无系统差异 |
 | 停止条件 | 证据不足以分辨两者 → 记录为无法裁定，**不改词表** |
 
-### 156 — create-note 写后审计失败仍 exit 0
+### 156 — create-note 写后审计失败仍 exit 0 ✅ 已实现
 
 | | |
 |---|---|
@@ -63,6 +63,18 @@ issue 说「写着『原文未标明』的 web-clip 被报 `web-clip-missing-pub
 | 修正 | issue 说「17 篇」，实测**9 篇**（两码重叠 8 篇）。且全落在 2026-07-22~26，近一个月零新增——不是活的出血点，是契约错 |
 | 待验前提 | 选项 1（preflight 前拒绝）要求 preflight 阶段拿得到完整正文 |
 | 停止条件 | preflight 拿不到完整正文 → 改选项 3，并写下为什么 1 不可行 |
+| 结果 | 前提成立：`audit_note_text` 本就为「不落盘审计候选内容」而存在，只是两个调用点都锁在 `--preflight-json` 分支里。采用选项 1 |
+
+**两处偏离 issue 原文，均已裁定：**
+
+1. **拒绝集不是「全部 defect」。** 20 个 defect 码里多数描述的是 Vault 而非这篇
+   笔记：`broken-wikilink` 被 #159 裁定为标准用法，按 defect 拦截会让「新建笔记
+   时链接一个未来概念」变成不可能。拒绝集收窄为「只看本篇文本即可判定、且重写
+   正文就能修掉」的模板未完成类两码。
+2. **拒绝路径不加顶层 `ok`。** issue 要求「`--json` 都该有顶层 ok」，但
+   `rules-and-errors.md` 规定 helper 拒绝用 `{"error": {...}}` 且
+   `test_error_code_contract.py` 强制它。裁定：拒绝走既有 envelope + exit 2，
+   顶层 `ok` 加在成功载荷上——那里此前根本没有任何字段报告判定结果。
 
 ### 157 — disconnected-note 只报不建议
 

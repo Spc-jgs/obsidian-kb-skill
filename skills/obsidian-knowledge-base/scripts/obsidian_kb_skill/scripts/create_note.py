@@ -66,6 +66,21 @@ from obsidian_kb_skill.scripts.vault_paths import (
     validate_vault_root,
 )
 
+# Codes the writer refuses rather than reports. The audit grades twenty codes
+# `defect`, and most of them describe the Vault rather than this note: #159
+# settled that a wikilink to an unwritten note is standard Obsidian usage, and a
+# duplicate project note is about what the Vault already holds. Refusing every
+# defect would make it impossible to create a note that points forward. What is
+# refused here is the narrower class the author clears by rewriting the body —
+# a template that shipped instead of being executed.
+REFUSED_ON_APPLY = frozenset(
+    {
+        "residual-template-instruction",
+        "unresolved-template-placeholder",
+    }
+)
+
+
 def sha256_argument(value: str) -> str:
     """Accept only the canonical digest format emitted by template-contract."""
     if re.fullmatch(r"[0-9a-f]{64}", value) is None:
@@ -795,6 +810,7 @@ def main(argv: list[str] | None = None) -> int:
         "folder": folder,
         "path": str(dest),
         "rendered": rendered,
+        "ok": True,
         "applied": False,
         "dry_run": not args.apply,
         "audit": None,
@@ -1087,6 +1103,41 @@ def main(argv: list[str] | None = None) -> int:
             print_preview(vault, folder, dest, rendered)
             print("(dry run) pass --apply to write the file.")
         return 0
+
+    # Audit the candidate before anything touches the disk. `audit_note_text`
+    # exists for exactly this and was only ever reached from --preflight-json;
+    # the apply path audited the file it had already written, reported
+    # `audit.ok: false`, and returned 0.
+    refused = [
+        finding
+        for finding in audit_note_text(vault, dest, rendered)
+        if finding.code in REFUSED_ON_APPLY
+    ]
+    if refused:
+        error = {
+            "code": "unfinished-template-body",
+            "message": (
+                "the body still holds template scaffolding that should have "
+                "been executed and removed before saving"
+            ),
+            "details": {
+                "path": str(dest),
+                "findings": [
+                    {"code": finding.code, "message": finding.message}
+                    for finding in refused
+                ],
+            },
+        }
+        if json_mode:
+            print(json.dumps({"error": error}, ensure_ascii=False, indent=2))
+        else:
+            print(
+                f"error: {error['code']}: refusing to write {dest.name}",
+                file=sys.stderr,
+            )
+            for finding in refused:
+                print(f"  - {finding.code}: {finding.message}", file=sys.stderr)
+        return 2
 
     if not rendered_body.strip() and not json_mode:
         print("warning: empty body; creating a frontmatter-only note.", file=sys.stderr)

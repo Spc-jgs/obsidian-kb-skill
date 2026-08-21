@@ -1277,3 +1277,109 @@ def test_task_memory_still_initializes_a_real_tasks_folder(tmp_path):
     initialize_task_memory_folder(vault, "Tasks/demo")
 
     assert (vault / "Tasks" / "demo").is_dir()
+
+
+def _apply_with_body(vault: Path, body: str, *extra: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, "-m", "obsidian_kb_skill.scripts.create_note", str(vault),
+         "--type", "insight-note", "--title", "Residue", "--stdin",
+         "--date", "2026-07-09", "--apply", *extra],
+        input=body, capture_output=True, text=True, cwd=ROOT, env=ENV,
+    )
+
+
+TEMPLATE_RESIDUE = (
+    "<!-- 用 2–4 句话区分原文观点与自己的推论 -->\n\n"
+    "正文内容在这里，足够长以通过任何长度检查。\n"
+)
+
+
+def test_apply_refuses_a_body_that_still_holds_its_template_instructions(tmp_path):
+    """The audit knew, in the same call, and the file was on disk anyway.
+
+    On the reference Vault nine notes hold instructions addressed to the Agent —
+    `<!-- 用 2–4 句话区分... -->` is guidance for whoever writes the note, and it
+    shipped as part of the user's note. Every caller that judges by exit code was
+    told the write succeeded.
+    """
+    vault = make_vault(tmp_path)
+
+    r = _apply_with_body(vault, TEMPLATE_RESIDUE)
+
+    assert r.returncode != 0, r.stdout
+    assert not (vault / "30-Insights" / "2026-07-09 Residue.md").exists()
+
+
+def test_a_clean_body_still_applies_and_exits_zero(tmp_path):
+    vault = make_vault(tmp_path)
+
+    r = _apply_with_body(vault, "正文内容在这里，足够长以通过任何长度检查。\n")
+
+    assert r.returncode == 0, r.stderr
+    assert (vault / "30-Insights" / "2026-07-09 Residue.md").is_file()
+
+
+def test_no_audit_skips_the_report_but_not_the_refusal(tmp_path):
+    """Skipping a report is a convenience; skipping the refusal writes a defect.
+
+    `--no-audit` exists to save the post-write pass. Letting it also disable the
+    refusal would make it the flag that writes a known-broken note.
+    """
+    vault = make_vault(tmp_path)
+
+    r = _apply_with_body(vault, TEMPLATE_RESIDUE, "--no-audit")
+
+    assert r.returncode != 0, r.stdout
+    assert not (vault / "30-Insights" / "2026-07-09 Residue.md").exists()
+
+
+def test_a_refusal_uses_the_error_envelope_and_a_write_carries_ok(tmp_path):
+    """`audit.ok` was false while the exit code said success and `ok` was absent.
+
+    #156 asked for a top-level `ok` on both paths. On the refusal path that
+    would contradict the envelope `rules-and-errors.md` pins and
+    `test_error_code_contract.py` enforces, so a refusal keeps the documented
+    `{"error": {...}}` shape and exit 2, and `ok` is added to the success
+    payload where nothing had reported the verdict at all.
+    """
+    vault = make_vault(tmp_path)
+
+    bad = _apply_with_body(vault, TEMPLATE_RESIDUE, "--json")
+    assert bad.returncode == 2
+    assert json.loads(bad.stdout)["error"]["code"] == "unfinished-template-body"
+
+    good = _apply_with_body(vault, "正文足够长以通过任何长度检查。\n", "--json")
+    assert json.loads(good.stdout)["ok"] is True
+    assert good.returncode == 0
+
+
+def test_linking_a_note_that_is_not_written_yet_does_not_block_creation(tmp_path):
+    """`broken-wikilink` is a defect and must not join the refusal set.
+
+    #159 settled that linking an unwritten note is standard Obsidian usage — the
+    unresolved link is how the graph shows a concept worth its own note. Refusing
+    every defect would make it impossible to create a note that points forward.
+    """
+    vault = make_vault(tmp_path)
+
+    r = _apply_with_body(vault, "这篇讲的是 [[CQRS]]，那篇还没写。\n")
+
+    assert r.returncode == 0, r.stdout
+    assert (vault / "30-Insights" / "2026-07-09 Residue.md").is_file()
+
+
+def test_every_refused_code_is_a_defect_the_author_can_fix_by_rewriting(tmp_path):
+    """The refusal set must stay a subset of what the audit calls a defect.
+
+    A code refused on write but graded `hygiene` by the audit would mean the two
+    paths disagree about how bad it is, which is the shape this repo keeps
+    finding. `broken-wikilink` is asserted out by name: it is a defect the audit
+    reports and the writer must not refuse.
+    """
+    from obsidian_kb_skill.scripts.audit_vault import FINDING_SEVERITY
+    from obsidian_kb_skill.scripts.create_note import REFUSED_ON_APPLY
+
+    assert REFUSED_ON_APPLY
+    for code in REFUSED_ON_APPLY:
+        assert FINDING_SEVERITY[code] == "defect", code
+    assert "broken-wikilink" not in REFUSED_ON_APPLY
