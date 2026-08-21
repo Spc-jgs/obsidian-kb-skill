@@ -36,7 +36,7 @@
     "scripts/obsidian_kb_skill/__init__.py": "b6f9cfd724f0d4944bcc4f8d2d04e70c33ff378503cb21498a6d306362901763",
     "scripts/obsidian_kb_skill/scripts/__init__.py": "ea3771d4d955569ada4adce0855760a4ba997fc8b7ab87e3d871f68b9def9ee7",
     "scripts/obsidian_kb_skill/scripts/archive_source.py": "86f71f165358f9caba40b185de0502f099ff43c50332ae5727d592b2354a87eb",
-    "scripts/obsidian_kb_skill/scripts/audit_vault.py": "9c21d597f1c2df58c7710158a8e286433f2213e6762072d7d51eb95a9b81238e",
+    "scripts/obsidian_kb_skill/scripts/audit_vault.py": "c35dbb908033f46f999b657cd5e23c4bd9d0d06efcf90f38def2e84dd84f0bed",
     "scripts/obsidian_kb_skill/scripts/backup_policy.py": "fbab84603bf0ad0dd76914516406cc05701e9bb9e9ae49eca468750be05df90c",
     "scripts/obsidian_kb_skill/scripts/capture_receipt.py": "6c56c2f638316591e39ab911e29d075fd9c53d8921b4f07a9b4cec75893a55c9",
     "scripts/obsidian_kb_skill/scripts/console.py": "6d6eea164e78b50a0126a6cac68dc9ddcec08d2df2b4a9e9a7a8e62ff35ad0af",

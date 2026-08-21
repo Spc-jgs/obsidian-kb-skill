@@ -1074,6 +1074,21 @@ def _note_title(relative: Path, text: str) -> str:
 
 def audit_vault(vault: Path) -> list[Finding]:
     """Return deterministic findings sorted by path, code, and message."""
+    return audit_vault_with_stats(vault)[0]
+
+
+def audit_vault_with_stats(vault: Path) -> tuple[list[Finding], dict[str, int]]:
+    """Return findings plus the population they were found in.
+
+    A finding count carries no meaning without a denominator: 92 findings across
+    20 notes and across 200 notes are different situations, and a report naming
+    only the 92 renders them identically. `search-vault` already emits `scanned`;
+    this is the same number for the audit.
+
+    `scanned` counts the Markdown files enumerated, `audited` the subset that
+    note contracts actually ran over — the two differ by the archived sources
+    under `95-Sources/`, which are captured evidence rather than notes.
+    """
     vault = vault.resolve()
     findings: list[Finding] = []
     _audit_deep_capture_template(findings, vault)
@@ -1091,6 +1106,7 @@ def audit_vault(vault: Path) -> list[Finding]:
     connectivity_notes: list[Path] = []
     entity_instances: dict[tuple[str, str], list[str]] = {}
     markdown = _markdown_files(vault)
+    audited = 0
     for path in markdown:
         relative = path.relative_to(vault)
         # An archived source is evidence, not a note. Its headings, tags, and
@@ -1100,6 +1116,7 @@ def audit_vault(vault: Path) -> list[Finding]:
         # its archive resolves and a deleted archive still breaks loudly.
         if relative.parts and relative.parts[0] == SOURCE_ARCHIVE_FOLDER:
             continue
+        audited += 1
         text = path.read_text(encoding="utf-8")
         metadata, yaml_error = _frontmatter(text)
         if yaml_error:
@@ -1200,7 +1217,10 @@ def audit_vault(vault: Path) -> list[Finding]:
         findings, vault, referenced, indexed, outbound, connectivity_notes
     )
 
-    return sorted(findings, key=lambda item: (item.path, item.code, item.message))
+    return (
+        sorted(findings, key=lambda item: (item.path, item.code, item.message)),
+        {"scanned": len(markdown), "audited": audited},
+    )
 
 
 def _audit_note_content(
@@ -1359,7 +1379,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: not an Obsidian vault: {vault}", file=sys.stderr)
         return 2
     try:
-        findings = audit_vault(vault)
+        findings, stats = audit_vault_with_stats(vault)
     except FolderIndexConfigError as exc:
         if args.json:
             print(json.dumps({"error": {
@@ -1389,7 +1409,13 @@ def main(argv: list[str] | None = None) -> int:
         for finding in findings:
             counts[finding_severity(finding.code)] += 1
         print(json.dumps(
-            {"count": len(findings), "by_severity": counts, "findings": out},
+            {
+                "scanned": stats["scanned"],
+                "audited": stats["audited"],
+                "count": len(findings),
+                "by_severity": counts,
+                "findings": out,
+            },
             ensure_ascii=False, indent=2))
     else:
         # Most severe first, so the list is useful even when it is long.
