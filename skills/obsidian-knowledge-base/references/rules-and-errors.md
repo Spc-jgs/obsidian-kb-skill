@@ -80,7 +80,7 @@ modules, so both Agents can receive these. -->
 
 | Code | Meaning | Do this |
 |---|---|---|
-| `PATH_OUTSIDE_VAULT` | The resolved path escapes the Vault, after following symlinks | Stop. Report the offending parameter. Never retry with a different spelling of the same path |
+| `PATH_OUTSIDE_VAULT` | The resolved path escapes the Vault, after following symlinks | Stop. Report the offending parameter. Never retry with a different spelling of the same path. One exception is `details.param: "--content-file"`: content living outside the Vault is ordinary, so pipe it through `--stdin` instead — never copy it into the Vault to get past this check |
 | `PATH_NOT_FOUND` | An existing-path argument does not exist | Re-resolve the target from the Vault; ask the user if still ambiguous |
 | `INVALID_VAULT_ROOT` | The Vault root is not a usable, in-bounds directory | Stop and re-confirm the Vault path with the user |
 | `invalid-frontmatter` | The frontmatter block exists but the YAML does not parse | Do not fill defaults over it. Show the user the reported line/column and let them fix it |
