@@ -2036,3 +2036,24 @@ def test_dated_matches_only_answers_for_date_prefixed_files():
 
     assert [p.stem for p in index.dated_matches("检索原理")] == ["2026-06-10 检索原理"]
     assert index.dated_matches("别的笔记") == []
+
+
+def test_a_web_clip_dated_with_yamls_own_syntax_is_not_reported_as_undated(tmp_path):
+    """Every earlier web-clip test quoted its date, so this path was never exercised.
+
+    `published: 2026-01-01` without quotes is how YAML spells a date, and it is
+    what an editor writing frontmatter by hand produces. On the reference Vault
+    it made two correctly filled clips report as missing both fields.
+    """
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Clip.md").write_text(
+        "---\ndate: 2026-07-07\ntype: web-clip\n"
+        "tags: [web-clip]\nsource: https://example.com/a\n"
+        "author: Jane\npublished: 2026-01-01\n---\n# Clip\n",
+        encoding="utf-8",
+    )
+
+    found = codes(tmp_path)
+    assert "web-clip-missing-source" not in found
+    assert "web-clip-missing-author" not in found
+    assert "web-clip-missing-published" not in found

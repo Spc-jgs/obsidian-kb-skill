@@ -36,7 +36,7 @@ issue 说「写着『原文未标明』的 web-clip 被报 `web-clip-missing-pub
 
 ## 任务
 
-### 158a — `is_meaningful_metadata` 对非 str 一律判为占位符
+### 158a — `is_meaningful_metadata` 对非 str 一律判为占位符 ✅ 已合并
 
 | | |
 |---|---|
@@ -44,6 +44,7 @@ issue 说「写着『原文未标明』的 web-clip 被报 `web-clip-missing-pub
 | 影响 | 真实 Vault 上 2 篇。YAML 标准的裸日期写法被判成占位符，**填得最规范的反而被罚** |
 | 断言 | 裸日期/裸年份的 web-clip 不报 `web-clip-missing-published`；空串与模板占位符照报 |
 | 停止条件 | 若发现某处依赖「非 str 即无效」，先裁定该处再动 |
+| 结果 | 七个调用点无一依赖它；`capture_receipt.py:901` 的 `str(label)` 反而说明作者预期非 str 合法。真实 Vault 113 → 111，只有那两篇不再被报，其他 finding 一条未变 |
 
 ### 158b — `unknown` 算不算「明确声明缺失」
 
