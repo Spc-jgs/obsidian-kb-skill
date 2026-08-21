@@ -91,13 +91,14 @@ issue 说「写着『原文未标明』的 web-clip 被报 `web-clip-missing-pub
 
 落点定为 `docs/superpowers/specs/2026-08-21-rejected-hypotheses.md`——与 158b 的否定结论同属一类，合并成一份持久记录，给未来的否定结论一个统一去处。
 
-### 154 上半 — `receipt-candidate-mismatch` 为什么没匹配上
+### 154 上半 — `receipt-candidate-mismatch` 为什么没匹配上 ✅ 已修
 
 | | |
 |---|---|
 | 前提 | 需要 grok 可用（见 memory：本项目不跑 codex） |
 | 纪律 | issue 自己要求「先读出实际比对的两个值再改」 |
 | 停止条件 | grok 不可用 → 记录并跳过，不盲改判分器 |
+| 结果 | grok 可用（1.0.5），但**最终不需要跑**。判据静态可证：`receipt_binds_note` 要求 `--from-preflight <note sha>`，而 issue 记录的命令走 `--content-file` + `--capture-receipt-file`，`None != sha` 恒真，永远 continue。假阳性用一条真实形状的断言静态复现 |
 
 ## 顺序
 
