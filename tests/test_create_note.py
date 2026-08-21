@@ -1280,11 +1280,20 @@ def test_task_memory_still_initializes_a_real_tasks_folder(tmp_path):
 
 
 def _apply_with_body(vault: Path, body: str, *extra: str) -> subprocess.CompletedProcess:
+    """Run apply with a body, pinning UTF-8 on both ends of the pipe.
+
+    Windows defaults the child's stdin decoding and its stdout encoding to the
+    ANSI code page, and these are the first create-note tests to send a
+    non-ASCII body. The template comment being refused is Chinese, exactly as it
+    is in the Vault, so an ASCII stand-in would test a different string than the
+    one this refusal exists for.
+    """
     return subprocess.run(
         [sys.executable, "-m", "obsidian_kb_skill.scripts.create_note", str(vault),
          "--type", "insight-note", "--title", "Residue", "--stdin",
          "--date", "2026-07-09", "--apply", *extra],
-        input=body, capture_output=True, text=True, cwd=ROOT, env=ENV,
+        input=body, capture_output=True, text=True, encoding="utf-8",
+        cwd=ROOT, env={**ENV, "PYTHONIOENCODING": "utf-8"},
     )
 
 
