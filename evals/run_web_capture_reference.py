@@ -17,6 +17,7 @@ rather than pinning every future run to it.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 import hashlib
@@ -65,6 +66,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         help="Override the selected agent's default model for every run",
+    )
+    parser.add_argument(
+        "--stop-on-hard-failure",
+        action="store_true",
+        help=(
+            "Stop before the next case once one hard fails. Off by default: a "
+            "hard failure means this run does not count, which the exit code "
+            "already carries, and stopping additionally discards the "
+            "measurement the run existed to collect"
+        ),
     )
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--timeout-seconds", type=int, default=600)
@@ -1251,6 +1262,44 @@ def rescore_messages(directory: Path, cases: list[dict[str, object]]) -> dict[st
     }
 
 
+def run_all_cases(
+    selected: list[dict[str, object]],
+    repeats: int,
+    *,
+    run_one: Callable[[dict[str, object], int], dict[str, object]],
+    jobs: int,
+    stop_on_hard_failure: bool,
+) -> tuple[list[dict[str, object]], str | None]:
+    """Drive every selected case, returning its results and where it stopped.
+
+    `run_one` is injected so the truncation policy can be asserted without
+    paying for an Agent run: the policy is about which cases get measured, not
+    about what an Agent does with any one of them.
+    """
+    results: list[dict[str, object]] = []
+    for case in selected:
+        with ThreadPoolExecutor(max_workers=min(jobs, repeats)) as executor:
+            futures = {}
+            for repeat in range(1, repeats + 1):
+                print(f"START {case['id']} repeat={repeat}", flush=True)
+                futures[executor.submit(run_one, case, repeat)] = repeat
+            case_results = []
+            for future in as_completed(futures):
+                result = future.result()
+                case_results.append(result)
+                print(
+                    f"END {case['id']} repeat={result['repeat']} hard={result['hard_failures']} "
+                    f"soft={result['soft_score']} seconds={result['duration_seconds']}",
+                    flush=True,
+                )
+        results.extend(sorted(case_results, key=lambda item: item["repeat"]))
+        if any(result["hard_failures"] for result in case_results):
+            if stop_on_hard_failure:
+                print("STOP hard gate failed; later evaluation is blocked", flush=True)
+                return results, str(case["id"])
+    return results, None
+
+
 def main() -> int:
     args = parse_args()
     fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
@@ -1295,35 +1344,15 @@ def main() -> int:
         raise SystemExit("--timeout-seconds must be positive")
     output_dir = args.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-    results: list[dict[str, object]] = []
-    for case in selected:
-        with ThreadPoolExecutor(max_workers=min(args.jobs, repeats)) as executor:
-            futures = {}
-            for repeat in range(1, repeats + 1):
-                print(f"START {case['id']} repeat={repeat}", flush=True)
-                future = executor.submit(
-                    run_case,
-                    case,
-                    repeat,
-                    output_dir,
-                    model,
-                    args.timeout_seconds,
-                    backend,
-                )
-                futures[future] = repeat
-            case_results = []
-            for future in as_completed(futures):
-                result = future.result()
-                case_results.append(result)
-                print(
-                    f"END {case['id']} repeat={result['repeat']} hard={result['hard_failures']} "
-                    f"soft={result['soft_score']} seconds={result['duration_seconds']}",
-                    flush=True,
-                )
-        results.extend(sorted(case_results, key=lambda item: item["repeat"]))
-        if any(result["hard_failures"] for result in case_results):
-            print("STOP hard gate failed; later evaluation is blocked", flush=True)
-            break
+    results, stopped_after = run_all_cases(
+        selected,
+        repeats,
+        run_one=lambda case, repeat: run_case(
+            case, repeat, output_dir, model, args.timeout_seconds, backend
+        ),
+        jobs=args.jobs,
+        stop_on_hard_failure=args.stop_on_hard_failure,
+    )
 
     summary = {
         "schema_version": 1,
@@ -1336,6 +1365,10 @@ def main() -> int:
         "timeout_seconds": args.timeout_seconds,
         "planned_runs": len(selected) * repeats,
         "completed_runs": len(results),
+        # A mean over a truncated run is a mean of what got measured. Naming the
+        # case that ended it keeps a number covering 5 of 12 cases from reading
+        # exactly like one covering all 12.
+        "stopped_after_case": stopped_after,
         "hard_failure_count": sum(len(result["hard_failures"]) for result in results),
         "mean_soft_score": round(mean(result["soft_score"] for result in results), 4),
         "worst_soft_score": min(result["soft_score"] for result in results),

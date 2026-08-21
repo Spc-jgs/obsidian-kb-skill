@@ -1210,3 +1210,108 @@ def test_the_other_two_repaired_claims_still_separate_assertion_from_record():
         "works-on-windows"
     ]
     assert forbidden_assertions("本次复现未测试 Windows、多节点与故障恢复。", reproduction) == []
+
+
+def counting_runner(hard_failing: set[str]):
+    """A `run_one` that records what it was asked to run and never starts an Agent."""
+    attempted: list[tuple[str, int]] = []
+
+    def run_one(case: dict[str, object], repeat: int) -> dict[str, object]:
+        attempted.append((str(case["id"]), repeat))
+        return {
+            "case": case["id"],
+            "repeat": repeat,
+            "hard_failures": (
+                ["forbidden-claim"] if case["id"] in hard_failing else []
+            ),
+            "soft_score": 0.5 if case["id"] in hard_failing else 1.0,
+            "duration_seconds": 0.0,
+        }
+
+    return run_one, attempted
+
+
+THREE_CASES = [{"id": "first"}, {"id": "second"}, {"id": "third"}]
+
+
+def test_a_baseline_measures_every_case_even_after_a_hard_failure():
+    """A hard gate says this run does not count, not that the rest is unmeasurable.
+
+    The 2026-08-18 baseline stopped at 15 of 36 runs because an early case hard
+    failed, so each defect fixed bought only 3-15 runs of evidence. The exit code
+    already carries "this run does not count"; stopping additionally discards the
+    measurement the run existed to collect.
+    """
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    run_one, attempted = counting_runner({"first"})
+
+    results, stopped_after = namespace["run_all_cases"](
+        THREE_CASES, 2, run_one=run_one, jobs=1, stop_on_hard_failure=False
+    )
+
+    assert [case for case, _ in attempted] == [
+        "first", "first", "second", "second", "third", "third",
+    ]
+    assert len(results) == 6
+    assert stopped_after is None
+
+
+def test_stopping_early_names_the_case_so_a_partial_mean_is_not_read_as_whole():
+    """`mean_soft_score` over a truncated run is a mean of what got measured.
+
+    Nothing in the summary said which case ended the run, so a number covering
+    5 of 12 cases read exactly like one covering all 12.
+    """
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    run_one, attempted = counting_runner({"second"})
+
+    results, stopped_after = namespace["run_all_cases"](
+        THREE_CASES, 2, run_one=run_one, jobs=1, stop_on_hard_failure=True
+    )
+
+    assert [case for case, _ in attempted] == ["first", "first", "second", "second"]
+    assert len(results) == 4
+    assert stopped_after == "second"
+
+
+def test_every_repeat_of_a_failing_case_is_kept_in_order():
+    """Truncation is between cases; the failing case's own repeats all count."""
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    run_one, _ = counting_runner({"first"})
+
+    results, _ = namespace["run_all_cases"](
+        THREE_CASES, 3, run_one=run_one, jobs=1, stop_on_hard_failure=True
+    )
+
+    assert [item["repeat"] for item in results] == [1, 2, 3]
+    assert all(item["case"] == "first" for item in results)
+
+
+def test_a_run_is_not_truncated_unless_the_caller_asks_for_it(monkeypatch):
+    """The default is the decision this flag exists to record.
+
+    Nothing automated drives this runner — CI does not call it — so truncation
+    only ever saved a human's Agent budget, and what it spent to save it was the
+    baseline. Flipping the default back would be silent without this.
+    """
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+    monkeypatch.setattr(
+        "sys.argv", ["run_web_capture_reference.py", "--output-dir", "/tmp/unused"]
+    )
+
+    args = namespace["parse_args"]()
+
+    assert args.stop_on_hard_failure is False
+
+
+def test_the_summary_names_the_case_that_ended_a_truncated_run():
+    """`mean_soft_score` carries no hint of its own coverage.
+
+    `planned_runs` and `completed_runs` differ on a truncated run, but neither
+    says which case ended it, and the mean is reported under the same key either
+    way.
+    """
+    source = RUNNER.read_text(encoding="utf-8")
+
+    assert '"stopped_after_case": stopped_after,' in source
+    assert "stopped_after" in source.split("def main()")[1].split("summary = {")[0]
