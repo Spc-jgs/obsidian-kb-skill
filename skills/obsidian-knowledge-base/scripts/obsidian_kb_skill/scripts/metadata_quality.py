@@ -1,6 +1,7 @@
 """Mechanical metadata-quality checks shared by create and audit paths."""
 from __future__ import annotations
 
+import datetime
 import re
 import unicodedata
 from typing import Any
@@ -40,12 +41,21 @@ COMPOUND_PLACEHOLDER_RE = re.compile(
 )
 
 
+# YAML resolves `published: 2026-08-13` to a date and `published: 2025` to an
+# int; only the quoted forms arrive as `str`. Rejecting every non-`str` therefore
+# graded a note by whether its author quoted a date, and reported the two
+# reference-Vault clips that used YAML's own syntax as missing the field they
+# had filled in. `bool` is listed to be excluded: it is a subclass of `int`, and
+# `published: true` is YAML accepting a typo rather than recording a date.
+MEANINGFUL_SCALARS = (str, int, float, datetime.date)
+
+
 def is_meaningful_metadata(value: Any) -> bool:
     """Return whether a required metadata value is more than a vague placeholder."""
-    if not isinstance(value, str):
+    if isinstance(value, bool) or not isinstance(value, MEANINGFUL_SCALARS):
         return False
     normalized = " ".join(
-        unicodedata.normalize("NFKC", value).strip().lower().split()
+        unicodedata.normalize("NFKC", str(value)).strip().lower().split()
     )
     if not normalized or normalized in PLACEHOLDER_VALUES:
         return False

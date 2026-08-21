@@ -51,7 +51,7 @@
     "scripts/obsidian_kb_skill/scripts/frontmatter.py": "85b676f3ba0043d6d32485f1c47fb339e9c9d5f8672845b7c3cae46dfb539c83",
     "scripts/obsidian_kb_skill/scripts/index_templates.py": "27171d2cd9acb06ef1749006c87a9899676849811e7612752db43abbbc52d28c",
     "scripts/obsidian_kb_skill/scripts/link_graph.py": "19b9992973490da720da768e500534448934d9244746e98167df26da1bfa5c92",
-    "scripts/obsidian_kb_skill/scripts/metadata_quality.py": "2768d0de3cc1ee215d69515a30d67a5f6c1587e76a42110fbd9fb7880849e86b",
+    "scripts/obsidian_kb_skill/scripts/metadata_quality.py": "8c0192b2cdcdec53bfd9786c7f67c0176079fb5f6f2a83d292a021062536e478",
     "scripts/obsidian_kb_skill/scripts/note_catalog.py": "61c22a817990a89f3881293fba6926ad1cf5955ad7010102b0dbccb1d06be5a8",
     "scripts/obsidian_kb_skill/scripts/note_types.py": "3f56c0f7946073474ba93a64735fe024a35eceb6d868a93dd3a3515e3d8823b2",
     "scripts/obsidian_kb_skill/scripts/preflight_cache.py": "6de69f93c8e1c78293c261bf7ce30c4afd92758f64d5bbff2d402d368a31915a",
