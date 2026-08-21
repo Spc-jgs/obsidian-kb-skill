@@ -25,7 +25,7 @@
       "type": "learning-note",
       "family": "retry-evidence",
       "body": "重试策略采用指数退避，jitter 上限固定为 800 毫秒，超过上限的抖动会被截断。The retry budget is consumed per attempt, not per request.",
-      "filler_paragraphs": 120
+      "filler_paragraphs": 60
     },
     {
       "path": "20-Learning/retry/backoff-manual.md",
@@ -39,7 +39,7 @@
       "family": "retry-evidence",
       "body": "重试策略采用指数退避，jitter 上限固定为 800 毫秒，超过上限的抖动会被截断。The retry budget is consumed per attempt, not per request.",
       "late_body": "退避上限在每季度的容量复核里重新核定，核定结论写在本节而不是开头。",
-      "filler_paragraphs": 120,
+      "filler_paragraphs": 60,
       "filler_sections": 30
     },
     {
@@ -264,6 +264,32 @@
       "family": "cache-evidence",
       "body": "缓存击穿的处理：热点键过期瞬间会有大量请求直接打到数据库。解决办法是给热点键加互斥重建锁，重建期间其他请求读旧值。缓存击穿与缓存雪崩不同，雪崩是大批键同时过期，击穿是单个热点键。",
       "filler_paragraphs": 40
+    },
+    {
+      "path": "20-Learning/db/phantom-brief.md",
+      "title": "幻读与间隙锁要点",
+      "aliases": [],
+      "tags": [
+        "database"
+      ],
+      "date": "2026-07-01",
+      "type": "learning-note",
+      "family": "detail-gap",
+      "body": "## 核心观点\n\n- **幻读**：同一事务内两次范围查询，第二次多出了别的事务插入的行。\n- **间隙锁**：可重复读隔离级别下，间隙锁锁住索引记录之间的范围，新插入的行无法落进这个范围，幻读因此被阻止。\n- 间隙锁只在可重复读生效，读已提交隔离级别下间隙锁被关闭，幻读会重新出现。\n",
+      "filler_paragraphs": 0
+    },
+    {
+      "path": "20-Learning/db/phantom-full.md",
+      "title": "幻读是怎么被间隙锁挡住的",
+      "aliases": [],
+      "tags": [
+        "database"
+      ],
+      "date": "2026-07-02",
+      "type": "learning-note",
+      "family": "detail-gap",
+      "body": "## 来源与结论\n\n- **一句话结论**：可重复读隔离级别下，间隙锁把索引记录之间的空隙一并锁住，别的事务无法在这个范围里插入新行，幻读因此不会发生。\n\n## 问题、前提与适用边界\n\n幻读指的是同一个事务里两次执行相同的范围查询，第二次查询多出了若干行，而这些行是别的事务在两次查询之间插入并提交的。它与不可重复读不同：不可重复读是已有行的内容变了，幻读是行数变了。\n\n前提是隔离级别为可重复读。读已提交隔离级别下间隙锁被关闭，因此在读已提交下幻读依然会出现，这不是缺陷而是该隔离级别的定义。\n\n## 核心知识与原理\n\n间隙锁锁的不是某一行，而是索引记录之间的开区间。当一个事务执行范围查询并持有间隙锁时，任何试图把新行插入这个区间的事务都会被阻塞，直到持锁事务提交或回滚。\n\n这解释了为什么幻读能被阻止：幻读的成因是新行落进了已经被读过的范围，而间隙锁让这个范围在事务期间无法被插入。\n\n需要区分三种锁：记录锁只锁索引记录本身；间隙锁只锁记录之间的空隙；临键锁是两者的组合，锁住记录以及它前面的空隙。可重复读下的范围查询默认加的是临键锁。\n\n## 具体做法与示例\n\n假设表中已有 id 为 10 和 20 的两行，事务 A 执行范围查询后，id 在 10 到 20 之间的空隙被锁住：\n\n```sql\n-- 事务 A：可重复读\nbegin;\nselect * from t where id between 10 and 20 for update;\n\n-- 事务 B：这一句会被阻塞，直到事务 A 结束\ninsert into t(id) values (15);\n```\n\n事务 B 的插入被阻塞，正是间隙锁在起作用。若把隔离级别降为读已提交，事务 B 会立即成功，事务 A 再查一次就会看到 id 为 15 的新行，也就是发生了幻读。\n\n## 验证、风险与限制\n\n验证方法是开两个会话按上面的顺序执行，观察第二个会话是否阻塞。\n\n风险在于间隙锁的范围可能比预期大：如果范围查询没有走索引，锁定的空隙会扩大到整张表，并发写入会大面积阻塞。\n\n限制是间隙锁只解决幻读，不解决写倾斜这类需要更强隔离的场景。\n",
+      "filler_paragraphs": 0
     }
   ],
   "queries": [
@@ -577,6 +603,20 @@
         "30-Insights/throttle-conclusion.md"
       ],
       "demonstrates": "a phrase from one note, a question no note answers"
+    },
+    {
+      "id": "adv-dilution-06",
+      "group": "dilution",
+      "query": "幻读 间隙锁 可重复读",
+      "expected": [
+        "20-Learning/db/phantom-full.md",
+        "20-Learning/db/phantom-brief.md"
+      ],
+      "must_see": [
+        "20-Learning/db/phantom-full.md"
+      ],
+      "hard_negatives": [],
+      "demonstrates": "a length gap that comes from detail rather than filler, at the scale the reference Vault actually holds. Neither note carries filler; the longer one expands the same subject into rationale, runnable SQL and limits, and carries more than twice the query terms. It loses to the summary on a keyword-dense query. The five same-source note pairs measured on the reference Vault span 1.5x-10.1x, so this 4.9x pair is the everyday shape - the existing dilution family is asserted at >50x, which that Vault never produces."
     }
   ]
 }

@@ -399,6 +399,37 @@ def test_a_long_note_is_long_the_way_real_long_notes_are(tmp_path):
     )
 
 
+# BM25 penalises a document by its length *relative to the corpus mean*, so the
+# mean decides which notes are penalised at all. Measured on the reference Vault
+# (193 notes, excluding `95-Sources`, `Templates` and the backup directory): mean
+# 4247 bytes, median 2390, and 84% of notes under 8 KB. The set shipped with two
+# 76 KB notes which alone held 97% of its bytes and put the mean at 8464 — double
+# the real one. Every everyday note then sat far below the mean and took no
+# penalty, which is why `adv-dilution-06` could not be observed here at all: it
+# ranked first in the set while its real-Vault counterpart ranked second.
+MAX_CORPUS_MEAN_BYTES = 6_000
+
+
+def test_the_corpus_mean_length_stays_near_the_reference_vault(tmp_path):
+    """A mean far above the real one silently disables the length penalty.
+
+    This is not about any one case. The mean is global, so a corpus built around
+    outliers measures a ranker nobody runs — every note under it is graded as if
+    length normalisation were off.
+    """
+    fixture = _load(FIXTURE)
+    vault = _build_vault(tmp_path, fixture)
+
+    sizes = [path.stat().st_size for path in vault.rglob("*.md")]
+    mean = sum(sizes) // len(sizes)
+
+    assert mean <= MAX_CORPUS_MEAN_BYTES, (
+        f"corpus mean is {mean} bytes against the reference Vault's 4247; above "
+        f"{MAX_CORPUS_MEAN_BYTES} the everyday 2-8 KB notes stop being penalised "
+        "and this set can no longer observe how they rank"
+    )
+
+
 # --- The frozen baseline ----------------------------------------------------
 
 

@@ -1,13 +1,14 @@
 {
   "schema_version": 1,
-  "recorded_against": "70b820fcc43807b02e9666abde91e340791c33c7",
+  "recorded_against": "0fd3b76555de577f6c1024c02cb209ea7e15d7a7",
   "note": "Outcome of the current ranker, not a statement that it is correct. See tests/test_retrieval_adversarial_eval.py.",
   "known_limitations": {
     "no-top-k-diversity": "adv-crowding-01: five near-identical dailies take all five slots and the note holding the conclusion does not appear. Top-K selection does not consider redundancy.",
     "expansion-reintroduces-ambiguity": "adv-ambiguity-01/02/03: 代理 is in AMBIGUOUS_TERMS and expands into both the agent and proxy concepts. adv-ambiguity-03 shows this is not only a query-time problem: the unambiguous 智能体 expands to 代理, which then matches 反向代理 in the other reading.",
     "term-overlap-is-treated-as-evidence": "every no-answer case returns hits. A query sharing one strong term with a note produces that note, with no notion of insufficient evidence. The stable corpus scores 1.0 here because its no-answer queries share nothing with any note.",
     "title-weight-outranks-the-answer": "adv-field-01/03: a stub whose title matches ranks above the note that answers the question. FIELD_WEIGHTS[title] is 6x body.",
-    "section-length-normalisation": "adv-dilution-01: section-level ranking (#118) brings the sectioned 75 KB note into Top-5 at rank 2 and leaves the unstructured one absent, which is the measurement working — a section can compete on its own evidence only where sections exist. What remains is that the unstructured shape has no remedy here at all: one heading means one passage, and no split can help it. adv-dilution-05 still returns a short note that names the terms and says it does not cover them, above the section that answers, because term overlap is still treated as evidence — see below."
+    "section-length-normalisation": "adv-dilution-01: section-level ranking (#118) brings the sectioned 75 KB note into Top-5 at rank 2 and leaves the unstructured one absent, which is the measurement working — a section can compete on its own evidence only where sections exist. What remains is that the unstructured shape has no remedy here at all: one heading means one passage, and no split can help it. adv-dilution-05 still returns a short note that names the terms and says it does not cover them, above the section that answers, because term overlap is still treated as evidence — see below. The long notes were resized from 76 KB to 38 KB in the same change that added adv-dilution-06; only adv-dilution-05's family_occupancy moved, because every other note in the set sits far below the mean either way.",
+    "detail-gap-loses-to-the-summary": "adv-dilution-06: two notes on one subject, neither padded, 491 vs 2404 bytes. The longer one expands the same material into rationale, runnable SQL and limits and carries more than twice the query terms; on a keyword-dense query it ranks second. A natural-language phrasing of the same question puts it first, so the failure is specific to term-dense queries. This shape was previously unobservable here: the dilution family's long notes were 76 KB, which put the corpus mean at 8464 bytes and left a 2.4 KB note far below it, unpenalised. They are now 38 KB, near the reference Vault's second and third largest notes (32.5 KB), and the mean is 5366 against that Vault's 4247."
   },
   "cases": [
     {
@@ -48,14 +49,15 @@
     {
       "id": "adv-dilution-03",
       "group": "dilution",
-      "returned": 3,
+      "returned": 4,
       "rank": 1,
       "must_see_missing": [],
       "must_see_ranks": {
-        "20-Learning/retry/backoff-handbook.md": 3
+        "20-Learning/retry/backoff-handbook.md": 4
       },
       "hard_negative_hits": [],
       "family_occupancy": {
+        "detail-gap": 1,
         "retry-evidence": 3
       }
     },
@@ -73,9 +75,9 @@
       ],
       "family_occupancy": {
         "agent-reading": 1,
+        "detail-gap": 1,
         "retry-evidence": 2,
-        "retry-passing-mention": 1,
-        "throttle-summary": 1
+        "retry-passing-mention": 1
       }
     },
     {
@@ -227,7 +229,7 @@
     {
       "id": "adv-field-01",
       "group": "field",
-      "returned": 2,
+      "returned": 3,
       "rank": 2,
       "must_see_missing": [],
       "must_see_ranks": {
@@ -236,7 +238,8 @@
       "hard_negative_hits": [],
       "family_occupancy": {
         "cache-evidence": 1,
-        "cache-stub": 1
+        "cache-stub": 1,
+        "detail-gap": 1
       }
     },
     {
@@ -377,6 +380,21 @@
         "retry-passing-mention": 1,
         "throttle-summary": 1
       }
+    },
+    {
+      "id": "adv-dilution-06",
+      "group": "dilution",
+      "returned": 3,
+      "rank": 1,
+      "must_see_missing": [],
+      "must_see_ranks": {
+        "20-Learning/db/phantom-full.md": 2
+      },
+      "hard_negative_hits": [],
+      "family_occupancy": {
+        "detail-gap": 2,
+        "proxy-reading": 1
+      }
     }
   ],
   "aggregate": {
@@ -396,9 +414,9 @@
         "hard_negative_hits": 0
       },
       "dilution": {
-        "cases": 5,
+        "cases": 6,
         "recall_at_5": 1.0,
-        "mrr": 0.9,
+        "mrr": 0.917,
         "must_see_misses": 1,
         "hard_negative_hits": 1
       },
@@ -419,6 +437,6 @@
     },
     "no_answer_false_positive_rate": 1.0,
     "cases_reproducing_a_limitation": 13,
-    "cases": 23
+    "cases": 24
   }
 }
