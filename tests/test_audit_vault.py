@@ -2057,3 +2057,81 @@ def test_a_web_clip_dated_with_yamls_own_syntax_is_not_reported_as_undated(tmp_p
     assert "web-clip-missing-source" not in found
     assert "web-clip-missing-author" not in found
     assert "web-clip-missing-published" not in found
+
+
+def _island(vault: Path, name: str, note_type: str, published: str = "'2026-01-01'") -> None:
+    """A note reachable only through its folder index, linking nowhere."""
+    topic = vault / "Topic"
+    topic.mkdir(exist_ok=True)
+    (topic / "Topic.md").write_text(
+        "---\ntype: folder-index\ntags: [moc]\n---\n"
+        "```folder-index-content\n```\n",
+        encoding="utf-8",
+    )
+    extra = (
+        f"source: https://example.com/a\nauthor: Jane\npublished: {published}\n"
+        if note_type == "web-clip"
+        else ""
+    )
+    (topic / name).write_text(
+        f"---\ndate: '2026-07-07'\ntype: {note_type}\ntags: [x]\n{extra}---\n"
+        "# Island\n\nProse with no links at all.\n",
+        encoding="utf-8",
+    )
+
+
+def test_a_web_clip_that_links_nowhere_is_not_reported_as_disconnected(tmp_path):
+    """A fresh clip has not been digested yet; that is not a defect in the clip.
+
+    On the reference Vault 16 of 23 `disconnected-note` findings were web-clips,
+    none older than 44 days, and `suggest-directed-links` produced **0** candidates
+    across all 23 — so the finding could not be made actionable. 20 of the 23 were
+    already reported by `review-captures`, which asks the stronger question: not
+    "is it linked" but "was it ever opened again".
+    """
+    (tmp_path / ".obsidian").mkdir()
+    _island(tmp_path, "Clip.md", "web-clip")
+
+    assert "disconnected-note" not in codes(tmp_path)
+
+
+def test_a_note_the_user_wrote_is_still_reported_when_it_connects_to_nothing(tmp_path):
+    """The exemption is per type, not a retreat from the finding."""
+    (tmp_path / ".obsidian").mkdir()
+    _island(tmp_path, "Thought.md", "insight-note")
+
+    assert "disconnected-note" in codes(tmp_path)
+
+
+def test_an_exempt_clip_is_still_audited_for_everything_else(tmp_path):
+    """Exempting one finding must not quietly exempt the note from the audit."""
+    (tmp_path / ".obsidian").mkdir()
+    _island(tmp_path, "Clip.md", "web-clip", published="''")
+
+    found = codes(tmp_path)
+    assert "web-clip-missing-published" in found
+    assert "disconnected-note" not in found
+
+
+def test_a_type_exempted_from_connectivity_is_still_watched_somewhere():
+    """Exempting web-clip is only safe because `review-captures` asks about it.
+
+    `disconnected-note` stopped reporting web-clips on the argument that 20 of
+    the 23 reference-Vault findings were already reported by `review-captures`,
+    which asks the stronger question. Drop `web-clip` from `CAPTURE_TYPES` and
+    neither reports it: the note goes unwatched and the argument for this
+    exemption has expired without anything saying so.
+
+    Periodic reports are excluded from the check — they are written once by
+    design and are nobody's backlog.
+    """
+    from obsidian_kb_skill.scripts.audit_vault import (
+        PERIODIC_TYPES,
+        UNCONNECTED_BY_DESIGN,
+    )
+    from obsidian_kb_skill.scripts.review_captures import CAPTURE_TYPES
+
+    watched_elsewhere = UNCONNECTED_BY_DESIGN - PERIODIC_TYPES
+    assert watched_elsewhere, "the exemption set is only periodic types"
+    for note_type in watched_elsewhere:
+        assert note_type in CAPTURE_TYPES, note_type

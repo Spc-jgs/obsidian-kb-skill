@@ -153,6 +153,14 @@ def finding_severity(code: str) -> str:
 # of the 57 notes with no links at all — reporting them would bury the 21 that
 # actually went nowhere.
 PERIODIC_TYPES = {"daily-report", "weekly-report"}
+# Types for which `disconnected-note` measures the wrong thing. A periodic
+# report is written once by design. A web-clip is material that has not been
+# digested yet, and on the reference Vault it was 16 of 23 findings, none older
+# than 44 days — the state clears itself. `suggest-directed-links` produced 0
+# candidates across all 23, so the finding could not be made actionable either,
+# and `review-captures` already reported 20 of them by asking the stronger
+# question: not whether a capture is linked, but whether it was ever reopened.
+UNCONNECTED_BY_DESIGN = PERIODIC_TYPES | {"web-clip"}
 # Findings that describe vault-wide consistency (not a defect of any single note).
 # Excluded from audit_note() so a post-write self-check only reports issues in the
 # note that was just written.
@@ -1151,7 +1159,7 @@ def audit_vault(vault: Path) -> list[Finding]:
             and metadata.get("type") != "daily-note"
         ):
             candidate_notes.append(path)
-            if metadata.get("type") not in PERIODIC_TYPES:
+            if metadata.get("type") not in UNCONNECTED_BY_DESIGN:
                 connectivity_notes.append(path)
 
     for folder in sorted(path for path in vault.rglob("*") if path.is_dir()):

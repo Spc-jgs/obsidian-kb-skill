@@ -77,7 +77,7 @@ issue 说「写着『原文未标明』的 web-clip 被报 `web-clip-missing-pub
    `test_error_code_contract.py` 强制它。裁定：拒绝走既有 envelope + exit 2，
    顶层 `ok` 加在成功载荷上——那里此前根本没有任何字段报告判定结果。
 
-### 157 — disconnected-note 只报不建议
+### 157 — disconnected-note 只报不建议 ✅ 已裁定并实施
 
 | | |
 |---|---|
@@ -85,6 +85,7 @@ issue 说「写着『原文未标明』的 web-clip 被报 `web-clip-missing-pub
 | 倾向 | 数据支持 issue 自己预判的「降级或按类型豁免」，不支持「配建议」 |
 | 仍需 | 验收标准要求给出 `suggest-directed-links` 在这 23 篇上的逐篇候选数 |
 | 停止条件 | 若候选数意外地高，「豁免」的前提就不成立，回到「配建议」并记录 |
+| 结果 | **23 篇全部 0 候选**——「配建议」这一支被数据否掉，正如 issue 自己的预判。另测得 23 篇全部 ≤44 天（中位 27），且 20/23 已被 `review-captures` 以更强的问题覆盖。裁定：豁免 web-clip。真实 Vault 111 → 95，`disconnected-note` 23 → 7 |
 
 ### 159 — 记录被数据否掉的断链假设 ✅ 已落文档
 
