@@ -13,8 +13,17 @@ import pytest
 
 from obsidian_kb_skill.scripts.audit_vault import audit_vault
 
+import build
+
 
 ROOT = Path(__file__).resolve().parent.parent
+# The version these assert is the repository's, read from the one place
+# that declares it. Spelling it out here made three test files part of the
+# release checklist for no benefit: they do not verify *which* version was
+# released, they verify the installed artifact carries the same one the
+# repository does — and that is stronger read from the source than from a
+# literal that has to be remembered.
+PROJECT_VERSION = build.project_version()
 
 
 @pytest.fixture(autouse=True)
@@ -610,7 +619,7 @@ def test_bash_workbuddy_install_is_complete_and_manifested(tmp_path):
     installed = _workbuddy_skill(home)
     assert _payload_hashes(installed) == expected
     manifest = json.loads((installed / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == "1.35.0"
+    assert manifest["version"] == PROJECT_VERSION
 
 
 def test_windows_smoke_exercises_installed_runner_from_hostile_cwd():

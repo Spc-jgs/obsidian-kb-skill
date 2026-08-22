@@ -10,7 +10,16 @@ import pytest
 
 from obsidian_kb_skill.scripts import doctor
 
+import build
 
+
+# The version these assert is the repository's, read from the one place
+# that declares it. Spelling it out here made three test files part of the
+# release checklist for no benefit: they do not verify *which* version was
+# released, they verify the installed artifact carries the same one the
+# repository does — and that is stronger read from the source than from a
+# literal that has to be remembered.
+PROJECT_VERSION = build.project_version()
 ROOT = Path(__file__).resolve().parents[1]
 STANDARD_SKILL = ROOT / "skills" / "obsidian-knowledge-base"
 RETRIEVAL_SKILL = ROOT / "skills" / "obsidian-knowledge-retrieval"
@@ -48,7 +57,7 @@ def test_doctor_accepts_complete_installed_skill(tmp_path):
     result = doctor.inspect_installation(skill, home)
 
     assert result["ok"] is True
-    assert result["version"] == "1.35.0"
+    assert result["version"] == PROJECT_VERSION
     assert result["skill"] == "obsidian-knowledge-base"
     assert "create_category" in doctor.HELPER_MODULES
     assert "capture_receipt" in doctor.HELPER_MODULES
@@ -76,7 +85,7 @@ def test_doctor_accepts_retrieval_profile_without_write_modules(tmp_path):
     result = doctor.inspect_installation(skill, home)
 
     assert result["ok"] is True
-    assert result["version"] == "1.35.0"
+    assert result["version"] == PROJECT_VERSION
     assert result["skill"] == "obsidian-knowledge-retrieval"
     assert "search_vault" in doctor.PROFILE_CONFIG[result["skill"]]["modules"]
     assert "create_note" not in doctor.PROFILE_CONFIG[result["skill"]]["modules"]
