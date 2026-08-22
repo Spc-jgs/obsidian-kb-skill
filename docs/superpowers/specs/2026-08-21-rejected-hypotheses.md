@@ -129,7 +129,7 @@ of a note's sections are nearly empty — should separate them.
 **Criterion tried.** Split the body at headings, count sections whose non-whitespace
 content is under 20 characters, and report notes where that fraction is high.
 
-**How it died.** Measured over the 113 notes with at least three sections:
+**How it died.** Measured over the 113 notes that carry at least three headings at level 2 or deeper, excluding `Templates/`, `95-Sources/` and `.obsidian-kb-backups/` (that scope is what makes the count reproducible — a reviewer who included or dropped a different folder got 108, 111, 116 and 119):
 
 ```
 71%  5/7   15-Daily/2026-07-07.md

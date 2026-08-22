@@ -2279,3 +2279,25 @@ def test_a_web_clip_source_must_still_be_text(tmp_path):
     # The date and the author are fine; only `source` is being judged here.
     assert "web-clip-missing-published" not in found
     assert "web-clip-missing-author" not in found
+
+
+def test_the_text_report_carries_the_denominator_too(tmp_path):
+    """A person runs the text mode; the JSON one is for callers.
+
+    #173 added `scanned`/`audited` to `--json` only, so the rendering a human
+    actually reads still said `92 finding(s)` with nothing to divide it by.
+    """
+    import os
+    import subprocess
+    import sys
+
+    vault = _vault_with_archive_and_backup(tmp_path)
+    root = Path(__file__).resolve().parent.parent
+
+    result = subprocess.run(
+        [sys.executable, "-m", "obsidian_kb_skill.scripts.audit_vault", str(vault)],
+        capture_output=True, text=True, encoding="utf-8", cwd=root,
+        env={**os.environ, "PYTHONPATH": str(root)},
+    )
+
+    assert "across 3 note(s)" in result.stdout, result.stdout
