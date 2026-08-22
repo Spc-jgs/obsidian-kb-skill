@@ -2,6 +2,54 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.35.0] - 2026-08-21
+
+### Changed
+
+- **`create-note --apply` now refuses a body that still holds template scaffolding**, exits 2, and writes nothing. Nine notes on the reference Vault carry an instruction addressed to whoever writes them — `<!-- 用 2–4 句话区分原文观点与自己的推论 -->` is guidance for the Agent, and it shipped as part of the user's note. The post-write audit already knew, in the same call, and the file was on disk anyway with exit 0 and no top-level field reporting the verdict: every caller that judges by exit code was told the write succeeded.
+
+  The refusal set is **not** every `defect`. Of the twenty codes graded that way, most describe the Vault rather than this note, and refusing them all would forbid writing a note that points forward — `broken-wikilink` is a defect, and linking an unwritten note is standard Obsidian usage. What is refused is the narrower class the author clears by rewriting the body, and an assertion names `broken-wikilink` as excluded so the boundary cannot drift.
+
+  `--no-audit` skips the post-write report, not this refusal. Letting it through would make that flag the one that writes a known-broken note. The new code is `unfinished-template-body`, documented in the refusal table with what to do next.
+
+- `PATH_OUTSIDE_VAULT` tells an Agent what to do instead. The containment boundary is right to reject a `--content-file` outside the Vault, but content living outside the Vault is ordinary, and the action column said only "Stop". `note-creation.md` had the answer — pipe it through `--stdin` — in a different file from the one an Agent reads when a helper refuses. The row now carries that branch, keyed on `details.param`, and says explicitly not to copy the file into the Vault to get past the check. That evasion is not hypothetical: a recorded run staged its body inside the workspace, and a second gate then punished it for the shape.
+
+### Added
+
+- `review-captures` asks the question none of the other measurements ask: was this capture ever opened again? Every other check grades whether a capture is *faithful*. On the reference Vault 55 of 94 captures were written and never reopened, and the rate differs threefold by type — `learning-note` 0.75, `insight-note` 0.31, `web-clip` 0.275. Evidence is git history where the Vault is a repository and file mtime otherwise, and the report says which it used, because the two are not equally exact.
+
+- The audit reports a denominator. `count` counts findings, not notes, and 92 findings across 20 notes and across 200 read identically. Both renderings now carry it: `scanned` (Markdown files enumerated) and `audited` (the subset note contracts ran over — they differ by the archived sources under `95-Sources/`, which are captured evidence rather than notes).
+
+- `broken-wikilink` says what to write when it can. Where the target exists under a `YYYY-MM-DD ` prefix, the message gives the link to use. Four of the reference Vault's 24 became immediately actionable; the other twenty are unchanged, and why they cannot be is recorded rather than guessed at (below).
+
+### Fixed
+
+- **Findings on the reference Vault fell from 113 to 92, and every one removed was a false positive.**
+
+  - YAML resolves `published: 2026-08-13` to `datetime.date` and only the quoted form to `str`. The metadata predicate rejected every non-`str`, so it graded notes by whether their author quoted a date — two web-clips filled `published` and `author` correctly and were reported as missing them. The notes written most conventionally were the penalised ones.
+  - `disconnected-note` no longer fires on `web-clip`. All 23 findings were under 47 days old with a median of 27, so the state clears itself; `suggest-directed-links` produced **0 candidates across all 23**, so there was nothing to suggest either. 20 of the 23 are already covered by `review-captures` asking a stronger question, and an assertion ties the exemption to that coverage: drop `web-clip` from `CAPTURE_TYPES` and the test fails, because the argument for the exemption would have expired with nothing saying so.
+  - A dated series such as `日报-01`, `日报-02` is no longer read as near-duplicate titles.
+
+- `{{ }}` inside a code fence is content, not an unreplaced placeholder. The refusal above matched the pattern anywhere, so a note explaining Vue, Jinja2, Handlebars, Liquid or GitHub Actions could not be saved at all. Every real occurrence on the reference Vault is `{{date}}` outside any fence — eight notes, eight matches, none in code — so ignoring fenced and inline code costs no detection. The predicate moved into `note_catalog`, because what has to be shared is not just the pattern but the decision to ignore code; `template_contract` keeps the raw pattern, since it reads a *template*, where `{{date}}` is the point.
+
+- `review-captures` no longer counts the copies under `.obsidian-kb-backups/`. Nobody reopens a backup, so counting one guarantees it lands in `never_reopened`; three backed-up web-clips were being counted, and the reader was shown a backup path as a note worth revisiting.
+
+- Two consequences of widening the metadata predicate to accept scalars, both found by an independent review rather than by the suite: `capture_receipt` compared a raw resource name against a set storing `str(name)`, so two resources named `2026` and `"2026"` stopped colliding; and `source` stopped requiring text, when a URL or a sentence is the only thing it can be — a date is a legitimate `published`, a bare number is never a source.
+
+### Decided and recorded, with the losing side kept
+
+Three hypotheses were tested against the reference Vault and rejected. They are in `docs/superpowers/specs/2026-08-21-rejected-hypotheses.md`, each with the criterion tried, the data that killed it, and what would reopen it — a negative conclusion leaves no trace in the tree, so the next reader re-derives it and may not stop where the evidence stopped.
+
+- **A broken wikilink cannot be split into "concept placeholder" and "deleted note".** The criterion — a placeholder is referenced by several notes, a deletion by one — died on measurement: every concept placeholder is referenced exactly once. From a single snapshot the two leave the same trace, and Obsidian itself does not distinguish them.
+- **`unknown` in a web-clip is not a correct capture being misreported.** The two spellings do not overlap in time at all: `unknown`/`未知` run to 2026-07-26, `原文未标明`/`原文未署名` start 2026-07-27, and the boundary is the day the commit landed that listed `unknown` as a placeholder and named the replacement in the instructions. Zero web-clips written since use the retired form — the decision worked, and exempting `unknown` would revoke it.
+- **A shell note left by a failed capture cannot be told from a deliberately brief one by structure.** Ranking notes by the fraction of their sections that are nearly empty puts six daily notes and one intentional draft above the real shell. The wording is not a repo constant either: `web-capture.md` forbids saving a placeholder outright, so no such write path exists — those notes are prose an Agent composed while breaking that rule.
+
+### Evaluation infrastructure
+
+- A hard failure no longer aborts the batch. It means "this run does not count", which the exit code already carries; stopping additionally discarded the measurement the run existed to collect — one 2026-08-18 baseline stopped after 15 of 36 runs. `--stop-on-hard-failure` keeps the old behaviour, and `stopped_after_case` records truncation so a partial `mean_soft_score` is not read as a whole one.
+- The receipt gate no longer grades an Agent on which content source it chose. It additionally required `--from-preflight`, while `create-note` accepts `--stdin` and `--content-file` too, so a correct verified capture hard-failed all three repeats. The binding is proved by the helper's own output; nothing is given up.
+- The adversarial corpus's mean note length now tracks the reference Vault's. Two 76 KB notes held 97.9% of its bytes and put the mean at 9170 against the real 4247, so BM25's length normalisation never touched an everyday note and a whole class of ranking failure was unobservable there. They are now 38 KB, near that Vault's second and third largest, and `adv-dilution-06` freezes the failure: a 2.4 KB full capture ranking below a 0.5 KB summary of the same source on a keyword-dense query.
+
 ## [1.34.0] - 2026-08-17
 
 ### Added
