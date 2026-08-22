@@ -53,7 +53,7 @@ from obsidian_kb_skill.scripts.note_catalog import (
     INDEX_TYPES,
     NON_INSTANCE_STATUSES,
     SOURCE_ARCHIVE_FOLDER,
-    TEMPLATE_PLACEHOLDER_RE,
+    has_unresolved_placeholder,
     VALID_NOTE_TYPES,
     normalize_tag_key as _normalize_tag_key,
 )
@@ -193,7 +193,6 @@ FOLDER_INDEX_CONTENT_RE = re.compile(
     r"^\s*```folder-index-content(?:\s+[^\n]*)?\s*$", re.MULTILINE
 )
 
-PLACEHOLDER_RE = TEMPLATE_PLACEHOLDER_RE
 TEMPLATE_INSTRUCTION_MARKERS = (
     "用 2–4 句话",
     "用 2-4 句话",
@@ -396,7 +395,7 @@ def _audit_template_placeholders(
         return
     if relative.parts and relative.parts[0] == "Templates":
         return
-    if PLACEHOLDER_RE.search(text):
+    if has_unresolved_placeholder(text):
         _add(
             findings,
             "unresolved-template-placeholder",

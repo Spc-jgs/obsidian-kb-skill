@@ -12,6 +12,70 @@ from dataclasses import dataclass
 # the group, since a capturing group changes nothing for the `search` callers.
 TEMPLATE_PLACEHOLDER_RE = re.compile(r"\{\{([^}]+)\}\}")
 
+
+# Fenced-code masking, shared with `capture_receipt` which defined it first.
+# `{{ }}` is the interpolation syntax of Vue, Jinja2, Handlebars, Liquid and
+# GitHub Actions, so a note explaining any of them carries it on purpose. Every
+# unresolved placeholder on the reference Vault is `{{date}}` sitting outside
+# any fence — eight notes, eight matches, none in code — so masking code loses
+# no detection and stops a note about templating from being unwritable.
+FENCE_OPEN_RE = re.compile(r"^[ \t]{0,3}(?P<fence>`{3,}|~{3,})(?P<info>[^\r\n]*)$")
+INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
+
+
+def fence_opening(line: str) -> tuple[str, int] | None:
+    match = FENCE_OPEN_RE.fullmatch(line.rstrip("\r\n"))
+    if match is None:
+        return None
+    fence = match.group("fence")
+    if fence[0] == "`" and "`" in match.group("info"):
+        return None
+    return fence[0], len(fence)
+
+
+def is_fence_closing(line: str, character: str, length: int) -> bool:
+    return (
+        re.fullmatch(
+            rf"[ \t]{{0,3}}{re.escape(character)}{{{length},}}[ \t]*",
+            line.rstrip("\r\n"),
+        )
+        is not None
+    )
+
+
+def _blank_out(value: str) -> str:
+    return "".join(
+        "\n" if character == "\n" else "\r" if character == "\r" else " "
+        for character in value
+    )
+
+
+def mask_fenced_code(text: str) -> str:
+    """Replace fenced-code content with spaces, preserving offsets."""
+    output: list[str] = []
+    fence_character: str | None = None
+    fence_length = 0
+    for line in text.splitlines(keepends=True):
+        if fence_character is None:
+            opening = fence_opening(line)
+            if opening is None:
+                output.append(line)
+                continue
+            fence_character, fence_length = opening
+            output.append(_blank_out(line))
+            continue
+        output.append(_blank_out(line))
+        if is_fence_closing(line, fence_character, fence_length):
+            fence_character = None
+            fence_length = 0
+    return "".join(output)
+
+
+def has_unresolved_placeholder(text: str) -> bool:
+    """Is there a `{{...}}` the author still has to replace, outside any code?"""
+    masked = INLINE_CODE_RE.sub("", mask_fenced_code(text))
+    return TEMPLATE_PLACEHOLDER_RE.search(masked) is not None
+
 # Headings that mean "what this project does next". `review-projects` locates a
 # project's next action here and `resume-project` extracts the same section, and
 # each used to hold its own literal set. Widening one alone is exactly what
