@@ -2182,7 +2182,15 @@ def test_the_audit_reports_how_many_notes_its_findings_came_from(tmp_path):
 
 
 def test_audit_vault_keeps_its_signature_for_existing_callers(tmp_path):
-    """The stats are additive; nothing that called `audit_vault` has to change."""
+    """The stats are additive; nothing that called `audit_vault` has to change.
+
+    Scope, stated because it is narrower than the name: `audit_vault` currently
+    *is* `audit_vault_with_stats(vault)[0]`, so this cannot fail as written — it
+    is a sentinel for a future re-implementation that stops delegating, not a
+    check on today's behaviour. The two assertions that were seen red are
+    `test_the_audit_reports_how_many_notes_its_findings_came_from` and
+    `test_the_json_report_carries_the_denominator`.
+    """
     vault = _vault_with_archive_and_backup(tmp_path)
 
     plain = audit_vault(vault)
