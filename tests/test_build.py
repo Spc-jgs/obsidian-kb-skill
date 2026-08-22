@@ -636,3 +636,34 @@ def test_non_skill_compatibility_adapters_name_the_installed_support_root():
     ):
         header = (ROOT / relative).read_text(encoding="utf-8")
         assert "~/.obsidian-kb-skill/skill" in header
+
+
+def test_only_the_release_contract_hardcodes_the_version():
+    """A version literal outside this file silently joins the release checklist.
+
+    v1.35.0 found three of them — `test_doctor.py` twice and
+    `test_installers.py` once — none of which was on the checklist. They cost a
+    round of red CI after the CHANGELOG was already written, and they bought
+    nothing: what they assert is that the installed artifact carries the same
+    version the repository declares, which reads stronger from
+    `build.project_version()` than from a literal somebody has to remember.
+
+    This file keeps its two on purpose: `test_project_version_reads_pyproject`
+    is where the value is anchored, and the per-release contract test exists to
+    be updated by hand.
+    """
+    version = build.project_version()
+
+    offenders = sorted(
+        path.name
+        for path in (ROOT / "tests").glob("test_*.py")
+        if path.name != "test_build.py" and f'"{version}"' in path.read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert not offenders, (
+        f"these test files hardcode version {version}: {offenders}. Read "
+        "`build.project_version()` instead, or the next bump has to find them "
+        "by running the suite."
+    )
