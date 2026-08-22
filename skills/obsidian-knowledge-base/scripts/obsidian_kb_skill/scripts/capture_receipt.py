@@ -651,7 +651,9 @@ def validate_capture_receipt(
                     details={"index": index},
                 )
             name = resource.get("name")
-            if not is_meaningful_metadata(name) or name in resource_names:
+            # Compare what the set stores. `is_meaningful_metadata` accepts
+            # scalars since #162, so a raw comparison lets 2026 and "2026" both in.
+            if not is_meaningful_metadata(name) or str(name) in resource_names:
                 raise CaptureReceiptError(
                     "invalid-capture-receipt",
                     "resource names must be unique meaningful text",

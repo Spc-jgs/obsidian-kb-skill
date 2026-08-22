@@ -425,3 +425,26 @@ def test_the_path_refusal_points_at_an_option_that_exists():
             f"{opt} is named in the refusal's action column but create-note "
             "declares no such option"
         )
+
+
+def test_the_web_clip_metadata_codes_are_visible_to_the_scanner():
+    """`_codes_in` reads string constants; a generated name is skipped silently.
+
+    These three were emitted as `f"web-clip-missing-{field}"`, so the collector
+    walked past them and `test_every_emitted_code_is_documented` never asked for
+    their rows — all three went undocumented for as long as they existed, with
+    the suite green throughout. Rewriting the loop as a variable would hide them
+    again just as well, which is why this asserts on what the collector *found*
+    rather than on the syntax at the call site.
+    """
+    _, audit = emitted_codes()
+
+    for code in (
+        "web-clip-missing-source",
+        "web-clip-missing-author",
+        "web-clip-missing-published",
+    ):
+        assert code in audit, (
+            f"{code} is emitted but the contract scanner cannot see it, so "
+            "nothing checks that it is documented"
+        )

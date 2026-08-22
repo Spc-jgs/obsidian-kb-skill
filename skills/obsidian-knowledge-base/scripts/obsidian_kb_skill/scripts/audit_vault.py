@@ -674,15 +674,37 @@ def _audit_web_clip(
         return
     if metadata.get("type") != "web-clip":
         return
-    for field in ("source", "author", "published"):
-        value = metadata.get(field)
-        if not is_meaningful_metadata(value):
-            _add(
-                findings,
-                f"web-clip-missing-{field}",
-                relative,
-                f"web-clip note must set a non-placeholder '{field}' field",
-            )
+    # Each code is a literal at its own call site. The contract test finds
+    # emitted codes by walking the AST for string constants, so neither an
+    # f-string nor a loop variable is visible to it — these three went
+    # undocumented for exactly that reason, and nothing noticed.
+    #
+    # `source` additionally has to be text: it is a URL or a sentence about
+    # where this came from, and a bare number is neither. The other two accept
+    # any scalar because YAML resolves an unquoted date to `datetime.date`
+    # (#162), and a date is a legitimate `published`.
+    source = metadata.get("source")
+    if not isinstance(source, str) or not is_meaningful_metadata(source):
+        _add(
+            findings,
+            "web-clip-missing-source",
+            relative,
+            "web-clip note must set a non-placeholder 'source' field",
+        )
+    if not is_meaningful_metadata(metadata.get("author")):
+        _add(
+            findings,
+            "web-clip-missing-author",
+            relative,
+            "web-clip note must set a non-placeholder 'author' field",
+        )
+    if not is_meaningful_metadata(metadata.get("published")):
+        _add(
+            findings,
+            "web-clip-missing-published",
+            relative,
+            "web-clip note must set a non-placeholder 'published' field",
+        )
     capture_depth = metadata.get("capture_depth")
     if capture_depth is not None and (
         not isinstance(capture_depth, str) or capture_depth not in CAPTURE_DEPTHS

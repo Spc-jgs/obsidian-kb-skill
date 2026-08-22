@@ -758,3 +758,23 @@ def test_the_two_fence_maskers_agree():
         assert note_catalog.mask_fenced_code(sample) == capture_receipt._mask_fenced_code(
             sample
         ), f"the two maskers disagree on {sample!r}"
+
+
+def test_two_resources_named_the_same_number_are_still_duplicates():
+    """The uniqueness check compares the raw value; the set stores `str(name)`.
+
+    While `is_meaningful_metadata` rejected every non-`str`, those two could not
+    disagree — a name that reached the set was already a string. #162 widened the
+    predicate to accept scalars so an unquoted YAML date would stop being read as
+    a placeholder, and that made `2026 in {"2026"}` reachable: two resources
+    named the same number stopped colliding.
+    """
+    rendered = resource_candidate()
+    receipt = copy.deepcopy(valid_resource_receipt(rendered))
+    receipt["resources"][0]["name"] = "2026"
+    receipt["resources"][1]["name"] = 2026
+
+    with pytest.raises(CaptureReceiptError) as caught:
+        validate_capture_receipt(receipt, rendered, candidate_source=SOURCE)
+
+    assert caught.value.code == "invalid-capture-receipt"
