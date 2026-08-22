@@ -156,7 +156,7 @@ PERIODIC_TYPES = {"daily-report", "weekly-report"}
 # Types for which `disconnected-note` measures the wrong thing. A periodic
 # report is written once by design. A web-clip is material that has not been
 # digested yet, and on the reference Vault it was 16 of 23 findings, none older
-# than 44 days — the state clears itself. `suggest-directed-links` produced 0
+# than 47 days — the state clears itself. `suggest-directed-links` produced 0
 # candidates across all 23, so the finding could not be made actionable either,
 # and `review-captures` already reported 20 of them by asking the stronger
 # question: not whether a capture is linked, but whether it was ever reopened.
@@ -1452,7 +1452,13 @@ def main(argv: list[str] | None = None) -> int:
             f"{sum(1 for f in findings if finding_severity(f.code) == tier)} {tier}"
             for tier in reversed(SEVERITY_ORDER)
         )
-        print(f"{len(findings)} finding(s): {summary}")
+        # The denominator belongs in both renderings: "92 findings" reads the
+        # same across 20 notes and across 200, and the text mode is what a
+        # person runs.
+        print(
+            f"{len(findings)} finding(s) across {stats['audited']} note(s): "
+            f"{summary}"
+        )
     return 1 if findings and args.strict else 0
 
 
