@@ -728,3 +728,33 @@ def test_reader_facing_body_still_masks_a_real_hidden_comment():
 
     assert "hidden claim" not in out
     assert "Visible." in out
+
+
+FENCE_SAMPLES = (
+    "plain text only\n",
+    "before\n```\ncode {{ x }}\n```\nafter\n",
+    "before\n~~~python\ncode {{ x }}\n~~~\nafter\n",
+    "   ```js\n   nested {{ y }}\n   ```\n",
+    "```` ```inside ````\nouter {{ z }}\n",
+    "unclosed\n```\nstill inside {{ w }}\n",
+    "```info`with`ticks\nnot a fence\n",
+    "a\r\n```\r\nwindows {{ v }}\r\n```\r\nb\r\n",
+)
+
+
+def test_the_two_fence_maskers_agree():
+    """Two implementations of "which bytes are inside a code fence".
+
+    `capture_receipt` masks fences to keep a hidden HTML comment from passing as
+    reader-facing text; `note_catalog` masks them so a note explaining Vue or
+    Jinja2 is not read as carrying an unreplaced placeholder. Different reasons,
+    same question — and a Markdown fence has enough corner cases (tildes,
+    indentation, backticks in the info string, no closing fence) that two
+    hand-written answers will not stay equal on their own.
+    """
+    from obsidian_kb_skill.scripts import capture_receipt, note_catalog
+
+    for sample in FENCE_SAMPLES:
+        assert note_catalog.mask_fenced_code(sample) == capture_receipt._mask_fenced_code(
+            sample
+        ), f"the two maskers disagree on {sample!r}"

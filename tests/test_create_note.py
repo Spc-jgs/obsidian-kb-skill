@@ -1392,3 +1392,22 @@ def test_every_refused_code_is_a_defect_the_author_can_fix_by_rewriting(tmp_path
     for code in REFUSED_ON_APPLY:
         assert FINDING_SEVERITY[code] == "defect", code
     assert "broken-wikilink" not in REFUSED_ON_APPLY
+
+
+def test_apply_accepts_a_note_that_explains_template_syntax(tmp_path):
+    """#163's refusal set caught `{{ }}` anywhere, including inside code fences.
+
+    The PR argued exactly this for `broken-wikilink` — refusing every defect
+    would forbid writing a note that points forward — and did not apply the same
+    argument to the code it did refuse. A note about Vue, Jinja2 or Handlebars
+    could not be saved at all.
+    """
+    vault = make_vault(tmp_path)
+
+    r = _apply_with_body(
+        vault,
+        "讲模板语法。\n\n```html\n<span>Message: {{ msg }}</span>\n```\n\n以上是插值。\n",
+    )
+
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (vault / "30-Insights" / "2026-07-09 Residue.md").is_file()

@@ -32,7 +32,7 @@ from obsidian_kb_skill.scripts.note_catalog import (
     DEFAULT_TAG_BY_TYPE,
     ENTITY_FOLDERS,
     FOLDER_TO_DEFAULT_TYPE,
-    TEMPLATE_PLACEHOLDER_RE,
+    has_unresolved_placeholder,
     TYPE_TO_FOLDER,
 )
 from obsidian_kb_skill.scripts.vault_paths import (
@@ -123,7 +123,7 @@ def _draft_signals(
     for tag in tags:
         if isinstance(tag, str) and tag.strip().lower() in wanted:
             signals.append(f"tag:{tag.strip()}")
-    if TEMPLATE_PLACEHOLDER_RE.search(text):
+    if has_unresolved_placeholder(text):
         signals.append("unresolved-template-placeholder")
     return signals
 

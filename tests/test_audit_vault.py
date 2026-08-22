@@ -2211,3 +2211,37 @@ def test_the_json_report_carries_the_denominator(tmp_path):
     assert payload["scanned"] == 4
     assert payload["audited"] == 3
     assert "count" in payload
+
+
+VUE_NOTE = (
+    "---\ndate: '2026-07-07'\ntype: insight-note\ntags: [x]\n---\n"
+    "# Vue 插值语法\n\n讲模板语法的笔记。\n\n"
+    "```html\n<span>Message: {{ msg }}</span>\n```\n\n"
+    "行内写法 `{{ count }}` 也一样。\n"
+)
+
+
+def test_a_placeholder_inside_a_code_block_is_content_not_residue(tmp_path):
+    """`{{ }}` is the interpolation syntax of Vue, Jinja2, Handlebars and Liquid.
+
+    A note explaining any of them carries `{{ }}` on purpose. Every real
+    occurrence on the reference Vault is `{{date}}` outside any fence — eight
+    notes, eight matches, none inside code — so ignoring fenced and inline code
+    loses no detection while it stops punishing a note about templating.
+    """
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Vue.md").write_text(VUE_NOTE, encoding="utf-8")
+
+    assert "unresolved-template-placeholder" not in codes(tmp_path)
+
+
+def test_a_placeholder_outside_code_is_still_residue(tmp_path):
+    """The eight real ones all look like this."""
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Left.md").write_text(
+        "---\ndate: '2026-07-07'\ntype: insight-note\ntags: [x]\n---\n"
+        "# Left\n\n剪藏于 {{date}}。\n",
+        encoding="utf-8",
+    )
+
+    assert "unresolved-template-placeholder" in codes(tmp_path)

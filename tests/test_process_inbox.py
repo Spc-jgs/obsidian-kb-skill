@@ -654,11 +654,19 @@ def test_the_placeholder_rule_is_the_audits_rule_not_a_second_copy():
     """
     from obsidian_kb_skill.scripts import audit_vault, note_catalog, template_contract
 
+    # The two that judge *a note* share the predicate, not just the pattern:
+    # deciding what counts as residue now includes ignoring fenced and inline
+    # code, and that decision has to be the same in both places.
     assert (
-        process_inbox.TEMPLATE_PLACEHOLDER_RE
-        is note_catalog.TEMPLATE_PLACEHOLDER_RE
+        process_inbox.has_unresolved_placeholder
+        is note_catalog.has_unresolved_placeholder
     )
-    assert audit_vault.PLACEHOLDER_RE is note_catalog.TEMPLATE_PLACEHOLDER_RE
+    assert (
+        audit_vault.has_unresolved_placeholder
+        is note_catalog.has_unresolved_placeholder
+    )
+    # `template_contract` reads a *template file*, where `{{date}}` is the point
+    # rather than residue, so it shares the raw pattern instead.
     assert template_contract.PLACEHOLDER_RE is note_catalog.TEMPLATE_PLACEHOLDER_RE
 
 
