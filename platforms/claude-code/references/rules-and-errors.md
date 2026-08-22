@@ -216,7 +216,9 @@ instance and is never reported.
 Templates: `missing-template-heading`, `empty-template-note`,
 `residual-template-instruction`, `unresolved-template-placeholder`,
 `missing-deep-capture-heading`, `outdated-deep-capture-template`,
-`web-clip-invalid-capture-depth`, `missing-conversation-digest-heading`,
+`web-clip-invalid-capture-depth`, `web-clip-missing-source`,
+`web-clip-missing-author`, `web-clip-missing-published`,
+`missing-conversation-digest-heading`,
 `outdated-conversation-digest-template`,
 `conversation-digest-missing-resume-field`,
 `conversation-digest-resume-card-too-long`.

@@ -2253,3 +2253,29 @@ def test_a_placeholder_outside_code_is_still_residue(tmp_path):
     )
 
     assert "unresolved-template-placeholder" in codes(tmp_path)
+
+
+def test_a_web_clip_source_must_still_be_text(tmp_path):
+    """A date is a date; a source is not a number.
+
+    #162 widened `is_meaningful_metadata` to accept scalars so `published:
+    2026-08-13` — YAML's own date syntax — would stop reading as a placeholder.
+    That widening applies to every field it guards, and `source` was the one it
+    should not have reached: the `str`-only predicate had been the only thing
+    rejecting a non-textual source. On the reference Vault `source` is a URL 68
+    times and prose 25 times, never a bare number, so requiring text costs
+    nothing there.
+    """
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Clip.md").write_text(
+        "---\ndate: 2026-07-07\ntype: web-clip\n"
+        "tags: [web-clip]\nsource: 12345\n"
+        "author: Jane\npublished: 2026-01-01\n---\n# Clip\n",
+        encoding="utf-8",
+    )
+
+    found = codes(tmp_path)
+    assert "web-clip-missing-source" in found
+    # The date and the author are fine; only `source` is being judged here.
+    assert "web-clip-missing-published" not in found
+    assert "web-clip-missing-author" not in found
