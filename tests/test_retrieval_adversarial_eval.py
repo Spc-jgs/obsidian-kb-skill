@@ -402,11 +402,12 @@ def test_a_long_note_is_long_the_way_real_long_notes_are(tmp_path):
 # BM25 penalises a document by its length *relative to the corpus mean*, so the
 # mean decides which notes are penalised at all. Measured on the reference Vault
 # (193 notes, excluding `95-Sources`, `Templates` and the backup directory): mean
-# 4247 bytes, median 2390, and 84% of notes under 8 KB. The set shipped with two
-# 76 KB notes which alone held 97% of its bytes and put the mean at 8464 — double
-# the real one. Every everyday note then sat far below the mean and took no
-# penalty, which is why `adv-dilution-06` could not be observed here at all: it
-# ranked first in the set while its real-Vault counterpart ranked second.
+# 4247 bytes, median 2390, and 84% of notes under 8 KB. The set shipped with three
+# notes at or above 25 KB holding 97.9% of its bytes — the two 76 KB ones alone were
+# 83.8% — which put its mean at 9170, more than double the real one. Every
+# everyday note then sat far below the mean and took no penalty, which is why
+# `adv-dilution-06` could not be observed here at all: it ranked first in the
+# set while its real-Vault counterpart ranked second. The set now means 5010.
 MAX_CORPUS_MEAN_BYTES = 6_000
 
 
