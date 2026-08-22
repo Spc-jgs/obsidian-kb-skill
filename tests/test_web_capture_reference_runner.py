@@ -1304,17 +1304,84 @@ def test_a_run_is_not_truncated_unless_the_caller_asks_for_it(monkeypatch):
     assert args.stop_on_hard_failure is False
 
 
-def test_the_summary_names_the_case_that_ended_a_truncated_run():
+class _FakeBackend:
+    """Enough of an AgentBackend for `main()` to run without starting anything."""
+
+    name = "fake"
+    default_model = "fake-model"
+
+    def ensure_available(self) -> None:
+        pass
+
+    def version(self) -> str:
+        return "fake-1.0"
+
+
+def _drive_main(tmp_path: Path, namespace: dict, monkeypatch, *extra: str) -> dict:
+    """Run `main()` end to end against a scripted `run_case`, return summary.json.
+
+    `runpy.run_path` hands back a copy of the namespace, so patching that copy
+    leaves `main()` looking at the originals — the globals of the returned
+    function are the live ones.
+    """
+    globals_ = namespace["main"].__globals__
+    monkeypatch.setitem(globals_["AGENT_BACKENDS"], "fake", _FakeBackend())
+
+    def scripted(case, repeat, output_dir, model, timeout_seconds, backend):
+        hard = ["forbidden-claim"] if case["id"].startswith("standard-versioned") else []
+        return {
+            "case": case["id"],
+            "repeat": repeat,
+            "hard_failures": hard,
+            "soft_score": 0.5 if hard else 1.0,
+            "duration_seconds": 0.1,
+        }
+
+    monkeypatch.setitem(globals_, "run_case", scripted)
+    out = tmp_path / f"out{len(extra)}"
+    monkeypatch.setattr(
+        "sys.argv",
+        ["run_web_capture_reference.py", "--output-dir", str(out),
+         "--agent", "fake", "--repeats", "1", *extra],
+    )
+
+    namespace["main"]()
+
+    return json.loads((out / "summary.json").read_text(encoding="utf-8"))
+
+
+def test_the_summary_names_the_case_that_ended_a_truncated_run(tmp_path, monkeypatch):
     """`mean_soft_score` carries no hint of its own coverage.
 
     `planned_runs` and `completed_runs` differ on a truncated run, but neither
     says which case ended it, and the mean is reported under the same key either
     way.
-    """
-    source = RUNNER.read_text(encoding="utf-8")
 
-    assert '"stopped_after_case": stopped_after,' in source
-    assert "stopped_after" in source.split("def main()")[1].split("summary = {")[0]
+    This drives `main()` rather than reading the source, because the source
+    check this replaced could not tell the two apart: discarding the returned
+    value and rebinding `stopped_after = None` just below left both string
+    assertions true while every summary claimed to be complete.
+    """
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+
+    truncated = _drive_main(tmp_path, namespace, monkeypatch, "--stop-on-hard-failure")
+
+    assert truncated["stopped_after_case"] == "standard-versioned-tutorial"
+    assert truncated["completed_runs"] < truncated["planned_runs"]
+
+
+def test_a_complete_run_says_it_was_not_truncated(tmp_path, monkeypatch):
+    """The other half: `stopped_after_case` must distinguish, not merely exist."""
+    namespace = runpy.run_path(RUNNER, run_name="reference_runner_test")
+
+    complete = _drive_main(tmp_path, namespace, monkeypatch)
+
+    assert complete["stopped_after_case"] is None
+    assert complete["completed_runs"] == complete["planned_runs"]
+    assert complete["hard_failure_count"] > 0, (
+        "the scripted run must still hard fail, or this asserts nothing about "
+        "truncation"
+    )
 
 
 def content_file_apply_command() -> str:
