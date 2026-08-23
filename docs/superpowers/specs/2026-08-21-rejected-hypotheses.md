@@ -187,3 +187,88 @@ complete them — not a detection question.
 
 *Refs #167, #147, #75, #74.*
 
+
+---
+
+## 4. Answer confidence cannot be thresholded from a positive set drawn out of the notes
+
+**Hypothesis** (#170). `search-vault` returns lexical noise shaped exactly like
+an answer, so the payload should carry a confidence level. IDF-weighted coverage
+of the typed query looked cleanly separable: 22 unanswerable queries peaked at
+0.538 while 40 answerable ones bottomed out at 0.664, a gap of +0.126. Three
+bands were implemented, `high` at 0.60.
+
+**Criterion tried.** Draw the positive set automatically: for each note over
+1500 bytes, lift the first prose sentence of 12–40 characters from its body and
+use it as a query, expecting that note to win.
+
+**How it died.** The construction guarantees the query's words are in the note —
+it samples the one case where coverage is 1.00 by definition, and its median was
+exactly that. Run the shipped code against questions written the way a person
+types them, each naming a topic the Vault demonstrably covers:
+
+```
+cov=0.47  RIGHT  ThreadLocal 内存泄漏怎么避免   -> 2026-06-13 ThreadLocal内存泄漏与线程池传递方案.md
+cov=0.55  RIGHT  RAG 首字延迟怎么优化           -> 2026-08-05 RAG系统流式输出与首字延迟（TTFT）全链路优化指南.md
+cov=0.32  RIGHT  SSE 和 WebSocket 该怎么选     -> 2026-06-11 SSE vs WebSocket 服务端推送选型对比.md
+```
+
+Correct answers run **0.32–0.64**, against negatives at **0.09–0.54**. The ranges
+overlap; the +0.126 gap was a property of the sampling. At the implemented 0.60,
+**12 of 16 correct answers** would have been flagged as doubtful:
+
+| cut | negatives passing | correct answers demoted |
+|---:|---:|---:|
+| 0.30 | 2/22 | 0/16 |
+| 0.60 | 0/22 | 12/16 |
+
+**What survived.** One threshold at 0.30 and two levels. `none` is a finding;
+`evidence` is only the absence of it, and says nothing about correctness — two
+of the 18 questions score `evidence` on a wrong top-1.
+
+**How it was caught.** By running the shipped helper against hand-written
+questions and reading the output. The suite was green before and after; the
+three-band version passed its own adversarial assertion, because that corpus's
+no-answer cases sit at 0.19–0.35 and clear a 0.60 bar comfortably. **A synthetic
+corpus cannot refute a threshold derived from a synthetic positive set.**
+
+**What would reopen it.** A positive set of real questions with recorded correct
+answers, large enough to fit a threshold against — the same annotated-cases
+fixture `test_a_real_vault_run_reports_without_exposing_it` already expects via
+`OBSIDIAN_KB_EVAL_CASES`. Near-miss detection (#170's own two examples, which
+0.30 does not catch) needs a different signal, not a different cut.
+
+---
+
+## 5. A repeated `source` is not by itself a defect
+
+**Hypothesis** (#168). Three notes on the reference Vault share one `source`
+URL, and the audit reports nothing. `source` is a web-clip's canonical identity,
+so notes sharing one are duplicates and should be a finding.
+
+**Criterion tried.** Group notes by `source`, report every group of two or more.
+
+**How it died.** Counted before implementing, as the issue itself asked:
+
+```bash
+grep -rh '^source:' --include='*.md' ~/Documents/my-knowledge-base \
+  | sed 's/^source: *//' | sort | uniq -c | sort -rn | awk '$1>1'
+```
+
+Nine groups, of four shapes — and only one is a defect:
+
+| shape | groups | example | verdict |
+|---|---:|---|---|
+| a course or book as `source` | 2 | 廖雪峰 Python 教程, across 5 notes | legitimate |
+| `95-Sources/` archive beside its note | 2 | `…·原文.md`, same URL | legitimate, `source_archive.py` does this by design |
+| one article captured twice | 3 | `…·web-clip.md` beside the note | suspect |
+| failed capture retried | **1** | juejin `7664904418249900084`: 769 B shell + 2186 B partial + 7741 B complete | the defect |
+
+A plain "group by `source`" rule fires on all nine: **five false positives out of
+nine, before it finds anything**. The predicate has to exclude archive folders
+and non-URL sources before a finding means anything.
+
+**What would reopen it.** Nothing about the shape — the count stands. What is
+open is the narrower rule: same URL, both notes outside `95-Sources/`, and one
+of them a shell. That is one group on this Vault, and #167 §3 above is why "a
+shell" is not currently detectable.
