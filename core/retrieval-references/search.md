@@ -201,6 +201,11 @@ returns a note on Python functional programming at coverage 0.54. Treat a
 有什` — as the same finding the level would have made, and check the snippet
 before citing.
 
+Sections are the author's headings only. A `#` line inside a fenced code block
+is code being quoted — it neither opens a section nor becomes the note's title,
+though the code stays searchable as body text. Report a note's structure from
+its real headings, not from anything a snippet shows inside a fence.
+
 A note without headings is one section, so nothing about it changed: short
 focused notes still win on being short. What cannot be helped is a long note
 with no headings — there is no section to compete with, and its evidence stays
