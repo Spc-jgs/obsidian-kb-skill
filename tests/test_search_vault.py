@@ -1188,3 +1188,105 @@ def test_a_note_whose_body_holds_no_words_is_still_findable(tmp_path):
 
     assert payload["results"][0]["path"] == "20-Learning/stub-only.md"
     assert payload["results"][0]["snippet"] == ""
+
+
+def test_a_shell_comment_inside_a_code_block_is_not_the_notes_title(tmp_path):
+    """`# ` in a fenced block is code being quoted, not the note's heading.
+
+    `_title_from_body` scans for the first `^#[ \\t]+` line with no notion of
+    fences, so a shell comment is indistinguishable from an H1. On the reference
+    Vault two notes lose their identity this way — one titled
+    `如果浏览器操作报错找不到 Chromium，执行：`, the other `Verifying frontend
+    changes`, both lifted out of ```bash blocks in notes that have no H1 at all.
+
+    The cost is paid twice, because `FIELD_WEIGHTS["title"]` is 6x body. The
+    note stops matching its own subject at title weight — `六个必备MCP服务详解`
+    ranked 5th for `六个必备的 MCP 服务分别是什么`, behind three notes that
+    merely link it — and starts matching the comment's words at title weight
+    instead.
+
+    `link_graph.blank_code_examples` already answers "which lines are code" for
+    `explore_neighborhood` and `relatedness`, and ships in the retrieval bundle
+    depending on `frontmatter` and nothing else. This reads that, rather than
+    adding a third fence scanner for the same question. Same family as #163,
+    where code-block `{{ }}` was read as an unreplaced placeholder.
+    """
+    vault = _vault(tmp_path)
+    path = vault / "20-Learning" / "MCP 服务详解.md"
+    path.write_text(
+        "---\n"
+        "type: learning-note\n"
+        "date: 2026-07-29\n"
+        "aliases: []\n"
+        "tags: []\n"
+        "---\n\n"
+        "**安装**：\n\n"
+        "```bash\n"
+        "npx @playwright/mcp@latest\n"
+        "# 如果浏览器操作报错找不到 Chromium，执行：\n"
+        "npx playwright install chromium\n"
+        "```\n",
+        encoding="utf-8",
+    )
+
+    results = search_vault(vault, "MCP 服务详解", top_k=3)["results"]
+    assert results, "the note did not match its own filename"
+    assert results[0]["title"] == "MCP 服务详解", (
+        f"title came from inside the code block: {results[0]['title']!r}"
+    )
+
+    # And the other half of the cost: the comment's words must not be scored at
+    # title weight, which is what put an unrelated note first on `Chromium`.
+    chromium = search_vault(vault, "Chromium", top_k=3)["results"]
+    title_signals = [
+        signal
+        for result in chromium
+        for signal in result["signals"]
+        if signal["kind"] == "title"
+    ]
+    assert not title_signals, (
+        f"a word inside a code block matched at title weight: {title_signals}"
+    )
+
+
+def test_a_fenced_comment_does_not_open_a_section(tmp_path):
+    """Section boundaries are the author's headings, not lines of shell.
+
+    `_passages` is what #118 ranks on, so a false boundary is not cosmetic: it
+    makes every fragment short, and a short passage pays almost no length
+    penalty under BM25, so the note scores high on subjects it merely mentions.
+    On the reference Vault 22 of 199 notes carry 255 such lines; one Python note
+    is split into 100 sections where it has 52.
+
+    The code must stay searchable, so only the *split* reads the blanked copy —
+    the passage's tokens come from the body itself. Both halves are asserted
+    here, because fixing the split by dropping the code would trade this defect
+    for a worse one.
+
+    The adversarial corpus cannot catch this: none of its notes carry a code
+    fence, which is why the baseline did not move when this was fixed.
+    """
+    from obsidian_kb_skill.scripts.search_vault import _passages
+
+    body = (
+        "## 安装\n\n"
+        "```bash\n"
+        "npx @playwright/mcp@latest\n"
+        "# 如果浏览器操作报错找不到 Chromium，执行：\n"
+        "npx playwright install chromium\n"
+        "```\n\n"
+        "## 配置\n\n"
+        "写在 settings 里。\n"
+    )
+    passages = _passages(body)
+
+    headings = [passage.heading for passage in passages]
+    assert headings == ["安装", "配置"], (
+        f"a shell comment opened a section: {headings}"
+    )
+
+    install = next(p for p in passages if p.heading == "安装")
+    assert install.tokens.get("chromium"), (
+        "the fenced code was dropped from the passage; blanking may only decide "
+        "where sections start, never what they contain"
+    )

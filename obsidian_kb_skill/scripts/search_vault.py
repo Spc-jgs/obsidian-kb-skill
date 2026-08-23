@@ -17,6 +17,7 @@ from typing import Any, Iterable
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.frontmatter import FrontmatterResult, parse_frontmatter
+from obsidian_kb_skill.scripts.link_graph import blank_code_examples
 from obsidian_kb_skill.scripts.note_catalog import (
     EXEMPT_NAMES,
     SOURCE_ARCHIVE_FOLDER,
@@ -220,8 +221,19 @@ def _passages(body: str) -> tuple[Passage, ...]:
     starts: list[int] = [0]
     headings: list[str | None] = [None]
     lines = body.splitlines()
+    # Boundaries come from the body with code blanked, content from the body
+    # itself. A `#` line inside a fence is a shell comment, not a section — on
+    # the reference Vault 22 of 199 notes carry 255 such lines, and one Python
+    # note was split into 100 sections where it has 52. Splitting there makes
+    # every fragment short, and a short passage pays almost no length penalty,
+    # so the note scores high on subjects it only mentions. But the code itself
+    # must stay searchable, so only the split reads the blanked copy.
+    # `blank_code_examples` preserves line numbering exactly, which is what
+    # lets one index address both.
+    marks = blank_code_examples(body).splitlines()
     for index, line in enumerate(lines):
-        match = HEADING_RE.match(line)
+        source = marks[index] if index < len(marks) else line
+        match = HEADING_RE.match(source)
         if match:
             starts.append(index)
             headings.append(match.group(2).strip())
@@ -267,7 +279,13 @@ def _string_values(value: Any) -> tuple[str, ...]:
 
 
 def _title_from_body(path: Path, body: str) -> str:
-    for line in body.splitlines():
+    """The note's H1, or its filename — never a comment inside a code block.
+
+    `FIELD_WEIGHTS["title"]` is 6x body, so this line decides what the note is
+    at the heaviest weight there is. Two notes on the reference Vault had no H1
+    at all and took their identity from a ```bash comment instead.
+    """
+    for line in blank_code_examples(body).splitlines():
         match = re.match(r"^#[ \t]+(.+?)\s*$", line)
         if match:
             return match.group(1).strip()
@@ -275,9 +293,14 @@ def _title_from_body(path: Path, body: str) -> str:
 
 
 def _headings(body: str) -> tuple[str, ...]:
+    """The note's real headings — a `#` line inside a fence is quoted code.
+
+    `headings` is a scored field at 2x body weight, so a shell comment landing
+    here is scored as structure the author never wrote.
+    """
     return tuple(
         match.group(2).strip()
-        for line in body.splitlines()
+        for line in blank_code_examples(body).splitlines()
         if (match := HEADING_RE.match(line))
     )
 
