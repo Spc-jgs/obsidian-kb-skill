@@ -41,7 +41,11 @@ from pathlib import Path
 
 import pytest
 
-from obsidian_kb_skill.scripts.search_vault import CONFIDENCE_LEVELS, search_vault
+from obsidian_kb_skill.scripts.search_vault import (
+    CONFIDENCE_LEVELS,
+    _load_documents,
+    search_vault,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "retrieval_adversarial_cases.json"
@@ -412,11 +416,19 @@ MAX_CORPUS_MEAN_BYTES = 6_000
 
 
 def test_the_corpus_mean_length_stays_near_the_reference_vault(tmp_path):
-    """A mean far above the real one silently disables the length penalty.
+    """The corpus's byte mean stays near the reference Vault's.
 
     This is not about any one case. The mean is global, so a corpus built around
-    outliers measures a ranker nobody runs — every note under it is graded as if
-    length normalisation were off.
+    outliers measures a ranker nobody runs.
+
+    **It does not guard the quantity it sounds like it guards.** `_bm25_score`
+    normalises by `average_scoring_length`, not by file size, and on that unit
+    this corpus reads 569 against the reference Vault's 261 — while this
+    assertion is green at 5010 against 4468. Bytes converging is not the length
+    penalty converging, and #174 was filed and partly answered on the byte
+    numbers alone. The scoring unit is pinned separately, deliberately wide of
+    the reference Vault, by
+    `test_the_scoring_unit_diverges_from_the_reference_vault_by_a_recorded_factor`.
     """
     fixture = _load(FIXTURE)
     vault = _build_vault(tmp_path, fixture)
@@ -432,6 +444,60 @@ def test_the_corpus_mean_length_stays_near_the_reference_vault(tmp_path):
 
 
 # --- The frozen baseline ----------------------------------------------------
+
+
+# `average_scoring_length` on the reference Vault, over its 217 notes on
+# 2026-08-23. Recorded here because that Vault is private and cannot be a
+# fixture; the command that produced it is in the decision document.
+REFERENCE_VAULT_AVGDL = 261.0
+
+# How far this corpus sits from that, deliberately. See
+# docs/superpowers/specs/2026-08-23-adversarial-corpus-shape-decision.md.
+AVGDL_DIVERGENCE = (2.0, 2.4)
+
+
+def test_the_scoring_unit_diverges_from_the_reference_vault_by_a_recorded_factor(
+    tmp_path,
+):
+    """The byte mean converged; the unit BM25 normalises by did not.
+
+    `test_the_corpus_mean_length_stays_near_the_reference_vault` guards file
+    bytes, and passes: 5010 against 4468. But `_bm25_score` normalises by
+    `average_scoring_length` — names plus one section, in tokens — where this
+    corpus reads 569 against 261, and holds nothing in the 1–5x band that 39.7%
+    of real notes occupy. That byte assertion states in its own docstring that a
+    high mean grades every note "as if length normalisation were off", which is
+    what is happening while it stays green. Two quantities, one guarded.
+
+    #174 asked whether to reshape the corpus. The ruling is no, on measurement:
+    the failure it wanted to expose is already red at `adv-dilution-06`
+    (`phantom-full` ranks 2), and the closest realistic reshape found deletes
+    the dilution family's finding — `backoff-handbook` goes from absent to rank
+    4 in adv-dilution-01. Extreme dilution needs one note to own most of the
+    corpus's length and a realistic distribution needs that no note does; at
+    n=22 both cannot hold.
+
+    So the divergence is pinned rather than removed. Narrowing it means someone
+    reshaped the corpus, widening it means a new outlier arrived, and either way
+    the decision document has to be re-read instead of the change passing quiet.
+    """
+    fixture = _load(FIXTURE)
+    vault = _build_vault(tmp_path, fixture)
+    documents, _, _ = _load_documents(vault, vault)
+
+    avgdl = statistics.mean(
+        document.average_scoring_length for document in documents
+    )
+    ratio = avgdl / REFERENCE_VAULT_AVGDL
+    low, high = AVGDL_DIVERGENCE
+
+    assert low <= ratio <= high, (
+        f"corpus avgdl is {avgdl:.1f}, {ratio:.2f}x the reference Vault's "
+        f"{REFERENCE_VAULT_AVGDL}, outside the recorded {low}–{high}x. This is "
+        "not a threshold to widen: re-read "
+        "docs/superpowers/specs/2026-08-23-adversarial-corpus-shape-decision.md "
+        "and say which branch of #174 is being reopened"
+    )
 
 
 def test_the_recorded_baseline_still_describes_this_ranker(tmp_path):
