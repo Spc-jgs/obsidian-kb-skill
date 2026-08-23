@@ -20,6 +20,35 @@ RETRIEVAL_SKILL_DIR="$SCRIPT_DIR/skills/obsidian-knowledge-retrieval"
 SUPPORT_ROOT="$HOME/.obsidian-kb-skill"
 CANONICAL_SKILL="$SUPPORT_ROOT/skill"
 CANONICAL_RETRIEVAL_SKILL="$SUPPORT_ROOT/retrieval-skill"
+
+# Every Skill this installer places, and where each host keeps its Skills.
+#
+# Adding a Skill is one row in SKILL_ROWS plus its key in the hosts that should
+# carry it. Adding a host is one row in HOST_ROWS. Nothing else in this file
+# names a Skill directory or a host path: #91 counted 32 hand-copied
+# occurrences of the two Skill names across this script and install.ps1, spread
+# over an install branch, an uninstall branch and a validator that all had to be
+# kept in step by hand — and one of them was not. QoderWork's base Skill was
+# removed on `-d` alone while every other destination tested `-d || -L`, so a
+# QoderWork install that a Skill manager had symlinked survived uninstall. That
+# is the defect this shape makes unrepresentable rather than merely fixed.
+#
+# SKILL_ROWS: key|directory name|payload source|noun used in messages
+# HOST_ROWS:  key|label|Skills root|Skill keys this host carries
+#
+# Not every host carries every Skill — Cursor takes retrieval only — so the
+# matrix is deliberately two tables rather than one product.
+SKILL_ROWS="
+base|obsidian-knowledge-base|$CANONICAL_SKILL|skill
+retrieval|obsidian-knowledge-retrieval|$CANONICAL_RETRIEVAL_SKILL|retrieval skill
+"
+HOST_ROWS="
+qoderwork|QoderWork|$HOME/.qoderwork/skills|base retrieval
+claude-code|Claude Code|$HOME/.claude/skills|base retrieval
+codex|Codex|$HOME/.agents/skills|base retrieval
+workbuddy|WorkBuddy|$HOME/.workbuddy/skills|base retrieval
+cursor|Cursor|$HOME/.cursor/skills|retrieval
+"
 RUNTIME_FILE="$SUPPORT_ROOT/runtime.json"
 VENDOR_DIR="$SUPPORT_ROOT/vendor"
 SETTINGS_FILE="$HOME/.obsidian-kb-settings.json"
@@ -94,6 +123,38 @@ install_standard_skill() {
   copy_skill_payload "$source_dir" "$destination"
 }
 
+# Expand HOST_ROWS x SKILL_ROWS into one row per destination:
+#   host key|host label|destination|payload source|noun
+#
+# The install branch, the uninstall branch and the host validator all read this,
+# which is what stops them disagreeing about where a Skill lives.
+skill_targets() {
+  local host_key host_label host_root host_skills skill_key
+  local key dir src noun
+  printf '%s\n' "$HOST_ROWS" | while IFS='|' read -r host_key host_label host_root host_skills; do
+    [ -n "$host_key" ] || continue
+    for skill_key in $host_skills; do
+      printf '%s\n' "$SKILL_ROWS" | while IFS='|' read -r key dir src noun; do
+        [ "$key" = "$skill_key" ] || continue
+        printf '%s|%s|%s|%s|%s\n' "$host_key" "$host_label" "$host_root/$dir" "$src" "$noun"
+      done
+    done
+  done
+}
+
+# The host keys HOST_ROWS declares, comma-free and one per line.
+known_hosts() {
+  local host_key rest
+  printf '%s\n' "$HOST_ROWS" | while IFS='|' read -r host_key rest; do
+    [ -n "$host_key" ] || continue
+    printf '%s\n' "$host_key"
+  done
+}
+
+is_known_host() {
+  known_hosts | grep -qx -- "$1"
+}
+
 validate_platforms() {
   local platform
   local found=false
@@ -102,10 +163,10 @@ validate_platforms() {
     platform=$(echo "$platform" | tr -d ' ')
     [ -n "$platform" ] || continue
     found=true
-    case "$platform" in
-      qoderwork|claude-code|codex|cursor|workbuddy) ;;
-      *) echo "Unknown platform: $platform" >&2; return 1 ;;
-    esac
+    if ! is_known_host "$platform"; then
+      echo "Unknown platform: $platform" >&2
+      return 1
+    fi
   done
   if [ "$found" = false ]; then
     echo "No platforms selected." >&2
@@ -319,39 +380,18 @@ if [ "$DO_UNINSTALL" = true ]; then
   echo ""
   echo "=== Obsidian Knowledge Base Skill Uninstaller ==="
   echo ""
-  # Remove QoderWork skill
-  QODERWORK_SKILLS="$HOME/.qoderwork/skills/obsidian-knowledge-base"
-  if [ -d "$QODERWORK_SKILLS" ]; then
-    rm -rf "$QODERWORK_SKILLS"
-    echo "-> Removed: QoderWork skill ($QODERWORK_SKILLS)"
-  fi
-  QODERWORK_RETRIEVAL="$HOME/.qoderwork/skills/obsidian-knowledge-retrieval"
-  if [ -d "$QODERWORK_RETRIEVAL" ] || [ -L "$QODERWORK_RETRIEVAL" ]; then
-    rm -rf "$QODERWORK_RETRIEVAL"
-    echo "-> Removed: QoderWork retrieval skill ($QODERWORK_RETRIEVAL)"
-  fi
-  # Remove Codex user-level skill without touching sibling skills.
-  CODEX_SKILLS="$HOME/.agents/skills/obsidian-knowledge-base"
-  if [ -d "$CODEX_SKILLS" ] || [ -L "$CODEX_SKILLS" ]; then
-    rm -rf "$CODEX_SKILLS"
-    echo "-> Removed: Codex skill ($CODEX_SKILLS)"
-  fi
-  CODEX_RETRIEVAL="$HOME/.agents/skills/obsidian-knowledge-retrieval"
-  if [ -d "$CODEX_RETRIEVAL" ] || [ -L "$CODEX_RETRIEVAL" ]; then
-    rm -rf "$CODEX_RETRIEVAL"
-    echo "-> Removed: Codex retrieval skill ($CODEX_RETRIEVAL)"
-  fi
-  # Remove only this WorkBuddy Skill; preserve sibling Skills and symlink targets.
-  WORKBUDDY_SKILLS="$HOME/.workbuddy/skills/obsidian-knowledge-base"
-  if [ -d "$WORKBUDDY_SKILLS" ] || [ -L "$WORKBUDDY_SKILLS" ]; then
-    rm -rf "$WORKBUDDY_SKILLS"
-    echo "-> Removed: WorkBuddy skill ($WORKBUDDY_SKILLS)"
-  fi
-  WORKBUDDY_RETRIEVAL="$HOME/.workbuddy/skills/obsidian-knowledge-retrieval"
-  if [ -d "$WORKBUDDY_RETRIEVAL" ] || [ -L "$WORKBUDDY_RETRIEVAL" ]; then
-    rm -rf "$WORKBUDDY_RETRIEVAL"
-    echo "-> Removed: WorkBuddy retrieval skill ($WORKBUDDY_RETRIEVAL)"
-  fi
+  # Every Skill destination, from the one table the installer places them by.
+  # Previously this was nine hand-written blocks; one of them tested `-d` where
+  # the rest tested `-d || -L`, so a symlinked QoderWork base Skill survived.
+  while IFS='|' read -r host_key host_label destination payload noun; do
+    [ -n "$host_key" ] || continue
+    if [ -d "$destination" ] || [ -L "$destination" ]; then
+      rm -rf "$destination"
+      echo "-> Removed: $host_label $noun ($destination)"
+    fi
+  done <<EOF
+$(skill_targets)
+EOF
   # Remove the canonical installed payload, private dependency, and runtime record.
   if [ -d "$SUPPORT_ROOT" ] || [ -L "$SUPPORT_ROOT" ]; then
     rm -rf "$SUPPORT_ROOT"
@@ -362,21 +402,6 @@ if [ "$DO_UNINSTALL" = true ]; then
   if [ -f "$CURSOR_FILE" ]; then
     rm -f "$CURSOR_FILE"
     echo "-> Removed: Cursor rule ($CURSOR_FILE)"
-  fi
-  CURSOR_RETRIEVAL="$HOME/.cursor/skills/obsidian-knowledge-retrieval"
-  if [ -d "$CURSOR_RETRIEVAL" ] || [ -L "$CURSOR_RETRIEVAL" ]; then
-    rm -rf "$CURSOR_RETRIEVAL"
-    echo "-> Removed: Cursor retrieval skill ($CURSOR_RETRIEVAL)"
-  fi
-  CLAUDE_RETRIEVAL="$HOME/.claude/skills/obsidian-knowledge-retrieval"
-  if [ -d "$CLAUDE_RETRIEVAL" ] || [ -L "$CLAUDE_RETRIEVAL" ]; then
-    rm -rf "$CLAUDE_RETRIEVAL"
-    echo "-> Removed: Claude Code retrieval skill ($CLAUDE_RETRIEVAL)"
-  fi
-  CLAUDE_SKILLS="$HOME/.claude/skills/obsidian-knowledge-base"
-  if [ -d "$CLAUDE_SKILLS" ] || [ -L "$CLAUDE_SKILLS" ]; then
-    rm -rf "$CLAUDE_SKILLS"
-    echo "-> Removed: Claude Code skill ($CLAUDE_SKILLS)"
   fi
   # Strip marker-wrapped block from Claude Code CLAUDE.md
   if remove_marker_block "$HOME/.claude/CLAUDE.md"; then
@@ -691,15 +716,14 @@ fi
 
 for platform in "${PLATFORM_LIST[@]+"${PLATFORM_LIST[@]}"}"; do
   platform=$(echo "$platform" | tr -d ' ')
+  if ! is_known_host "$platform"; then
+    echo "-> Unknown platform: $platform" >&2
+    exit 1
+  fi
+  # Host-specific work that is not a Skill payload, in the order it ran before
+  # the Skills themselves. Everything a host does *with* a Skill comes from the
+  # table below, so a host appears here only when it needs something else.
   case $platform in
-    qoderwork)
-      QODERWORK_SKILLS="$HOME/.qoderwork/skills/obsidian-knowledge-base"
-      QODERWORK_RETRIEVAL="$HOME/.qoderwork/skills/obsidian-knowledge-retrieval"
-      install_standard_skill "$CANONICAL_SKILL" "$QODERWORK_SKILLS"
-      install_standard_skill "$CANONICAL_RETRIEVAL_SKILL" "$QODERWORK_RETRIEVAL"
-      echo "-> Installed: QoderWork skill -> $QODERWORK_SKILLS/SKILL.md"
-      echo "-> Installed: QoderWork retrieval -> $QODERWORK_RETRIEVAL/SKILL.md"
-      ;;
     claude-code)
       CLAUDE_DIR="$HOME/.claude"
       mkdir -p "$CLAUDE_DIR"
@@ -715,28 +739,6 @@ for platform in "${PLATFORM_LIST[@]+"${PLATFORM_LIST[@]}"}"; do
       elif [ "$?" -eq 2 ]; then
         exit 1
       fi
-      CLAUDE_SKILLS="$CLAUDE_DIR/skills/obsidian-knowledge-base"
-      install_standard_skill "$CANONICAL_SKILL" "$CLAUDE_SKILLS"
-      echo "-> Installed: Claude Code skill -> $CLAUDE_SKILLS/SKILL.md"
-      CLAUDE_RETRIEVAL="$CLAUDE_DIR/skills/obsidian-knowledge-retrieval"
-      install_standard_skill "$CANONICAL_RETRIEVAL_SKILL" "$CLAUDE_RETRIEVAL"
-      echo "-> Installed: Claude Code retrieval -> $CLAUDE_RETRIEVAL/SKILL.md"
-      ;;
-    codex)
-      CODEX_SKILLS="$HOME/.agents/skills/obsidian-knowledge-base"
-      CODEX_RETRIEVAL="$HOME/.agents/skills/obsidian-knowledge-retrieval"
-      install_standard_skill "$CANONICAL_SKILL" "$CODEX_SKILLS"
-      install_standard_skill "$CANONICAL_RETRIEVAL_SKILL" "$CODEX_RETRIEVAL"
-      echo "-> Installed: Codex skill -> $CODEX_SKILLS/SKILL.md"
-      echo "-> Installed: Codex retrieval -> $CODEX_RETRIEVAL/SKILL.md"
-      ;;
-    workbuddy)
-      WORKBUDDY_SKILLS="$HOME/.workbuddy/skills/obsidian-knowledge-base"
-      WORKBUDDY_RETRIEVAL="$HOME/.workbuddy/skills/obsidian-knowledge-retrieval"
-      install_standard_skill "$CANONICAL_SKILL" "$WORKBUDDY_SKILLS"
-      install_standard_skill "$CANONICAL_RETRIEVAL_SKILL" "$WORKBUDDY_RETRIEVAL"
-      echo "-> Installed: WorkBuddy skill -> $WORKBUDDY_SKILLS/SKILL.md"
-      echo "-> Installed: WorkBuddy retrieval -> $WORKBUDDY_RETRIEVAL/SKILL.md"
       ;;
     cursor)
       CURSOR_DIR="$HOME/.cursor/rules"
@@ -744,15 +746,17 @@ for platform in "${PLATFORM_LIST[@]+"${PLATFORM_LIST[@]}"}"; do
       cp "$SCRIPT_DIR/platforms/cursor/obsidian-kb.mdc" "$CURSOR_DIR/obsidian-kb.mdc"
       echo "-> Installed: Cursor -> $CURSOR_DIR/obsidian-kb.mdc"
       echo "  (Copy this to your project's .cursor/rules/ for project-level use)"
-      CURSOR_RETRIEVAL="$HOME/.cursor/skills/obsidian-knowledge-retrieval"
-      install_standard_skill "$CANONICAL_RETRIEVAL_SKILL" "$CURSOR_RETRIEVAL"
-      echo "-> Installed: Cursor retrieval -> $CURSOR_RETRIEVAL/SKILL.md"
-      ;;
-    *)
-      echo "-> Unknown platform: $platform" >&2
-      exit 1
       ;;
   esac
+  # Not a pipeline: `install_standard_skill` increments MANAGED_SKIPS, and a
+  # subshell would drop the count that the summary reports.
+  while IFS='|' read -r host_key host_label destination payload noun; do
+    [ "$host_key" = "$platform" ] || continue
+    install_standard_skill "$payload" "$destination"
+    echo "-> Installed: $host_label $noun -> $destination/SKILL.md"
+  done <<EOF
+$(skill_targets)
+EOF
 done
 
 # Verify the installed product from a directory unrelated to the checkout.
