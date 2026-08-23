@@ -42,6 +42,49 @@ $script:ManagedSkips = 0
 $SupportRoot = Join-Path $env:USERPROFILE ".obsidian-kb-skill"
 $CanonicalSkill = Join-Path $SupportRoot "skill"
 $CanonicalRetrievalSkill = Join-Path $SupportRoot "retrieval-skill"
+
+# Mirror of install.sh's SKILL_ROWS / HOST_ROWS. Adding a Skill is one row in
+# $SkillRows plus its key in the hosts that carry it; adding a host is one row
+# in $HostRows. Nothing else in this file names a Skill directory or a host
+# path.
+#
+# #91 counted 32 hand-copied occurrences of the two Skill names across the two
+# installers, and the copies had already drifted apart differently on each side:
+# install.sh removed QoderWork's base Skill on `-d` alone, while this file used
+# `Remove-Item -Recurse -Force` for QoderWork *and* Codex base Skills. On a
+# directory symlink that recurses into the link's target and deletes what it
+# finds there, so the two scripts disagreed about which hosts were safe to
+# uninstall — the exact drift #91 describes as only findable by hand.
+#
+# Not every host carries every Skill: Cursor takes retrieval only.
+$SkillRows = @(
+    [pscustomobject]@{ Key = 'base';      Directory = 'obsidian-knowledge-base';      Payload = $CanonicalSkill;          Noun = 'skill' }
+    [pscustomobject]@{ Key = 'retrieval'; Directory = 'obsidian-knowledge-retrieval'; Payload = $CanonicalRetrievalSkill; Noun = 'retrieval skill' }
+)
+$HostRows = @(
+    [pscustomobject]@{ Key = 'qoderwork';   Label = 'QoderWork';   Root = (Join-Path $env:USERPROFILE ".qoderwork\skills"); Skills = @('base', 'retrieval') }
+    [pscustomobject]@{ Key = 'claude-code'; Label = 'Claude Code'; Root = (Join-Path $env:USERPROFILE ".claude\skills");    Skills = @('base', 'retrieval') }
+    [pscustomobject]@{ Key = 'codex';       Label = 'Codex';       Root = (Join-Path $env:USERPROFILE ".agents\skills");    Skills = @('base', 'retrieval') }
+    [pscustomobject]@{ Key = 'workbuddy';   Label = 'WorkBuddy';   Root = (Join-Path $env:USERPROFILE ".workbuddy\skills"); Skills = @('base', 'retrieval') }
+    [pscustomobject]@{ Key = 'cursor';      Label = 'Cursor';      Root = (Join-Path $env:USERPROFILE ".cursor\skills");    Skills = @('retrieval') }
+)
+
+# One row per destination, read by the install branch, the uninstall branch and
+# the host validator, so they cannot disagree about where a Skill lives.
+function Get-SkillTargets {
+    foreach ($hostRow in $HostRows) {
+        foreach ($skillKey in $hostRow.Skills) {
+            $skill = $SkillRows | Where-Object { $_.Key -eq $skillKey } | Select-Object -First 1
+            [pscustomobject]@{
+                HostKey     = $hostRow.Key
+                HostLabel   = $hostRow.Label
+                Destination = (Join-Path $hostRow.Root $skill.Directory)
+                Payload     = $skill.Payload
+                Noun        = $skill.Noun
+            }
+        }
+    }
+}
 $RuntimeFile = Join-Path $SupportRoot "runtime.json"
 $VendorDir = Join-Path $SupportRoot "vendor"
 $SettingsFile = Join-Path $env:USERPROFILE ".obsidian-kb-settings.json"
@@ -317,41 +360,14 @@ if ($Uninstall) {
     Write-Host "=== Obsidian Knowledge Base Skill Uninstaller ===" -ForegroundColor Yellow
     Write-Host ""
 
-    # Remove QoderWork skill
-    $skillDir = Join-Path $env:USERPROFILE ".qoderwork\skills\obsidian-knowledge-base"
-    if (Test-Path $skillDir) {
-        Remove-Item $skillDir -Recurse -Force
-        Write-Host "-> Removed: QoderWork skill ($skillDir)" -ForegroundColor Green
-    }
-    $retrievalDir = Join-Path $env:USERPROFILE ".qoderwork\skills\obsidian-knowledge-retrieval"
-    if (Test-Path $retrievalDir) {
-        Remove-OwnedPath -Path $retrievalDir
-        Write-Host "-> Removed: QoderWork retrieval skill ($retrievalDir)" -ForegroundColor Green
-    }
-
-    # Remove Codex user-level skill without touching sibling skills.
-    $codexSkillDir = Join-Path $env:USERPROFILE ".agents\skills\obsidian-knowledge-base"
-    if (Test-Path $codexSkillDir) {
-        Remove-Item $codexSkillDir -Recurse -Force
-        Write-Host "-> Removed: Codex skill ($codexSkillDir)" -ForegroundColor Green
-    }
-    $codexRetrievalDir = Join-Path $env:USERPROFILE ".agents\skills\obsidian-knowledge-retrieval"
-    if (Test-Path $codexRetrievalDir) {
-        Remove-OwnedPath -Path $codexRetrievalDir
-        Write-Host "-> Removed: Codex retrieval skill ($codexRetrievalDir)" -ForegroundColor Green
-    }
-
-    # Remove only this WorkBuddy Skill; preserve siblings and link targets.
-    $workBuddySkillDir = Join-Path $env:USERPROFILE ".workbuddy\skills\obsidian-knowledge-base"
-    $workBuddyItem = Get-Item -LiteralPath $workBuddySkillDir -Force -ErrorAction SilentlyContinue
-    if ($null -ne $workBuddyItem) {
-        Remove-OwnedPath -Path $workBuddySkillDir
-        Write-Host "-> Removed: WorkBuddy skill ($workBuddySkillDir)" -ForegroundColor Green
-    }
-    $workBuddyRetrievalDir = Join-Path $env:USERPROFILE ".workbuddy\skills\obsidian-knowledge-retrieval"
-    if (Test-Path $workBuddyRetrievalDir) {
-        Remove-OwnedPath -Path $workBuddyRetrievalDir
-        Write-Host "-> Removed: WorkBuddy retrieval skill ($workBuddyRetrievalDir)" -ForegroundColor Green
+    # Every Skill destination, from the one table the installer places them by.
+    # `Remove-OwnedPath` unlinks a reparse point instead of recursing into it,
+    # which two of these nine destinations previously did not do.
+    foreach ($target in Get-SkillTargets) {
+        if (Test-Path $target.Destination) {
+            Remove-OwnedPath -Path $target.Destination
+            Write-Host "-> Removed: $($target.HostLabel) $($target.Noun) ($($target.Destination))" -ForegroundColor Green
+        }
     }
 
     if (Test-Path $SupportRoot) {
@@ -364,21 +380,6 @@ if ($Uninstall) {
     if (Test-Path $cursorFile) {
         Remove-Item $cursorFile -Force
         Write-Host "-> Removed: Cursor rule ($cursorFile)" -ForegroundColor Green
-    }
-    $cursorRetrievalDir = Join-Path $env:USERPROFILE ".cursor\skills\obsidian-knowledge-retrieval"
-    if (Test-Path $cursorRetrievalDir) {
-        Remove-OwnedPath -Path $cursorRetrievalDir
-        Write-Host "-> Removed: Cursor retrieval skill ($cursorRetrievalDir)" -ForegroundColor Green
-    }
-    $claudeSkillDir = Join-Path $env:USERPROFILE ".claude\skills\obsidian-knowledge-base"
-    if (Test-Path $claudeSkillDir) {
-        Remove-OwnedPath -Path $claudeSkillDir
-        Write-Host "-> Removed: Claude Code skill ($claudeSkillDir)" -ForegroundColor Green
-    }
-    $claudeRetrievalDir = Join-Path $env:USERPROFILE ".claude\skills\obsidian-knowledge-retrieval"
-    if (Test-Path $claudeRetrievalDir) {
-        Remove-OwnedPath -Path $claudeRetrievalDir
-        Write-Host "-> Removed: Claude Code retrieval skill ($claudeRetrievalDir)" -ForegroundColor Green
     }
 
     # Strip marker-wrapped block from Claude Code CLAUDE.md
@@ -754,15 +755,13 @@ if ($RuntimeOnly) {
     Write-Host "   which no manager provides."
 }
 foreach ($platform in $platformList) {
+    if (-not ($HostRows | Where-Object { $_.Key -eq $platform })) {
+        throw "Unknown platform: $platform"
+    }
+    # Host-specific work that is not a Skill payload, in the order it ran before
+    # the Skills themselves. A host appears here only when it needs something
+    # besides its Skills; everything else comes from Get-SkillTargets.
     switch ($platform) {
-        "qoderwork" {
-            $skillDir = Join-Path $env:USERPROFILE ".qoderwork\skills\obsidian-knowledge-base"
-            $retrievalDir = Join-Path $env:USERPROFILE ".qoderwork\skills\obsidian-knowledge-retrieval"
-            Install-StandardSkill -SourceDirectory $CanonicalSkill -DestinationDirectory $skillDir
-            Install-StandardSkill -SourceDirectory $CanonicalRetrievalSkill -DestinationDirectory $retrievalDir
-            Write-Host "-> Installed: QoderWork skill -> $skillDir\SKILL.md" -ForegroundColor Green
-            Write-Host "-> Installed: QoderWork retrieval -> $retrievalDir\SKILL.md" -ForegroundColor Green
-        }
         "claude-code" {
             $claudeDir = Join-Path $env:USERPROFILE ".claude"
             New-Item -ItemType Directory -Path $claudeDir -Force | Out-Null
@@ -776,28 +775,6 @@ foreach ($platform in $platformList) {
             if (Remove-MarkerBlock -TargetFile $claudeFile) {
                 Write-Host "-> Migrated: removed legacy Claude Code block from $claudeFile" -ForegroundColor Green
             }
-            $claudeSkillDir = Join-Path $claudeDir "skills\obsidian-knowledge-base"
-            Install-StandardSkill -SourceDirectory $CanonicalSkill -DestinationDirectory $claudeSkillDir
-            Write-Host "-> Installed: Claude Code skill -> $claudeSkillDir\SKILL.md" -ForegroundColor Green
-            $retrievalDir = Join-Path $claudeDir "skills\obsidian-knowledge-retrieval"
-            Install-StandardSkill -SourceDirectory $CanonicalRetrievalSkill -DestinationDirectory $retrievalDir
-            Write-Host "-> Installed: Claude Code retrieval -> $retrievalDir\SKILL.md" -ForegroundColor Green
-        }
-        "codex" {
-            $codexSkillDir = Join-Path $env:USERPROFILE ".agents\skills\obsidian-knowledge-base"
-            $retrievalDir = Join-Path $env:USERPROFILE ".agents\skills\obsidian-knowledge-retrieval"
-            Install-StandardSkill -SourceDirectory $CanonicalSkill -DestinationDirectory $codexSkillDir
-            Install-StandardSkill -SourceDirectory $CanonicalRetrievalSkill -DestinationDirectory $retrievalDir
-            Write-Host "-> Installed: Codex skill -> $codexSkillDir\SKILL.md" -ForegroundColor Green
-            Write-Host "-> Installed: Codex retrieval -> $retrievalDir\SKILL.md" -ForegroundColor Green
-        }
-        "workbuddy" {
-            $workBuddySkillDir = Join-Path $env:USERPROFILE ".workbuddy\skills\obsidian-knowledge-base"
-            $retrievalDir = Join-Path $env:USERPROFILE ".workbuddy\skills\obsidian-knowledge-retrieval"
-            Install-StandardSkill -SourceDirectory $CanonicalSkill -DestinationDirectory $workBuddySkillDir
-            Install-StandardSkill -SourceDirectory $CanonicalRetrievalSkill -DestinationDirectory $retrievalDir
-            Write-Host "-> Installed: WorkBuddy skill -> $workBuddySkillDir\SKILL.md" -ForegroundColor Green
-            Write-Host "-> Installed: WorkBuddy retrieval -> $retrievalDir\SKILL.md" -ForegroundColor Green
         }
         "cursor" {
             $cursorDir = Join-Path $env:USERPROFILE ".cursor\rules"
@@ -805,13 +782,12 @@ foreach ($platform in $platformList) {
             Copy-Item (Join-Path $ScriptDir "platforms\cursor\obsidian-kb.mdc") (Join-Path $cursorDir "obsidian-kb.mdc") -Force
             Write-Host "-> Installed: Cursor -> $cursorDir\obsidian-kb.mdc" -ForegroundColor Green
             Write-Host "  (Copy to your project's .cursor\rules\ for project-level use)"
-            $retrievalDir = Join-Path $env:USERPROFILE ".cursor\skills\obsidian-knowledge-retrieval"
-            Install-StandardSkill -SourceDirectory $CanonicalRetrievalSkill -DestinationDirectory $retrievalDir
-            Write-Host "-> Installed: Cursor retrieval -> $retrievalDir\SKILL.md" -ForegroundColor Green
         }
-        default {
-            throw "Unknown platform: $platform"
-        }
+    }
+    foreach ($target in Get-SkillTargets) {
+        if ($target.HostKey -ne $platform) { continue }
+        Install-StandardSkill -SourceDirectory $target.Payload -DestinationDirectory $target.Destination
+        Write-Host "-> Installed: $($target.HostLabel) $($target.Noun) -> $($target.Destination)\SKILL.md" -ForegroundColor Green
     }
 }
 

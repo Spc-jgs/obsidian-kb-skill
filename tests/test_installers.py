@@ -724,8 +724,8 @@ def test_bash_default_platforms_include_workbuddy(tmp_path):
 def test_powershell_installer_uses_standard_skill_for_codex_and_qoderwork():
     script = (ROOT / "install.ps1").read_text(encoding="utf-8")
 
-    assert "skills\\obsidian-knowledge-base" in script
-    assert ".agents\\skills\\obsidian-knowledge-base" in script
+    assert ("agents", "base") in powershell_pairs()
+    assert ("qoderwork", "base") in powershell_pairs()
     assert "platforms\\qoderwork\\SKILL.md" not in script
 
 
@@ -734,10 +734,10 @@ def test_powershell_installer_declares_workbuddy_parity():
 
     assert '"qoderwork,claude-code,codex,cursor,workbuddy"' in script
     assert '"workbuddy"' in script
-    assert '.workbuddy\\skills\\obsidian-knowledge-base' in script
-    assert "Install-StandardSkill -SourceDirectory $CanonicalSkill -DestinationDirectory $workBuddySkillDir" in script
-    assert ".workbuddy\\skills\\obsidian-knowledge-retrieval" in script
-    assert "Remove-OwnedPath -Path $workBuddySkillDir" in script
+    assert ("workbuddy", "base") in powershell_pairs()
+    assert ("workbuddy", "retrieval") in powershell_pairs()
+    assert "Install-StandardSkill -SourceDirectory $target.Payload" in script
+    assert "Remove-OwnedPath -Path $target.Destination" in script
 
 
 def test_powershell_installer_declares_complete_runtime_lifecycle():
@@ -879,8 +879,8 @@ def test_both_installers_deliver_claude_code_as_a_native_skill():
     bash = (ROOT / "install.sh").read_text(encoding="utf-8")
     powershell = (ROOT / "install.ps1").read_text(encoding="utf-8")
 
-    assert ".claude/skills/obsidian-knowledge-base" in bash
-    assert "skills\\obsidian-knowledge-base" in powershell
+    assert ("claude", "base") in shell_pairs()
+    assert ("claude", "base") in powershell_pairs()
     # Neither installer may write the write Skill as an always-loaded block.
     assert "platforms/claude-code/CLAUDE.md" not in bash
     assert "platforms\\claude-code\\CLAUDE.md" not in powershell
@@ -1199,48 +1199,56 @@ INSTALL_MATRIX = {
 }
 
 
-def installed_pairs(text: str, separator: str, home: str, assignment: str) -> set[tuple[str, str]]:
-    """Every (host directory, Skill) an installer writes to.
-
-    Resolves one level of indirection. Both installers build the Claude Code
-    paths through a variable — `CLAUDE_DIR="$HOME/.claude"` and its PowerShell
-    twin — so a literal search finds `.claude` half as often as the other hosts
-    and reads like a missing uninstall branch that is not there.
-    """
-    sep = re.escape(separator)
-    found: set[tuple[str, str]] = set()
-
-    # The host is discovered, never enumerated. A hard-coded list would make
-    # a brand-new host invisible to this check on the very script that added
-    # it — the guard would pass while the two installers disagreed, which is
-    # the one failure it exists to catch.
-    direct = rf"{re.escape(home)}[\s\"']*{sep}?\.([A-Za-z0-9_.-]+){sep}skills{sep}obsidian-knowledge-(base|retrieval)"
-    for match in re.finditer(direct, text):
-        found.add((match.group(1), match.group(2)))
-
-    for variable, host in re.findall(assignment, text):
-        via = rf"\$\{{?{re.escape(variable)}\}}?{sep}?[\s\"']*{sep}?skills{sep}obsidian-knowledge-(base|retrieval)"
-        for match in re.finditer(via, text):
-            found.add((host, match.group(1)))
-    return found
+def _shell_table(text: str, name: str) -> list[list[str]]:
+    """Rows of the pipe-delimited table `install.sh` declares as NAME="…"."""
+    match = re.search(rf'^{name}="\n(.*?)\n"$', text, re.M | re.S)
+    assert match, f"install.sh no longer declares {name}"
+    return [
+        [field.strip() for field in line.split("|")]
+        for line in match.group(1).splitlines()
+        if line.strip()
+    ]
 
 
 def shell_pairs() -> set[tuple[str, str]]:
-    return installed_pairs(
-        (ROOT / "install.sh").read_text(encoding="utf-8"),
-        "/",
-        "$HOME",
-        r'(\w+)="\$HOME/\.([A-Za-z0-9_.-]+)"',
-    )
+    """Every (host directory, Skill key) install.sh declares.
+
+    Read from the declaration, not from its uses. Before #91 this had to scan
+    for path literals across four branches, resolving one level of variable
+    indirection, because the pairs existed only as 32 hand-copied strings.
+    """
+    text = (ROOT / "install.sh").read_text(encoding="utf-8")
+    known = {row[0] for row in _shell_table(text, "SKILL_ROWS")}
+    pairs: set[tuple[str, str]] = set()
+    for row in _shell_table(text, "HOST_ROWS"):
+        _key, _label, root, skills = row
+        host = re.search(r"\.([A-Za-z0-9_.-]+)/skills$", root)
+        assert host, f"HOST_ROWS row has an unreadable Skills root: {root}"
+        for skill in skills.split():
+            assert skill in known, f"HOST_ROWS names an undeclared Skill: {skill}"
+            pairs.add((host.group(1), skill))
+    return pairs
 
 
 def powershell_pairs() -> set[tuple[str, str]]:
-    return installed_pairs(
-        (ROOT / "install.ps1").read_text(encoding="utf-8"),
-        "\\",
-        "$env:USERPROFILE",
-        r'\$(\w+)\s*=\s*Join-Path \$env:USERPROFILE "\.([A-Za-z0-9_.-]+)"',
-    )
+    """The same, from install.ps1's $HostRows."""
+    text = (ROOT / "install.ps1").read_text(encoding="utf-8")
+    known = set(re.findall(r"Key\s*=\s*'([a-z-]+)';\s*Directory", text))
+    block = re.search(r"\$HostRows = @\(\n(.*?)\n\)", text, re.S)
+    assert block, "install.ps1 no longer declares $HostRows"
+    pairs: set[tuple[str, str]] = set()
+    for line in block.group(1).splitlines():
+        root = re.search(
+            r'Root\s*=\s*\(Join-Path \$env:USERPROFILE "\.([A-Za-z0-9_.-]+)\\skills"\)',
+            line,
+        )
+        skills = re.search(r"Skills\s*=\s*@\((.*?)\)", line)
+        if not root or not skills:
+            continue
+        for skill in re.findall(r"'([a-z-]+)'", skills.group(1)):
+            assert skill in known, f"$HostRows names an undeclared Skill: {skill}"
+            pairs.add((root.group(1), skill))
+    return pairs
 
 
 def test_both_installers_write_to_the_same_hosts_and_skills():
@@ -1268,31 +1276,80 @@ def test_both_installers_write_to_the_same_hosts_and_skills():
 def test_every_host_is_reached_by_both_installing_and_uninstalling():
     """A host that installs but never uninstalls leaves files behind.
 
-    Each pair is written twice per script — once where it is created and once
-    where it is removed — so a count below two means one of the two halves
-    does not know about that host.
+    This used to count path literals, requiring two per pair — one where the
+    Skill is created, one where it is removed. #91 replaced those literals with
+    a table, so the check moved with them: both branches expanding the same
+    table is what makes "installed" and "removed" the same set by construction
+    rather than by counting. What is left to guard is that neither branch has
+    grown a private path of its own.
+
+    Deleting either call site turns this red, which is how it was verified.
     """
-    for name, separator, home in (
-        ("install.sh", "/", "$HOME"),
-        ("install.ps1", "\\", "$env:USERPROFILE"),
-    ):
-        text = (ROOT / name).read_text(encoding="utf-8")
-        for host, skill in sorted(INSTALL_MATRIX):
-            sep = re.escape(separator)
-            literal = rf"\.{host}{sep}skills{sep}obsidian-knowledge-{skill}"
-            direct = len(re.findall(literal, text))
-            aliased = 0
-            for variable, alias_host in re.findall(
-                r'(\w+)="\$HOME/\.([A-Za-z0-9_.-]+)"'
-                if separator == "/"
-                else r'\$(\w+)\s*=\s*Join-Path \$env:USERPROFILE "\.([A-Za-z0-9_.-]+)"',
-                text,
-            ):
-                if alias_host != host:
-                    continue
-                via = rf"\$\{{?{re.escape(variable)}\}}?{sep}?[\s\"']*{sep}?skills{sep}obsidian-knowledge-{skill}"
-                aliased += len(re.findall(via, text))
-            assert direct + aliased >= 2, (
-                f"{name}: {host}/{skill} appears {direct + aliased} time(s); "
-                "install and uninstall must both know about it"
-            )
+    shell = (ROOT / "install.sh").read_text(encoding="utf-8")
+    powershell = (ROOT / "install.ps1").read_text(encoding="utf-8")
+
+    assert shell.count("$(skill_targets)") == 2, (
+        "install.sh should expand skill_targets exactly twice — once to "
+        f"install, once to uninstall — found {shell.count('$(skill_targets)')}"
+    )
+    # The definition plus one call from each branch. Comments mentioning the
+    # function by name do not count, or the guard would move whenever someone
+    # explains it.
+    calls = [
+        line.strip()
+        for line in powershell.splitlines()
+        if "Get-SkillTargets" in line and not line.strip().startswith("#")
+    ]
+    assert len(calls) == 3, (
+        "install.ps1 should define Get-SkillTargets and call it from both "
+        f"branches — found {len(calls)}: {calls}"
+    )
+
+    for name, text in (("install.sh", shell), ("install.ps1", powershell)):
+        strays = [
+            line.strip()
+            for line in text.splitlines()
+            if "obsidian-knowledge-" in line
+            and "Directory =" not in line
+            and "$SCRIPT_DIR" not in line
+            and "$ScriptDir" not in line
+            and not line.strip().startswith("#")
+            and not line.strip().startswith("base|")
+            and not line.strip().startswith("retrieval|")
+        ]
+        assert not strays, f"{name} names a Skill outside the table: {strays}"
+
+
+def test_the_installers_place_the_skill_directories_build_produces():
+    """Three declarations of the same two directory names, in three languages.
+
+    Registry row 65, and the answer to #91's sixth acceptance criterion: these
+    cannot share one declaration. `build.py` is Python, `install.sh` is bash and
+    `install.ps1` is PowerShell, and neither installer can import anything — the
+    scripts are fetched and run standalone, which is the whole delivery model.
+
+    So the relation is asserted instead. A rename in `build.py` alone produces a
+    bundle whose directory no installer looks for, and the failure surfaces as
+    "Installation complete" followed by a Skill that never triggers — the shape
+    #113 already produced once.
+    """
+    import build
+
+    produced = {build.STANDARD_SKILL_ROOT.name, build.RETRIEVAL_SKILL_ROOT.name}
+    declared = {
+        row[1]
+        for row in _shell_table(
+            (ROOT / "install.sh").read_text(encoding="utf-8"), "SKILL_ROWS"
+        )
+    }
+    assert declared == produced, (
+        f"install.sh's SKILL_ROWS names {sorted(declared)}, build.py produces "
+        f"{sorted(produced)}"
+    )
+
+    powershell = (ROOT / "install.ps1").read_text(encoding="utf-8")
+    ps_declared = set(re.findall(r"Directory = '([a-z-]+)'", powershell))
+    assert ps_declared == produced, (
+        f"install.ps1's $SkillRows names {sorted(ps_declared)}, build.py "
+        f"produces {sorted(produced)}"
+    )
