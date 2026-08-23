@@ -690,6 +690,15 @@ def _name_boost(
     return 0.0, []
 
 
+# BM25's two free parameters, named so an experiment can move them and a reader
+# can see what they are. `b` is the length-penalty strength: 0 charges a note
+# nothing for its length, 1 charges it in full proportion to how far it sits
+# above the corpus average. These are the textbook defaults and have never been
+# fitted to this corpus.
+BM25_K1 = 1.5
+BM25_B = 0.75
+
+
 def _inverse_frequency(df: int, document_count: int) -> float:
     """How rare a word is in this corpus — the scorer's IDF, defined once.
 
@@ -725,8 +734,8 @@ def _bm25_score(
     """
     if document_count == 0:
         return 0.0, None
-    k1 = 1.5
-    b = 0.75
+    k1 = BM25_K1
+    b = BM25_B
     names = {
         field: counts
         for field, counts in document.field_tokens.items()
