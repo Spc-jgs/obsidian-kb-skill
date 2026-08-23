@@ -1290,3 +1290,27 @@ def test_a_fenced_comment_does_not_open_a_section(tmp_path):
         "the fenced code was dropped from the passage; blanking may only decide "
         "where sections start, never what they contain"
     )
+
+
+def test_the_length_penalty_is_the_value_the_sweep_ruled_on():
+    """`b` is 0.75 because a sweep said so, not because nobody looked.
+
+    Registry row 64. The textbook default happens to be the measured answer
+    here, which is exactly why it needs a guard: a later reader finds a round
+    number in a formula and reasonably assumes it was never examined.
+
+    It was. Lowering it to 0.25 reads better in aggregate — 17/18 against 16/18
+    on the annotated set — and is worse where it counts: of the four real
+    fragment-vs-complete groups on the reference Vault it fixes one and pushes
+    another's complete note out of the Top-5, while the mean size of a top-1
+    returned for an unanswerable query climbs from 5916 bytes to 10667. The
+    full table is in `2026-08-21-rejected-hypotheses.md` §6.
+    """
+    from obsidian_kb_skill.scripts.search_vault import BM25_B, BM25_K1
+
+    assert (BM25_K1, BM25_B) == (1.5, 0.75), (
+        f"BM25 parameters moved to k1={BM25_K1}, b={BM25_B}. The sweep in "
+        "docs/superpowers/specs/2026-08-21-rejected-hypotheses.md §6 ruled on "
+        "these values against an annotated set — re-run it and say what changed "
+        "rather than adjusting them by feel"
+    )

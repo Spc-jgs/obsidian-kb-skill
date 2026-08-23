@@ -272,3 +272,54 @@ and non-URL sources before a finding means anything.
 open is the narrower rule: same URL, both notes outside `95-Sources/`, and one
 of them a shell. That is one group on this Vault, and #167 §3 above is why "a
 shell" is not currently detectable.
+
+---
+
+## 6. Lowering BM25's length penalty is not the fix for #171
+
+**Hypothesis** (#171). Notes written in full rank below fragments on the same
+subject, because BM25 charges them for length. `b` controls how hard that
+penalty bites, so lowering it should let the fuller note win.
+
+**Criterion tried.** Sweep `b` over 0.0–1.0 against 18 hand-written questions
+with known correct answers, 22 queries with no answer in the Vault as hard
+negatives, and the adversarial set's own control cases.
+
+**How it died.** The aggregate looks like `b=0.25` wins — 17/18 against 16/18,
+MRR 0.972 against 0.944. Per query, only **four** of the eighteen move at all,
+and the winner is decided by **three notes**:
+
+| query | b=0 | 0.25 | 0.5 | 0.75 | 1.0 |
+|---|---|---|---|---|---|
+| SSE 和 WebSocket 该怎么选 | 3 | 1 | 1 | 1 | 1 |
+| Tailscale 和 ZeroTier 有什么区别 | 2 | 1 | 1 | 1 | 1 |
+| NOT IN 遇到 NULL 为什么返回空集 | 1 | 2 | 2 | 2 | 2 |
+| NOT IN 子查询 NULL 返回空集 | 1 | 1 | 2 | 2 | 2 |
+
+Fitting a global parameter to three notes is what #171 itself warned against.
+
+**And the direction is wrong where it matters.** On the four same-source
+"fragment vs complete" groups the reference Vault actually holds, lowering `b`
+to 0.25 fixes one — the NOT IN pair — and makes another **worse**: the complete
+MCP note falls from rank 5 out of the Top-5 entirely. A weaker length penalty
+was supposed to help long notes.
+
+The hard negative moves too: the mean size of the top-1 returned for a query
+with no answer climbs from 5916 bytes at `b=0.75` to 10667 at `b=0.25`. Long
+off-topic notes float up, which is the cost #171 asked to be measured.
+
+**Two neighbouring branches were already closed** by the adversarial set's own
+controls, before any of this: `adv-dilution-04` states a fix "cannot be a
+blanket length bonus", `adv-field-04` that it "cannot simply demote short
+notes".
+
+**What the sweep did find.** The MCP group was never a length problem. Its
+answer note had no H1 and took its `title` from a shell comment inside a
+```bash block, losing the 6x title weight on its own subject — fixed in #189,
+which moved it from rank 5 to 2 without touching `b`.
+
+**What would reopen it.** A larger annotated set — enough that no single note
+decides the value — showing a `b` that improves the whole set rather than
+trading groups against each other. The parameters are now named `BM25_K1` and
+`BM25_B` in `search_vault`, so a sweep is a one-line change rather than an edit
+to a function body.
