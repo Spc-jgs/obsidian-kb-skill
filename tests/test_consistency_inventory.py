@@ -377,3 +377,51 @@ def test_no_module_declares_a_dependency_it_does_not_use():
         "that outlived its use tells the next reader the module still depends "
         "on something it does not."
     )
+
+
+def test_every_confidence_level_is_documented_for_the_agent_that_reads_it():
+    """A level an Agent cannot look up is a level it will guess the meaning of.
+
+    Registry row 37. `none` is the only finding `confidence` makes, and acting
+    on it means declining to cite results that are sitting right there — an
+    Agent that has not read what the level means will not do that. `evidence`
+    needs documenting for the opposite reason: it is the *absence* of a finding
+    and says nothing about correctness, which is exactly what an undocumented
+    positive-sounding word gets read as.
+    """
+    from obsidian_kb_skill.scripts.search_vault import CONFIDENCE_LEVELS
+
+    reference = (
+        ROOT / "core" / "retrieval-references" / "search.md"
+    ).read_text(encoding="utf-8")
+
+    assert CONFIDENCE_LEVELS, "the helper reports no confidence at all"
+    for level in CONFIDENCE_LEVELS:
+        assert f"`{level}`" in reference, f"undocumented confidence level: {level}"
+
+
+def test_the_confidence_floor_is_stated_where_it_was_measured():
+    """The threshold and the measurement that produced it must not drift apart.
+
+    0.30 is not a round number someone liked: it is the one cut that demotes
+    none of the 16 correct answers measured while catching 20 of the 22 queries
+    with no answer. A later reader who finds the constant alone will assume it
+    is adjustable, and #170's first implementation shows what that costs — 0.60
+    looked equally defensible and flagged 12 of those 16.
+    """
+    from obsidian_kb_skill.scripts.search_vault import CONFIDENCE_FLOOR
+
+    design = (
+        ROOT / "docs" / "superpowers" / "specs"
+        / "2026-08-23-answer-confidence-design.md"
+    ).read_text(encoding="utf-8")
+    reference = (
+        ROOT / "core" / "retrieval-references" / "search.md"
+    ).read_text(encoding="utf-8")
+
+    assert str(CONFIDENCE_FLOOR) in design, (
+        f"the design does not state the floor the code uses ({CONFIDENCE_FLOOR})"
+    )
+    assert str(CONFIDENCE_FLOOR) in reference, (
+        f"the Agent's reference does not state the floor ({CONFIDENCE_FLOOR})"
+    )

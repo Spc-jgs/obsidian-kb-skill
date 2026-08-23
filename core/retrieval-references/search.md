@@ -176,6 +176,31 @@ the section is correct. Prefer results whose evidence directly answers the
 question. When snippets are insufficient, read no more than the top five result
 files and keep the user's requested scope.
 
+### Whether the results answer the question at all
+
+Every response carries `confidence`, including a zero-result one:
+
+| `level` | Meaning | What to do |
+|---|---|---|
+| `none` | The results share only the query's least informative words — question frames like `有什么`, `区别`, `怎么`, and nothing specific to what was asked | Do **not** cite these results, and do not conclude the Vault covers the topic. Say the Vault has nothing on it |
+| `evidence` | The top result carries words specific to the query | Read on. This is **not** a claim the answer is right |
+
+`coverage` is the number behind the level: the share of the query's information,
+weighted by how rare each word is in this Vault, that the top result actually
+matched. `none` is below 0.30.
+
+**`evidence` is only the absence of a finding.** Of 18 measured questions two
+score `evidence` on a wrong top-1. Judge the result on the snippet, as always —
+the level rules out one specific failure, it does not vouch for what remains.
+
+**What `none` will miss.** A query naming a technology the Vault has neighbouring
+notes about can share rare words with a note that does not answer it, and score
+`evidence` anyway. On the reference Vault, `Feign 和 HttpExchange 有什么区别`
+returns a note on Python functional programming at coverage 0.54. Treat a
+`heading` and `body` signal listing only question words — `么区, 什么, 区别, 和,
+有什` — as the same finding the level would have made, and check the snippet
+before citing.
+
 A note without headings is one section, so nothing about it changed: short
 focused notes still win on being short. What cannot be helped is a long note
 with no headings — there is no section to compete with, and its evidence stays

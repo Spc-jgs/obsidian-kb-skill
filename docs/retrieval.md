@@ -129,6 +129,15 @@ python <retrieval-skill-root>/scripts/run_helper.py search-vault \
 
 Agent 应优先用这些有界证据回答。片段不足时，最多继续读取前五个结果文件，而不是把整个 Vault 放进模型上下文。
 
+此外每次响应都带一个 `confidence`（零结果时也有）：
+
+- `none`：结果只匹配上了问题里最不具信息量的词——`有什么`、`区别`、`怎么`这类问句框架，没有一个词是问题真正问的东西。**不要引用这些结果**，也不要据此认为 Vault 里已经有相关材料。
+- `evidence`：首位结果确实带有问题的特征词。
+
+`coverage` 是这个判定背后的数字：按词在本 Vault 里的稀有程度加权，首位结果覆盖了问题多少信息量。低于 0.30 判为 `none`。
+
+`evidence` **只是「没发现问题」，不是「答案正确」**。实测的 18 个问题里有 2 个在首位结果错误的情况下仍是 `evidence`。判断仍然要看片段本身。
+
 ## 哪些文件不会被搜索
 
 - 隐藏目录，如 `.git`、`.obsidian`、`.claude`、`.cursor`；
@@ -187,6 +196,7 @@ python <retrieval-skill-root>/scripts/run_helper.py review-projects \
 
 - 同义词既不在笔记里，也不在词表里时，仍然会漏召回。词表是人工整理的领域词汇，不是完整词典。
 - 一个词条在多个语境下含义不同时，扩展会把几种读法一起展开（例如「代理」），由排序和阅读者判断，helper 不替你选。
+- `confidence: none` 抓不住「近邻无答案」——问题点名的技术在 Vault 里有邻近笔记时，它会和答不上这个问题的笔记共享稀有词。实测 `Feign 和 HttpExchange 有什么区别` 在参考 Vault 上 coverage 0.54，判为 `evidence`，而首位结果是一篇 Python 函数式编程笔记。
 - 每次运行都在内存中重新扫描目标范围。
 - 不包含图谱扩展和 embedding。
 - 本地 embedding 只在未来作为可选、默认关闭的 provider；必须先证明它相对词法基线有可测收益。

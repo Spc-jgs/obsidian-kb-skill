@@ -571,6 +571,40 @@ def _document_frequencies(
     return frequencies
 
 
+MATCH_FIELDS = ("title", "aliases", "tags", "headings", "links", "body")
+
+
+def _matched_by_field(
+    document: SearchDocument,
+    query_tokens: list[str],
+    passage: Passage | None = None,
+) -> dict[str, list[str]]:
+    """Which of the reader's words appear in each field of this document.
+
+    One definition of "this word matched", read by the signals a result shows
+    and by the confidence that result is reported with. Two copies would let a
+    result cite a word its own confidence did not count, and nothing would say
+    so — the failure this repo keeps finding at unguarded boundaries.
+
+    `body` is read from the section that won rather than note-wide, for the
+    reason `_field_matches` gives: the cited passage is what the reader sees.
+    """
+    return {
+        field: sorted(
+            {
+                token
+                for token in query_tokens
+                if (
+                    passage.tokens
+                    if field == "body" and passage is not None
+                    else document.field_tokens[field]
+                ).get(token, 0)
+            }
+        )
+        for field in MATCH_FIELDS
+    }
+
+
 def _field_matches(
     document: SearchDocument,
     query_tokens: list[str],
@@ -594,15 +628,9 @@ def _field_matches(
         "links": "link",
         "body": "body",
     }
-    for field in ("title", "aliases", "tags", "headings", "links", "body"):
-        counts = (
-            passage.tokens
-            if field == "body" and passage is not None
-            else document.field_tokens[field]
-        )
-        matches = sorted(
-            {token for token in query_tokens if counts.get(token, 0)}
-        )
+    by_field = _matched_by_field(document, query_tokens, passage)
+    for field in MATCH_FIELDS:
+        matches = by_field[field]
         if matches:
             signals.append(
                 {
@@ -637,6 +665,15 @@ def _name_boost(
             }
         ]
     return 0.0, []
+
+
+def _inverse_frequency(df: int, document_count: int) -> float:
+    """How rare a word is in this corpus — the scorer's IDF, defined once.
+
+    `_confidence` weighs a query's words by exactly this, so "informative" and
+    "highly scored" cannot drift apart into two notions of the same word.
+    """
+    return math.log(1.0 + (document_count - df + 0.5) / (df + 0.5))
 
 
 def _bm25_score(
@@ -687,9 +724,8 @@ def _bm25_score(
             ) + FIELD_WEIGHTS["body"] * passage.tokens.get(token, 0)
             if frequency <= 0:
                 continue
-            df = document_frequencies[token]
-            inverse_frequency = math.log(
-                1.0 + (document_count - df + 0.5) / (df + 0.5)
+            inverse_frequency = _inverse_frequency(
+                document_frequencies[token], document_count
             )
             normalization = k1 * (
                 1.0 - b + b * length / max(average_length, 1.0)
@@ -940,6 +976,16 @@ def search_vault(
         "scope": scope_relative or ".",
         "scanned": scanned,
         "results": results,
+        # Always present, including on zero results: "how much of what you asked
+        # is in this answer" is a question every caller has, and a field that
+        # appears only sometimes is a field callers learn not to read.
+        "confidence": _confidence(
+            document=scored[0][1] if scored else None,
+            passage=scored[0][3] if scored else None,
+            query_tokens=query_tokens,
+            document_frequencies=frequencies,
+            document_count=len(documents),
+        ),
         "issues": issues,
         "truncated": len(scored) > top_k,
     }
@@ -976,6 +1022,97 @@ def search_vault(
 # One table, two consumers. #120 requires the text hint and the JSON code to
 # come from the same place: two independent answers to "why nothing" is the
 # defect this diagnosis exists to remove, reproduced one level up.
+# One threshold, because the measurements support one. On the reference Vault
+# (231 notes) 22 queries with no answer in it score 0.09–0.54, and 16 questions
+# phrased the way a person types them, against topics the Vault does cover and
+# whose top-1 is right, score 0.32–0.64. Those ranges **overlap**: no cut
+# separates them. A cut at 0.30 is the one useful point — it catches 20 of the
+# 22 with no answer and demotes none of the 16 correct ones.
+#
+# An earlier draft of this code read 0.60 with a third `high` band, from a
+# positive set built by lifting sentences out of the notes' own bodies. That
+# construction guarantees the words are present; it reported a 0.66 floor and a
+# clean gap, and at 0.60 it would have flagged 12 of these 16 correct answers.
+# The sampling produced the gap, not the ranker. Two levels are what survived.
+#
+# What this cannot do: the two queries that slip through are `Feign 和
+# HttpExchange 有什么区别` (0.54) and `Spring Boot 事务失效` (0.48) — #170's own
+# examples. Both name real technologies in the Vault's own Java and Spring
+# domain, so they share informative words with notes that do not answer them.
+# Near-miss detection is not solved here and must not be claimed.
+#
+# See docs/superpowers/specs/2026-08-23-answer-confidence-design.md.
+CONFIDENCE_FLOOR = 0.30
+
+CONFIDENCE_LEVELS: dict[str, str] = {
+    "evidence": "the top result carries words specific to the query",
+    "none": "the results share only the query's least informative words",
+}
+
+
+def _confidence(
+    *,
+    document: "SearchDocument | None",
+    passage: "Passage | None",
+    query_tokens: list[str],
+    document_frequencies: Counter[str],
+    document_count: int,
+) -> dict[str, Any]:
+    """Whether the winning result answers the query or merely shares words with it.
+
+    #170: a search that finds nothing useful returns hits anyway, with a score,
+    a heading and a snippet — the shape of a search that succeeded. Asked
+    "Feign 和 HttpExchange 有什么区别" the reference Vault returns a note on
+    Python functional programming, and the words it matched are 么区, 什么,
+    区别, 和, 有什: every one a question frame, neither technical term among
+    them. The caller cannot see that, so an Agent either cites the wrong note
+    or concludes the topic is already covered and never captures it.
+
+    The measure is how much of the query's *information* the winner holds:
+    IDF-weighted share of the typed tokens it matched. IDF is what makes
+    "informative" countable here — a stop-word list would need a countable
+    source, which #147 and #75 both settled that it must have, and question
+    frames like 有什么 have none.
+
+    Only tokens the reader typed count. An expansion token is the ranker's own
+    guess at what was meant, and letting a guess certify the confidence of the
+    result it produced is circular.
+
+    Two things this does **not** measure. It is not "was this the best note":
+    `adv-crowding-01` scores 1.00 with a wrong top-1, because those near-
+    identical dailies really do contain every word of the query, and redundancy
+    is Top-K selection's problem. And `evidence` is not a claim of correctness —
+    it says the result carries specific words from the query, which a wrong note
+    on a neighbouring topic can also do. Only `none` is a finding.
+    """
+    if document is None or not query_tokens:
+        return {
+            "level": "none",
+            "coverage": 0.0,
+            "explanation": CONFIDENCE_LEVELS["none"],
+        }
+    matched = {
+        token
+        for tokens in _matched_by_field(document, query_tokens, passage).values()
+        for token in tokens
+    }
+    total = sum(
+        _inverse_frequency(document_frequencies[token], document_count)
+        for token in set(query_tokens)
+    )
+    held = sum(
+        _inverse_frequency(document_frequencies[token], document_count)
+        for token in matched
+    )
+    coverage = held / total if total else 0.0
+    level = "evidence" if coverage >= CONFIDENCE_FLOOR else "none"
+    return {
+        "level": level,
+        "coverage": round(coverage, 3),
+        "explanation": CONFIDENCE_LEVELS[level],
+    }
+
+
 ZERO_RESULT_REASONS: dict[str, str] = {
     "all-candidates-filtered": "the active filters excluded every candidate",
     "material-files-skipped": "nothing in scope could be read",
@@ -1258,6 +1395,18 @@ def main(argv: list[str] | None = None) -> int:
             for retry in diagnostics["safe_retries"]:
                 print(f"  try: {retry}")
         return 0
+    confidence = payload["confidence"]
+    if confidence["level"] == "none":
+        # Before the results, not after: a reader who sees five ranked hits
+        # first has already believed them. Printed only when it is not `high`,
+        # the way `expansion` and `filters` announce themselves only when they
+        # acted — the field itself is unconditional in --json, which is where a
+        # caller reads it programmatically. Same table as the JSON, so the two
+        # can never disagree about what a level means.
+        print(
+            f"confidence: {confidence['level']} "
+            f"(coverage {confidence['coverage']:.2f}) — {confidence['explanation']}"
+        )
     for result in payload["results"]:
         location = f"{result['path']}:{result['line']}" if result["line"] else result["path"]
         heading = f" — {result['heading']}" if result["heading"] else ""

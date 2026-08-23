@@ -41,7 +41,7 @@ from pathlib import Path
 
 import pytest
 
-from obsidian_kb_skill.scripts.search_vault import search_vault
+from obsidian_kb_skill.scripts.search_vault import CONFIDENCE_LEVELS, search_vault
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "retrieval_adversarial_cases.json"
@@ -581,4 +581,58 @@ def test_a_real_vault_run_reports_without_exposing_it(tmp_path):
             },
             ensure_ascii=False,
         )
+    )
+
+
+def test_a_no_answer_query_is_reported_as_carrying_no_evidence(tmp_path):
+    """#170: sharing common words with a note is not having an answer.
+
+    The frozen baseline already names this, as `term-overlap-is-treated-as-
+    evidence`: every no-answer case returns hits, and they carry a score, a
+    heading and a snippet — the shape of a successful search. A caller cannot
+    tell "the Vault answered" from "the Vault had nothing", so an Agent cites a
+    Python note for a Feign question, or, worse, concludes the topic is already
+    covered and never captures it.
+
+    The statistic is how much of the **typed** query the winner matched,
+    weighted by IDF, which makes "informative" countable without a stop-word
+    list — a list would need a countable source, which #147 and #75 both
+    settled that it must have, and question frames like 有什么 have none.
+
+    **This catches four of the six, and the exemptions are the point.** On the
+    reference Vault the signal separates nothing cleanly: 22 queries with no
+    answer score 0.09–0.54 and 16 correctly-answered questions score 0.32–0.64,
+    ranges that overlap. 0.30 is chosen because it demotes none of the 16 while
+    catching 20 of the 22 — not because it draws a line.
+
+    So the exempt pair is asserted by name rather than tolerated by a count. If
+    a change catches `adv-noanswer-02`, this test fails and the person who made
+    it gets to say so deliberately; if a change loses one of the four, it fails
+    the same way. A `>= 4` assertion would have hidden both.
+    """
+    fixture = _load(FIXTURE)
+    vault = _build_vault(tmp_path, fixture)
+    cases = [case for case in fixture["queries"] if case["group"] == "no-answer"]
+    assert cases, "the no-answer family disappeared from the fixture"
+
+    # Measured at 0.32 and 0.35 against a floor of 0.30. Both are near-misses of
+    # the kind the reference Vault also leaks: they share an informative term
+    # with a note that does not answer them.
+    KNOWN_LEAKS = {"adv-noanswer-04", "adv-noanswer-02"}
+
+    leaked = set()
+    for case in cases:
+        payload = search_vault(vault, case["query"], top_k=TOP_K)
+        confidence = payload.get("confidence")
+        assert confidence is not None, (
+            f"{case['id']}: the payload carries no `confidence`, so a caller "
+            "still cannot tell an answer from lexical noise"
+        )
+        assert confidence["level"] in CONFIDENCE_LEVELS, confidence["level"]
+        if confidence["level"] != "none":
+            leaked.add(case["id"])
+
+    assert leaked == KNOWN_LEAKS, (
+        f"no-answer cases reported as carrying evidence changed: {sorted(leaked)}, "
+        f"recorded {sorted(KNOWN_LEAKS)}"
     )
