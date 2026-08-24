@@ -1,6 +1,6 @@
 # Obsidian Knowledge Retrieval
 
-> **Version**: 1.35.0 · Read-only bilingual lexical retrieval, cited evidence.
+> **Version**: 1.36.0 · Read-only bilingual lexical retrieval, cited evidence.
 
 ## Overview
 
