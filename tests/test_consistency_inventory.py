@@ -498,3 +498,108 @@ def test_the_confidence_floor_is_stated_where_it_was_measured():
     assert str(CONFIDENCE_FLOOR) in reference, (
         f"the Agent's reference does not state the floor ({CONFIDENCE_FLOOR})"
     )
+
+
+def test_the_content_floor_is_the_value_the_distribution_supports():
+    """Registry row 67. A floor is a claim about a corpus, not a taste.
+
+    `WEB_CLIP_MIN_CONTENT_CHARS` was chosen from the reference Vault's measured
+    distribution: shells at 100 and 220 content characters, self-declared drafts
+    at 329 and 383, and the smallest real capture at 799. The number only means
+    anything while it sits strictly between the largest shell and the smallest
+    real capture, so moving it without re-measuring fails here rather than
+    quietly starting to accuse real notes.
+
+    The endpoints are asserted as the design records them. If a re-measurement
+    moves them, this test and
+    `2026-08-24-shell-capture-detection-design.md` change together.
+    """
+    from obsidian_kb_skill.scripts.audit_vault import WEB_CLIP_MIN_CONTENT_CHARS
+
+    LARGEST_SHELL = 220
+    SMALLEST_REAL_CAPTURE = 799
+
+    assert LARGEST_SHELL < WEB_CLIP_MIN_CONTENT_CHARS < SMALLEST_REAL_CAPTURE, (
+        f"the floor is {WEB_CLIP_MIN_CONTENT_CHARS}, outside the measured gap "
+        f"{LARGEST_SHELL}–{SMALLEST_REAL_CAPTURE}. Below the gap it stops "
+        "catching the shells it was built for; above it, it reports the "
+        "smallest real capture the reference Vault holds."
+    )
+
+    design = (
+        ROOT / "docs" / "superpowers" / "specs"
+        / "2026-08-24-shell-capture-detection-design.md"
+    ).read_text(encoding="utf-8")
+    for number in (WEB_CLIP_MIN_CONTENT_CHARS, LARGEST_SHELL, SMALLEST_REAL_CAPTURE):
+        assert str(number) in design, (
+            f"the design does not state {number}, so the constant here cites a "
+            "measurement a reader cannot find"
+        )
+
+
+def test_both_emptiness_findings_read_the_same_content_count():
+    """Registry row 68. Two findings, one answer to "what is content".
+
+    `empty-template-note` asks whether a note has any body at all and
+    `web-clip-captured-nothing` whether it has enough of one. They are the same
+    question at two thresholds, so a second counting loop would be free to
+    answer it differently — headings counted here and not there, whitespace
+    treated one way and then another.
+
+    Asserting both call the shared helper is not enough on its own: a copy can
+    be added beside the call. So the accumulator itself is counted, and there
+    must be exactly one in the module.
+    """
+    import ast
+
+    source = (
+        ROOT / "obsidian_kb_skill" / "scripts" / "audit_vault.py"
+    ).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    functions = {
+        node.name: node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+    }
+
+    for name in ("_audit_empty_template", "_audit_shell_capture"):
+        calls = {
+            node.func.id
+            for node in ast.walk(functions[name])
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        }
+        assert "_body_content_chars" in calls, (
+            f"{name} no longer reads the shared count; the two findings can now "
+            "disagree about what a note's content is"
+        )
+
+    accumulators = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.AugAssign)
+        and isinstance(node.target, ast.Name)
+        and node.target.id == "content_chars"
+    ]
+    assert len(accumulators) == 1, (
+        f"{len(accumulators)} places accumulate `content_chars`; the count "
+        "belongs to `_body_content_chars` alone, and a copy beside the call is "
+        "how the two findings come to mean different things by content"
+    )
+
+
+def test_the_audit_skips_the_draft_tag_filing_files_on():
+    """Registry row 69. One draft vocabulary, shared by object.
+
+    `process_inbox` refuses to file a note carrying this tag; the audit skips
+    the same note when judging whether a web-clip captured anything. If those
+    two lists could drift, a Vault would get a note that filing calls a draft
+    and the audit calls a defect — contradictory advice about one note.
+
+    Neither module can import the other (`process_inbox` already imports
+    `_note_title` from `audit_vault`), so the constant lives in the shared note
+    domain and both read that object rather than restating it.
+    """
+    from obsidian_kb_skill.scripts import audit_vault, note_catalog, process_inbox
+
+    assert audit_vault.DEFAULT_DRAFT_TAGS is note_catalog.DEFAULT_DRAFT_TAGS
+    assert process_inbox.DEFAULT_DRAFT_TAGS is note_catalog.DEFAULT_DRAFT_TAGS

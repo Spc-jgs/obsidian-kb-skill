@@ -383,7 +383,29 @@ def test_skill_runner_bridges_create_note_stdin_bytes(tmp_path):
         "author: QoderWork\r\n"
         "published: 2026-07-13\r\n"
         "---\r\n"
-        "# UTF-8\r\n\r\n中文输入 🧠\r\n"
+        "# UTF-8\r\n\r\n中文输入 🧠\r\n\r\n"
+        # The subject here is byte bridging; the body length is not. But a
+        # web-clip under `WEB_CLIP_MIN_CONTENT_CHARS` is reported as having
+        # captured nothing (#167), which would turn `audit.ok` false for a
+        # reason that has nothing to do with encoding.
+        "本文记录一次跨平台的字节桥接问题：Windows 侧以 UTF-16 写出标准输入，"
+        "而 helper 期望 UTF-8，于是中文与 emoji 在传输途中变成了问号。"
+        "修复的做法是在 run_helper 里显式声明编码，而不是依赖平台默认值，"
+        "因为平台默认值在同一台机器上也会随终端设置变化，"
+        "同一条命令在 PowerShell 与 Windows Terminal 里能得到不同结果。\r\n\r\n"
+        "验证方式是让正文同时包含多字节汉字与四字节 emoji，"
+        "并在写入后重新按 UTF-8 读回比对，两者都还原才算通过。"
+        "此外还要覆盖带 BOM 的输入与 CRLF 换行，"
+        "它们是这条路径上最容易被静默吞掉的两种字节："
+        "BOM 会被当成正文的第一个字符，CRLF 会让按行比对的断言在末尾多出一个空白。\r\n"
+        "\r\n更细的一层是标准输出侧：即便输入被正确解码，"
+        "Windows 的控制台仍可能以 GBK 编码回写，"
+        "于是 JSON 里的中文在被调用方解析时再次损坏。"
+        "因此这条路径上需要同时固定输入与输出两端的编码，"
+        "只修一端会得到一个看起来通过、实际只在开发者本机成立的结果。"
+        "回归测试因此断言的是端到端的往返："
+        "从字节写入，到文件按 UTF-8 读回，再到 JSON 载荷里的路径字段，"
+        "三处都还原成同一串字符才算通过。\r\n"
     ).encode("utf-8")
 
     result = subprocess.run(

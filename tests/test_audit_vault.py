@@ -2301,3 +2301,184 @@ def test_the_text_report_carries_the_denominator_too(tmp_path):
     )
 
     assert "across 3 note(s)" in result.stdout, result.stdout
+
+
+# --- #167: a web-clip that captured nothing ---------------------------------
+#
+# Two notes on the reference Vault are placeholders left by a blocked fetch, and
+# for a month the audit's only word on them was `web-clip-missing-author`, at
+# `hygiene`. In retrieval they are ordinary web-clips: hit, cited, and counted
+# as evidence the topic is already captured.
+#
+# Every size below is the measured one from
+# `2026-08-24-shell-capture-detection-design.md`: shells at 100 and 220 content
+# characters, self-declared drafts at 329 and 383, smallest real capture 799.
+
+
+def _web_clip(body: str, *, tags: str = "[web-clip]") -> str:
+    return (
+        "---\n"
+        "source: https://juejin.cn/post/7664904418249900084\n"
+        "author: 掘金作者\n"
+        "published: '2026-07-23'\n"
+        "capture_depth: standard\n"
+        'date: "2026-07-23"\n'
+        "type: web-clip\n"
+        f"tags: {tags}\n"
+        "---\n"
+        f"{body}"
+    )
+
+
+def test_reports_a_web_clip_that_captured_nothing(tmp_path):
+    """The bare shape, which is the one nothing else can reach.
+
+    No heading at all, so `empty-template-note`'s `has_heading` precondition
+    fails; placeholder prose rather than an empty body, so its `content_chars
+    == 0` fails too. The structural predicate in `rejected-hypotheses.md` §3
+    cannot see it either — with no level-2 heading it never enters that
+    predicate's population. This is half the known population of real shells.
+    """
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Clip.md").write_text(
+        _web_clip(
+            "这是一个由 AI Agent 自动创建的 Web Clip 占位内容，"
+            "由于掘金的 WAF 反爬拦截，未能自动抓取完整正文。\n\n"
+            "您可以在此处补充文章的核心内容：\n"
+            "- 文章主要讲述了...\n"
+            "- 核心代码/结论是...\n"
+        ),
+        encoding="utf-8",
+    )
+
+    assert "web-clip-captured-nothing" in codes(tmp_path)
+
+
+def test_reports_a_web_clip_whose_sections_are_all_placeholders(tmp_path):
+    """The skeleton shape: the headings arrived, the article did not.
+
+    Sized to the real one it is drawn from — 212 content characters against
+    that note's 220 — because a fixture trimmed to something trivially tiny
+    would not exercise the floor at all. Most of what it does carry is the
+    source-info block, which is metadata about the capture rather than any of
+    the captured material.
+    """
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Clip.md").write_text(
+        _web_clip(
+            "# 掘金文章-7664904418249900084\n\n"
+            "## 来源信息\n\n"
+            "- **原文链接**：https://juejin.cn/post/7664904418249900084\n"
+            "- **作者**：未知\n- **发布日期**：未知\n- **剪藏日期**：2026-07-23\n\n"
+            "## 一句话摘要\n\n"
+            "这是一个由 AI Agent 自动创建的 Web Clip 占位内容，"
+            "由于掘金的 WAF 反爬拦截，未能自动抓取完整正文。\n\n"
+            "## 核心观点\n\n由于反爬虫限制，需要您在此处手动补充文章的核心观点。\n\n"
+            "## 重要摘录\n\n> 暂无内容，请后续补充。\n\n"
+            "## 理解与启发\n\n暂无\n\n"
+            "## 后续行动\n\n- [ ] 手动补充由于 WAF 拦截未抓取到的掘金文章内容\n"
+        ),
+        encoding="utf-8",
+    )
+
+    assert "web-clip-captured-nothing" in codes(tmp_path)
+
+
+def _smallest_real_capture() -> str:
+    """A genuine capture at the size of the smallest one the Vault holds."""
+    return _web_clip(
+        "# 用雪花 id 和 uuid 做 MySQL 主键被领导怼了\n\n"
+        "## 来源与结论\n\n"
+        "结论先行：InnoDB 的主键索引是聚簇的，数据行按主键顺序存放，"
+        "所以主键是否单调递增，直接决定新行是追加在 B+ 树的右端，还是插进中间某一页。\n\n"
+        "## 问题、前提与适用边界\n\n"
+        "适用于以 InnoDB 为存储引擎、写入量足以让页分裂成为瓶颈的表。"
+        "读多写少的小表上这个差别测不出来，不必为此改造。\n\n"
+        "## 核心知识与原理\n\n"
+        "UUID 随机分布，插入点随机，页分裂与页内碎片都随之增加。"
+        "更糟的是二级索引的叶子节点存的是主键值，主键越长，每一个二级索引都跟着变胖，"
+        "同样的内存能缓存的索引页就越少，缓冲池命中率下降。\n\n"
+        "雪花 ID 是 64 位整数，高位是时间戳，因此天然单调递增，"
+        "插入总是发生在树的右端，页分裂退化成顺序追加，"
+        "而且它只占 8 字节，是 UUID 字符串形式的四分之一。\n\n"
+        "## 具体做法与示例\n\n"
+        "主键用 BIGINT 存雪花 ID，业务上需要对外暴露的标识另开一列，"
+        "用随机字符串并加唯一索引。这样对外不泄露业务量，对内保持顺序写入。"
+        "如果历史表已经用了 UUID，迁移的代价主要在重建全部二级索引，"
+        "应当安排在低峰期并按分区逐步进行。\n\n"
+        "## 验证、风险与限制\n\n"
+        "雪花 ID 依赖机器时钟，时钟回拨会产生重复 ID，"
+        "生产环境要么用 NTP 严格同步并在回拨时拒绝发号，要么改用号段模式。"
+        "另一个代价是 ID 可猜测：连续递增的主键暴露了业务量，对外接口不应直接使用它。"
+        "验证手段是压测下观察 innodb_buffer_pool_reads 与页分裂计数的变化。\n\n"
+        "## 关联对比\n\n"
+        "自增主键与雪花 ID 的差别只在分布式发号：单库单表时自增最省事，"
+        "分库分表后自增会在不同分片上撞号，才需要一个全局唯一且仍然递增的方案。"
+        "UUIDv7 把时间戳放进高位，同样具备单调性，"
+        "在不想自建发号服务时是一个折中，代价是仍然占 16 字节。\n\n"
+        "## 理解与启发\n\n"
+        "把它当成一个索引结构问题而不是 ID 生成问题，讨论就清楚了："
+        "任何单调递增且短的主键都可以，雪花只是其中一种实现，"
+        "自增主键在单机场景下同样满足这两个条件。\n\n"
+        "## 关联笔记\n\n"
+        "见同目录下关于 InnoDB 聚簇索引与页分裂的两篇笔记，"
+        "它们给出了压测数据与具体的参数调整过程，"
+        "以及一次线上把 UUID 主键换成雪花 ID 后的前后对比。\n"
+    )
+
+
+def test_a_short_real_capture_is_not_reported(tmp_path):
+    """The hard negative, at the smallest real capture the Vault holds.
+
+    799 content characters is not a comfortable margin chosen for the test; it
+    is the measured floor of the real corpus, so this note is the closest a
+    genuine capture has ever come to the boundary. A check that reports it is a
+    check that would have fired on a real note in the user's Vault.
+
+    The size is asserted rather than assumed: a later edit that trimmed this
+    body would otherwise make the test pass for the wrong reason — silently
+    turning the hard negative into an easy one.
+    """
+    from obsidian_kb_skill.scripts.audit_vault import (
+        WEB_CLIP_MIN_CONTENT_CHARS,
+        _body_content_chars,
+    )
+
+    note = _smallest_real_capture()
+    _, chars = _body_content_chars(note)
+    assert 799 <= chars <= 900, (
+        f"the hard negative drifted to {chars} characters; it is only a hard "
+        "negative while it sits at the smallest real capture the reference "
+        f"Vault holds (799), just above the floor of {WEB_CLIP_MIN_CONTENT_CHARS}"
+    )
+
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Clip.md").write_text(note, encoding="utf-8")
+
+    assert "web-clip-captured-nothing" not in codes(tmp_path)
+
+
+def test_a_web_clip_that_declares_itself_incomplete_is_not_reported(tmp_path):
+    """A note that says it is unfinished has already told the truth.
+
+    `process_inbox` refuses to file these (`draft-incomplete`), and
+    `rules-and-errors.md` gives the reason: the marker is the user's statement
+    about their own note. Reporting it as a defect would punish the declaration
+    this system asks for — and both short web-clips on the reference Vault that
+    are *not* shells are exactly this shape.
+
+    The body is under the floor on purpose. Only the tag separates this note
+    from `test_reports_a_web_clip_that_captured_nothing`.
+    """
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / "Clip.md").write_text(
+        _web_clip(
+            "# 掘金文章\n\n## 来源与结论\n\n"
+            "自动抓取失败，网页受 Cloudflare 保护，需人工补充原始内容。\n\n"
+            "## 核心知识与原理\n\n暂无（待补充原文）。\n",
+            tags="[web-clip, incomplete]",
+        ),
+        encoding="utf-8",
+    )
+
+    assert "web-clip-captured-nothing" not in codes(tmp_path)

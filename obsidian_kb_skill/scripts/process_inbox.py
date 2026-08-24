@@ -29,6 +29,7 @@ from obsidian_kb_skill.scripts.folder_index_policy import (
 )
 from obsidian_kb_skill.scripts.frontmatter import FrontmatterIssue, parse_frontmatter
 from obsidian_kb_skill.scripts.note_catalog import (
+    DEFAULT_DRAFT_TAGS,
     DEFAULT_TAG_BY_TYPE,
     ENTITY_FOLDERS,
     FOLDER_TO_DEFAULT_TYPE,
@@ -97,14 +98,6 @@ PARTIAL_APPLY = "partial-apply"
 # one out of the Inbox is that same downgrade running backwards, unasked.
 DRAFT_INCOMPLETE = "draft-incomplete"
 
-# The word a Vault uses to mark a draft is the Vault's, not this Skill's — this
-# project never writes the tag, and hardcoding someone else's vocabulary is how
-# the English project-note template drifted out of the resume contract (#115).
-# The default is the word this Skill's own references already use for the state
-# ("an explicitly incomplete Inbox capture"); a Vault that says it differently
-# declares that through `--draft-tag`, which replaces this list rather than
-# extending it, so a Vault using `incomplete` for something else can opt out.
-DEFAULT_DRAFT_TAGS = ("incomplete",)
 
 
 def _draft_signals(

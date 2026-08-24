@@ -121,6 +121,26 @@ audit.
 not untidy — and the existing `hygiene` findings on these two notes are exactly
 the level that let them sit unnoticed since July.
 
+## The false positive this has, named rather than denied
+
+A genuinely short source — a clipped tweet, a single snippet, a one-paragraph
+changelog — is a complete capture under 400 characters, and it will be reported.
+Neither remedy the finding offers fits it: there is nothing to complete, and it
+is not a draft.
+
+The reference Vault holds no such note (its 51 real captures start at 799), so
+the rate cannot be estimated from this corpus, only bounded at zero on it. The
+finding is left as it is rather than given a suppression mechanism, for two
+reasons. The message hedges — "probably never retrieved" — and a reader looking
+at their own tweet-clip can dismiss it in one glance, which is the cheapest
+possible false positive. And a per-note exemption would be a second vocabulary
+for "this note is fine as it is", which is what the draft tag already means for
+the case that does recur.
+
+What would change this: a user reporting it. Then the exemption has the
+countable source #147 requires, and the shape it should take is visible in the
+report rather than guessed at here.
+
 ## Rejected branches
 
 **Fence-aware counting.** `content_chars` skips every line beginning with `#`,
