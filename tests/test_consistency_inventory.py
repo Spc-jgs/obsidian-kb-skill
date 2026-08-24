@@ -379,6 +379,79 @@ def test_no_module_declares_a_dependency_it_does_not_use():
     )
 
 
+def test_no_helper_can_reach_the_network():
+    """A helper only ever sees the text the Agent typed.
+
+    Registry row 66. #193 asked whether `create-note` could be made to refuse a
+    capture whose fetch had failed, so that `web-capture.md`'s `Terminal Failure
+    Means Zero Writes` would be enforced rather than only written down. It
+    cannot: nothing in this package performs network I/O, so the fetch belongs
+    entirely to the Agent and the only account of it a helper ever receives is
+    the Agent's own. `2026-08-21-rejected-hypotheses.md` §7 closes the route on
+    that fact, and the fact holds only while this stays true.
+
+    Two halves, because either alone is bypassable. The runtime dependency set
+    is read from `pyproject.toml` rather than restated, so adding an HTTP client
+    fails here before any module imports it. And no module may import a
+    network-capable standard-library module — a closed set, unlike the open one
+    of third-party clients, which is why the dependency half carries that side.
+
+    `urllib.parse` is not on the list and must not be: `capture_receipt` splits
+    a source URL with it, which is string work and reaches nothing.
+    """
+    import ast
+
+    network_stdlib = (
+        "socket", "socketserver", "ssl", "http", "xmlrpc",
+        "ftplib", "smtplib", "poplib", "imaplib", "telnetlib", "nntplib",
+        "urllib.request", "urllib.error",
+    )
+
+    manifest = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    runtime = {
+        re.split(r"[<>=!~\[;\s]", dependency, maxsplit=1)[0].strip().lower()
+        for dependency in manifest["project"]["dependencies"]
+    }
+    assert runtime == {"pyyaml"}, (
+        f"the runtime dependency set is now {sorted(runtime)}. A helper that "
+        "can fetch would make §7's conclusion false, and the whole shape of "
+        "#193 changes; state the reason for the new dependency here rather "
+        "than widening this set silently."
+    )
+
+    def _forbidden(name: str | None) -> str | None:
+        if not name:
+            return None
+        return next(
+            (
+                module
+                for module in network_stdlib
+                if name == module or name.startswith(f"{module}.")
+            ),
+            None,
+        )
+
+    reached: dict[str, list[str]] = {}
+    for path in sorted((ROOT / "obsidian_kb_skill").rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                names = [node.module]
+            else:
+                continue
+            for hit in filter(None, (_forbidden(name) for name in names)):
+                key = path.relative_to(ROOT).as_posix()
+                reached.setdefault(key, []).append(f"{hit}:{node.lineno}")
+
+    assert not reached, (
+        f"these modules can reach the network: {reached}. The Agent fetches and "
+        "the helper receives text — that asymmetry is what closed #193's "
+        "prevention route, and a helper that fetches reopens it."
+    )
+
+
 def test_every_confidence_level_is_documented_for_the_agent_that_reads_it():
     """A level an Agent cannot look up is a level it will guess the meaning of.
 

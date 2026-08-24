@@ -155,7 +155,7 @@ Excluding periodic types (`daily-report`, `daily-note`, `weekly-report`,
 
 At ≥50% the only match is `Claude Artifact Capture 草稿.md` — a note the author
 deliberately left brief. **The predicate ranks an intentional draft above a
-genuine shell.**
+genuine shell.** *(That classification is wrong — see the correction below.)*
 
 And it misses half the population by construction: the other shell has a single
 heading, so it never reaches the three-section precondition at all.
@@ -173,7 +173,8 @@ writes. That is wrong: `占位内容`, `未能自动抓取`, `暂无内容，请
 **nowhere** in the Skill's code or references. No such write path exists —
 `web-capture.md`'s `Terminal Failure Means Zero Writes` forbids it outright. The
 two notes are prose an Agent composed while violating that rule, so there is no
-constant to key on.
+constant to key on. *(The first sentence holds. The rest dates the rule against
+the notes without checking — see the correction below.)*
 
 **What this leaves.** The rule already exists and the code has no path that breaks
 it; what is missing is any way to notice an Agent ignored it. That is the same
@@ -185,7 +186,61 @@ take become countable and a word list drawn from them would have the source #147
 requires. Until then the two existing notes are a data question — delete or
 complete them — not a detection question.
 
-*Refs #167, #147, #75, #74.*
+### Correction (2026-08-24, from #193)
+
+The percentages above reproduce and the 113-note scope is right. Two
+classifications and one date are wrong, and the verdict rests on them.
+
+**1. The two 掘金 notes predate the rule they are said to violate.**
+
+```bash
+git log -S "Terminal Failure Means Zero Writes" --format="%ad %h %s" --date=short --reverse -- core/ | head -1
+```
+
+`2026-07-31 d734401` — that rule, and the whole of `core/references/web-capture.md`,
+was created that day. The notes were written on `2026-07-22 17:36` and
+`2026-07-23 22:35` (file mtimes, agreeing with their frontmatter `date`), eight
+and nine days earlier. They cannot be prose composed while violating it.
+
+**2. They were the write path's legal output at the time.** Run the
+`missing_required_metadata` from `ea08c4f` — master on 2026-07-22 — over both
+notes' frontmatter and it returns `[]`. That day's predicate asked only whether
+the field was a non-empty string, and `unknown` is non-empty; `PLACEHOLDER_VALUES`,
+which is what makes `unknown` a placeholder, arrived on 2026-07-27 in `0cfdac0`,
+and `capture_depth` appears **0** times in that day's `create_note.py`. So "no
+such write path exists" is true today and false then — these two notes are what
+that path produced. Today it refuses both: `create-note --apply` exits 2 with
+`missing-required-metadata` and writes nothing.
+
+**3. `Claude Artifact Capture 草稿.md` is not a deliberately brief note.** Its own
+body reads `自动抓取失败，网页受 Cloudflare 保护，需人工补充原始内容` and
+`抓取已被 Cloudflare 拦截`. It is a placeholder for a blocked fetch, the same kind
+as the two 掘金 notes — not the intentional draft it was read as.
+
+**What that does to the verdict.** The measurement ran over all 113 notes with
+three or more headings, where daily notes fill the top of the ranking. Scoped to
+`type: web-clip` and excluding notes that already declare themselves drafts — the
+`incomplete` tag that `process_inbox.DEFAULT_DRAFT_TAGS` defaults to — 52 of the
+54 web-clips remain, and the ranking is:
+
+```
+43%  3/7    20-Learning/2026-07-23 掘金文章-7664904418249900084.md   ← the shell
+31%  5/16   20-Learning/Java/2026-08-22 SpringBoot …图片盲水印.md
+31%  5/16   20-Learning/Backend/2026-08-06 Apache Fluss 架构详解.md
+29%  5/17   20-Learning/Java/2026-08-22 Spring Boot 3 …ArchUnit….md
+```
+
+`≥40%` matches one note, it is the shell, and nothing else — a 12-point gap to
+the first legitimate note. **Within web-clips, structure does separate them**, so
+this section's heading overstates. What survives is the other half of the
+original finding: the second shell has no level-2 heading and never enters the
+population, so the predicate covers one of the two known shells.
+
+**Still not enough to implement.** One true positive stands behind that
+threshold. #167 stays open carrying this measurement rather than closed by it,
+and what would reopen it is unchanged: more samples.
+
+*Refs #167, #147, #75, #74, #193.*
 
 
 ---
@@ -323,3 +378,65 @@ decides the value — showing a `b` that improves the whole set rather than
 trading groups against each other. The parameters are now named `BM25_K1` and
 `BM25_B` in `search_vault`, so a sweep is a one-line change rather than an edit
 to a function body.
+
+---
+
+## 7. A helper cannot be told that a capture's fetch failed
+
+**Hypothesis** (#193). If shell notes are the residue of a write that broke
+`Terminal Failure Means Zero Writes`, then detecting them afterwards is cleaning
+up something that should never have happened, and the route is to make that rule
+executable in the helper layer instead. The issue set its own go/no-go: if
+`create-note` or `capture-receipt` cannot learn that this capture's body came
+from a failed fetch, prevention is closed.
+
+**How it died.** Two independent measurements, either one sufficient.
+
+No helper performs network I/O:
+
+```bash
+grep -rnE "urllib\.request|import requests|requests\.(get|post)|httpx|urlopen|socket\.|http\.client" obsidian_kb_skill/ --include="*.py" | wc -l
+```
+
+`0`. The fetch happens entirely inside the Agent's own tooling, so every fact
+about it that reaches a helper is a fact the Agent chose to type — and none of
+`create_note`'s arguments is such a fact (`grep -c add_argument
+obsidian_kb_skill/scripts/create_note.py` → 20, none naming a fetch outcome).
+
+The one name that does describe the fetch cannot be pressed into service either.
+`retrieval_status: adequate | partial | blocked | uncertain` is declared in
+`web-capture.md` and reaches 0 lines of `obsidian_kb_skill/` — but that is by
+design, not a gap. It belongs to the *Bounded In-Run Self-Check*, whose opening
+line is "do not persist it as telemetry". Making it a frontmatter field a helper
+could validate would contradict the reference that defines it.
+
+**Why requiring the Agent to declare it does not rescue the route.** The only
+witness to a failed fetch is the actor that failed it. A gate keyed on the
+Agent's own declaration converts silence into a statement, which is not nothing,
+but it cannot distinguish a truthful `adequate` from an untruthful one — and the
+case it would need to catch is exactly the one where the Agent is already not
+following the prose.
+
+**What this leaves.** The honest case is already handled, and by structure rather
+than by detection. A capture that declares itself incomplete carries the
+`incomplete` tag, and `process_inbox` refuses to file it (`draft-incomplete`,
+`DEFAULT_DRAFT_TAGS`). Of the 189 notes carrying frontmatter outside
+`Templates/`, `95-Sources/`, `.obsidian-kb-backups/` and `docs/`, exactly 2 carry
+that tag and both sit in `00-Inbox/`. The two 掘金 shells carry no such tag and
+are filed under `20-Learning/`: what separates them is not the fetch but the
+absence of the declaration, and that is #167's question, not this one.
+
+**A hole that is real and is not this one.** A web-clip whose metadata is
+plausible and whose body is entirely placeholder prose is written without
+complaint today — `create-note --apply` returns `audit: {ok: true, count: 0}`,
+and a full `audit-vault` over it reports only `missing-deep-capture-heading`
+(hygiene) and `orphan-note` (informational), `defect: 0`. That is a body
+question. On the two real shells the shipped audit does fire, as
+`web-clip-missing-author` and `web-clip-missing-published`, both hygiene.
+
+**What would reopen it.** A capture path that runs inside a helper. While the
+Agent fetches and the helper only receives text, no assertion can see past the
+Agent's account of what happened. Registry row 66 guards that asymmetry, in both
+halves an added capability would have to cross.
+
+*Refs #193, #167, #74.*
