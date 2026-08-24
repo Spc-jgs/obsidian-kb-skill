@@ -1314,3 +1314,120 @@ def test_the_length_penalty_is_the_value_the_sweep_ruled_on():
         "these values against an annotated set — re-run it and say what changed "
         "rather than adjusting them by feel"
     )
+
+
+# --- #195: a query that names something the scope does not hold -------------
+#
+# `#170`'s coverage is reliable across domains and fails on near misses: its own
+# two motivating cases came back as `evidence`. Decomposing coverage per token
+# showed why — a cross-boundary CJK bigram like 么区 is *rare*, so IDF reads it
+# as informative, and two such fragments supplied 62% of the "evidence" for a
+# wrong answer while two df=0 fragments dragged a correct answer's score below
+# it. The fix is not another threshold on that number.
+#
+# Measurements and the rejected alternatives are in
+# `docs/superpowers/specs/2026-08-24-unseen-terms-signal-design.md`.
+
+
+def _absent_term_vault(tmp_path: Path) -> Path:
+    vault = _vault(tmp_path)
+    _note(
+        vault / "20-Learning" / "push.md",
+        title="两种服务端推送方式的区别",
+        body=(
+            "这两种方式有什么区别？主要的区别在连接方向和重连语义上。"
+            "长轮询与流式推送各有取舍，选型时要看客户端能不能保持连接。"
+        ),
+        tags=["backend"],
+    )
+    # The body deliberately separates 泄漏 from 怎么, so `漏怎` is a df=0
+    # fragment exactly as it is on the reference Vault. It is the only one, and
+    # coverage still clears the floor — which is what makes the assertion below
+    # about the signal rather than about the floor.
+    _note(
+        vault / "20-Learning" / "leak.md",
+        title="ThreadLocal 内存泄漏与线程池",
+        body=(
+            "线程池复用线程时，ThreadLocal 的内存泄漏来自没有被清理的 entry。"
+            "怎么避免：在 finally 里 remove，不要依赖线程结束。"
+        ),
+        tags=["java"],
+    )
+    return vault
+
+
+def test_a_query_naming_an_absent_term_carries_no_evidence(tmp_path):
+    """The failure #170 could not catch: a *confidently* wrong answer.
+
+    `Feign 和 HttpExchange 有什么区别` returned a Python note at coverage 0.538
+    — above the floor, so the caller was told there was evidence. The words it
+    matched were the question frame; neither technical term is in the Vault at
+    all.
+
+    The coverage is asserted to be above the floor on purpose. Without that, the
+    test could pass because the floor caught it, and would say nothing about the
+    signal it exists to guard.
+    """
+    from obsidian_kb_skill.scripts.search_vault import CONFIDENCE_FLOOR
+
+    vault = _absent_term_vault(tmp_path)
+
+    payload = search_vault(vault, "Feign 有什么区别", top_k=3)
+    confidence = payload["confidence"]
+
+    assert confidence["coverage"] >= CONFIDENCE_FLOOR, (
+        f"coverage {confidence['coverage']} is already under the floor, so this "
+        "case no longer exercises the unseen-term signal"
+    )
+    assert confidence["level"] == "none", confidence
+    assert confidence["unseen_terms"] == ["feign"], confidence
+
+
+def test_a_cjk_fragment_that_happens_to_be_absent_is_not_an_unseen_term(tmp_path):
+    """The hard negative, and the reason the signal is Latin-only.
+
+    `ThreadLocal 内存泄漏怎么避免` tokenises to fragments including `么避` and
+    `漏怎`, both df=0 — a character adjacency that happens not to occur, not a
+    name the reader typed. Treating those as unseen terms would report every
+    correctly-answered Chinese question as having no evidence.
+    """
+    from obsidian_kb_skill.scripts.search_vault import CONFIDENCE_FLOOR
+
+    vault = _absent_term_vault(tmp_path)
+
+    payload = search_vault(vault, "ThreadLocal 内存泄漏怎么避免", top_k=3)
+    confidence = payload["confidence"]
+
+    assert payload["results"], "the note that answers this is gone from the fixture"
+    assert "leak.md" in payload["results"][0]["path"]
+    assert confidence["unseen_terms"] == [], confidence
+    assert confidence["coverage"] >= CONFIDENCE_FLOOR, (
+        f"coverage {confidence['coverage']} fell under the floor, so this case "
+        "would read as `none` for a reason that has nothing to do with the "
+        "unseen-term signal it exists to test"
+    )
+    assert confidence["level"] == "evidence", confidence
+
+
+def test_a_version_number_is_not_an_unseen_term(tmp_path):
+    """`H.264 和 H.265 …` tokenises to `264` and `265`.
+
+    A Vault holding an H.265 note would otherwise be reported as knowing nothing
+    about it, because the other half of the comparison is absent. A number is
+    not a name.
+    """
+    vault = _absent_term_vault(tmp_path)
+
+    payload = search_vault(vault, "264 的推送区别", top_k=3)
+
+    assert payload["confidence"]["unseen_terms"] == [], payload["confidence"]
+
+
+def test_the_unseen_terms_field_is_always_present(tmp_path):
+    """A caller that reads the field must not have to test for its existence."""
+    vault = _absent_term_vault(tmp_path)
+
+    for query in ("两种推送方式的区别", "Feign 有什么区别", "zzz"):
+        payload = search_vault(vault, query, top_k=3)
+        assert "unseen_terms" in payload["confidence"], query
+        assert isinstance(payload["confidence"]["unseen_terms"], list), query

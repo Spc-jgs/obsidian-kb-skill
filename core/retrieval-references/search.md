@@ -182,24 +182,40 @@ Every response carries `confidence`, including a zero-result one:
 
 | `level` | Meaning | What to do |
 |---|---|---|
-| `none` | The results share only the query's least informative words — question frames like `有什么`, `区别`, `怎么`, and nothing specific to what was asked | Do **not** cite these results, and do not conclude the Vault covers the topic. Say the Vault has nothing on it |
+| `none` | Either the results share only the query's least informative words — question frames like `有什么`, `区别`, `怎么` — or the query names something the searched scope does not hold | Do **not** cite these results, and do not conclude the Vault covers the topic. Say the Vault has nothing on it, and name the terms in `unseen_terms` when it lists any |
 | `evidence` | The top result carries words specific to the query | Read on. This is **not** a claim the answer is right |
 
-`coverage` is the number behind the level: the share of the query's information,
-weighted by how rare each word is in this Vault, that the top result actually
-matched. `none` is below 0.30.
+Two numbers stand behind the level, and either one alone makes it `none`.
+
+`coverage` is the share of the query's information, weighted by how rare each
+word is in this scope, that the top result actually matched. `none` is below
+0.30.
+
+`unseen_terms` lists names the query used that the searched scope does not
+contain at all — always present, empty when there are none. A term here could
+not have matched anything, so the level is `none` however high the coverage is:
+`Feign 和 HttpExchange 有什么区别` scored 0.54 on a Python note by matching only
+`么区, 什么, 区别, 和, 有什`, and `feign` and `httpexchange` appear nowhere in the
+Vault. **When `unseen_terms` is non-empty, say which terms are missing and offer
+to capture them** — that is the actionable half, and it is more useful than the
+number. Only Latin names of three characters or more are reported; a Chinese
+question tokenises into overlapping fragments, some of which are absent by
+accident rather than because anything is missing.
+
+A `--tag`, `--scope` or date filter narrows what "unseen" means: the term is
+unseen among the notes the filter admitted, which may not be unseen in the
+Vault. Say scope, not Vault, when a filter was active.
 
 **`evidence` is only the absence of a finding.** Of 18 measured questions two
 score `evidence` on a wrong top-1. Judge the result on the snippet, as always —
-the level rules out one specific failure, it does not vouch for what remains.
+the level rules out two specific failures, it does not vouch for what remains.
 
-**What `none` will miss.** A query naming a technology the Vault has neighbouring
-notes about can share rare words with a note that does not answer it, and score
-`evidence` anyway. On the reference Vault, `Feign 和 HttpExchange 有什么区别`
-returns a note on Python functional programming at coverage 0.54. Treat a
-`heading` and `body` signal listing only question words — `么区, 什么, 区别, 和,
-有什` — as the same finding the level would have made, and check the snippet
-before citing.
+**What `none` still misses.** A query naming a technology the Vault *does* hold
+neighbouring notes about can share rare words with a note that does not answer
+it, name nothing unseen, and score `evidence` anyway — `Spring Boot 事务失效`
+returns the ArchUnit note at 0.48. Treat a `heading` and `body` signal listing
+only question words as the same finding the level would have made, and check the
+snippet before citing.
 
 Sections are the author's headings only. A `#` line inside a fenced code block
 is code being quoted — it neither opens a section nor becomes the note's title,

@@ -603,3 +603,88 @@ def test_the_audit_skips_the_draft_tag_filing_files_on():
 
     assert audit_vault.DEFAULT_DRAFT_TAGS is note_catalog.DEFAULT_DRAFT_TAGS
     assert process_inbox.DEFAULT_DRAFT_TAGS is note_catalog.DEFAULT_DRAFT_TAGS
+
+
+def test_the_unseen_term_floor_is_the_value_the_sweep_chose():
+    """Registry row 70. A minimum length is a claim about a corpus.
+
+    `UNSEEN_TERM_MIN_CHARS` was chosen from a sweep over the 42-case annotated
+    set: every variant demotes 0 of the 16 correct answers, and the catch rate
+    on the 22 no-answer queries is 14 at length 2, 13 at 3, and 10 at 4. Moving
+    it without re-running that sweep would change the signal's reach with
+    nothing saying so, so the design must keep stating the numbers this asserts.
+    """
+    from obsidian_kb_skill.scripts.search_vault import UNSEEN_TERM_MIN_CHARS
+
+    assert UNSEEN_TERM_MIN_CHARS == 3, (
+        f"the floor is {UNSEEN_TERM_MIN_CHARS}; the sweep that justified 3 is "
+        "in 2026-08-24-unseen-terms-signal-design.md, and a different value "
+        "needs that table re-run rather than an edit here"
+    )
+
+    design = (
+        ROOT / "docs" / "superpowers" / "specs"
+        / "2026-08-24-unseen-terms-signal-design.md"
+    ).read_text(encoding="utf-8")
+    for marker in ("len≥2", "len≥3", "len≥4", "0/16", "13/22"):
+        assert marker in design, (
+            f"the design no longer states {marker!r}, so this constant cites a "
+            "sweep a reader cannot check"
+        )
+
+
+def test_every_link_token_is_also_a_body_token(tmp_path):
+    """Registry row 71. `FIELD_WEIGHTS["links"]` is not the multiplier it reads as.
+
+    `_wikilink_text` feeds a link's visible text into the *citing* note, and
+    that text is already body text there, because the link markup is in the
+    body. So the field is a duplicate count: on the reference Vault 1331 of 1331
+    link-token instances are also body tokens, and on the 42-case annotated set
+    no query has a token matched by `links` and by no other field. That is why
+    #194 measured weights 0.0 through 2.0 as indistinguishable — and why raising
+    the weight is not the fix either, since it would rank by how many links a
+    note carries.
+
+    The consequence a reader needs: link text scores at **3x**, not the 2x the
+    table shows — 1x in `body` plus 2x again in `links`. If the duplication ever
+    ends, this fails, and at that point the field is a real signal whose weight
+    is worth tuning. Removal was measured and rejected; the reasoning is in
+    `2026-08-24-unseen-terms-signal-design.md`.
+    """
+    from obsidian_kb_skill.scripts.search_vault import _load_documents
+
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    (vault / "target.md").write_text(
+        "---\ntype: insight-note\ndate: 2026-08-24\ntags: [x]\n---\n"
+        "# 组合优化的一种启发式解法\n\n把问题映射成能量最低态的搜索。\n",
+        encoding="utf-8",
+    )
+    (vault / "citing.md").write_text(
+        "---\ntype: learning-note\ndate: 2026-08-24\ntags: [x]\n---\n"
+        "# 读书笔记\n\n记录在 "
+        "[[组合优化的一种启发式解法|量子退火在组合优化中的应用]] 里。\n\n"
+        "## 关联笔记\n\n- [[组合优化的一种启发式解法]]\n",
+        encoding="utf-8",
+    )
+
+    documents, _scanned, _issues = _load_documents(vault, vault)
+    assert documents, "the fixture produced no documents"
+
+    orphaned: dict[str, list[str]] = {}
+    for document in documents:
+        body = document.field_tokens.get("body") or {}
+        missing = sorted(
+            token
+            for token in (document.field_tokens.get("links") or {})
+            if token not in body
+        )
+        if missing:
+            orphaned[document.relative] = missing
+
+    assert not orphaned, (
+        f"these link tokens are not in their note's body: {orphaned}. The field "
+        "has stopped being a duplicate, so it now carries signal of its own and "
+        "its weight means what the table says — re-run #194's sweep and decide "
+        "the value deliberately."
+    )

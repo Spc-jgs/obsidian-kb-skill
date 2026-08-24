@@ -32,7 +32,7 @@ from obsidian_kb_skill.scripts.query_expansion import (
     expand_query,
     load_lexicon,
 )
-from obsidian_kb_skill.scripts.text_tokens import tokenize
+from obsidian_kb_skill.scripts.text_tokens import LATIN_TOKEN_RE, tokenize
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
     VaultPathError,
@@ -49,6 +49,17 @@ MAX_FILE_BYTES = 2 * 1024 * 1024
 MAX_SNIPPET_CHARS = 480
 MAX_ISSUES = 20
 MAX_TAG_CHARS = 100
+# `links` is not the multiplier it reads as. `_wikilink_text` feeds a link's
+# visible text into the *citing* note, where that text is already body text
+# because the link markup is in the body — so link text scores at 3x, not 2x:
+# 1x in `body` plus 2x again here. On the reference Vault 1331 of 1331
+# link-token instances are also body tokens, which is why #194 measured weights
+# 0.0 through 2.0 as indistinguishable on the annotated set, and why raising it
+# is not the fix either (it would rank by how many links a note carries).
+# Removal was measured and rejected: it changes no outcome and would burn two
+# frozen baselines. `test_every_link_token_is_also_a_body_token` fails if the
+# duplication ever ends, at which point the weight becomes worth tuning.
+# See docs/superpowers/specs/2026-08-24-unseen-terms-signal-design.md.
 FIELD_WEIGHTS = {
     "title": 6.0,
     "aliases": 5.0,
@@ -1076,10 +1087,55 @@ def search_vault(
 # See docs/superpowers/specs/2026-08-23-answer-confidence-design.md.
 CONFIDENCE_FLOOR = 0.30
 
+# The second half of the judgement, and the one that catches a *confidently*
+# wrong answer (#195). A Latin run this long with a document frequency of zero
+# is a name the searched scope does not hold, so nothing could have matched it,
+# whatever the coverage says.
+#
+# Latin only, and this is the whole point. A df=0 CJK bigram is a character
+# adjacency that happens not to occur — `么避` and `漏怎` out of 内存泄漏怎么避免
+# — and counting those would report every correctly-answered Chinese question as
+# carrying no evidence. Digits are excluded because `H.264 和 H.265 …`
+# tokenises to `264`, `265`, and a Vault holding the H.265 note would be
+# reported as knowing nothing about it.
+#
+# Sweep over the 42-case annotated set: every variant demotes 0 of the 16
+# correct answers; len>=2 catches 14 of the 22 no-answer queries, len>=3
+# catches 13, len>=4 catches 10. 3 is chosen to drop two-character runs, which
+# are mostly fragments of versions and abbreviations, at the cost of one
+# detection. `2026-08-24-unseen-terms-signal-design.md` has the table.
+UNSEEN_TERM_MIN_CHARS = 3
+
 CONFIDENCE_LEVELS: dict[str, str] = {
     "evidence": "the top result carries words specific to the query",
-    "none": "the results share only the query's least informative words",
+    "none": (
+        "the results share only the query's least informative words, or the "
+        "query names something the searched scope does not hold"
+    ),
 }
+
+
+def _unseen_terms(
+    query_tokens: list[str], document_frequencies: Counter[str]
+) -> list[str]:
+    """Names the reader typed that the searched scope does not contain.
+
+    The frequencies are computed after filters run, so "unseen" means unseen in
+    the scope the caller asked about — a `--tag` filter can make a term unseen
+    that the Vault holds elsewhere, which is why the reported explanation says
+    scope rather than Vault.
+
+    A zero frequency makes the match impossible, so no separate check that the
+    winner missed the term is needed.
+    """
+    return sorted(
+        token
+        for token in set(query_tokens)
+        if LATIN_TOKEN_RE.fullmatch(token)
+        and len(token) >= UNSEEN_TERM_MIN_CHARS
+        and not token.isdigit()
+        and document_frequencies[token] == 0
+    )
 
 
 def _confidence(
@@ -1117,11 +1173,13 @@ def _confidence(
     it says the result carries specific words from the query, which a wrong note
     on a neighbouring topic can also do. Only `none` is a finding.
     """
+    unseen = _unseen_terms(query_tokens, document_frequencies)
     if document is None or not query_tokens:
         return {
             "level": "none",
             "coverage": 0.0,
             "explanation": CONFIDENCE_LEVELS["none"],
+            "unseen_terms": unseen,
         }
     matched = {
         token
@@ -1137,11 +1195,20 @@ def _confidence(
         for token in matched
     )
     coverage = held / total if total else 0.0
-    level = "evidence" if coverage >= CONFIDENCE_FLOOR else "none"
+    # Either half is sufficient. Coverage answers "did the winner hold the
+    # query's informative words"; an unseen term answers "was there anything to
+    # hold", which coverage cannot, because it weighs a term the scope lacks
+    # only in its denominator and a rare CJK fragment fully in its numerator.
+    level = (
+        "evidence"
+        if coverage >= CONFIDENCE_FLOOR and not unseen
+        else "none"
+    )
     return {
         "level": level,
         "coverage": round(coverage, 3),
         "explanation": CONFIDENCE_LEVELS[level],
+        "unseen_terms": unseen,
     }
 
 

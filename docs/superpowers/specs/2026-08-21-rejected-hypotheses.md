@@ -440,3 +440,63 @@ Agent's account of what happened. Registry row 66 guards that asymmetry, in both
 halves an added capability would have to cross.
 
 *Refs #193, #167, #74.*
+
+---
+
+## 8. Question frames are not what puts an unrelated note first
+
+**Hypothesis** (#192). `tokenize` splits CJK into overlapping bigrams, so
+`有什么区别` yields `有什`, `什么`, `么区`, `区别`. Those cross-boundary fragments
+appear in any long tutorial note that asks itself questions, so the guess was
+that a question-framed query can win on such a note without matching a single
+technical term — as `Feign 和 HttpExchange 有什么区别` does, returning a Python
+functional-programming note at twice second place.
+
+**Criterion tried.** The issue's own step 2: strip the question frame, re-query
+with the content words alone, and see whether the winner changes. If the frame
+were driving the result, removing it should move it.
+
+**How it died.** Over 12 pairs, the winner changes on 5 — and **all five are
+queries with no answer in the Vault**:
+
+```
+Tailscale 和 ZeroTier 有什么区别   → Tailscale ZeroTier 区别      same
+SSE 和 WebSocket 该怎么选          → SSE WebSocket 选型           same
+MCP 的运行原理是什么                → MCP 运行原理                 same
+六个必备的 MCP 服务分别是什么         → 六个必备 MCP 服务             same
+ThreadLocal 内存泄漏怎么避免         → ThreadLocal 内存泄漏 避免     same
+Python 的生成器怎么用               → Python 生成器                same
+Feign 和 HttpExchange 有什么区别   → Feign HttpExchange 区别     CHANGED
+区块链的共识算法有哪些               → 区块链 共识算法               CHANGED
+Flutter 的 Widget 重建机制是怎样的   → Flutter Widget 重建机制      CHANGED
+CompletableFuture 的异常传播       → CompletableFuture 异常传播   CHANGED
+OAuth2 授权码模式的完整流程          → OAuth2 授权码模式 流程        CHANGED
+```
+
+Every query that has an answer keeps its winner. The frames decide nothing when
+there is anything else to match, and where they do decide, the ranking was
+already noise — which `confidence` is what exists to report.
+
+**What the measurement found instead.** The fragments distort the *coverage
+metric*, not the ranking, and in both directions. Decomposed per token over the
+201-note candidate set, `么区` (df=1, IDF 4.903) and `有什` (df=4, IDF 3.804)
+supply **8.707 of the 13.995 held weight — 62%** of the "evidence" for that
+wrong Feign answer, because a cross-boundary bigram is rare and IDF reads rare
+as informative. In the other direction `么避` and `漏怎` are df=0 and inflate a
+*correct* answer's denominator: `ThreadLocal 内存泄漏怎么避免` scores 0.458,
+**below** the wrong Feign answer's 0.538. That is why #170's two ranges overlap.
+
+Acted on in `2026-08-24-unseen-terms-signal-design.md`, which reports the names
+a query used that the scope does not hold — Latin-only, precisely because a df=0
+CJK bigram is an accident of adjacency and a df=0 Latin run is a name.
+
+**The four causes this issue had already ruled out** stay ruled out, and are
+worth keeping: fenced-comment titles (#189 changed nothing for this query), the
+BM25 length penalty (`b` swept 0.0–1.0, top-1 unmoved, §6), the `links` field
+weight (2.0 → 0.0 no effect, and §8's own design explains why), and now the
+frames themselves.
+
+**What would reopen it.** A query *with* an answer whose winner changes when the
+frame is removed. None of the six measured does.
+
+*Refs #192, #170, #171, #195.*
