@@ -212,7 +212,7 @@ class TestEndToEnd:
         assert all(path.is_relative_to(root) for path in payload.values())
 
     def test_project_version_reads_pyproject(self):
-        assert build.project_version() == "1.35.0"
+        assert build.project_version() == "1.36.0"
 
     def test_standard_skill_has_required_resource_directories(self):
         root = ROOT / "skills" / "obsidian-knowledge-base"
@@ -511,7 +511,7 @@ def test_lockfile_records_the_current_project_version():
     )
 
 
-def test_v1_35_0_release_contract_is_consistent():
+def test_v1_36_0_release_contract_is_consistent():
     # Renamed with the bump. The previous release left this named for v1.31.0
     # while it asserted v1.32.0 throughout, so the one place a reader looks to
     # ask "which release does this guard?" gave the wrong answer.
@@ -522,13 +522,20 @@ def test_v1_35_0_release_contract_is_consistent():
     readme_en = (ROOT / "README_EN.md").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert 'version = "1.35.0"' in pyproject
-    assert "**Version**: 1.35.0" in core
+    assert 'version = "1.36.0"' in pyproject
+    assert "**Version**: 1.36.0" in core
     # The retrieval header is its own file and was missed by earlier bumps'
     # assertions, which only ever read the write Skill's core.
-    assert "**Version**: 1.35.0" in retrieval_core
-    assert "**v1.35.0**" in readme
-    assert "**v1.35.0**" in readme_en
+    assert "**Version**: 1.36.0" in retrieval_core
+    assert "**v1.36.0**" in readme
+    assert "**v1.36.0**" in readme_en
+    assert "## [1.36.0] - 2026-08-24" in changelog
+    # Unique to this release: the audit finding and its floor, the named BM25
+    # parameters, and the design that records the floor's distribution.
+    assert "web-clip-captured-nothing" in changelog
+    assert "WEB_CLIP_MIN_CONTENT_CHARS" in changelog
+    assert "BM25_B" in changelog
+    assert "2026-08-24-shell-capture-detection-design.md" in changelog
     assert "## [1.35.0] - 2026-08-21" in changelog
     assert "review-captures" in changelog
     assert "unfinished-template-body" in changelog
