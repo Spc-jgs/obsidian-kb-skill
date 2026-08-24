@@ -47,6 +47,7 @@ from obsidian_kb_skill.scripts.link_graph import (
     without_fenced_code as _without_fenced_code,
 )
 from obsidian_kb_skill.scripts.note_catalog import (
+    DEFAULT_DRAFT_TAGS,
     ENTITY_FOLDERS,
     ENTITY_INSTANCE_TYPE,
     EXEMPT_NAMES,
@@ -116,6 +117,10 @@ FINDING_SEVERITY: dict[str, str] = {
     "graph-incompatible-index-config": "defect",
     "broken-folder-graph-chain": "defect",
     "web-clip-invalid-capture-depth": "defect",
+    # A note that says it holds a captured article and holds none is wrong, not
+    # untidy. The two on the reference Vault sat for a month reported only as
+    # `web-clip-missing-author` at `hygiene`, which is the level that let them.
+    "web-clip-captured-nothing": "defect",
     # Worth fixing, nothing is broken meanwhile.
     "missing-tags": "hygiene",
     "invalid-tag": "hygiene",
@@ -717,6 +722,99 @@ def _audit_web_clip(
         )
 
 
+def _body_content_chars(text: str) -> tuple[bool, int]:
+    """Return whether the body has a heading, and how much text it carries.
+
+    Two findings ask about a note's emptiness — `empty-template-note` at zero
+    and `web-clip-captured-nothing` at a floor — and a second copy of this loop
+    would be free to drift into a second answer to "what is content".
+
+    Headings are structure, not content, so a line beginning with `#` is skipped
+    rather than counted. That reads a `#` comment inside a fenced block as a
+    heading; measured over the reference Vault's web-clips it moves 10 of 55
+    counts, all of them already an order of magnitude above any floor, so the
+    fence notion `link_graph.blank_code_examples` provides is deliberately not
+    applied here. `2026-08-24-shell-capture-detection-design.md` records it.
+    """
+    body = text
+    if body.startswith("---\n"):
+        end = body.find("\n---\n", 4)
+        if end != -1:
+            body = body[end + 5:]
+    has_heading = False
+    content_chars = 0
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            has_heading = True
+            continue
+        content_chars += sum(1 for ch in stripped if not ch.isspace())
+    return has_heading, content_chars
+
+
+# The floor a web-clip's body must clear before the note is taken to have
+# captured anything. Measured over the reference Vault's 55 web-clips, ranked by
+# `_body_content_chars`: the two shells left by a blocked fetch sit at 100 and
+# 220, the two notes that declare themselves unfinished at 329 and 383, and the
+# smallest real capture at 799.
+#
+# 400 is chosen just below the geometric midpoint of 220 and 799 (419), so the
+# number leans toward missing a shell rather than accusing a real note: a
+# genuine capture must fall to half the smallest one ever observed before it is
+# reported, while a shell must grow to 1.82x the largest observed to escape.
+# That asymmetry is deliberate — a shell is still visible as
+# `web-clip-missing-author`, whereas a false accusation teaches a reader to
+# ignore the audit. `2026-08-24-shell-capture-detection-design.md` has the
+# distribution and the branches that were rejected.
+WEB_CLIP_MIN_CONTENT_CHARS = 400
+
+
+def _audit_shell_capture(
+    findings: list[Finding],
+    relative: Path,
+    text: str,
+    metadata: dict[str, Any] | None,
+) -> None:
+    """Report a web-clip whose body holds none of the article it claims (#167).
+
+    Only `web-clip` is judged, and the scoping is load-bearing rather than
+    cautious: on the reference Vault 92 notes of all types fall under 800
+    content characters and 87 of them are legitimate — 45 daily reports, 23
+    folder indexes, 9 weekly reports. A short daily report is a short day. Only
+    a web-clip makes a claim about external material, so only there does an
+    almost-empty body contradict what the note says it is.
+
+    A note carrying the Vault's draft tag is skipped. It has already declared
+    itself unfinished, `process_inbox` refuses to file it on that basis, and
+    reporting it as a defect would punish the declaration this system asks for.
+    """
+    if relative.name in EXEMPT_NAMES:
+        return
+    if relative.parts and relative.parts[0] == "Templates":
+        return
+    if not metadata or metadata.get("type") != "web-clip":
+        return
+    raw_tags = metadata.get("tags") or []
+    tags = raw_tags if isinstance(raw_tags, list) else [raw_tags]
+    declared = {tag.lower() for tag in DEFAULT_DRAFT_TAGS}
+    if any(
+        isinstance(tag, str) and tag.strip().lower() in declared for tag in tags
+    ):
+        return
+    _, content_chars = _body_content_chars(text)
+    if content_chars >= WEB_CLIP_MIN_CONTENT_CHARS:
+        return
+    _add(
+        findings,
+        "web-clip-captured-nothing",
+        relative,
+        f"web-clip body holds {content_chars} characters of content, under the "
+        f"{WEB_CLIP_MIN_CONTENT_CHARS} a real capture carries; the article was "
+        "probably never retrieved. Complete it, or tag it as a draft and leave "
+        "it in the Inbox",
+    )
+
+
 def _audit_empty_template(
     findings: list[Finding],
     relative: Path,
@@ -731,19 +829,7 @@ def _audit_empty_template(
         return
     if metadata.get("type") in INDEX_TYPES:
         return
-    body = text
-    if body.startswith("---\n"):
-        end = body.find("\n---\n", 4)
-        if end != -1:
-            body = body[end + 5:]
-    has_heading = False
-    content_chars = 0
-    for line in body.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("#"):
-            has_heading = True
-            continue
-        content_chars += sum(1 for ch in stripped if not ch.isspace())
+    has_heading, content_chars = _body_content_chars(text)
     if has_heading and content_chars == 0:
         _add(
             findings,
@@ -1166,6 +1252,7 @@ def audit_vault_with_stats(vault: Path) -> tuple[list[Finding], dict[str, int]]:
         _audit_related(findings, relative, metadata)
         _audit_web_clip(findings, relative, metadata)
         _audit_empty_template(findings, relative, text, metadata)
+        _audit_shell_capture(findings, relative, text, metadata)
         if metadata and metadata.get("type") == "web-clip":
             _audit_deep_capture_headings(findings, relative, text, metadata)
         _audit_conversation_digest(findings, relative, text, metadata)
@@ -1259,6 +1346,7 @@ def _audit_note_content(
     _audit_related(findings, relative, metadata)
     _audit_web_clip(findings, relative, metadata)
     _audit_empty_template(findings, relative, text, metadata)
+    _audit_shell_capture(findings, relative, text, metadata)
     _audit_conversation_digest(findings, relative, text, metadata)
     _audit_folder_index_content(findings, relative, text, metadata)
     _audit_template_placeholders(findings, relative, text)

@@ -218,6 +218,15 @@ Templates: `missing-template-heading`, `empty-template-note`,
 `missing-deep-capture-heading`, `outdated-deep-capture-template`,
 `web-clip-invalid-capture-depth`, `web-clip-missing-source`,
 `web-clip-missing-author`, `web-clip-missing-published`,
+`web-clip-captured-nothing` — the note's body holds almost none of the article
+it names, so the fetch probably failed and the placeholder was saved anyway.
+Two next steps, both writes that need their own explicit request: retrieve the
+material and complete the note, or, if it must stay unfinished, tag it with the
+Vault's draft tag and leave it in the Inbox — `web-capture.md`'s zero-write
+contract is what should have applied. **Never resolve it by padding the body**;
+the finding is about missing material, not about length. If the source really is
+that short — one tweet, one snippet — the capture is complete and the finding is
+a false positive: say so and leave the note alone.
 `missing-conversation-digest-heading`,
 `outdated-conversation-digest-template`,
 `conversation-digest-missing-resume-field`,

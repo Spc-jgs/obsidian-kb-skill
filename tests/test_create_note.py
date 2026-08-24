@@ -454,6 +454,31 @@ def test_complete_web_clip_from_stdin_is_normalized_and_audited(tmp_path):
         "## 理解与启发\n\n"
         "本文推导：职责隔离可以降低上下文干扰。\n\n"
         "## 关联笔记\n"
+        # Only appended, never edited: the capture receipt anchors to the
+        # sentences above, so changing one byte of them fails the receipt
+        # instead of the audit. The length is what matters here — a web-clip
+        # under `WEB_CLIP_MIN_CONTENT_CHARS` is reported as having captured
+        # nothing (#167), and a fixture named "complete" must be complete the
+        # way real captures are.
+        "\n本文的完整论证在原文中分为三节展开，"
+        "先给出多智能体在长上下文任务上的失败案例，"
+        "再逐一分析失败原因落在上下文污染还是职责重叠，"
+        "最后给出一套可以照着做的拆分流程与验收清单。"
+        "其中最值得注意的一点是：作者并不主张所有任务都上多智能体，"
+        "而是明确给出了一个反向判据——当子任务之间需要频繁互相查询中间状态时，"
+        "拆分带来的沟通成本会超过隔离带来的收益，此时单体反而更快也更准。"
+        "文中用一个代码重构的例子说明了这一点：重构需要同时看见调用方与被调用方，"
+        "把它们拆给两个执行者，结果是两边各改各的，最后接口对不上。\n"
+        "\n第三节给出的验收清单有五项："
+        "每个子任务能否用一句话说清输出物；"
+        "执行者是否只需要自己那一份上下文就能开工；"
+        "校验者是否能在不读执行过程的前提下判断对错；"
+        "失败时能否定位到具体是哪一个子任务；"
+        "以及整条链路重跑一次的成本是否可接受。"
+        "作者强调最后一项常被忽略：如果重跑一次要半小时，"
+        "那么多智能体带来的并行收益会被调试成本吃掉，"
+        "这种情况下更划算的做法是先把单体流程跑通并留下可复现的中间产物，"
+        "等流程稳定之后再考虑拆分。\n"
     )
 
     preflight = subprocess.run(
