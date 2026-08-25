@@ -20,6 +20,8 @@ All notable changes to this project will be documented in this file.
 
   Consistency inventory row 78 ties `ACTION_HEADINGS` to the templates in both directions — the quiet one being a template that grows a section the queue would otherwise never see.
 
+- **`review-captures` reports `evidence_coverage`.** `evidence` names the preferred source, but the choice is made per note, so one word for the whole report can be true and misleading at once. `{"git-history": 100, "file-mtime": 0}` says what each source actually dated, and `sum(...) == summary.captures` holds by construction — the invariant is what row 72 of the consistency inventory asserts, rather than any particular number, because the number is a property of the Vault.
+
 ### Fixed
 
 - **`review-captures` said `git-history` while dating 97 of 100 captures by file mtime.** `_git_last_revision` keyed its map on the raw lines of `git log --name-only`, but `core.quotepath` defaults to **true**, so git wraps and escapes any path holding a non-ASCII byte: a Chinese filename arrives as `"20-Learning/\346\216\230...md"` and matches nothing on disk. Every such note fell through to the mtime branch — a fallback that works, and is therefore indistinguishable from the preferred path unless something counts them. On the reference Vault, 219 notes, all of them tracked, matched **51** before the fix and **219** after.
@@ -29,10 +31,6 @@ All notable changes to this project will be documented in this file.
   Fixed by decoding git's C-style quoting rather than by passing `-c core.quotepath=false`, which stops the octal escaping but not the quoting — a path holding a quote, a backslash or a control character is still wrapped — and which would leave the helper's correctness depending on the repository's configuration. `-z` was considered and rejected: it separates filenames with NUL, which is exactly what `--format=%x00%cs` uses to mark a date record, so the two would be indistinguishable.
 
 - **The per-type revisit rates change, and one conclusion drawn from them was wrong.** Corrected: `learning-note` 0.75 → **0.714**, `web-clip` 0.368 → **0.421**, `conversation-digest` 0.0 → **0.5**, `insight-note` unchanged at 0.308; overall 0.46 → 0.49. The Skill page read the old split as "notes the user wrote get reopened; clips do not" — with the fix, `web-clip` moves from last place to second, above `insight-note`. A conclusion about how someone works, drawn from a number whose provenance was never checked, survived as prose until the number was checked. The page now states the counts and says what the earlier reading was.
-
-### Added
-
-- **`review-captures` reports `evidence_coverage`.** `evidence` names the preferred source, but the choice is made per note, so one word for the whole report can be true and misleading at once. `{"git-history": 100, "file-mtime": 0}` says what each source actually dated, and `sum(...) == summary.captures` holds by construction — the invariant is what row 72 of the consistency inventory asserts, rather than any particular number, because the number is a property of the Vault.
 
 ## [1.36.0] - 2026-08-24
 

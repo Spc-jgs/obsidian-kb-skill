@@ -129,6 +129,25 @@ def test_the_feature_guide_only_advertises_helpers_that_exist():
         f"{sorted(cited - helpers)}"
     )
 
+    # The other direction, which was unguarded: a helper that exists and is
+    # documented nowhere. Three were — `resume-project`, `review-captures`, and
+    # `review-open-loops` on the day it shipped — because a subset assertion
+    # only ever catches the loud failure. A capability nobody can find is the
+    # quiet one, and #90 already shipped two helpers nothing referenced.
+    #
+    # `capture-receipt` and `scaffold-templates` are named by their console
+    # script (`obsidian-capture-receipt`) rather than the bare helper name, so
+    # the whole document is searched, not just the table's last column.
+    undocumented = sorted(
+        helper for helper in helpers
+        if helper not in text and f"obsidian-{helper}" not in text
+    )
+    assert not undocumented, (
+        f"these helpers exist and the feature guide never mentions them: "
+        f"{undocumented}. A capability a reader cannot find is one that was "
+        "not shipped."
+    )
+
 
 def test_the_filing_reference_names_the_draft_tag_the_code_defaults_to():
     """The reference tells an Agent what runs when it passes no `--draft-tag`.
