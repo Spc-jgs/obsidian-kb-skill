@@ -39,6 +39,12 @@ related: []
 
 <!-- After reconstructing the source, derive supported transferable principles, connections to existing work, and new implications. Do not merely summarize or speak on the user's behalf. -->
 
+## Action Items
+
+<!-- Only concrete actions you intend to take after reading, one checkbox each, each with a finishable end state. Conditional advice ("if X, consider Y") belongs under Verification, Risks, and Limitations; open-ended intent ("keep an eye on X") is not a checkbox. Leave empty when there is no actionable next step. -->
+
+- [ ]
+
 ## Related Notes
 
 <!-- Link only to existing Vault notes with a clear relationship; leave empty when no high-confidence link exists. -->

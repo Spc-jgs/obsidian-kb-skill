@@ -858,3 +858,61 @@ def test_the_vault_walkers_share_one_note_size_ceiling():
         and re.search(r"^MAX_\w*(?:FILE|NOTE)\w*_BYTES\s*=", path.read_text(encoding="utf-8"), re.M)
     ]
     assert not restated, f"these modules declare their own note-size ceiling: {restated}"
+
+
+def test_the_web_clip_template_satisfies_the_contract_it_ships_with():
+    """The template a user copies ↔ the baseline the audit grades it against.
+
+    `scaffold-templates` writes `core/templates/web-clip.md` into a Vault, and
+    the audit then grades that same file against
+    `DEEP_CAPTURE_HEADING_VARIANTS`. If the two drift, the Skill ships a
+    template its own audit calls `outdated-deep-capture-template` — a `defect`
+    — on the day it is installed, and every note created from it inherits the
+    mismatch.
+
+    The contract is a *subsequence* check, so a template may carry sections the
+    contract does not require. That is deliberate and load-bearing: the action
+    section added for #87 rides along without forcing a contract bump, which
+    would have moved the effective date and silently exempted every note
+    written between the two dates from the ordering rule as well. Extra
+    sections must still be named here, so one cannot appear unnoticed.
+    """
+    import re
+
+    from obsidian_kb_skill.scripts.deep_capture_contract import (
+        DEEP_CAPTURE_HEADING_VARIANTS,
+        matches_deep_capture_contract,
+    )
+
+    # Sections the template carries beyond the contract's required set.
+    # Adding a name here is a decision about what every future capture holds.
+    ALLOWED_EXTRA = {"zh-CN": ["后续行动"], "en": ["Action Items"]}
+
+    variants = dict(DEEP_CAPTURE_HEADING_VARIANTS)
+    for relative, locale in (
+        (Path("core") / "templates" / "web-clip.md", "zh-CN"),
+        (Path("core") / "templates" / "en" / "web-clip.md", "en"),
+    ):
+        template = (ROOT / relative).read_text(encoding="utf-8")
+        headings = [
+            line.lstrip("#").strip()
+            for line in template.splitlines()
+            if re.match(r"^##\s", line)
+        ]
+        required = list(variants[locale])
+
+        assert matches_deep_capture_contract(headings), (
+            f"{relative} does not satisfy the contract: {headings}"
+        )
+        # Ordered equality once the declared extras are removed, so a template
+        # that drops or reorders a required section fails even though the
+        # subsequence check above would still pass on a superset.
+        stripped = [h for h in headings if h not in ALLOWED_EXTRA[locale]]
+        assert stripped == required, (
+            f"{relative} required sections {stripped} != contract {required}"
+        )
+        extras = [h for h in headings if h not in required]
+        assert extras == ALLOWED_EXTRA[locale], (
+            f"{relative} carries undeclared extra sections: {extras}. Name them "
+            "in ALLOWED_EXTRA, which is a decision about every future capture."
+        )
