@@ -256,18 +256,19 @@ Vault 把 `person` 改成 `people` 能跟上，`java` 这种真实主题也不�
 
 | 级别 | 含义 | 数量 |
 |---|---|---|
-| **defect** | 笔记或 Vault 已经坏了：导航、渲染或工具链已失效，或者半成品脚手架被写进去了 | 19 种 |
+| **defect** | 笔记或 Vault 已经坏了：导航、渲染或工具链已失效，或者半成品脚手架被写进去了 | 21 种 |
 | **hygiene** | 一致性和完整性问题，方便的时候修 | 18 种 |
-| **informational** | 观察项，往往完全正常 | 3 种 |
+| **informational** | 观察项，往往完全正常 | 4 种 |
 
-**defect（19）**：`missing-frontmatter` `invalid-frontmatter` `missing-type`
+**defect（21）**：`missing-frontmatter` `invalid-frontmatter` `missing-type`
 `invalid-type` `missing-date` `unclosed-fence` `empty-template-note`
 `residual-template-instruction` `unresolved-template-placeholder`
 `outdated-deep-capture-template` `outdated-conversation-digest-template`
 `broken-wikilink` `invalid-related` `invalid-related-entry`
-`duplicate-folder-index` `duplicate-folder-index-content`
-`graph-incompatible-index-config` `broken-folder-graph-chain`
-`web-clip-invalid-capture-depth`
+`duplicate-project-note` `duplicate-folder-index`
+`duplicate-folder-index-content` `graph-incompatible-index-config`
+`broken-folder-graph-chain` `web-clip-invalid-capture-depth`
+`web-clip-captured-nothing`
 
 **hygiene（18）**：`missing-tags` `invalid-tag` `too-many-tags`
 `near-duplicate-tags` `duplicate-related-entry` `ambiguous-wikilink`
@@ -277,7 +278,8 @@ Vault 把 `person` 改成 `people` 能跟上，`java` 这种真实主题也不�
 `misnamed-folder-index` `missing-folder-index-content` `web-clip-missing-source`
 `web-clip-missing-author` `web-clip-missing-published`
 
-**informational（3）**：`orphan-note` `disconnected-note` `similar-title`
+**informational（4）**：`orphan-note` `disconnected-note` `similar-title`
+`link-to-unwritten-note`
 
 ### 6.2 链接解析
 

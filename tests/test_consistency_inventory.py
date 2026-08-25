@@ -781,3 +781,53 @@ def test_link_history_matches_the_keys_the_link_index_resolves_by(tmp_path):
         f"the index resolves {missing}, which history does not recognise. A "
         "target the index would have found is then reported as never written."
     )
+
+
+def test_the_algorithms_doc_lists_the_severities_the_code_assigns():
+    """A hand-kept mirror of `FINDING_SEVERITY`, with counts, and it had drifted.
+
+    `docs/rules-and-algorithms.zh.md` enumerates every finding code under its
+    severity and states how many there are. Nothing checked it, so two codes
+    added in earlier releases — `duplicate-project-note` and
+    `web-clip-captured-nothing` — were missing while the stated count still
+    read as authoritative. The count is the part that makes it look checked.
+    """
+    from obsidian_kb_skill.scripts.audit_vault import FINDING_SEVERITY
+
+    doc = (ROOT / "docs" / "rules-and-algorithms.zh.md").read_text(encoding="utf-8")
+    actual: dict[str, set[str]] = {}
+    for code, severity in FINDING_SEVERITY.items():
+        actual.setdefault(severity, set()).add(code)
+
+    problems: list[str] = []
+    for severity, codes in sorted(actual.items()):
+        match = re.search(
+            rf"\*\*{severity}（(\d+)）\*\*：(.+?)(?=\n\n)", doc, re.S
+        )
+        if match is None:
+            problems.append(f"{severity}: no section in the document")
+            continue
+        listed = set(re.findall(r"`([a-z0-9-]+)`", match.group(2)))
+        # The summary table above states the same count a third time.
+        summary = re.search(rf"\| \*\*{severity}\*\* \|[^|]+\| (\d+) 种 \|", doc)
+        if summary is None:
+            problems.append(f"{severity}: no row in the summary table")
+        elif int(summary.group(1)) != len(codes):
+            problems.append(
+                f"{severity}: summary table says {summary.group(1)}, "
+                f"code assigns {len(codes)}"
+            )
+        if int(match.group(1)) != len(codes):
+            problems.append(
+                f"{severity}: document says {match.group(1)}, code assigns {len(codes)}"
+            )
+        if listed != codes:
+            problems.append(
+                f"{severity}: missing {sorted(codes - listed)}, "
+                f"stale {sorted(listed - codes)}"
+            )
+
+    assert not problems, (
+        "docs/rules-and-algorithms.zh.md no longer matches FINDING_SEVERITY: "
+        + "; ".join(problems)
+    )
