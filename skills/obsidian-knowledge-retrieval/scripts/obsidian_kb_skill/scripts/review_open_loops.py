@@ -7,11 +7,15 @@ action items and a capture's next steps stay wherever they were written. This
 walks every note and returns the unticked boxes that sit under a heading a
 template declared as holding action items.
 
-**Deliberately not a task manager and deliberately not a classifier.** On the
-reference Vault the 96 items it returns are visibly of mixed kinds: real next
-actions, conditional advice, and open-ended intent with no finishable end
-state. Two samples of the same corpus gave opposite impressions of that mix,
-which is the reason no severity, no priority and no category is assigned here.
+**Deliberately not a task manager and deliberately not a classifier.** Read in
+full rather than sampled — two samples of the same corpus had given opposite
+impressions — the reference Vault's 57 web-clip items are **44 concrete
+actions with a finishable end state, 8 conditional ("若使用 X，复核 Y"), 3
+open-ended intent ("持续关注 X"), and 2 too vague to act on**. So the queue is
+mostly usable, and the reason nothing is classified here is not that the items
+are poor: it is that no mechanical predicate separates those four, and that
+count came from a person reading all 57, which is not something this can run.
+
 Every item carries its text, path, line, heading and note type so a reader
 judges it; the type is reported because it is the one signal that is
 mechanically true, not because it grades anything.
