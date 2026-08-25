@@ -232,3 +232,127 @@ def test_every_helper_that_walks_the_vault_skips_the_backup_directory():
         ("review_captures.IGNORED_DIRECTORIES", IGNORED_DIRECTORIES),
     ):
         assert backups in listing, f"{name} does not skip {backups}"
+
+
+def _repo(vault: Path) -> None:
+    """A vault that is a git repository, with identity configured."""
+    vault.mkdir(parents=True, exist_ok=True)
+    (vault / ".obsidian").mkdir(exist_ok=True)
+    subprocess.run(["git", "init", "-q"], cwd=vault, check=True)
+    subprocess.run(["git", "config", "user.email", "t@example.invalid"], cwd=vault, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=vault, check=True)
+
+
+def test_a_tracked_note_with_a_non_ascii_name_is_found_in_git_history(tmp_path: Path):
+    """`core.quotepath` defaults to true, so git escapes non-ASCII paths.
+
+    The existing git test names its note `tracked.md`, which is pure ASCII and
+    therefore cannot see this: git prints such a path verbatim. A Vault whose
+    filenames are Chinese gets `"20-Learning/\\346\\216\\230...md"` instead —
+    quoted, backslash-escaped, and matching no path on disk. On the reference
+    Vault that was 168 of 219 notes silently falling back to mtime while the
+    report still said `evidence: git-history`.
+    """
+    from obsidian_kb_skill.scripts.review_captures import _git_last_revision
+
+    vault = tmp_path / "vault"
+    _repo(vault)
+    capture(vault, "20-Learning/掘金文章-数据库避坑.md", note_type="web-clip", date="2026-06-01")
+    subprocess.run(["git", "add", "-A"], cwd=vault, check=True)
+    subprocess.run(["git", "commit", "-qm", "add"], cwd=vault, check=True)
+
+    revisions = _git_last_revision(vault)
+
+    assert revisions is not None
+    assert "20-Learning/掘金文章-数据库避坑.md" in revisions, (
+        f"non-ASCII path missing from git history map; got keys: {list(revisions)}"
+    )
+
+
+def test_the_report_counts_how_many_captures_each_evidence_source_actually_covered(
+    tmp_path: Path,
+):
+    """`evidence` is one word for a per-note decision, so it can be a lie.
+
+    Every note takes its date from git when the path is in the history map and
+    from mtime otherwise, but the report named only the preferred source. A
+    reader was told `git-history` while most notes were dated by mtime.
+    """
+    vault = tmp_path / "vault"
+    _repo(vault)
+    capture(vault, "20-Learning/中文剪藏.md", note_type="web-clip", date="2026-06-01")
+    subprocess.run(["git", "add", "-A"], cwd=vault, check=True)
+    subprocess.run(["git", "commit", "-qm", "add"], cwd=vault, check=True)
+    # Written after the commit: genuinely untracked, so mtime is the only source.
+    capture(vault, "20-Learning/未提交.md", note_type="web-clip", date="2026-06-02")
+
+    report = review_captures(vault, as_of=datetime.date(2026, 8, 18))
+
+    assert report["evidence"] == "git-history"
+    assert report["evidence_coverage"] == {"git-history": 1, "file-mtime": 1}
+    assert sum(report["evidence_coverage"].values()) == report["summary"]["captures"]
+
+
+def test_an_untracked_note_still_falls_back_to_mtime(tmp_path: Path):
+    """The hard negative: fixing the decoding must not claim git knows more.
+
+    A note created but never committed has no history, and dating it from a
+    commit it never appeared in would be worse than the bug being fixed.
+    """
+    vault = tmp_path / "vault"
+    _repo(vault)
+    capture(vault, "20-Learning/已提交.md", note_type="web-clip", date="2026-06-01")
+    subprocess.run(["git", "add", "-A"], cwd=vault, check=True)
+    subprocess.run(["git", "commit", "-qm", "add"], cwd=vault, check=True)
+    capture(
+        vault,
+        "20-Learning/从未提交.md",
+        note_type="web-clip",
+        date="2026-06-02",
+        touched="2026-07-20",
+    )
+
+    from obsidian_kb_skill.scripts.review_captures import _git_last_revision
+
+    revisions = _git_last_revision(vault)
+    assert revisions is not None
+    assert "20-Learning/从未提交.md" not in revisions
+
+    report = review_captures(vault, as_of=datetime.date(2026, 8, 18))
+    touched = {item["path"]: item["last_touched"] for item in report["items"]}
+    assert "20-Learning/从未提交.md" not in touched, "mtime 2026-07-20 is after date, so not cold"
+    assert report["evidence_coverage"]["file-mtime"] == 1
+
+
+@pytest.mark.parametrize(
+    ("quoted", "expected"),
+    [
+        # Not quoted: git prints an ASCII path raw, and it must pass through.
+        ("20-Learning/tracked.md", "20-Learning/tracked.md"),
+        # Octal escapes are UTF-8 bytes. Decoding each one separately instead
+        # of accumulating them would yield mojibake, not this string.
+        ('"\\346\\216\\230\\351\\207\\221.md"', "掘金.md"),
+        # These stay escaped even under core.quotepath=false, which is why the
+        # fix decodes rather than passing that flag.
+        ('"a\\"b.md"', 'a"b.md'),
+        ('"a\\\\b.md"', "a\\b.md"),
+        ('"a\\nb.md"', "a\nb.md"),
+        ('"a\\tb.md"', "a\tb.md"),
+        # Mixed: a quote forces the wrapping, and the CJK bytes ride along.
+        ('"\\346\\216\\230\\"x.md"', '掘"x.md'),
+        # Degenerate inputs must not raise.
+        ("", ""),
+        ('"', '"'),
+        ('""', ""),
+    ],
+)
+def test_git_path_quoting_is_decoded(quoted: str, expected: str):
+    """A silent decoding error here corrupts dates without failing anything.
+
+    The map key is compared against a path from disk, so a wrong decode simply
+    misses and the note falls back to mtime — the exact failure #201 was, one
+    layer down.
+    """
+    from obsidian_kb_skill.scripts.review_captures import _unquote_git_path
+
+    assert _unquote_git_path(quoted) == expected

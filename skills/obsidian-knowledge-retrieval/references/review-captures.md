@@ -36,22 +36,46 @@ so counting either would measure the Vault's shape rather than its intake.
 | `file-mtime` | no repo; mtime is perturbed by sync clients and by any checkout |
 
 The field exists because a number whose provenance is unstated invites being
-read as more precise than it is. On the reference Vault, git tracked 57 of 214
-notes when this was written.
+read as more precise than it is.
+
+**`evidence` names the preferred source; `evidence_coverage` says what each one
+actually dated.** The choice is per note, so the single word can be true and
+misleading at once — quote the split, not the word:
+
+```json
+"evidence": "git-history",
+"evidence_coverage": {"git-history": 100, "file-mtime": 0}
+```
+
+An earlier version of this page said "git tracked 57 of 214 notes". It did not:
+all of them were tracked, and the helper was failing to decode the escaped
+paths git prints for non-ASCII filenames, so it dated them by mtime instead.
+Measured on that Vault the day it was fixed, the captures split **3 / 97**
+before and **100 / 0** after. That is the reason this field exists, and the
+reason to read it rather than the one-word summary.
 
 ## How to report it
 
-**Lead with the per-type split, not the total.** A single "43% are cold" says
+**Lead with the per-type split, not the total.** A single "49% are cold" says
 nothing actionable. The split says which kind of capture is paying off:
 
 ```
-learning-note  revisit 75%  (21/28)
-insight-note   revisit 31%  (4/13)
-web-clip       revisit 23%  (12/53)
+learning-note        revisit 71%  (20/28)
+conversation-digest  revisit 50%  (1/2)
+web-clip             revisit 42%  (24/57)
+insight-note         revisit 31%  (4/13)
 ```
 
-Notes the user wrote while working get reopened; clips do not. That is a
-finding about capture practice, and it is the reason this helper exists.
+What a person writes while working gets reopened most. Beyond that, **say the
+counts, not a story** — `conversation-digest` here is one note out of two, and
+the gap between `web-clip` and `insight-note` rests on 57 and 13.
+
+This page previously read the same measurement as "notes the user wrote get
+reopened; clips do not", on a split of learning 75% / insight 31% / web-clip
+23%. Those numbers came from the mtime fallback described above, and correcting
+it moved `web-clip` from last place to second. A conclusion about how someone
+works, drawn from a number whose provenance was not checked, survived here as
+prose until the number was.
 
 **Do not propose deleting anything.** The output is feedback on intake, not a
 verdict on any note. A capture that has stayed cold for a year may still be the
