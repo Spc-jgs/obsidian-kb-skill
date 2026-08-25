@@ -20,6 +20,7 @@ from obsidian_kb_skill.scripts.frontmatter import FrontmatterResult, parse_front
 from obsidian_kb_skill.scripts.link_graph import blank_code_examples
 from obsidian_kb_skill.scripts.note_catalog import (
     EXEMPT_NAMES,
+    MAX_NOTE_BYTES,
     SOURCE_ARCHIVE_FOLDER,
     VALID_NOTE_TYPES,
     normalize_tag_key,
@@ -45,7 +46,6 @@ from obsidian_kb_skill.scripts.vault_paths import (
 SCHEMA_VERSION = "1.0"
 MAX_QUERY_CHARS = 500
 MAX_TOP_K = 20
-MAX_FILE_BYTES = 2 * 1024 * 1024
 MAX_SNIPPET_CHARS = 480
 MAX_ISSUES = 20
 MAX_TAG_CHARS = 100
@@ -564,8 +564,8 @@ def _load_documents(
         relative = path.relative_to(vault).as_posix()
         try:
             size = path.stat().st_size
-            if size > MAX_FILE_BYTES:
-                raise ValueError(f"file exceeds {MAX_FILE_BYTES} bytes")
+            if size > MAX_NOTE_BYTES:
+                raise ValueError(f"file exceeds {MAX_NOTE_BYTES} bytes")
             text = path.read_text(encoding="utf-8")
             document, issue = _document(path, vault, text)
         except (OSError, UnicodeError, ValueError) as exc:

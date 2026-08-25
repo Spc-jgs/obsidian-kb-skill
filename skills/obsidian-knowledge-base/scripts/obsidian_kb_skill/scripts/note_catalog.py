@@ -1,6 +1,15 @@
 import re
 from dataclasses import dataclass
 
+# The ceiling on a single note a Vault walker will read into memory. Shared
+# because `search_vault` and `review_projects` each declared their own
+# `2 * 1024 * 1024`, with nothing relating the two: a Vault holding a note one
+# helper refuses and another loads gives contradictory answers about the same
+# file, and neither would say why. 2 MB is roughly 30x the reference Vault's
+# largest note (87 KB), so it bounds memory without being reachable by real
+# prose.
+MAX_NOTE_BYTES = 2 * 1024 * 1024
+
 # The one definition of "this template placeholder was never replaced". It
 # lived in `audit_vault` and `template_contract` as two near-copies, and
 # `process_inbox` was about to make a third. Two copies of a rule are the shape

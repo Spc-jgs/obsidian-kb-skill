@@ -831,3 +831,30 @@ def test_the_algorithms_doc_lists_the_severities_the_code_assigns():
         "docs/rules-and-algorithms.zh.md no longer matches FINDING_SEVERITY: "
         + "; ".join(problems)
     )
+
+
+def test_the_vault_walkers_share_one_note_size_ceiling():
+    """Relation removed: one `MAX_NOTE_BYTES`, imported, not restated.
+
+    `search_vault` and `review_projects` each declared `2 * 1024 * 1024` with
+    nothing relating them. Equal values hid that they were two decisions: a
+    Vault holding a note one helper refuses and the other loads gives
+    contradictory answers about the same file, and neither would say why.
+
+    Asserted by object identity, so an equal copy fails — which is the point,
+    since the two values were equal the whole time they were separate.
+    """
+    from obsidian_kb_skill.scripts import note_catalog, review_projects, search_vault
+
+    assert search_vault.MAX_NOTE_BYTES is note_catalog.MAX_NOTE_BYTES
+    assert review_projects.MAX_NOTE_BYTES is note_catalog.MAX_NOTE_BYTES
+
+    # And no module has quietly grown its own literal beside the import.
+    scripts = (ROOT / "obsidian_kb_skill" / "scripts").glob("*.py")
+    restated = [
+        path.name
+        for path in scripts
+        if path.name != "note_catalog.py"
+        and re.search(r"^MAX_\w*(?:FILE|NOTE)\w*_BYTES\s*=", path.read_text(encoding="utf-8"), re.M)
+    ]
+    assert not restated, f"these modules declare their own note-size ceiling: {restated}"

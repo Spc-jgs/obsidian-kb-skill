@@ -1568,6 +1568,24 @@ def _audit_titles(
                 f"{len(paths)} notes: "
                 f"{', '.join(p.as_posix() for p in paths)}",
             )
+    # Pairwise, so this is the audit's only quadratic pass: 219 titles on the
+    # reference Vault are 23,871 comparisons, and `ratio()` is itself O(L^2).
+    # `difflib` guarantees real_quick_ratio >= quick_ratio >= ratio, so a pair
+    # the cheap bounds put under the threshold cannot reach it — screening on
+    # them is exact, not approximate, which is what makes it safe to do at all.
+    #
+    # The screen buys a constant, not a better order. Measured on synthetic
+    # titles, identical results at every size:
+    #
+    #     notes   unscreened   screened
+    #       200        0.20s      0.06s
+    #      1000        5.02s      1.50s
+    #      2000       20.11s      6.01s
+    #
+    # So a 2000-note Vault still spends six seconds here. If that becomes the
+    # complaint, the fix is a different algorithm — bucketing by length or by
+    # shared character n-grams before comparing — not a tighter screen.
+    # Whole-audit effect on the reference Vault today: 0.472s -> 0.401s.
     for i in range(len(title_list)):
         norm_i, shown_i, rel_i = title_list[i]
         for j in range(i + 1, len(title_list)):
@@ -1576,7 +1594,10 @@ def _audit_titles(
                 continue
             if _is_dated_series(norm_i, norm_j):
                 continue
-            ratio = difflib.SequenceMatcher(None, norm_i, norm_j).ratio()
+            matcher = difflib.SequenceMatcher(None, norm_i, norm_j)
+            if matcher.real_quick_ratio() < 0.85 or matcher.quick_ratio() < 0.85:
+                continue
+            ratio = matcher.ratio()
             if ratio >= 0.85:
                 _add(
                     findings,

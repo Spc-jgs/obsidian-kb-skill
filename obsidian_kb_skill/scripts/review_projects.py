@@ -16,6 +16,7 @@ from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
 from obsidian_kb_skill.scripts.note_catalog import (
     EXEMPT_NAMES,
+    MAX_NOTE_BYTES,
     NON_INSTANCE_STATUSES as _NON_INSTANCE_STATUSES,
     PROJECT_NOTE_NEXT_ACTION_HEADINGS,
 )
@@ -37,7 +38,6 @@ DEFAULT_STALE_DAYS = 30
 MAX_STALE_DAYS = 3650
 DEFAULT_TOP_K = 10
 MAX_TOP_K = 20
-MAX_FILE_BYTES = 2 * 1024 * 1024
 MAX_ISSUES = 20
 MAX_NEXT_ACTION_CHARS = 200
 PROJECT_TYPE = "project-note"
@@ -403,8 +403,8 @@ def review_projects(
         files += 1
         relative = path.relative_to(root).as_posix()
         try:
-            if path.stat().st_size > MAX_FILE_BYTES:
-                raise ValueError(f"file exceeds {MAX_FILE_BYTES} bytes")
+            if path.stat().st_size > MAX_NOTE_BYTES:
+                raise ValueError(f"file exceeds {MAX_NOTE_BYTES} bytes")
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeError, ValueError) as exc:
             skipped += 1
