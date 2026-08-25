@@ -113,3 +113,31 @@ restart the analysis.
   cites were never committed and must be rewritten.
 - Do not integrate `inbox_plan.py` wholesale to obtain the two behaviours
   already shipped in v1.26.2.
+
+## Re-checked 2026-08-25
+
+Twenty-three days on, during a branch sweep that came close to deleting these
+branches for looking abandoned. They are not abandoned; this file says so, and
+reading it is what stopped the deletion. Recorded here so the next sweep finds
+the measurement rather than repeating it.
+
+All four reopen conditions were tested. **None holds.**
+
+| # | Condition | Measured |
+|---|---|---|
+| 1 | The Vault stops being version controlled | still a git repository, 159 commits |
+| 2 | Inbox processing becomes unattended | no scheduled or threshold write path; `process-inbox.md` still reads "human watching the run" |
+| 3 | More than one agent processes the same Inbox | no concurrent path; single-user CLI |
+| 4 | A run routinely handles hundreds of items | the Inbox holds **5** |
+
+The branch survived the sweep with its history intact: `fix/inbox-transaction-capability-session`
+carries all 28 patches, local and remote at the same SHA. The two branches that
+were deleted — `design/inbox-transaction-capability-session` and
+`fix/inbox-data-safety` — were verified by `git merge-base --is-ancestor` to be
+strict ancestors of it, so nothing this file promises to preserve was lost.
+Their worktrees were removed after confirming zero uncommitted changes.
+
+Deleting the surviving branch was considered and rejected: it costs one remote
+ref, and this file's own instruction — "Resume from
+`fix/inbox-transaction-capability-session`" — would become a dangling pointer.
+Tidiness is not a reason to invalidate a record.

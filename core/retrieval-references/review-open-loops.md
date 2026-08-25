@@ -37,11 +37,15 @@ heading.
 ## Read the items, do not grade them
 
 **The helper assigns no severity, no priority and no category, and neither
-should you.** The queue is visibly of mixed kinds — real next actions,
-conditional advice ("若使用 X，复核 Y"), and open-ended intent with no
-finishable end state ("持续关注 X"). Two samples of the reference Vault gave
-opposite impressions of that mix, which is exactly why nothing here claims to
-have separated them.
+should you.** That is not because the items are poor. Read in full, the
+reference Vault's 57 web-clip items are 44 concrete actions with a finishable
+end state, 8 conditional ("若使用 X，复核 Y"), 3 open-ended intent ("持续关注
+X"), and 2 too vague to act on — **mostly usable**. Nothing is classified here
+because no mechanical predicate separates those four; the count came from a
+person reading all 57.
+
+Say that to the user if they ask how much of the queue is real: most of it,
+and the rest is visible in the text they can read themselves.
 
 Each item carries `text`, `path`, `line`, `heading`, `type` and the note's
 `date`. Report those. The `type` is there because it is mechanically true, not
