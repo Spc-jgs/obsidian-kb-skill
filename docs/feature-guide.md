@@ -7,6 +7,9 @@
 | 只读知识检索 | 按标题、别名、标签、标题层级、wikilink 和正文排序，并做双语概念词表查询扩展 | 否 | `obsidian-knowledge-retrieval` |
 | 带引用回答 | 返回相对路径、标题、行号、片段和匹配原因 | 否 | `search-vault` |
 | 项目复苏雷达 | 找出受阻、失温或缺少活动日期的项目，并给出已有下一步 | 否 | `review-projects` |
+| 恢复项目上下文 | 返回一篇项目笔记及归属于它的产出，不靠扫目录或猜成员关系 | 否 | `resume-project` |
+| 捕获复访率 | 按类型统计写下后再没打开过的捕获；证据来源与覆盖篇数一并报出 | 否 | `review-captures` |
+| 开放循环队列 | 汇总模板声明的行动章节下未勾选的条目；不打分、不排序、不分类 | 否 | `review-open-loops` |
 | 声明式检索视图 | 运行 Vault 自己写下的检索条件，返回结果与解析后的查询计划；相对时间窗由调用方给定日期换算 | 否 | `run-retrieval-view` |
 | 有向依赖候选 | 从笔记自己的句子里找出「它声明依赖了谁、拿来做什么」，只提候选与证据句，不评分不写入 | 否 | `suggest-directed-links` |
 | 知识邻域探索 | 展示 Vault 已经声明的连接：正文 wikilink、frontmatter `related` 与反向链接，一跳有界，不评分不推荐 | 否 | `explore-neighborhood` |
