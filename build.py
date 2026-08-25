@@ -159,6 +159,12 @@ RETRIEVAL_HELPER_FILES = (
     # Reading is read-only, and "which captures were never reopened" is a
     # question the retrieval side must answer without the write closure.
     Path("scripts/review_captures.py"),
+    # The open-loop queue and the one thing that bounds it: which heading a
+    # template declared as holding action items. The contract is data with no
+    # dependencies; shipping it is what lets the queue refuse a heading no
+    # template declares.
+    Path("scripts/action_heading_contract.py"),
+    Path("scripts/review_open_loops.py"),
     Path("scripts/review_projects.py"),
     Path("scripts/search_vault.py"),
     Path("scripts/text_tokens.py"),

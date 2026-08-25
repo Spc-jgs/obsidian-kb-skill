@@ -873,18 +873,22 @@ def test_retrieval_core_body_is_bounded_too():
     for it — and nothing bounded it, so the asymmetry was the defect rather
     than the size.
 
-    The number is today's value, not a measured optimum: 129 lines across an
-    Overview, a READ ONLY contract, and six operation sections whose steps must
-    be visible *before* the agent decides which reference to load. That is why
-    it is not 45. Holding it at exactly the current count, with no slack, means
-    a growing body has to change this line — which is the point, because adding
-    to an always-loaded file is a decision about every future call and should
-    not happen by accident. Raise it deliberately, or move the material into a
-    reference.
+    The number is today's value, not a measured optimum. Holding it at exactly
+    the current count, with no slack, means a growing body has to change this
+    line — which is the point, because adding to an always-loaded file is a
+    decision about every future call and should not happen by accident. Raise
+    it deliberately, or move the material into a reference.
+
+    Raised 129 -> 138 for `review-open-loops` (#87). The eight added lines are
+    a routing pointer — which reference to read, which helper to run, and the
+    one rule the agent must not break (do not grade the items) — not an inlined
+    spec; the spec is the 60-line `review-open-loops.md`, which loads only when
+    that question is asked. That is the trade this bound exists to make
+    explicit, and it was made rather than skipped.
     """
     lines = RETRIEVAL_CORE.read_text(encoding="utf-8").splitlines()
-    assert len(lines) <= 129, (
-        f"always-loaded retrieval body is {len(lines)} lines, was 129. Every "
+    assert len(lines) <= 138, (
+        f"always-loaded retrieval body is {len(lines)} lines, was 138. Every "
         "call pays this. Move the new material into references/, or raise this "
         "number deliberately and say why in the commit."
     )
@@ -903,5 +907,6 @@ def test_retrieval_core_keeps_its_operations_in_reference_pointers():
     for marker in (
         "read only `references/search.md`",
         "Read only `references/review-captures.md`",
+        "Read only `references/review-open-loops.md`",
     ):
         assert marker in text, f"retrieval core stopped routing to a reference: {marker!r}"

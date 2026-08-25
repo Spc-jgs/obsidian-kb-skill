@@ -41,6 +41,15 @@ Read only `references/review-captures.md` and run `review-captures <vault>
 never propose deleting a note: the report is feedback on intake practice, not
 a verdict on any capture.
 
+## When the user asks what is still open
+
+Read only `references/review-open-loops.md` and run `review-open-loops <vault>
+--json`. The queue holds only unticked boxes under headings a template declared
+as action-bearing; a heading the author invented is out by design. Lead with the
+count and the per-type split, and **do not grade, rank or categorise the items**
+— the mix is genuinely heterogeneous and the helper deliberately does not claim
+to have separated it. Never propose closing anything.
+
 ## When the user asks to search
 
 1. **Find Vault**: env `OBSIDIAN_KB_VAULT` → `~/.obsidian-kb-config` → ask.
