@@ -500,3 +500,82 @@ frames themselves.
 frame is removed. None of the six measured does.
 
 *Refs #192, #170, #171, #195.*
+
+---
+
+## 9. Three capability directions the reference corpus cannot feed
+
+**Hypothesis** (#85, #88, #89). Three read-only helpers, each proposed after the
+v1.31.0 capability review: `trace-decisions` builds a project's decision
+timeline (#89), `plan-compost` proposes a lifecycle review queue (#88), and
+`trace-evidence` walks a conclusion back to the bytes it rests on (#85). Each
+issue cites real template sections and real design documents as its existing
+basis, so each looked ready to build.
+
+**Criterion tried.** Count, on the reference Vault, the material each MVP's
+*first hop* requires — not whether the feature is desirable, but whether the
+corpus holds enough of its input to produce a non-empty answer.
+
+```bash
+cd ~/Documents/my-knowledge-base
+# type distribution, excluding hidden dirs, docs/ and Templates/
+find . -name '*.md' -not -path '*/.*' -not -path './docs/*' -not -path './Templates/*' \
+  -exec grep -h '^type:' {} + | sed 's/^type: *//' | tr -d '"'"'"'' | sort | uniq -c | sort -rn
+# decision sections, and where they live
+grep -rn '^## \(决策记录\|决策与依据\|Decisions Log\)' --include='*.md' .
+grep -rln '^### 决策 [0-9]' --include='*.md' .
+# explicit supersession, in the directories that hold decisions
+grep -rn '取代\|废弃\|不再适用\|已作废\|supersed' --include='*.md' 40-Projects 30-Insights
+```
+
+**How they died.**
+
+*#89, the decision timeline.* Three notes carry a decision section — one
+`决策与依据`, one `Decisions Log`, one `决策记录` — and the seven numbered
+entries (`### 决策 1` … `### 决策 7`) are **all inside a single note**, one
+retrospective's output rather than a sequence that evolved. `meeting-note`, one
+of the three sources the issue names, has **zero real instances**: the only file
+with that type is `Templates/Meeting Note.md`. `conversation-digest` has two.
+Most decisive: the issue's `supersedes` edge may be drawn only where the text
+says so explicitly, and across `40-Projects/` and `30-Insights/` that phrasing
+appears **zero times**. Eight occurrences exist Vault-wide, all under
+`20-Learning/` and `95-Sources/`, and the two largest are an article explaining
+a deprecated API — prose about deprecation, not a decision superseding another.
+`trace-decisions` would return one note's list and no edges.
+
+*#88, the compost plan.* Its first signal is "a project explicitly finished or
+cancelled and long untouched". There are four `project-note`s; their `status`
+values are `active`, `active`, `active`, and `template`. **No project on this
+Vault has ever been marked finished or cancelled**, so the signal matches
+nothing and the queue's leading criterion is inert.
+
+*#85, the evidence lineage.* Its first and only *verbatim* edge is
+`source_archive` → archived original, which exists on **3 notes**. `related` is
+on 122 — but the issue itself rules that `related` may never be promoted past
+`declared-related`. So the helper's output on this corpus is three real lineage
+chains plus a re-rendering of frontmatter the reader can already see.
+
+**The shape underneath all three.** The reference Vault is a personal clipping
+library: 57 `web-clip`, 45 `daily-report`, 28 `learning-note`, 25
+`folder-index`, 13 `insight-note` — **168 of the 196 notes that declare a type**
+(202 Markdown files are in scope; six carry no `type:`). It is not a team Vault
+with meetings, project lifecycles and decision chains. All three directions were
+derived by reasoning forward from what the templates *offer*, not by measuring
+what the corpus *holds*, which is the same mistake #136 and #171 record about
+the adversarial corpus: built to the author's picture of a note rather than to
+the notes.
+
+**What would reopen them.** Each has a countable threshold, and each is a
+property of the corpus rather than of the code:
+
+- #89 — decision sections in **more than one** project, plus at least one
+  explicit supersession inside `40-Projects/` or `30-Insights/`.
+- #88 — a `project-note` whose `status` is finished or cancelled.
+- #85 — enough `source_archive` notes that a lineage walk is not three chains;
+  or a second verbatim edge type that does not route through `related`.
+
+Note that #85's threshold could also be crossed by *using* `archive-source` more,
+which no measurement here forbids. These are rulings about sequencing, not about
+whether the features are worth building.
+
+*Refs #85, #88, #89, #136, #171.*
