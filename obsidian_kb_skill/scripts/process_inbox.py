@@ -148,11 +148,6 @@ def scan_inbox(inbox: Path) -> tuple[list[Path], list[Path]]:
     return sorted(safe), sorted(unsafe)
 
 
-def collect_inbox(inbox: Path) -> list[Path]:
-    """Regular Inbox notes only. Kept for callers that ignore unsafe entries."""
-    return scan_inbox(inbox)[0]
-
-
 def infer_target(text: str, metadata: dict[str, Any] | None) -> str | None:
     note_type = metadata.get("type") if isinstance(metadata, dict) else None
     if note_type in TYPE_TO_FOLDER:

@@ -159,11 +159,3 @@ def template_dir(
     """Convenience: just the bundled templates directory."""
     return locate_skill_resources(skill_root=skill_root, env_var=env_var).templates_dir
 
-
-def reference_dir(
-    *,
-    skill_root: Optional[Path] = None,
-    env_var: str = "OBSIDIAN_KB_SKILL_ROOT",
-) -> Path:
-    """Convenience: just the bundled references directory."""
-    return locate_skill_resources(skill_root=skill_root, env_var=env_var).references_dir
