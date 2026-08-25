@@ -860,3 +860,48 @@ def test_git_precheck_reports_something_the_user_can_act_on():
         "Never stage, stash, discard, commit",
     ):
         assert marker in text, f"git reference missing: {marker!r}"
+
+
+RETRIEVAL_CORE = ROOT / "core" / "RETRIEVAL.md"
+
+
+def test_retrieval_core_body_is_bounded_too():
+    """The other always-loaded body had no ceiling at all.
+
+    `test_core_is_tiny` holds `OBSIDIAN_KB.md` under 45 lines. `RETRIEVAL.md`
+    is loaded on exactly the same terms — every invocation of that Skill pays
+    for it — and nothing bounded it, so the asymmetry was the defect rather
+    than the size.
+
+    The number is today's value, not a measured optimum: 129 lines across an
+    Overview, a READ ONLY contract, and six operation sections whose steps must
+    be visible *before* the agent decides which reference to load. That is why
+    it is not 45. Holding it at exactly the current count, with no slack, means
+    a growing body has to change this line — which is the point, because adding
+    to an always-loaded file is a decision about every future call and should
+    not happen by accident. Raise it deliberately, or move the material into a
+    reference.
+    """
+    lines = RETRIEVAL_CORE.read_text(encoding="utf-8").splitlines()
+    assert len(lines) <= 129, (
+        f"always-loaded retrieval body is {len(lines)} lines, was 129. Every "
+        "call pays this. Move the new material into references/, or raise this "
+        "number deliberately and say why in the commit."
+    )
+
+
+def test_retrieval_core_keeps_its_operations_in_reference_pointers():
+    """Each section routes to one reference rather than inlining it.
+
+    The bound above is only meaningful while the sections stay pointers. A
+    section that starts explaining what a reference explains will pass a line
+    count for a while and then fail it all at once.
+    """
+    text = RETRIEVAL_CORE.read_text(encoding="utf-8")
+    sections = [line for line in text.splitlines() if line.startswith("## When ")]
+    assert len(sections) >= 6, "the operation sections vanished; this guard is stale"
+    for marker in (
+        "read only `references/search.md`",
+        "Read only `references/review-captures.md`",
+    ):
+        assert marker in text, f"retrieval core stopped routing to a reference: {marker!r}"

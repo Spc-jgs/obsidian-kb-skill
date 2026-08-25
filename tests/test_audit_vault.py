@@ -16,6 +16,7 @@ from obsidian_kb_skill.scripts.audit_vault import (
     build_link_index,
     finding_severity,
 )
+from obsidian_kb_skill.scripts.audit_vault import Finding
 
 
 @pytest.mark.parametrize(
@@ -2609,3 +2610,56 @@ def test_a_shallow_clone_is_not_trusted_as_history(tmp_path):
         "a shallow clone's history is truncated, so absence proves nothing"
     )
     assert stats["link_history"] == {"source": "none", "reason": "shallow-clone"}
+
+
+def test_similar_title_screening_does_not_change_which_pairs_are_reported(tmp_path):
+    """The O(n^2) pass is screened, and screening must be invisible in the output.
+
+    `difflib` guarantees `real_quick_ratio() >= quick_ratio() >= ratio()`, so a
+    pair the cheap bounds put under the threshold cannot reach it — that is what
+    makes the screen safe. This asserts the property the guarantee implies,
+    against titles built to sit on both sides of 0.85, because a screen written
+    with the wrong comparison direction would silently drop real findings.
+    """
+    (tmp_path / ".obsidian").mkdir()
+    titles = [
+        "Spring Boot 配置绑定原理",
+        "Spring Boot 配置绑定原则",      # ~0.9 to the first: must be reported
+        "Spring Boot 事务失效的八种场景",  # shares a prefix, well under 0.85
+        "MySQL 索引下推",
+        "Redis 持久化机制",
+        "完全不相干的一篇随笔",
+    ]
+    for index, title in enumerate(titles):
+        (tmp_path / f"2026-07-{index + 10:02d} {title}.md").write_text(
+            f'---\ndate: "2026-07-{index + 10:02d}"\ntype: learning-note\n'
+            f"tags: [x]\n---\n# {title}\n\n正文。\n",
+            encoding="utf-8",
+        )
+
+    import difflib
+
+    from obsidian_kb_skill.scripts.audit_vault import _audit_titles
+
+    pairs = [(t.lower(), t, Path(f"{t}.md")) for t in titles]
+    screened: list[Finding] = []
+    _audit_titles(screened, pairs)
+
+    # The unscreened definition, computed here as the reference answer.
+    expected = set()
+    for i in range(len(pairs)):
+        for j in range(i + 1, len(pairs)):
+            if pairs[i][0] == pairs[j][0]:
+                continue
+            if difflib.SequenceMatcher(None, pairs[i][0], pairs[j][0]).ratio() >= 0.85:
+                expected.add((pairs[i][1], pairs[j][1]))
+
+    reported = {
+        (f.message.split("'")[1], f.message.split("'")[3])
+        for f in screened
+        if f.code == "similar-title"
+    }
+    assert reported == expected, (
+        f"screening changed the result: reported {reported}, unscreened {expected}"
+    )
+    assert expected, "the fixture must contain at least one real similar pair"
