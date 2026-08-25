@@ -205,6 +205,15 @@ Frontmatter and content: `missing-frontmatter`, `invalid-frontmatter`,
 Links and duplication: `broken-wikilink`, `ambiguous-wikilink`, `orphan-note`,
 `disconnected-note`, `duplicate-title`, `similar-title`.
 
+`link-to-unwritten-note` — the target has never existed in the Vault's git
+history, so the link is a placeholder for a note nobody has written yet. This
+is standard Obsidian practice and **needs no fix**; report it as a list of
+concepts the user has gestured at, if they ask. Do not create the missing notes
+to clear it, and do not rewrite the links. The audit can only say this where
+the Vault is a git repository with a complete history — read the JSON report's
+link-history field before quoting any of it, because without history every such
+link is reported as `broken-wikilink` instead, and that is not the same claim.
+
 Entity folders: `duplicate-project-note` — one project directory holds more
 than one project note, so the revival radar reports that project once per note.
 Keep the note that tracks status and retype the others to what they actually

@@ -736,3 +736,48 @@ def test_the_capture_reference_documents_the_evidence_fields_the_helper_emits(tm
         "summary instead, which is the failure this pair exists to prevent."
     )
     assert sum(report["evidence_coverage"].values()) == report["summary"]["captures"]
+
+
+def test_link_history_matches_the_keys_the_link_index_resolves_by(tmp_path):
+    """History must ask the same question of the past that the index asks of now.
+
+    Both sides produce well-formed findings whichever way they disagree, so a
+    drift here is invisible: a target the index would have resolved, that
+    history does not recognise, is silently reported as never written.
+    """
+    import subprocess
+
+    from obsidian_kb_skill.scripts.audit_vault import LinkHistory
+    from obsidian_kb_skill.scripts.link_graph import build_link_index
+
+    vault = tmp_path / "vault"
+    (vault / "20-Learning").mkdir(parents=True)
+    (vault / ".obsidian").mkdir()
+    names = [
+        "20-Learning/CQRS.md",
+        "20-Learning/2026-06-10 概念笔记.md",
+        "20-Learning/带空格 的 名字.md",
+    ]
+    for name in names:
+        (vault / name).write_text("---\ntype: learning-note\n---\nx\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=vault, check=True)
+    subprocess.run(["git", "config", "user.email", "t@example.invalid"], cwd=vault, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=vault, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=vault, check=True)
+    subprocess.run(["git", "commit", "-qm", "add"], cwd=vault, check=True)
+
+    index = build_link_index([vault / name for name in names])
+    history = LinkHistory(vault)
+    assert history.available(), "the fixture is a repository; history must load"
+
+    resolvable = set(index.by_name) | set(index.by_stem)
+    for path in (vault / name for name in names):
+        undated = re.sub(r"^\d{4}-\d{2}-\d{2}\s+", "", path.stem)
+        if undated != path.stem:
+            resolvable.add(undated)
+
+    missing = sorted(key for key in resolvable if not history.ever_existed(key))
+    assert not missing, (
+        f"the index resolves {missing}, which history does not recognise. A "
+        "target the index would have found is then reported as never written."
+    )

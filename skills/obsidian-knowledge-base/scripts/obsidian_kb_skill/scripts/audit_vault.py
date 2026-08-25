@@ -7,9 +7,10 @@ import datetime
 import json
 import re
 import difflib
+import subprocess
 import sys
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
@@ -28,6 +29,7 @@ from obsidian_kb_skill.scripts.deep_capture_contract import (
     matches_deep_capture_contract,
 )
 from obsidian_kb_skill.scripts.frontmatter import parse_frontmatter
+from obsidian_kb_skill.scripts.git_history import unquote_git_path
 from obsidian_kb_skill.scripts.capture_receipt import CAPTURE_DEPTHS
 from obsidian_kb_skill.scripts.folder_index_policy import (
     FolderIndexConfig,
@@ -43,6 +45,7 @@ from obsidian_kb_skill.scripts.link_graph import (
     candidate_paths as _candidate_paths,
     clean_link_target as _clean_link_target,
     resolve_target as _resolve_target,
+    strip_date_prefix,
     without_code_examples as _without_code_examples,
     without_fenced_code as _without_fenced_code,
 )
@@ -145,6 +148,12 @@ FINDING_SEVERITY: dict[str, str] = {
     "orphan-note": "informational",
     "similar-title": "informational",
     "disconnected-note": "informational",
+    # Linking a note before writing it is standard Obsidian practice (#159),
+    # and git history is what lets the audit say so instead of guessing. Kept
+    # out of `defect` deliberately: `create-note`'s refusal set is a subset of
+    # the defects (inventory row 48), and refusing this would forbid writing a
+    # note that points forward.
+    "link-to-unwritten-note": "informational",
 }
 
 
@@ -937,6 +946,103 @@ def _has_unclosed_fence(text: str) -> bool:
     return unclosed
 
 
+@dataclass
+class LinkHistory:
+    """Which note names have ever existed, according to the repository.
+
+    From a single snapshot, "the note was deleted" and "the note is not written
+    yet" leave the same trace — no file, and a link pointing at it — and
+    `rejected-hypotheses.md` §1 rejected separating them by counting inbound
+    references, because every placeholder on the reference Vault was referenced
+    exactly once, the same as a deletion. §1 named the signal that would
+    reopen it: a Vault under git, where the question is history rather than
+    snapshot.
+
+    Loaded on first need, like `LinkIndex._alias_map`, and for the same
+    reason: `audit_note` runs on every write, and a Vault whose links all
+    resolve must not pay for a `git log` it has no question for.
+    """
+
+    vault: Path
+    _keys: set[str] | None = None
+    _meta: dict[str, Any] | None = None
+
+    def _load(self) -> None:
+        if self._meta is not None:
+            return
+        probe = subprocess.run(
+            ["git", "-C", str(self.vault), "rev-parse", "--is-inside-work-tree"],
+            capture_output=True, text=True,
+        )
+        if probe.returncode != 0 or probe.stdout.strip() != "true":
+            self._keys, self._meta = set(), {
+                "source": "none", "reason": "not-a-git-repository",
+            }
+            return
+        # A `--depth 1` clone holds a truncated history in which nothing ever
+        # existed, so "absent from history" would be false for every deleted
+        # note — the wrong direction, and silently so. A short but *complete*
+        # history is different and is trusted: "never appeared" is then a true
+        # statement about a young repository.
+        shallow = subprocess.run(
+            ["git", "-C", str(self.vault), "rev-parse", "--is-shallow-repository"],
+            capture_output=True, text=True,
+        )
+        if shallow.returncode != 0 or shallow.stdout.strip() != "false":
+            self._keys, self._meta = set(), {"source": "none", "reason": "shallow-clone"}
+            return
+        log = subprocess.run(
+            ["git", "-C", str(self.vault), "log", "--all", "--pretty=format:",
+             "--name-only", "--diff-filter=ADRM", "--", "*.md"],
+            capture_output=True, text=True,
+        )
+        if log.returncode != 0:
+            self._keys, self._meta = set(), {"source": "none", "reason": "git-log-failed"}
+            return
+        paths = {
+            unquote_git_path(line.strip())
+            for line in log.stdout.splitlines()
+            if line.strip()
+        }
+        # The audit's own resolution order, not a looser one: `LinkIndex`
+        # resolves a bare target by filename, then by stem, and
+        # `dated_matches` by the stem with a `YYYY-MM-DD ` prefix removed. A
+        # second notion of "the same note" is the drift this repository keeps
+        # finding.
+        keys: set[str] = set()
+        for path in paths:
+            name = PurePosixPath(path)
+            keys.add(name.name)
+            keys.add(name.stem)
+            undated = strip_date_prefix(name.stem)
+            if undated != name.stem:
+                keys.add(undated)
+        self._keys = keys
+        self._meta = {"source": "git-history", "paths": len(paths)}
+
+    def meta(self) -> dict[str, Any]:
+        """What the history query found, or that it was never asked."""
+        if self._meta is None:
+            return {"source": "not-consulted"}
+        return self._meta
+
+    def available(self) -> bool:
+        self._load()
+        return self._meta is not None and self._meta.get("source") == "git-history"
+
+    def ever_existed(self, target: str) -> bool:
+        """True when some path in history would have resolved this target.
+
+        Blind to aliases: `LinkIndex.matches` resolves `[[X]]` through a target
+        note's frontmatter `aliases`, which live in the file's *content*, and
+        this reads only path names. A note reachable only by its alias, then
+        deleted, reads as never written — recorded in the design rather than
+        guessed at.
+        """
+        self._load()
+        return PurePosixPath(target).name in (self._keys or set())
+
+
 def _audit_links(
     findings: list[Finding],
     vault: Path,
@@ -944,6 +1050,7 @@ def _audit_links(
     relative: Path,
     text: str,
     index: LinkIndex,
+    history: LinkHistory | None = None,
 ) -> None:
     for match in WIKILINK_RE.finditer(text):
         target = _clean_link_target(match.group(1))
@@ -952,7 +1059,7 @@ def _audit_links(
         if "/" in target:
             if any(candidate.is_file() for candidate in _candidate_paths(source, target, vault)):
                 continue
-            _add(findings, "broken-wikilink", relative, f"unresolved wikilink: {target}")
+            _unresolved(findings, relative, target, history)
             continue
 
         matches = index.matches(target)
@@ -972,7 +1079,44 @@ def _audit_links(
                 f"write the filename into the link, for example [[{sorted(p.stem for p in dated)[0]}|{target}]]",
             )
         else:
-            _add(findings, "broken-wikilink", relative, f"unresolved wikilink: {target}")
+            _unresolved(findings, relative, target, history)
+
+
+def _unresolved(
+    findings: list[Finding],
+    relative: Path,
+    target: str,
+    history: LinkHistory | None,
+) -> None:
+    """Report a target that resolved to nothing, graded by what history knows.
+
+    Three outcomes, not two. Without history the question is unanswered and
+    the finding stays `broken-wikilink` — which is what this always did, so a
+    Vault outside git sees no change. With history, "this name was never in
+    the repository" is a positive result: it is how a concept gets stubbed,
+    standard Obsidian practice (#159), and grading it `defect` buried the real
+    breakage under it — 24 of the reference Vault's 32 defects were this.
+    """
+    if history is not None and history.available():
+        if not history.ever_existed(target):
+            _add(
+                findings,
+                "link-to-unwritten-note",
+                relative,
+                f"unwritten note: {target} — no file by this name has ever existed in "
+                f"this Vault's git history, so the link is a placeholder for a note "
+                f"nobody has written yet, not a broken reference",
+            )
+            return
+        _add(
+            findings,
+            "broken-wikilink",
+            relative,
+            f"unresolved wikilink: {target} — git history holds a note by this name, "
+            f"so it was deleted or renamed rather than never written",
+        )
+        return
+    _add(findings, "broken-wikilink", relative, f"unresolved wikilink: {target}")
 
 
 def _collect_references(
@@ -1184,7 +1328,7 @@ def audit_vault(vault: Path) -> list[Finding]:
     return audit_vault_with_stats(vault)[0]
 
 
-def audit_vault_with_stats(vault: Path) -> tuple[list[Finding], dict[str, int]]:
+def audit_vault_with_stats(vault: Path) -> tuple[list[Finding], dict[str, Any]]:
     """Return findings plus the population they were found in.
 
     A finding count carries no meaning without a denominator: 92 findings across
@@ -1195,6 +1339,12 @@ def audit_vault_with_stats(vault: Path) -> tuple[list[Finding], dict[str, int]]:
     `scanned` counts the Markdown files enumerated, `audited` the subset that
     note contracts actually ran over — the two differ by the archived sources
     under `95-Sources/`, which are captured evidence rather than notes.
+
+    `link_history` says what the link grading had to work with. A helper that
+    silently falls back produces output indistinguishable from the good path,
+    which is what #201 was; here the fallback keeps every unresolved link at
+    `defect`, which is the previous behaviour and therefore invisible unless
+    the report says so.
     """
     vault = vault.resolve()
     findings: list[Finding] = []
@@ -1203,6 +1353,7 @@ def audit_vault_with_stats(vault: Path) -> tuple[list[Finding], dict[str, int]]:
     folder_index_config = read_folder_index_config(vault)
     linkable = _all_linkable_files(vault)
     index = build_link_index(linkable)
+    history = LinkHistory(vault)
 
     tag_index: dict[str, set[str]] = {}
     title_list: list[tuple[str, str, Path]] = []
@@ -1269,6 +1420,7 @@ def audit_vault_with_stats(vault: Path) -> tuple[list[Finding], dict[str, int]]:
                 relative,
                 _without_code_examples(text),
                 index,
+                history,
             )
         references = _collect_references(path, text, metadata, vault, index)
         referenced |= references
@@ -1327,7 +1479,11 @@ def audit_vault_with_stats(vault: Path) -> tuple[list[Finding], dict[str, int]]:
 
     return (
         sorted(findings, key=lambda item: (item.path, item.code, item.message)),
-        {"scanned": len(markdown), "audited": audited},
+        {
+            "scanned": len(markdown),
+            "audited": audited,
+            "link_history": history.meta(),
+        },
     )
 
 
@@ -1372,6 +1528,7 @@ def _audit_note_content(
             relative,
             _without_code_examples(text),
             index,
+            LinkHistory(vault),
         )
     return sorted(findings, key=lambda item: (item.path, item.code, item.message))
 
@@ -1521,6 +1678,7 @@ def main(argv: list[str] | None = None) -> int:
             {
                 "scanned": stats["scanned"],
                 "audited": stats["audited"],
+                "link_history": stats["link_history"],
                 "count": len(findings),
                 "by_severity": counts,
                 "findings": out,

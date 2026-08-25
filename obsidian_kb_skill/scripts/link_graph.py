@@ -51,6 +51,16 @@ def declared_aliases(path: Path) -> tuple[str, ...]:
 _DATE_PREFIX = re.compile(r"^\d{4}-\d{2}-\d{2}\s+")
 
 
+def strip_date_prefix(stem: str) -> str:
+    """`2026-06-10 X` -> `X`; anything else unchanged.
+
+    Shared so that "the same note under a date prefix" means one thing. The
+    audit's `dated_matches` repairs a link with it, and `LinkHistory` asks
+    whether history holds such a name — two questions about one convention.
+    """
+    return _DATE_PREFIX.sub("", stem)
+
+
 @dataclass
 class LinkIndex:
     """Resolve a wikilink target to files the way Obsidian does.
@@ -97,7 +107,7 @@ class LinkIndex:
             for path in self.linkable:
                 if path.suffix.lower() != ".md":
                     continue
-                undated = _DATE_PREFIX.sub("", path.stem)
+                undated = strip_date_prefix(path.stem)
                 if undated != path.stem:
                     found[undated].append(path)
             self._undated = dict(found)

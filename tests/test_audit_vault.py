@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ from obsidian_kb_skill.scripts.audit_vault import (
     audit_note_text,
     audit_vault,
     build_link_index,
+    finding_severity,
 )
 
 
@@ -2482,3 +2484,128 @@ def test_a_web_clip_that_declares_itself_incomplete_is_not_reported(tmp_path):
     )
 
     assert "web-clip-captured-nothing" not in codes(tmp_path)
+
+
+# --- #202: git history separates a stubbed concept from a deleted note ---
+
+
+def _git_vault(tmp_path: Path, name: str = "vault") -> Path:
+    vault = tmp_path / name
+    (vault / ".obsidian").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=vault, check=True)
+    subprocess.run(["git", "config", "user.email", "t@example.invalid"], cwd=vault, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=vault, check=True)
+    return vault
+
+
+def _write_note(vault: Path, relative: str, body: str) -> Path:
+    path = vault / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"---\ndate: \"2026-07-07\"\ntype: learning-note\ntags: [learning]\n---\n{body}\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _commit(vault: Path, message: str) -> None:
+    subprocess.run(["git", "add", "-A"], cwd=vault, check=True)
+    subprocess.run(["git", "commit", "-qm", message], cwd=vault, check=True)
+
+
+def test_a_link_to_a_note_git_records_as_deleted_stays_a_defect(tmp_path):
+    """The true-positive branch, which the reference Vault cannot exercise.
+
+    All 21 targets behind its 24 findings never appeared in 316 historical
+    paths, and the single note git records as deleted has no inbound links. So
+    this branch is guarded by construction, and that is stated in the design
+    rather than left to be discovered from a passing suite.
+    """
+    vault = _git_vault(tmp_path)
+    _write_note(vault, "20-Learning/Retired.md", "content")
+    _write_note(vault, "20-Learning/Citing.md", "see [[Retired]]")
+    _commit(vault, "both")
+    (vault / "20-Learning" / "Retired.md").unlink()
+    _commit(vault, "delete the target")
+
+    found = codes(vault)
+    assert "broken-wikilink" in found, "git says this note existed; the link is really broken"
+    assert "link-to-unwritten-note" not in found
+
+
+def test_a_link_to_a_note_that_never_existed_is_informational(tmp_path):
+    vault = _git_vault(tmp_path)
+    _write_note(vault, "20-Learning/Citing.md", "see [[CQRS]]")
+    _commit(vault, "one note")
+
+    findings = audit_vault(vault)
+    stub = [f for f in findings if f.code == "link-to-unwritten-note"]
+    assert stub, f"expected a stub finding, got {sorted({f.code for f in findings})}"
+    assert finding_severity(stub[0].code) == "informational"
+    assert "broken-wikilink" not in {f.code for f in findings}
+
+
+def test_a_non_ascii_target_is_matched_against_history(tmp_path):
+    """#201 must not come back through this path.
+
+    git escapes non-ASCII paths by default, so an undecoded history would
+    match nothing — and every deleted note would read as never written, which
+    is the wrong one of the two outcomes.
+    """
+    vault = _git_vault(tmp_path)
+    _write_note(vault, "20-Learning/数据库避坑.md", "content")
+    _write_note(vault, "20-Learning/引用者.md", "see [[数据库避坑]]")
+    _commit(vault, "both")
+    (vault / "20-Learning" / "数据库避坑.md").unlink()
+    _commit(vault, "delete")
+
+    found = codes(vault)
+    assert "broken-wikilink" in found
+    assert "link-to-unwritten-note" not in found, (
+        "the escaped path matched nothing, so a deleted note read as never written"
+    )
+
+
+def test_without_a_repository_no_link_is_reclassified(tmp_path):
+    """The current behaviour, kept: no history means the question is unanswered."""
+    (tmp_path / ".obsidian").mkdir()
+    _write_note(tmp_path, "20-Learning/Citing.md", "see [[CQRS]]")
+
+    findings, stats = audit_vault_with_stats(tmp_path)
+    found = {finding.code for finding in findings}
+    assert "broken-wikilink" in found
+    assert "link-to-unwritten-note" not in found
+    assert stats["link_history"] == {
+        "source": "none", "reason": "not-a-git-repository",
+    }
+
+
+def test_a_shallow_clone_is_not_trusted_as_history(tmp_path):
+    """A truncated history makes every deleted note look never-written.
+
+    This is the hard negative for the whole feature: the criterion is only
+    sound when "absent from history" means absent, and a `--depth 1` clone
+    breaks exactly that.
+    """
+    origin = _git_vault(tmp_path, "origin")
+    _write_note(origin, "20-Learning/Retired.md", "content")
+    _write_note(origin, "20-Learning/Citing.md", "see [[Retired]]")
+    _commit(origin, "both")
+    (origin / "20-Learning" / "Retired.md").unlink()
+    _commit(origin, "delete the target")
+
+    clone = tmp_path / "clone"
+    subprocess.run(
+        ["git", "clone", "-q", "--depth", "1", f"file://{origin}", str(clone)],
+        check=True,
+        capture_output=True,
+    )
+    (clone / ".obsidian").mkdir(exist_ok=True)
+
+    findings, stats = audit_vault_with_stats(clone)
+    found = {finding.code for finding in findings}
+    assert "broken-wikilink" in found
+    assert "link-to-unwritten-note" not in found, (
+        "a shallow clone's history is truncated, so absence proves nothing"
+    )
+    assert stats["link_history"] == {"source": "none", "reason": "shallow-clone"}

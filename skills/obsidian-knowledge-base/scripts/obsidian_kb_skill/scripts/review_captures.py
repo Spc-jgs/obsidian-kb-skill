@@ -29,6 +29,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+from obsidian_kb_skill.scripts.git_history import unquote_git_path
+
 
 SCHEMA_VERSION = "1.0"
 
@@ -82,52 +84,6 @@ def _markdown_files(vault: Path) -> Iterable[Path]:
             yield path
 
 
-_C_ESCAPES = {
-    "a": "\a", "b": "\b", "f": "\f", "n": "\n",
-    "r": "\r", "t": "\t", "v": "\v", '"': '"', "\\": "\\",
-}
-
-
-def _unquote_git_path(name: str) -> str:
-    """Decode the C-style quoting git applies to a path it must escape.
-
-    Git wraps a path in quotes and escapes it whenever it holds bytes it will
-    not print raw. With `core.quotepath` — which defaults to **true** — that
-    includes every non-ASCII byte, so a Chinese filename arrives as
-    `"20-Learning/\\346\\216\\230...md"` and matches nothing on disk. Setting
-    `core.quotepath=false` would stop the octal escaping, but not the quoting:
-    a path holding a quote, a backslash or a control character is still
-    wrapped. Decoding here covers both and does not depend on the repository's
-    configuration.
-
-    The octal escapes are UTF-8 *bytes*, not code points, so they accumulate
-    into a bytearray and are decoded once at the end — decoding each escape
-    separately would corrupt every multi-byte character.
-    """
-    if len(name) < 2 or not (name.startswith('"') and name.endswith('"')):
-        return name
-    body = name[1:-1]
-    out = bytearray()
-    index = 0
-    while index < len(body):
-        char = body[index]
-        if char != "\\":
-            out.extend(char.encode("utf-8"))
-            index += 1
-            continue
-        index += 1
-        if index >= len(body):
-            break
-        escape = body[index]
-        if escape in "01234567":
-            out.append(int(body[index : index + 3], 8))
-            index += 3
-        else:
-            out.extend(_C_ESCAPES.get(escape, escape).encode("utf-8"))
-            index += 1
-    return out.decode("utf-8", errors="replace")
-
-
 def _git_last_revision(vault: Path) -> dict[str, str] | None:
     """Last commit date per tracked file, or None when this is not a repo.
 
@@ -161,7 +117,7 @@ def _git_last_revision(vault: Path) -> dict[str, str] | None:
         if line.startswith("\x00"):
             stamp = line[1:].strip()
             continue
-        name = _unquote_git_path(line.strip())
+        name = unquote_git_path(line.strip())
         if name and stamp:
             latest.setdefault(name, stamp)
     return latest
