@@ -82,12 +82,66 @@ def _markdown_files(vault: Path) -> Iterable[Path]:
             yield path
 
 
+_C_ESCAPES = {
+    "a": "\a", "b": "\b", "f": "\f", "n": "\n",
+    "r": "\r", "t": "\t", "v": "\v", '"': '"', "\\": "\\",
+}
+
+
+def _unquote_git_path(name: str) -> str:
+    """Decode the C-style quoting git applies to a path it must escape.
+
+    Git wraps a path in quotes and escapes it whenever it holds bytes it will
+    not print raw. With `core.quotepath` — which defaults to **true** — that
+    includes every non-ASCII byte, so a Chinese filename arrives as
+    `"20-Learning/\\346\\216\\230...md"` and matches nothing on disk. Setting
+    `core.quotepath=false` would stop the octal escaping, but not the quoting:
+    a path holding a quote, a backslash or a control character is still
+    wrapped. Decoding here covers both and does not depend on the repository's
+    configuration.
+
+    The octal escapes are UTF-8 *bytes*, not code points, so they accumulate
+    into a bytearray and are decoded once at the end — decoding each escape
+    separately would corrupt every multi-byte character.
+    """
+    if len(name) < 2 or not (name.startswith('"') and name.endswith('"')):
+        return name
+    body = name[1:-1]
+    out = bytearray()
+    index = 0
+    while index < len(body):
+        char = body[index]
+        if char != "\\":
+            out.extend(char.encode("utf-8"))
+            index += 1
+            continue
+        index += 1
+        if index >= len(body):
+            break
+        escape = body[index]
+        if escape in "01234567":
+            out.append(int(body[index : index + 3], 8))
+            index += 3
+        else:
+            out.extend(_C_ESCAPES.get(escape, escape).encode("utf-8"))
+            index += 1
+    return out.decode("utf-8", errors="replace")
+
+
 def _git_last_revision(vault: Path) -> dict[str, str] | None:
     """Last commit date per tracked file, or None when this is not a repo.
 
-    Exact where it applies, and it does not apply everywhere: on the reference
-    Vault only 57 of 214 notes were tracked. The caller records which source
-    was used so a partial answer is never read as a complete one.
+    Exact where it applies, and it does not apply everywhere: a note created
+    but never committed has no history here, and the caller dates it by mtime
+    and counts it under `file-mtime` so a partial answer is never read as a
+    complete one.
+
+    An earlier version of this docstring said "on the reference Vault only 57
+    of 214 notes were tracked". That was wrong, and wrong in the direction
+    that hides a defect: the untracked ones were not untracked at all, they
+    were escaped by `core.quotepath` and matched nothing. Measured on that
+    Vault the day this was fixed — 219 notes on disk, every one of them
+    tracked — the map matched **51** before decoding and **219** after.
     """
     probe = subprocess.run(
         ["git", "-C", str(vault), "rev-parse", "--is-inside-work-tree"],
@@ -107,7 +161,7 @@ def _git_last_revision(vault: Path) -> dict[str, str] | None:
         if line.startswith("\x00"):
             stamp = line[1:].strip()
             continue
-        name = line.strip()
+        name = _unquote_git_path(line.strip())
         if name and stamp:
             latest.setdefault(name, stamp)
     return latest
@@ -126,10 +180,17 @@ def review_captures(
     revisions = _git_last_revision(vault)
     evidence = "git-history" if revisions is not None else "file-mtime"
     caveat = (
-        "git history covers tracked files only; untracked notes fall back to file mtime"
+        "git history covers tracked files only; evidence_coverage says how many "
+        "captures each source actually dated"
         if evidence == "git-history"
         else "file mtime is perturbed by sync clients and by any git checkout"
     )
+    # `evidence` names the preferred source, but the choice is made per note,
+    # so one word for the whole report can be a lie — and was: a decoding
+    # defect sent most notes to mtime while this still said `git-history`.
+    # Both keys are always present so `sum(...) == summary.captures` holds
+    # whatever the Vault is.
+    coverage = {"git-history": 0, "file-mtime": 0}
 
     cold: list[ColdCapture] = []
     counts: dict[str, dict[str, int]] = {}
@@ -151,11 +212,12 @@ def review_captures(
         relative = path.relative_to(vault).as_posix()
         created = datetime.date.fromisoformat(date_match.group(1))
         touched_raw = (revisions or {}).get(relative)
-        touched = (
-            datetime.date.fromisoformat(touched_raw)
-            if touched_raw
-            else datetime.date.fromtimestamp(path.stat().st_mtime)
-        )
+        if touched_raw:
+            touched = datetime.date.fromisoformat(touched_raw)
+            coverage["git-history"] += 1
+        else:
+            touched = datetime.date.fromtimestamp(path.stat().st_mtime)
+            coverage["file-mtime"] += 1
 
         captures += 1
         bucket = counts.setdefault(note_type, {"captures": 0, "never_reopened": 0})
@@ -194,6 +256,7 @@ def review_captures(
         "as_of": as_of.isoformat(),
         "evidence": evidence,
         "evidence_caveat": caveat,
+        "evidence_coverage": coverage,
         "cold_after_days": cold_after_days,
         "summary": {
             "captures": captures,

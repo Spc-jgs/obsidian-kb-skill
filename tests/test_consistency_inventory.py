@@ -688,3 +688,51 @@ def test_every_link_token_is_also_a_body_token(tmp_path):
         "its weight means what the table says — re-run #194's sweep and decide "
         "the value deliberately."
     )
+
+
+def test_the_capture_reference_documents_the_evidence_fields_the_helper_emits(tmp_path):
+    """The page tells an Agent which field to quote; the helper must emit it.
+
+    `evidence` is a single word for a decision made per note, so it can be true
+    and misleading at once — and was. The reference page now instructs the
+    reader to quote `evidence_coverage` instead, which only helps while the
+    field exists. Nothing else relates the two: the page is prose shipped in a
+    Skill bundle, and the helper is Python in another.
+    """
+    import datetime
+    import subprocess
+
+    from obsidian_kb_skill.scripts.review_captures import review_captures
+
+    reference = (
+        ROOT / "core" / "retrieval-references" / "review-captures.md"
+    ).read_text(encoding="utf-8")
+    promised = set(re.findall(r"`(evidence(?:_[a-z]+)*)`", reference))
+    assert "evidence_coverage" in promised, (
+        "the page stopped naming evidence_coverage; either it regressed to "
+        "quoting the one-word summary, or this guard is watching the wrong page"
+    )
+
+    vault = tmp_path / "vault"
+    (vault / "20-Learning").mkdir(parents=True)
+    (vault / ".obsidian").mkdir()
+    note = vault / "20-Learning" / "中文剪藏.md"
+    note.write_text(
+        "---\ntype: web-clip\ndate: '2026-06-01'\ntags:\n- x\n---\n\n# 标题\n\n正文。\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "init", "-q"], cwd=vault, check=True)
+    subprocess.run(["git", "config", "user.email", "t@example.invalid"], cwd=vault, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=vault, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=vault, check=True)
+    subprocess.run(["git", "commit", "-qm", "add"], cwd=vault, check=True)
+
+    report = review_captures(vault, as_of=datetime.date(2026, 8, 18))
+
+    missing = sorted(field for field in promised if field not in report)
+    assert not missing, (
+        f"the reference names {missing}, which review-captures does not emit. "
+        "An Agent told to quote a field that is absent will quote the one-word "
+        "summary instead, which is the failure this pair exists to prevent."
+    )
+    assert sum(report["evidence_coverage"].values()) == report["summary"]["captures"]
