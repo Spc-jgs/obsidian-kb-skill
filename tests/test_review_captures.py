@@ -322,3 +322,37 @@ def test_an_untracked_note_still_falls_back_to_mtime(tmp_path: Path):
     touched = {item["path"]: item["last_touched"] for item in report["items"]}
     assert "20-Learning/从未提交.md" not in touched, "mtime 2026-07-20 is after date, so not cold"
     assert report["evidence_coverage"]["file-mtime"] == 1
+
+
+@pytest.mark.parametrize(
+    ("quoted", "expected"),
+    [
+        # Not quoted: git prints an ASCII path raw, and it must pass through.
+        ("20-Learning/tracked.md", "20-Learning/tracked.md"),
+        # Octal escapes are UTF-8 bytes. Decoding each one separately instead
+        # of accumulating them would yield mojibake, not this string.
+        ('"\\346\\216\\230\\351\\207\\221.md"', "掘金.md"),
+        # These stay escaped even under core.quotepath=false, which is why the
+        # fix decodes rather than passing that flag.
+        ('"a\\"b.md"', 'a"b.md'),
+        ('"a\\\\b.md"', "a\\b.md"),
+        ('"a\\nb.md"', "a\nb.md"),
+        ('"a\\tb.md"', "a\tb.md"),
+        # Mixed: a quote forces the wrapping, and the CJK bytes ride along.
+        ('"\\346\\216\\230\\"x.md"', '掘"x.md'),
+        # Degenerate inputs must not raise.
+        ("", ""),
+        ('"', '"'),
+        ('""', ""),
+    ],
+)
+def test_git_path_quoting_is_decoded(quoted: str, expected: str):
+    """A silent decoding error here corrupts dates without failing anything.
+
+    The map key is compared against a path from disk, so a wrong decode simply
+    misses and the note falls back to mtime — the exact failure #201 was, one
+    layer down.
+    """
+    from obsidian_kb_skill.scripts.review_captures import _unquote_git_path
+
+    assert _unquote_git_path(quoted) == expected
