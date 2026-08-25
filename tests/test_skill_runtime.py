@@ -39,6 +39,7 @@ RETRIEVAL_HELPERS = (
     "explore-neighborhood",
     "resume-project",
     "review-captures",
+    "review-open-loops",
     "review-projects",
     "run-retrieval-view",
     "search-vault",

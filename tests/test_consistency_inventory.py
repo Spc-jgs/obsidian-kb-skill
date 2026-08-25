@@ -916,3 +916,44 @@ def test_the_web_clip_template_satisfies_the_contract_it_ships_with():
             f"{relative} carries undeclared extra sections: {extras}. Name them "
             "in ALLOWED_EXTRA, which is a decision about every future capture."
         )
+
+
+def test_the_action_headings_match_the_templates_that_declare_them():
+    """`ACTION_HEADINGS` ↔ the one heading each template puts a `- [ ]` under.
+
+    The retrieval bundle ships no templates, so the queue cannot read them at
+    run time and the set is restated in `action_heading_contract`. A mirror
+    with nothing checking it is the shape this list exists to catch, and the
+    direction that matters is the quiet one: a template gaining a new action
+    section would otherwise be invisible to the queue, with the suite green.
+
+    Both the headings and the templates each is attributed to are asserted,
+    because an entry naming the wrong template is a comment that lies.
+    """
+    import re
+
+    from obsidian_kb_skill.scripts.action_heading_contract import ACTION_HEADINGS
+
+    derived: dict[str, set[str]] = {}
+    for directory, prefix in ((ROOT / "core" / "templates", ""),
+                              (ROOT / "core" / "templates" / "en", "en/")):
+        for path in sorted(directory.glob("*.md")):
+            lines = path.read_text(encoding="utf-8").splitlines()
+            for index, line in enumerate(lines):
+                if not re.match(r"^\s*- \[ \]", line):
+                    continue
+                for previous in reversed(lines[:index]):
+                    if previous.startswith("#"):
+                        heading = previous.lstrip("#").strip()
+                        derived.setdefault(heading, set()).add(f"{prefix}{path.stem}")
+                        break
+                break
+
+    declared = {heading: set(names) for heading, names in ACTION_HEADINGS.items()}
+    assert declared == derived, (
+        "action headings drifted from the templates.\n"
+        f"  only in contract: {sorted(set(declared) - set(derived))}\n"
+        f"  only in templates: {sorted(set(derived) - set(declared))}\n"
+        f"  attribution differs: "
+        f"{sorted(h for h in set(declared) & set(derived) if declared[h] != derived[h])}"
+    )

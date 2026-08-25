@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 
 - One decoder for the paths git prints, `git_history.unquote_git_path`, shared by `review_captures` and the audit instead of copied. #201 was this decoding going wrong in one caller; a second hand-written copy would be the same defect waiting in the other, and it fails in opposite directions — a capture falls back to mtime, a deleted note reads as never written.
 
+- **`review-open-loops`: the unticked boxes an author left behind, with a bound that comes from the templates.** #87 asked for an open-loop queue and proposed a hand-written heading vocabulary; measured, that vocabulary reached **20 of 138** items while reading as authoritative. The templates already answer the question — each one puts exactly one `- [ ]` under exactly one heading, and that placement *is* the declaration — so the queue derives its set from them and covers **95**. A heading no template declares is out by design: `可复用的项目落地检查表` holds fifteen unticked boxes on the reference Vault that are a reusable question list ending in `；`, and they can never be ticked.
+
+  **It assigns no severity, no priority and no category.** The queue is visibly heterogeneous — real next actions, conditional advice, open-ended intent with no finishable end state — and two samples of the same corpus gave opposite impressions of that mix, which is the reason nothing here claims to have separated them. Every item carries its text, path, line, heading, type and date so a reader judges it. Ordering is oldest note first, the only ordering the data supports; undated notes sort last rather than being assigned a guessed date.
+
+  Consistency inventory row 78 ties `ACTION_HEADINGS` to the templates in both directions — the quiet one being a template that grows a section the queue would otherwise never see.
+
 ### Fixed
 
 - **`review-captures` said `git-history` while dating 97 of 100 captures by file mtime.** `_git_last_revision` keyed its map on the raw lines of `git log --name-only`, but `core.quotepath` defaults to **true**, so git wraps and escapes any path holding a non-ASCII byte: a Chinese filename arrives as `"20-Learning/\346\216\230...md"` and matches nothing on disk. Every such note fell through to the mtime branch — a fallback that works, and is therefore indistinguishable from the preferred path unless something counts them. On the reference Vault, 219 notes, all of them tracked, matched **51** before the fix and **219** after.
