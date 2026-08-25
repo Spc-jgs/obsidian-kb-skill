@@ -353,6 +353,6 @@ def test_git_path_quoting_is_decoded(quoted: str, expected: str):
     misses and the note falls back to mtime — the exact failure #201 was, one
     layer down.
     """
-    from obsidian_kb_skill.scripts.review_captures import _unquote_git_path
+    from obsidian_kb_skill.scripts.git_history import unquote_git_path
 
-    assert _unquote_git_path(quoted) == expected
+    assert unquote_git_path(quoted) == expected

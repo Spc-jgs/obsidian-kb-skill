@@ -736,3 +736,98 @@ def test_the_capture_reference_documents_the_evidence_fields_the_helper_emits(tm
         "summary instead, which is the failure this pair exists to prevent."
     )
     assert sum(report["evidence_coverage"].values()) == report["summary"]["captures"]
+
+
+def test_link_history_matches_the_keys_the_link_index_resolves_by(tmp_path):
+    """History must ask the same question of the past that the index asks of now.
+
+    Both sides produce well-formed findings whichever way they disagree, so a
+    drift here is invisible: a target the index would have resolved, that
+    history does not recognise, is silently reported as never written.
+    """
+    import subprocess
+
+    from obsidian_kb_skill.scripts.audit_vault import LinkHistory
+    from obsidian_kb_skill.scripts.link_graph import build_link_index
+
+    vault = tmp_path / "vault"
+    (vault / "20-Learning").mkdir(parents=True)
+    (vault / ".obsidian").mkdir()
+    names = [
+        "20-Learning/CQRS.md",
+        "20-Learning/2026-06-10 概念笔记.md",
+        "20-Learning/带空格 的 名字.md",
+    ]
+    for name in names:
+        (vault / name).write_text("---\ntype: learning-note\n---\nx\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=vault, check=True)
+    subprocess.run(["git", "config", "user.email", "t@example.invalid"], cwd=vault, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=vault, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=vault, check=True)
+    subprocess.run(["git", "commit", "-qm", "add"], cwd=vault, check=True)
+
+    index = build_link_index([vault / name for name in names])
+    history = LinkHistory(vault)
+    assert history.available(), "the fixture is a repository; history must load"
+
+    resolvable = set(index.by_name) | set(index.by_stem)
+    for path in (vault / name for name in names):
+        undated = re.sub(r"^\d{4}-\d{2}-\d{2}\s+", "", path.stem)
+        if undated != path.stem:
+            resolvable.add(undated)
+
+    missing = sorted(key for key in resolvable if not history.ever_existed(key))
+    assert not missing, (
+        f"the index resolves {missing}, which history does not recognise. A "
+        "target the index would have found is then reported as never written."
+    )
+
+
+def test_the_algorithms_doc_lists_the_severities_the_code_assigns():
+    """A hand-kept mirror of `FINDING_SEVERITY`, with counts, and it had drifted.
+
+    `docs/rules-and-algorithms.zh.md` enumerates every finding code under its
+    severity and states how many there are. Nothing checked it, so two codes
+    added in earlier releases — `duplicate-project-note` and
+    `web-clip-captured-nothing` — were missing while the stated count still
+    read as authoritative. The count is the part that makes it look checked.
+    """
+    from obsidian_kb_skill.scripts.audit_vault import FINDING_SEVERITY
+
+    doc = (ROOT / "docs" / "rules-and-algorithms.zh.md").read_text(encoding="utf-8")
+    actual: dict[str, set[str]] = {}
+    for code, severity in FINDING_SEVERITY.items():
+        actual.setdefault(severity, set()).add(code)
+
+    problems: list[str] = []
+    for severity, codes in sorted(actual.items()):
+        match = re.search(
+            rf"\*\*{severity}（(\d+)）\*\*：(.+?)(?=\n\n)", doc, re.S
+        )
+        if match is None:
+            problems.append(f"{severity}: no section in the document")
+            continue
+        listed = set(re.findall(r"`([a-z0-9-]+)`", match.group(2)))
+        # The summary table above states the same count a third time.
+        summary = re.search(rf"\| \*\*{severity}\*\* \|[^|]+\| (\d+) 种 \|", doc)
+        if summary is None:
+            problems.append(f"{severity}: no row in the summary table")
+        elif int(summary.group(1)) != len(codes):
+            problems.append(
+                f"{severity}: summary table says {summary.group(1)}, "
+                f"code assigns {len(codes)}"
+            )
+        if int(match.group(1)) != len(codes):
+            problems.append(
+                f"{severity}: document says {match.group(1)}, code assigns {len(codes)}"
+            )
+        if listed != codes:
+            problems.append(
+                f"{severity}: missing {sorted(codes - listed)}, "
+                f"stale {sorted(listed - codes)}"
+            )
+
+    assert not problems, (
+        "docs/rules-and-algorithms.zh.md no longer matches FINDING_SEVERITY: "
+        + "; ".join(problems)
+    )

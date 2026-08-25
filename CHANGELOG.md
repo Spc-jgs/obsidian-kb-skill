@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **The audit tells a stubbed concept from a deleted note** (`link-to-unwritten-note`, `informational`). `rejected-hypotheses.md` §1 rejected this split when the criterion was inbound-reference counting — every placeholder on the reference Vault was referenced exactly once, the same as a deletion — and named the signal that would reopen it: a Vault under git, where the question is history rather than snapshot. It is now asked of history: does any path that ever existed in the repository resolve this target? On the reference Vault, **24 of 32 defects were this**, and `broken-wikilink` goes to zero — its largest defect class was, in its entirety, the standard Obsidian practice of linking a note before writing it.
+
+  Three outcomes rather than two, because "we cannot tell" is not the same as "never written". Without history every unresolved link stays `broken-wikilink`, which is the previous behaviour; the audit now reports `link_history` so that fallback is visible rather than silent — the shape of #201, one release earlier. **A shallow clone is refused rather than trusted**: `--depth 1` leaves a truncated history in which nothing ever existed, so every deleted note would read as never written. A short but complete history is trusted, and no minimum depth is imposed, because any threshold would be a number nobody measured.
+
+  Matching uses the audit's own resolution order — filename, stem, stem without a `YYYY-MM-DD ` prefix — and inventory row 73 asserts it stays that way; a second notion of "the same note" is the drift this list keeps catching. Two limits are recorded in `2026-08-25-unwritten-note-link-design.md` rather than left to be found: the criterion is blind to `aliases`, which live in a file's content and not its path, and **the reference Vault has zero true positives** — all 21 distinct targets never appeared in 316 historical paths, and the one note git records as deleted has no inbound links, so the "it existed" branch is guarded by a synthetic fixture rather than by observation.
+
+- One decoder for the paths git prints, `git_history.unquote_git_path`, shared by `review_captures` and the audit instead of copied. #201 was this decoding going wrong in one caller; a second hand-written copy would be the same defect waiting in the other, and it fails in opposite directions — a capture falls back to mtime, a deleted note reads as never written.
+
 ### Fixed
 
 - **`review-captures` said `git-history` while dating 97 of 100 captures by file mtime.** `_git_last_revision` keyed its map on the raw lines of `git log --name-only`, but `core.quotepath` defaults to **true**, so git wraps and escapes any path holding a non-ASCII byte: a Chinese filename arrives as `"20-Learning/\346\216\230...md"` and matches nothing on disk. Every such note fell through to the mtime branch — a fallback that works, and is therefore indistinguishable from the preferred path unless something counts them. On the reference Vault, 219 notes, all of them tracked, matched **51** before the fix and **219** after.

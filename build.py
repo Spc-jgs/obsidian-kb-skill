@@ -132,6 +132,10 @@ RETRIEVAL_HELPER_FILES = (
     Path("scripts/console.py"),
     Path("scripts/doctor.py"),
     Path("scripts/frontmatter.py"),
+    # One decoder for the paths git prints. `review_captures` compares them
+    # against paths on disk, and an undecoded key matches nothing — #201, where
+    # 97 of 100 captures silently fell back to mtime. Zero dependencies.
+    Path("scripts/git_history.py"),
     # Resolving a wikilink the way Obsidian does, extracted from `audit_vault`
     # so `explore-neighborhood` can reach it without dragging the write-side
     # closure into this bundle (#121). Depends on `frontmatter` and nothing else.
