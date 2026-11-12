@@ -34,6 +34,14 @@
 
 一个仓库包含两个职责分离的 Skill：`obsidian-knowledge-retrieval` 负责只读搜索、引用和问答；`obsidian-knowledge-base` 仅在用户明确授权后创建、更新和治理笔记。当前稳定版本为 **v1.37.0**。
 
+## 运行截图
+
+下面两张图是 2026-11-12 在本机跑出来的。检索用的是一个只有三篇示例笔记的临时 Vault，不是任何人的私人知识库。doctor 检查的是仓库里的两个 Skill 目录，没有演示写入。
+
+![只读检索：查询「只读检索如何排序」，结果带回路径、行号和双语扩展词](docs/screenshots/search.png)
+
+![doctor：只读检索与知识沉淀两个 Skill 的安装诊断都通过，版本 1.37.0](docs/screenshots/doctor.png)
+
 ## 一图看懂
 
 ```mermaid

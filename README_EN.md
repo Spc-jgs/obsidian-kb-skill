@@ -34,6 +34,14 @@
 
 One repository provides two skills with separate responsibilities: `obsidian-knowledge-retrieval` searches, cites, and answers without writing; `obsidian-knowledge-base` creates, updates, and governs notes only after explicit user authorization. The current stable release is **v1.37.0**.
 
+## Running screenshots
+
+Captured locally on 2026-11-12. The search ran against a temporary vault with three sample notes, not a private knowledge base. `doctor` checked the two skill directories in this repository; writes were not demonstrated.
+
+![Read-only search for “只读检索如何排序”, returning a path, line number, and bilingual expansions](docs/screenshots/search.png)
+
+![doctor: both the retrieval skill and the capture skill pass, version 1.37.0](docs/screenshots/doctor.png)
+
 ## At a Glance
 
 ```mermaid
