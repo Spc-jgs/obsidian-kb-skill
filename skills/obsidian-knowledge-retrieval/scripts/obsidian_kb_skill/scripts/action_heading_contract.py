@@ -36,14 +36,30 @@ ACTION_HEADINGS: dict[str, tuple[str, ...]] = {
     "Next Actions": ("en/project-note",),
 }
 
+# Common user/runtime variants mapped to canonical template action headings.
+# Decoupled from ACTION_HEADINGS to maintain the 1:1 template invariant required
+# by consistency inventory tests.
+ACTION_HEADING_SYNONYMS: dict[str, str] = {
+    "今日待办": "待办事项",
+    "待办清单": "待办事项",
+    "临时任务": "待办事项",
+    "TODO": "待办事项",
+    "Todo": "待办事项",
+    "Todos": "待办事项",
+    "备忘事项": "待办事项",
+}
+
 
 def is_action_heading(heading: str) -> bool:
-    """Whether a heading is one a template declared as holding action items.
-
-    Exact match, not a substring or fuzzy test. `可复用的项目落地检查表` on the
-    reference Vault holds fifteen `- [ ]` entries that are a reusable question
-    list rather than tasks — they end in `；` and can never be ticked — and any
-    looser predicate that reaches them would be reporting a note's prose as
-    the author's open work.
+    """Whether a heading is one a template declared as holding action items,
+    or a known synonym thereof.
     """
-    return heading in ACTION_HEADINGS
+    return heading in ACTION_HEADINGS or heading in ACTION_HEADING_SYNONYMS
+
+
+def resolve_action_heading(heading: str) -> str | None:
+    """Resolve an action heading (or synonym) to its canonical template heading."""
+    if heading in ACTION_HEADINGS:
+        return heading
+    return ACTION_HEADING_SYNONYMS.get(heading)
+

@@ -16,6 +16,7 @@
 | Vault 结构发现 | 返回 Vault 有效性、标准目录、模板、索引配置、拥挤目录的主题聚类，以及本次操作需要加载的参考文件清单 | 否 | `vault-info` |
 | Vault 治理读取 | 读取 `AGENTS.md` / `CLAUDE.md` 等 Vault 本地治理规则 | 否 | Agent 自行读取，非 helper |
 | 笔记创建 | 路由类型、合并 frontmatter、套用模板、避免覆盖 | 仅 `--apply` | `create-note` |
+| 条目原子追加 | 向日记或指定笔记小节安全追加待办或备忘，自动套用日记模板 | 仅 `--apply` | `append-entry` |
 | 韧性网页沉淀 | 普通文章快速沉淀；需要时升级为可求证的深度捕获 | 需明确保存意图 | 写入 Skill |
 | 原文证据归档 | 将原文按字节保存在 `95-Sources/`，记录哈希并与笔记双向链接 | 仅 `--apply` | `archive-source` |
 | 对话上下文恢复 | 用分层 Digest 保存目标、状态、决定、证据和下一步 | 需明确保存意图 | `conversation-digest` |

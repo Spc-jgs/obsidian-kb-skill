@@ -13,7 +13,7 @@
     "references/shared-errors.md": "0f70f0f040c7b6c1509afdef3f1368266f544d0de1817047cf3e97f5d119acf9",
     "scripts/obsidian_kb_skill/__init__.py": "b6f9cfd724f0d4944bcc4f8d2d04e70c33ff378503cb21498a6d306362901763",
     "scripts/obsidian_kb_skill/scripts/__init__.py": "ea3771d4d955569ada4adce0855760a4ba997fc8b7ab87e3d871f68b9def9ee7",
-    "scripts/obsidian_kb_skill/scripts/action_heading_contract.py": "3d239bffd6ac6d48336a5d9619e401d974d85f6822dc5121bab0b9ab05b7f86b",
+    "scripts/obsidian_kb_skill/scripts/action_heading_contract.py": "9802f130c1b4b38b122d3f3baf1212852275da3e319a2d5f33f311a12d98732c",
     "scripts/obsidian_kb_skill/scripts/console.py": "6d6eea164e78b50a0126a6cac68dc9ddcec08d2df2b4a9e9a7a8e62ff35ad0af",
     "scripts/obsidian_kb_skill/scripts/conversation_digest_contract.py": "5fe29db421b88be88e9671d694a45e67169f94ef2c0fa00cd8510edcf1f9feab",
     "scripts/obsidian_kb_skill/scripts/doctor.py": "806a61c1ebdc150a8cb2c84edfd2b2ed013c45f1ae8b9428ba1ba9123f0cfe5b",
@@ -28,12 +28,12 @@
     "scripts/obsidian_kb_skill/scripts/retrieval_vault_info.py": "af952ed626b49bbe84841302ace7796e777e68ad2c8f005998389395162164ec",
     "scripts/obsidian_kb_skill/scripts/retrieval_views.py": "d42c32ab5292cfcde789644b346e2d75cdcc28f76251fd9084edb5978a528236",
     "scripts/obsidian_kb_skill/scripts/review_captures.py": "c635882a81f9a429ebff1ddc96f128ba5bfbdc0d86dab18ee98e51c24b1d6bb5",
-    "scripts/obsidian_kb_skill/scripts/review_open_loops.py": "669ca874d6dceb59e43150562bb9f98b8185cc3973a2d5d0aae025e0afca41b0",
+    "scripts/obsidian_kb_skill/scripts/review_open_loops.py": "e6bf270943af8918b3653f78511787dd374d1defadab28db0e1e2812213aa4aa",
     "scripts/obsidian_kb_skill/scripts/review_projects.py": "05a770e1529e3cd102c848adbaeb824acaf5379362163ec22cda287cc03fa207",
     "scripts/obsidian_kb_skill/scripts/search_vault.py": "4d13cf03d9d662366f85701c5bccf132d35e094104a4cc3e9d866bf6d1911d4e",
     "scripts/obsidian_kb_skill/scripts/text_tokens.py": "61e7f86e9ea231b3f4fa7684b00b59141fce5c95c12552492b98c55b60115f13",
     "scripts/obsidian_kb_skill/scripts/vault_paths.py": "5eb90ea7b46258b79c3e6e4f2361736639fd9a668e97361c1cde0205c55aec2d",
-    "scripts/run_helper.py": "7c341f92dcc3237b7b121f38b253b37ec73c7adccec573cb5e484cb043cbfd04"
+    "scripts/run_helper.py": "99ebeeac1e51595f3583af463b7c76bef92a90adfce45b3cb395c000798fa314"
   },
   "product": "obsidian-kb-skill",
   "schema_version": 1,
