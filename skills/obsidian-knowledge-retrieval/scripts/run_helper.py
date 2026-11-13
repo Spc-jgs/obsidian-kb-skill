@@ -35,6 +35,7 @@ PEER_HELPERS = frozenset({
     "archive-source",
     "audit-vault",
     "capture-receipt",
+    "complete-loop",
     "create-category",
     "create-note",
     "detect-index",

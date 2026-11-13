@@ -33,7 +33,7 @@
     "scripts/obsidian_kb_skill/scripts/search_vault.py": "4d13cf03d9d662366f85701c5bccf132d35e094104a4cc3e9d866bf6d1911d4e",
     "scripts/obsidian_kb_skill/scripts/text_tokens.py": "61e7f86e9ea231b3f4fa7684b00b59141fce5c95c12552492b98c55b60115f13",
     "scripts/obsidian_kb_skill/scripts/vault_paths.py": "5eb90ea7b46258b79c3e6e4f2361736639fd9a668e97361c1cde0205c55aec2d",
-    "scripts/run_helper.py": "99ebeeac1e51595f3583af463b7c76bef92a90adfce45b3cb395c000798fa314"
+    "scripts/run_helper.py": "55a7734c8f1f32390ab5c064e37297779f14f97f3a38e9524b2236695ad6778d"
   },
   "product": "obsidian-kb-skill",
   "schema_version": 1,

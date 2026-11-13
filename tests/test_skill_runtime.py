@@ -23,6 +23,7 @@ HELPERS = (
     "append-entry",
     "audit-vault",
     "capture-receipt",
+    "complete-loop",
     "archive-source",
     "create-category",
     "create-note",

@@ -17,6 +17,7 @@
 | Vault 治理读取 | 读取 `AGENTS.md` / `CLAUDE.md` 等 Vault 本地治理规则 | 否 | Agent 自行读取，非 helper |
 | 笔记创建 | 路由类型、合并 frontmatter、套用模板、避免覆盖 | 仅 `--apply` | `create-note` |
 | 条目原子追加 | 向日记或指定笔记小节安全追加待办或备忘，自动套用日记模板 | 仅 `--apply` | `append-entry` |
+| 待办状态流转 | 原子勾选完成、取消或顺延开放循环待办，带日期戳与安全校验 | 仅 `--apply` | `complete-loop` |
 | 韧性网页沉淀 | 普通文章快速沉淀；需要时升级为可求证的深度捕获 | 需明确保存意图 | 写入 Skill |
 | 原文证据归档 | 将原文按字节保存在 `95-Sources/`，记录哈希并与笔记双向链接 | 仅 `--apply` | `archive-source` |
 | 对话上下文恢复 | 用分层 Digest 保存目标、状态、决定、证据和下一步 | 需明确保存意图 | `conversation-digest` |

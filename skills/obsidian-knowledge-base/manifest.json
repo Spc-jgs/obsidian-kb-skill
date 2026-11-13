@@ -41,6 +41,7 @@
     "scripts/obsidian_kb_skill/scripts/audit_vault.py": "0982ac0cb7f4fc6a5e2eb2c44eba9a542e48b2473ba54bb1a0021d33fc29b4fc",
     "scripts/obsidian_kb_skill/scripts/backup_policy.py": "fbab84603bf0ad0dd76914516406cc05701e9bb9e9ae49eca468750be05df90c",
     "scripts/obsidian_kb_skill/scripts/capture_receipt.py": "27c23e37401c3696f53d9604f88fb07967a9007357b15a258aa4f041ea369f8f",
+    "scripts/obsidian_kb_skill/scripts/complete_loop.py": "03fb6b6931c773e396166dadcb898a060573484b81fcda286d06cdf833d1f131",
     "scripts/obsidian_kb_skill/scripts/console.py": "6d6eea164e78b50a0126a6cac68dc9ddcec08d2df2b4a9e9a7a8e62ff35ad0af",
     "scripts/obsidian_kb_skill/scripts/conversation_digest_contract.py": "5fe29db421b88be88e9671d694a45e67169f94ef2c0fa00cd8510edcf1f9feab",
     "scripts/obsidian_kb_skill/scripts/create_category.py": "95fc81c41bc79e00b3ed9c0fd663066e4c5ecba5f7c3c56d50f166d17661337e",
@@ -77,7 +78,7 @@
     "scripts/obsidian_kb_skill/scripts/update_note.py": "866c116fd7030e12c8480b68df52fc49ae9937701479c0a61f31cec3ea070182",
     "scripts/obsidian_kb_skill/scripts/vault_info.py": "bfafe57fa569f07ecf640ea99c5770af0e0590b7b5204ce2b17c152128ef9f47",
     "scripts/obsidian_kb_skill/scripts/vault_paths.py": "5eb90ea7b46258b79c3e6e4f2361736639fd9a668e97361c1cde0205c55aec2d",
-    "scripts/run_helper.py": "41ad52e85b1f3da2fcab94f3388dae032af5628e556b634d3a9c31fe81cef46b"
+    "scripts/run_helper.py": "44b4d5adbd4cfe7a5b5b4df146d914097fe0fe6d7e6157f97193f724beb69fdd"
   },
   "product": "obsidian-kb-skill",
   "schema_version": 1,
