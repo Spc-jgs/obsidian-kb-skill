@@ -13,7 +13,12 @@ python <skill-root>/scripts/run_helper.py review-open-loops <vault> \
 
 ## What bounds the queue
 
-One rule: **a template put a `- [ ]` under that heading**. Nothing else.
+One rule: **a template put a `- [ ]` under that heading**, or the heading is
+one of the fixed synonyms in `ACTION_HEADING_SYNONYMS`. Nothing else. The
+synonym list is a checked widening of this tool: each value is the canonical
+heading `待办事项`, and the item's reported `heading` stays the text in the
+note. A project note's `下一步行动` and an English `Tasks` are not synonyms of
+that list; they are collected because the templates declare them.
 
 | heading | declared by |
 |---|---|
@@ -51,8 +56,11 @@ Each item carries `text`, `path`, `line`, `heading`, `type`, the note's
 `date`, and optional parsed `due_date` and `priority`. Report those. The `type` is there because it is mechanically true, not
 because it ranks anything.
 
-Ordering prioritizes explicit task due dates (e.g. `📅 YYYY-MM-DD`), falling back
-to host note date. Undated tasks sort last rather than being assigned a guessed date.
+Ordering is two tiers. A task with an explicit due date (`📅 YYYY-MM-DD` or
+`[due:: YYYY-MM-DD]`) sorts before every task that has none, earlier due date
+first. An undated task then uses the note's frontmatter `date:`. A note with
+no `date:` sorts last. `priority` is reported and does not change the order.
+Checked boxes and `- [-]` stay out of the queue.
 
 ## How to report it
 
@@ -79,4 +87,5 @@ second claims knowledge of headings this never read.
 A note whose action items live under an invented heading is invisible here. That
 is the design, but it is also the first thing to check when a user says
 something is missing: ask which heading they wrote it under, and compare against
-the table above. The fix is to use a declared heading, not to widen this tool.
+the table above and `ACTION_HEADING_SYNONYMS`. Adding a heading means editing
+that table and its inventory guard. Do not widen the list from the prompt.

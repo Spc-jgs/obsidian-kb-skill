@@ -11,8 +11,13 @@ import sys
 from typing import Any
 
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
+from obsidian_kb_skill.scripts.backup_policy import load_backup_policy, prune_backups
+from obsidian_kb_skill.scripts.update_note import backup_note
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
+    VaultPathError,
+    report_cli_violation,
+    resolve_existing_within_vault,
     validate_vault_root,
 )
 
@@ -21,12 +26,13 @@ SCHEMA_VERSION = "1.0"
 _CHECKBOX = re.compile(r"^([ \t]*[-*+][ \t]+)\[([ xX\-/])\][ \t]*(.*)$")
 
 
-def _backup_file(vault: Path, rel_path: str, content_bytes: bytes) -> Path:
-    today = datetime.now().strftime("%Y-%m-%d")
-    backup_path = vault / ".obsidian-kb-backups" / today / rel_path
-    backup_path.parent.mkdir(parents=True, exist_ok=True)
-    backup_path.write_bytes(content_bytes)
-    return backup_path
+def _snapshot(vault: Path, note_path: Path) -> str:
+    backup_path = backup_note(vault, note_path)
+    try:
+        prune_backups(vault, load_backup_policy(), protected=backup_path)
+    except Exception:
+        pass
+    return backup_path.relative_to(vault).as_posix()
 
 
 def complete_loop(
@@ -39,15 +45,10 @@ def complete_loop(
     expected_text: str | None = None,
     apply: bool = False,
 ) -> dict[str, Any]:
-    vault = Path(vault).expanduser().resolve()
-    rel_path = path.replace("\\", "/").lstrip("/")
-    full_path = vault / rel_path
-
-    if not full_path.is_file():
-        raise FileNotFoundError(f"target note {rel_path} does not exist in vault")
-
-    existing_bytes = full_path.read_bytes()
-    text = existing_bytes.decode("utf-8")
+    vault = validate_vault_root(vault)
+    note_path = resolve_existing_within_vault(vault, path, label="target note")
+    rel_path = note_path.relative_to(vault).as_posix()
+    text = note_path.read_text(encoding="utf-8")
     lines = text.splitlines()
 
     line_idx = line - 1
@@ -85,11 +86,12 @@ def complete_loop(
     lines[line_idx] = new_line
     new_text = "\n".join(lines) + ("\n" if text.endswith("\n") else "")
 
+    backup = None
     if apply:
-        _backup_file(vault, rel_path, existing_bytes)
-        full_path.write_text(new_text, encoding="utf-8")
+        backup = _snapshot(vault, note_path)
+        note_path.write_text(new_text, encoding="utf-8")
 
-    return {
+    result = {
         "schema_version": SCHEMA_VERSION,
         "ok": True,
         "command": "complete-loop",
@@ -100,6 +102,9 @@ def complete_loop(
         "before": old_line,
         "after": new_line,
     }
+    if backup is not None:
+        result["backup"] = backup
+    return result
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -146,6 +151,8 @@ def main(argv: list[str] | None = None) -> int:
             expected_text=args.expected_text,
             apply=args.apply,
         )
+    except VaultPathError as exc:
+        return report_cli_violation(exc, param="--path", json_mode=args.json)
     except Exception as exc:
         if args.json:
             print(json.dumps({"error": {"code": "complete-loop-failed", "message": str(exc)}}, ensure_ascii=False))

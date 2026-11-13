@@ -199,14 +199,14 @@ def review_open_loops(
             )
             by_type[note_type] = by_type.get(note_type, 0) + 1
 
-    # Order primarily by task due date (if set), falling back to note date.
-    # Undated notes/tasks sort last rather than being guessed a date, then
-    # path and line for determinism.
+    # Explicit due dates outrank every undated task, earlier due date first.
+    # An undated task then uses the note's frontmatter date. A note with no
+    # date sorts last. Priority is reported and does not change this order.
     loops.sort(
         key=lambda item: (
-            item.due_date or item.note_date or "9999-99-99",
-            item.path,
-            item.line,
+            (0, item.due_date, item.path, item.line)
+            if item.due_date
+            else (1, item.note_date or "9999-99-99", item.path, item.line)
         )
     )
 

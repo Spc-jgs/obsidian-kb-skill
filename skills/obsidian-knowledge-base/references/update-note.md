@@ -50,6 +50,13 @@ For single-entry additions (todos or memos) or checking off tasks, use the speci
      --path "15-Daily/YYYY-MM-DD.md" --line 15 --action tick --apply
    ```
 
+`append-entry` fails when the heading is missing or appears more than once. It
+does not create a heading. The same formatted line already in that section is
+left as it is. With no `--section`, `--todo` writes under `待办事项` and a memo
+writes under `今日记录`. Both helpers resolve the path inside the Vault and,
+on `--apply` to an existing note, snapshot it with the timestamped backup
+(`YYYY-MM-DD-HHMMSS`) before writing. A date-only backup directory is not used.
+
 
 ### Step 5: Backup, Then Apply the Edit
 

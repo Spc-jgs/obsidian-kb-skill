@@ -13,13 +13,24 @@ from typing import Any
 from obsidian_kb_skill.scripts.action_heading_contract import (
     ACTION_HEADING_SYNONYMS,
 )
+from obsidian_kb_skill.scripts.backup_policy import load_backup_policy, prune_backups
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.resource_locator import template_dir
 from obsidian_kb_skill.scripts.template_contract import TYPE_TO_TEMPLATE
+from obsidian_kb_skill.scripts.update_note import backup_note
 from obsidian_kb_skill.scripts.vault_paths import (
     InvalidVaultRootError,
+    PathNotFoundError,
+    VaultPathError,
+    report_cli_violation,
+    resolve_existing_within_vault,
+    resolve_target_within_vault,
     validate_vault_root,
 )
+
+
+class AppendRejected(Exception):
+    """The append was refused. The note is left unchanged."""
 
 
 SCHEMA_VERSION = "1.0"
@@ -45,20 +56,8 @@ def _resolve_daily_template(vault: Path, date_str: str) -> str:
     except Exception:
         pass
 
-    # Builtin fallback
-    return (
-        f"---\n"
-        f"date: \"{date_str}\"\n"
-        f"type: daily-note\n"
-        f"tags: [daily]\n"
-        f"related: []\n"
-        f"---\n\n"
-        f"# {date_str} 日记\n\n"
-        f"## 今日焦点\n\n"
-        f"## 今日记录\n\n"
-        f"## 待办事项\n\n"
-        f"- [ ] \n\n"
-        f"## 今日复盘\n"
+    raise AppendRejected(
+        f"daily note template for {date_str} is missing; refusing to invent a skeleton"
     )
 
 
@@ -86,13 +85,30 @@ def _format_entry(
     return text
 
 
-def _backup_file(vault: Path, rel_path: str, content_bytes: bytes) -> Path:
-    """Save a snapshot of the file before mutating."""
-    today = datetime.now().strftime("%Y-%m-%d")
-    backup_path = vault / ".obsidian-kb-backups" / today / rel_path
-    backup_path.parent.mkdir(parents=True, exist_ok=True)
-    backup_path.write_bytes(content_bytes)
-    return backup_path
+def _match_kind(heading_text: str, section_name: str) -> str | None:
+    """Exact heading wins. A synonym matches only against the requested name.
+
+    Two synonyms of the same canonical heading are not the same section. If
+    both are present, the caller must name one of them.
+    """
+    if heading_text == section_name:
+        return "exact"
+    canonical_heading = ACTION_HEADING_SYNONYMS.get(heading_text)
+    canonical_section = ACTION_HEADING_SYNONYMS.get(section_name)
+    if canonical_heading == section_name or canonical_section == heading_text:
+        return "synonym"
+    return None
+
+
+def _snapshot(vault: Path, note_path: Path) -> str:
+    """Timestamped backup, then the same retention pass as update-note."""
+    backup_path = backup_note(vault, note_path)
+    try:
+        prune_backups(vault, load_backup_policy(), protected=backup_path)
+    except Exception:
+        # The write already has a snapshot. Retention failure must not hide that.
+        pass
+    return backup_path.relative_to(vault).as_posix()
 
 
 def append_entry(
@@ -101,7 +117,7 @@ def append_entry(
     target: str = "daily",
     file: str | None = None,
     date: str | None = None,
-    section: str = "待办事项",
+    section: str | None = None,
     entry: str,
     is_todo: bool = False,
     timestamp: str | bool | None = None,
@@ -113,105 +129,122 @@ def append_entry(
         target_date = datetime.now().strftime("%Y-%m-%d")
 
     if file:
-        rel_path = file.replace("\\", "/").lstrip("/")
+        requested = file.replace("\\", "/")
     elif target == "daily":
-        rel_path = f"15-Daily/{target_date}.md"
+        requested = f"15-Daily/{target_date}.md"
     else:
-        rel_path = target.replace("\\", "/").lstrip("/")
+        requested = target.replace("\\", "/")
 
-    full_path = vault / rel_path
-    created_file = False
-    existing_bytes: bytes | None = None
+    may_create = target == "daily" or requested.replace("\\", "/").lstrip("/").startswith("15-Daily/")
+    try:
+        note_path = resolve_existing_within_vault(vault, requested, label="target note")
+        created_file = False
+    except PathNotFoundError:
+        if not may_create:
+            raise
+        note_path = resolve_target_within_vault(vault, requested, label="target note")
+        created_file = True
 
-    if full_path.is_file():
-        existing_bytes = full_path.read_bytes()
-        text = existing_bytes.decode("utf-8")
+    rel_path = note_path.relative_to(vault).as_posix()
+    if created_file:
+        text = _resolve_daily_template(vault, target_date)
     else:
-        if target == "daily" or rel_path.startswith("15-Daily/"):
-            text = _resolve_daily_template(vault, target_date)
-            created_file = True
-        else:
-            raise FileNotFoundError(f"target note {rel_path} does not exist in vault")
+        text = note_path.read_text(encoding="utf-8")
 
+    section_name = (section or "").strip() or ("待办事项" if is_todo else "今日记录")
     formatted = _format_entry(entry, is_todo=is_todo, timestamp=timestamp)
     lines = text.splitlines()
 
-    # Locate target section
-    section_name = section.strip()
-    target_idx: int | None = None
-    target_level: int = 2
-
+    exact: list[tuple[int, int, str]] = []
+    synonyms: list[tuple[int, int, str]] = []
     for idx, line in enumerate(lines):
-        m = _HEADING.match(line)
-        if m:
-            heading_text = m.group(2).strip()
-            # Match directly or by resolved synonym
-            syn_h = ACTION_HEADING_SYNONYMS.get(heading_text)
-            syn_s = ACTION_HEADING_SYNONYMS.get(section_name)
-            if (
-                heading_text == section_name
-                or (syn_h and syn_h == section_name)
-                or (syn_s and syn_s == heading_text)
-                or (syn_h and syn_s and syn_h == syn_s)
-            ):
-                target_idx = idx
-                target_level = len(m.group(1))
-                break
+        match = _HEADING.match(line)
+        if not match:
+            continue
+        heading_text = match.group(2).strip()
+        kind = _match_kind(heading_text, section_name)
+        found = (idx, len(match.group(1)), heading_text)
+        if kind == "exact":
+            exact.append(found)
+        elif kind == "synonym":
+            synonyms.append(found)
 
-    inserted_line: int
-    if target_idx is not None:
-        # Scan forward to find the insertion point within this section
-        insert_at = len(lines)
-        for idx in range(target_idx + 1, len(lines)):
-            m = _HEADING.match(lines[idx])
-            if m and len(m.group(1)) <= target_level:
-                insert_at = idx
-                break
+    chosen = exact or synonyms
+    if not chosen:
+        raise AppendRejected(f"section {section_name!r} does not exist in {rel_path}")
+    if len(chosen) > 1:
+        raise AppendRejected(f"section {section_name!r} is ambiguous in {rel_path}")
 
-        # Check if there is an empty todo placeholder (e.g. `- [ ] `) in this section
-        replaced = False
-        for idx in range(target_idx + 1, insert_at):
-            if _EMPTY_TODO.match(lines[idx]):
-                lines[idx] = formatted
-                inserted_line = idx + 1
-                replaced = True
-                break
+    target_idx, target_level, matched_heading = chosen[0]
+    insert_at = len(lines)
+    for idx in range(target_idx + 1, len(lines)):
+        match = _HEADING.match(lines[idx])
+        if match and len(match.group(1)) <= target_level:
+            insert_at = idx
+            break
 
-        if not replaced:
-            # Backtrack past trailing blank lines before next heading
-            actual_insert = insert_at
-            while actual_insert > target_idx + 1 and not lines[actual_insert - 1].strip():
-                actual_insert -= 1
-            lines.insert(actual_insert, formatted)
-            inserted_line = actual_insert + 1
-    else:
-        # Section not found, append section and entry at bottom
-        if lines and lines[-1].strip():
-            lines.append("")
-        lines.append(f"## {section_name}")
-        lines.append("")
-        lines.append(formatted)
-        inserted_line = len(lines)
+    duplicate_at = next(
+        (
+            idx
+            for idx in range(target_idx + 1, insert_at)
+            if lines[idx].strip() == formatted.strip()
+        ),
+        None,
+    )
+    if duplicate_at is not None:
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "ok": True,
+            "command": "append-entry",
+            "applied": False,
+            "duplicate": True,
+            "path": rel_path,
+            "section": section_name,
+            "matched_heading": matched_heading,
+            "entry": formatted,
+            "created_file": False,
+            "line": duplicate_at + 1,
+        }
+
+    replaced = False
+    inserted_line = 0
+    for idx in range(target_idx + 1, insert_at):
+        if _EMPTY_TODO.match(lines[idx]):
+            lines[idx] = formatted
+            inserted_line = idx + 1
+            replaced = True
+            break
+    if not replaced:
+        actual_insert = insert_at
+        while actual_insert > target_idx + 1 and not lines[actual_insert - 1].strip():
+            actual_insert -= 1
+        lines.insert(actual_insert, formatted)
+        inserted_line = actual_insert + 1
 
     new_text = "\n".join(lines) + "\n"
-
+    backup = None
     if apply:
-        if existing_bytes is not None:
-            _backup_file(vault, rel_path, existing_bytes)
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        full_path.write_text(new_text, encoding="utf-8")
+        if not created_file:
+            backup = _snapshot(vault, note_path)
+        note_path.parent.mkdir(parents=True, exist_ok=True)
+        note_path.write_text(new_text, encoding="utf-8")
 
-    return {
+    result = {
         "schema_version": SCHEMA_VERSION,
         "ok": True,
         "command": "append-entry",
         "applied": apply,
+        "duplicate": False,
         "path": rel_path,
         "section": section_name,
+        "matched_heading": matched_heading,
         "entry": formatted,
         "created_file": created_file,
         "line": inserted_line,
     }
+    if backup is not None:
+        result["backup"] = backup
+    return result
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -234,8 +267,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--section",
-        default="待办事项",
-        help="Section heading to append under (default: 待办事项)",
+        default=None,
+        help="Section heading to append under (default: 待办事项 with --todo, otherwise 今日记录)",
     )
     parser.add_argument(
         "--entry",
@@ -293,6 +326,12 @@ def main(argv: list[str] | None = None) -> int:
             is_todo=args.is_todo,
             timestamp=args.timestamp,
             apply=args.apply,
+        )
+    except VaultPathError as exc:
+        return report_cli_violation(
+            exc,
+            param="--file" if args.file else "--target",
+            json_mode=args.json,
         )
     except Exception as exc:
         if args.json:

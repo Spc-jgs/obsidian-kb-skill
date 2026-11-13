@@ -32,7 +32,18 @@ def test_unrelated_headings_are_rejected():
 
 
 def test_action_heading_synonyms_map_to_canonical_headings():
-    """Consistency guard: Every synonym must resolve to a valid canonical template heading."""
-    for synonym, canonical in ACTION_HEADING_SYNONYMS.items():
-        assert canonical in ACTION_HEADINGS, f"Synonym '{synonym}' maps to '{canonical}', which is not in ACTION_HEADINGS"
+    """Synonym values are canonical headings, and the scanner actually consults the table.
+
+    An empty table must fail. A loop over ``items()`` does not: zero iterations
+    is a passing test that is not looking at anything.
+    """
+    assert ACTION_HEADING_SYNONYMS, (
+        "ACTION_HEADING_SYNONYMS is empty, so this guard is not watching the widening"
+    )
+    canonical = set(ACTION_HEADINGS)
+    assert set(ACTION_HEADING_SYNONYMS.values()) <= canonical
+    for synonym, resolved in ACTION_HEADING_SYNONYMS.items():
+        assert is_action_heading(synonym), synonym
+        assert resolve_action_heading(synonym) == resolved
+        assert resolved in canonical
 

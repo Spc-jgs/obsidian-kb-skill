@@ -18,6 +18,11 @@ index line. The Vault holds exactly as many notes after the run as before.
 create a note to hold content it could not classify. This is why the body's
 `≤1 note written` bound does not apply: that bound exists to stop an Agent from
 generating a pile of notes from one conversation, and filing generates none.
+Keyword routes move the whole file. `待办`, `备忘`, `日记`, and their English
+counterparts go to `15-Daily` as that file, not as a bullet in today's
+`YYYY-MM-DD.md`. `周会` matches the meeting route (`10-Work`). `复盘` matches
+the insight route (`30-Insights`). First match wins. Do not merge an Inbox note
+into the daily note and delete the source; that would change the note count.
 
 The bound that does apply is the Inbox itself. A run files what is in
 `--inbox` and nothing else — never a path outside it, which the helper enforces

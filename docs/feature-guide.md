@@ -9,7 +9,7 @@
 | 项目复苏雷达 | 找出受阻、失温或缺少活动日期的项目，并给出已有下一步 | 否 | `review-projects` |
 | 恢复项目上下文 | 返回一篇项目笔记及归属于它的产出，不靠扫目录或猜成员关系 | 否 | `resume-project` |
 | 捕获复访率 | 按类型统计写下后再没打开过的捕获；证据来源与覆盖篇数一并报出 | 否 | `review-captures` |
-| 开放循环队列 | 汇总模板声明的行动章节下未勾选的条目；不打分、不排序、不分类 | 否 | `review-open-loops` |
+| 开放循环队列 | 汇总模板声明的行动章节和固定同义词下未勾选的条目；按到期日再按笔记日期排序，不打分、不分类 | 否 | `review-open-loops` |
 | 声明式检索视图 | 运行 Vault 自己写下的检索条件，返回结果与解析后的查询计划；相对时间窗由调用方给定日期换算 | 否 | `run-retrieval-view` |
 | 有向依赖候选 | 从笔记自己的句子里找出「它声明依赖了谁、拿来做什么」，只提候选与证据句，不评分不写入 | 否 | `suggest-directed-links` |
 | 知识邻域探索 | 展示 Vault 已经声明的连接：正文 wikilink、frontmatter `related` 与反向链接，一跳有界，不评分不推荐 | 否 | `explore-neighborhood` |
@@ -30,7 +30,7 @@
 | 自定义模板识别 | 识别模板变化并绑定模板哈希，避免陈旧解释 | 否 | `template-contract` |
 | 索引兼容 | 支持 Folder Index、Dataview 和静态 INDEX | 按所有权决定 | `detect-index` |
 | Task Memory | 多 Agent 长任务的可选交接日志 | 默认关闭 | `update-note` |
-| 写前备份 | 更新任务记忆前按全局策略保留有限备份 | 更新时 | helper 内部 |
+| 写前备份 | 更新任务记忆、追加条目或流转待办前，按时间戳目录和全局保留份数备份 | 更新时 | helper 内部 |
 | 安装诊断 | 校验 manifest、payload、Python、依赖和资源 | 否 | `doctor` |
 
 ## 两个 Skill 如何配合

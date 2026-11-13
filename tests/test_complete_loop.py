@@ -4,7 +4,9 @@ from __future__ import annotations
 from pathlib import Path
 import pytest
 
+from obsidian_kb_skill.scripts.backup_policy import STAMP_RE
 from obsidian_kb_skill.scripts.complete_loop import complete_loop
+from obsidian_kb_skill.scripts.vault_paths import PathOutsideVaultError
 
 
 def init_vault_with_note(tmp_path: Path, filename: str, content: str) -> Path:
@@ -62,6 +64,37 @@ def test_complete_loop_cancels_task(tmp_path):
     assert "- [-] 无效需求 ⛔ 2026-11-13" in result["after"]
     content = (vault / "tasks.md").read_text(encoding="utf-8")
     assert "- [-] 无效需求 ⛔ 2026-11-13" in content
+
+
+def test_complete_loop_rejects_a_path_outside_the_vault(tmp_path):
+    vault = init_vault_with_note(tmp_path, "tasks.md", "- [ ] 库内\n")
+    outside = tmp_path / "secret.md"
+    outside.write_text("- [ ] 库外\n", encoding="utf-8")
+
+    with pytest.raises(PathOutsideVaultError):
+        complete_loop(vault, path="../secret.md", line=1, action="tick", apply=True)
+
+    assert "[x]" not in outside.read_text(encoding="utf-8")
+
+
+def test_complete_loop_backup_uses_a_timestamp_directory(tmp_path, monkeypatch):
+    from obsidian_kb_skill.scripts import update_note
+    from obsidian_kb_skill.scripts.backup_policy import BackupPolicy
+
+    vault = init_vault_with_note(tmp_path, "tasks.md", "- [ ] 买牛奶\n")
+    monkeypatch.setattr(update_note, "_backup_timestamp", lambda: "2026-11-13-120000")
+    monkeypatch.setattr(
+        "obsidian_kb_skill.scripts.complete_loop.load_backup_policy",
+        lambda home=None: BackupPolicy(1, True),
+    )
+
+    complete_loop(vault, path="tasks.md", line=1, action="tick", date="2026-11-13", apply=True)
+
+    stamps = [path.name for path in (vault / ".obsidian-kb-backups").iterdir() if path.is_dir()]
+    assert stamps == ["2026-11-13-120000"]
+    assert STAMP_RE.fullmatch(stamps[0])
+    backup = next((vault / ".obsidian-kb-backups").rglob("*.md"))
+    assert backup.read_text(encoding="utf-8") == "- [ ] 买牛奶\n"
 
 
 def test_complete_loop_postpones_task(tmp_path):

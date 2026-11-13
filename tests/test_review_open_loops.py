@@ -208,9 +208,12 @@ def test_sorting_prioritizes_task_due_date_over_note_date(tmp_path):
     note(vault, "mid.md", "## 待办事项\n\n- [ ] 依靠笔记日期的任务\n", date="2026-05-01")
 
     report = review_open_loops(vault)
+    # An explicit due date outranks every undated task, even one whose note
+    # date is older. Among due dates, earlier comes first. Undated tasks then
+    # fall back to the note's frontmatter date.
     assert texts(report) == [
-        "依靠笔记日期的任务",  # 2026-05-01 (note date)
-        "早到期任务 📅 2026-11-12",  # 2026-11-12 (due date)
-        "晚到期任务 📅 2026-11-20",  # 2026-11-20 (due date)
+        "早到期任务 📅 2026-11-12",
+        "晚到期任务 📅 2026-11-20",
+        "依靠笔记日期的任务",
     ]
 

@@ -13,10 +13,18 @@ here without adding it to a template fails, and so does the reverse — which is
 the case that matters, because a new template section would otherwise be
 invisible to the queue with nothing saying so.
 
-Deliberately not a variants table. `deep_capture_contract` maps one locale to
-one ordered list because it grades a *document's* structure; here the question
-is only "is this heading an action section", so the locales collapse into one
-set. `Action Items` appears in two templates and is one entry.
+The canonical dict is one set, not a per-locale variant table.
+`deep_capture_contract` maps one locale to one ordered list because it grades a
+*document's* structure; here the locales collapse into one set. `Action Items`
+appears in two templates and is one entry.
+
+`ACTION_HEADING_SYNONYMS` is a separate, checked widening. Those headings are
+collected even though no template declares them, and each value must be a key
+of `ACTION_HEADINGS`. This overturns the earlier "do not widen this tool" rule
+for this fixed list only. A heading in neither table is still ignored. The
+values all name `待办事项` (the daily and meeting action section). They do not
+retarget a project note's `下一步行动` or an English template's `Tasks`; a
+caller who wants those sections names them.
 """
 from __future__ import annotations
 
