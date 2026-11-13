@@ -160,3 +160,57 @@ def test_truncation_is_reported(tmp_path):
     assert len(report["items"]) == 2
     assert report["truncated"] is True
     assert report["summary"]["open_loops"] == 5
+
+
+def test_action_heading_synonym_collects_tasks(tmp_path):
+    vault = vault_with(
+        tmp_path,
+        ("daily.md", "## 今日待办\n\n- [ ] 随手记下的任务\n"),
+    )
+    report = review_open_loops(vault)
+    assert texts(report) == ["随手记下的任务"]
+    assert report["items"][0]["heading"] == "今日待办"
+
+
+def test_inline_due_date_and_priority_are_parsed(tmp_path):
+    body = (
+        "## 待办事项\n\n"
+        "- [ ] 紧急任务 📅 2026-11-20 🔺\n"
+        "- [ ] 普通任务 [due:: 2026-11-25] [priority:: low]\n"
+        "- [ ] 中等任务 🔼\n"
+    )
+    vault = vault_with(tmp_path, ("tasks.md", body))
+    report = review_open_loops(vault)
+    by_text = {item["text"]: item for item in report["items"]}
+    assert len(by_text) == 3
+    urgent = by_text["紧急任务 📅 2026-11-20 🔺"]
+    assert urgent["due_date"] == "2026-11-20"
+    assert urgent["priority"] == "high"
+
+    normal = by_text["普通任务 [due:: 2026-11-25] [priority:: low]"]
+    assert normal["due_date"] == "2026-11-25"
+    assert normal["priority"] == "low"
+
+    medium = by_text["中等任务 🔼"]
+    assert medium["due_date"] is None
+    assert medium["priority"] == "medium"
+
+
+
+def test_sorting_prioritizes_task_due_date_over_note_date(tmp_path):
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    # Old note has a task with a later due date (2026-11-20)
+    note(vault, "old.md", "## 待办事项\n\n- [ ] 晚到期任务 📅 2026-11-20\n", date="2026-01-01")
+    # Newer note has a task with an earlier due date (2026-11-12)
+    note(vault, "new.md", "## 待办事项\n\n- [ ] 早到期任务 📅 2026-11-12\n", date="2026-11-10")
+    # Undated task in a mid-date note falls back to note date (2026-05-01)
+    note(vault, "mid.md", "## 待办事项\n\n- [ ] 依靠笔记日期的任务\n", date="2026-05-01")
+
+    report = review_open_loops(vault)
+    assert texts(report) == [
+        "依靠笔记日期的任务",  # 2026-05-01 (note date)
+        "早到期任务 📅 2026-11-12",  # 2026-11-12 (due date)
+        "晚到期任务 📅 2026-11-20",  # 2026-11-20 (due date)
+    ]
+
