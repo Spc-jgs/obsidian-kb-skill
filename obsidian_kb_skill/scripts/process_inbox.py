@@ -47,12 +47,13 @@ from obsidian_kb_skill.scripts.vault_paths import (
 # Trigger keywords (lowercased substrings) -> target folder, used when the type
 # is missing or unknown. First match wins.
 KEYWORD_ROUTES = [
-    (("meeting", "standup", "review", "sync"), "10-Work"),
-    (("article", "learning", "book", "course", "tutorial"), "20-Learning"),
+    (("meeting", "standup", "review", "sync", "会议", "周会", "站会"), "10-Work"),
+    (("article", "learning", "book", "course", "tutorial", "学习", "教程"), "20-Learning"),
     (("web", "url", "blog", "clip"), "20-Learning"),
-    (("analysis", "insight", "idea", "takeaway"), "30-Insights"),
-    (("project", "milestone", "sprint"), "40-Projects"),
-    (("person", "contact", "team"), "50-People"),
+    (("analysis", "insight", "idea", "takeaway", "复盘", "思考"), "30-Insights"),
+    (("project", "milestone", "sprint", "项目", "迭代"), "40-Projects"),
+    (("person", "contact", "team", "联系人", "同事"), "50-People"),
+    (("daily", "todo", "task", "memo", "待办", "备忘", "日记", "随手记"), "15-Daily"),
 ]
 
 DEFAULT_TAG_BY_FOLDER = {

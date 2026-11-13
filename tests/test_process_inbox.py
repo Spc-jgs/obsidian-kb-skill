@@ -718,3 +718,21 @@ def test_a_finished_note_files_exactly_as_before(tmp_path):
 
     assert plans[0].get("skip_code") is None
     assert plans[0]["target"] == "20-Learning"
+
+
+def test_filing_routes_chinese_keywords_and_daily(tmp_path):
+    vault = make_vault(tmp_path)
+    (vault / "15-Daily").mkdir(exist_ok=True)
+
+    (vault / "00-Inbox" / "Memo.md").write_text("# 备忘\n今日随手待办清单\n", encoding="utf-8")
+    (vault / "00-Inbox" / "Meeting.md").write_text("# 周会\n团队站会会议内容\n", encoding="utf-8")
+    (vault / "00-Inbox" / "Review.md").write_text("# 复盘\n项目总结思考\n", encoding="utf-8")
+
+    plans = process_vault(vault, apply=False)
+    by_name = {plan["path"].name: plan for plan in plans}
+
+    assert by_name["Memo.md"]["target"] == "15-Daily"
+    assert by_name["Meeting.md"]["target"] == "10-Work"
+    assert by_name["Review.md"]["target"] == "30-Insights"
+
+
