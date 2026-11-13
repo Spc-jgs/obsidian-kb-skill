@@ -32,8 +32,24 @@ metadata-only edit does not trigger semantic revalidation.
 Match the new content to the most appropriate section:
 - `project-note`: append to `## Updates` / `## Decisions` / `## Tasks` as appropriate
 - `person-note`: append to `## Interactions` (newest first or chronological — match existing style)
-- `daily-note`: append to the time-block section matching the current time
+- `daily-note`: append to `## 今日记录` for memos/logs or `## 待办事项` for action items (prefer `append-entry` helper for atomic additions)
 - If no obvious section exists, append a new `## YYYY-MM-DD Update` subsection at the end
+
+### Atomic Entry Append and Task Lifecycle
+
+For single-entry additions (todos or memos) or checking off tasks, use the specialized atomic helpers instead of full-file rewriting:
+
+1. **Append a todo or memo**:
+   ```bash
+   python <skill-root>/scripts/run_helper.py append-entry <vault> \
+     --target daily --section "待办事项" --entry "- [ ] 新任务" --apply
+   ```
+2. **Transition task state (tick, cancel, postpone)**:
+   ```bash
+   python <skill-root>/scripts/run_helper.py complete-loop <vault> \
+     --path "15-Daily/YYYY-MM-DD.md" --line 15 --action tick --apply
+   ```
+
 
 ### Step 5: Backup, Then Apply the Edit
 

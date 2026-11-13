@@ -29,3 +29,10 @@ def test_unrelated_headings_are_rejected():
     assert not is_action_heading("今日记录")
     assert not is_action_heading("今日焦点")
     assert resolve_action_heading("今日记录") is None
+
+
+def test_action_heading_synonyms_map_to_canonical_headings():
+    """Consistency guard: Every synonym must resolve to a valid canonical template heading."""
+    for synonym, canonical in ACTION_HEADING_SYNONYMS.items():
+        assert canonical in ACTION_HEADINGS, f"Synonym '{synonym}' maps to '{canonical}', which is not in ACTION_HEADINGS"
+

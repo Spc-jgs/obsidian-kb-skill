@@ -112,6 +112,8 @@ modules, so both Agents can receive these. -->
 | `invalid-destination-folder` | The destination is not an acceptable note folder | Re-route using the standard folder map |
 | `invalid-task-memory-folder` | The Task Memory path is not the allowed `Tasks/<slug>` shape | Use the exact allowed shape; Task Memory cannot create arbitrary folders |
 | `task-memory-initialization-failed` | Task Memory scaffolding could not be created | Report it; do not fall back to an ordinary note in that location |
+| `append-failed` | Atomic entry append failed due to missing file, invalid section, or write failure | Check the target note and section name. Verify target note exists (or is a daily note that can be initialized). Report the message to the user |
+| `complete-loop-failed` | Task lifecycle update failed due to line mismatch, non-checkbox line, or write failure | Verify line number and expected text against a fresh `review-open-loops` query. Report the mismatch to the user |
 | `invalid-capture-depth` | The requested `capture_depth` is not a known value | Use `standard` or `verified` |
 | `capture-depth-route-mismatch` | The capture depth and the destination disagree | Re-read `web-capture.md` and pick a consistent depth and route |
 | `invalid-content-file` | The supplied content file is missing or unreadable | Re-supply the content; do not fall back to inline guesses |

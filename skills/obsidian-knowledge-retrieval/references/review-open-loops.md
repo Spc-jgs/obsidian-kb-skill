@@ -47,12 +47,12 @@ person reading all 57.
 Say that to the user if they ask how much of the queue is real: most of it,
 and the rest is visible in the text they can read themselves.
 
-Each item carries `text`, `path`, `line`, `heading`, `type` and the note's
-`date`. Report those. The `type` is there because it is mechanically true, not
+Each item carries `text`, `path`, `line`, `heading`, `type`, the note's
+`date`, and optional parsed `due_date` and `priority`. Report those. The `type` is there because it is mechanically true, not
 because it ranks anything.
 
-Ordering is oldest note first — the only ordering the data supports. Undated
-notes sort last rather than being assigned a guessed date.
+Ordering prioritizes explicit task due dates (e.g. `📅 YYYY-MM-DD`), falling back
+to host note date. Undated tasks sort last rather than being assigned a guessed date.
 
 ## How to report it
 
