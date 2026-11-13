@@ -18,6 +18,8 @@ HELPERS = {
     "template-contract": "obsidian_kb_skill.scripts.template_contract",
     "create-category": "obsidian_kb_skill.scripts.create_category",
     "create-note": "obsidian_kb_skill.scripts.create_note",
+    "append-entry": "obsidian_kb_skill.scripts.append_entry",
+    "complete-loop": "obsidian_kb_skill.scripts.complete_loop",
     "archive-source": "obsidian_kb_skill.scripts.archive_source",
     "update-note": "obsidian_kb_skill.scripts.update_note",
     "vault-info": "obsidian_kb_skill.scripts.vault_info",

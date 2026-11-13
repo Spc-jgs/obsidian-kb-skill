@@ -54,6 +54,32 @@ _DATE = re.compile(r"^date:\s*[\"']?(\d{4}-\d{2}-\d{2})", re.M)
 _HEADING = re.compile(r"^(#{1,6})[ \t]+(.+?)\s*$")
 _UNTICKED = re.compile(r"^[ \t]*[-*+][ \t]+\[[ \t]\][ \t]*(.*)$")
 
+_DUE_DATE = re.compile(r"(?:📅|\[due::)\s*(\d{4}-\d{2}-\d{2})\]?")
+_PRIORITY_EMOJI = re.compile(r"(🔺|🔼|🔽)")
+_PRIORITY_FIELD = re.compile(r"\[priority::\s*(high|medium|low)\]", re.I)
+
+
+def _extract_task_metadata(text: str) -> tuple[str | None, str | None]:
+    due_match = _DUE_DATE.search(text)
+    due_date = due_match.group(1) if due_match else None
+
+    priority = None
+    emoji_match = _PRIORITY_EMOJI.search(text)
+    if emoji_match:
+        symbol = emoji_match.group(1)
+        if symbol == "🔺":
+            priority = "high"
+        elif symbol == "🔼":
+            priority = "medium"
+        elif symbol == "🔽":
+            priority = "low"
+    else:
+        field_match = _PRIORITY_FIELD.search(text)
+        if field_match:
+            priority = field_match.group(1).lower()
+
+    return due_date, priority
+
 
 @dataclass(frozen=True)
 class OpenLoop:
@@ -63,16 +89,21 @@ class OpenLoop:
     heading: str
     line: int
     text: str
+    due_date: str | None = None
+    priority: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "path": self.path,
             "type": self.note_type,
             "date": self.note_date,
+            "due_date": self.due_date,
+            "priority": self.priority,
             "heading": self.heading,
             "line": self.line,
             "text": self.text,
         }
+
 
 
 def _markdown_files(vault: Path) -> Iterable[Path]:
@@ -153,6 +184,7 @@ def review_open_loops(
             continue
         date_match = _DATE.search(metadata)
         for line, heading, body in _loops_in(text):
+            due_date, priority = _extract_task_metadata(body)
             loops.append(
                 OpenLoop(
                     path=relative,
@@ -161,14 +193,22 @@ def review_open_loops(
                     heading=heading,
                     line=line,
                     text=body,
+                    due_date=due_date,
+                    priority=priority,
                 )
             )
             by_type[note_type] = by_type.get(note_type, 0) + 1
 
-    # Oldest first: a loop whose note is older has been open longer, and that
-    # is the only ordering this can defend. Undated notes sort last rather
-    # than being guessed a date, then path and line for determinism.
-    loops.sort(key=lambda item: (item.note_date or "9999-99-99", item.path, item.line))
+    # Explicit due dates outrank every undated task, earlier due date first.
+    # An undated task then uses the note's frontmatter date. A note with no
+    # date sorts last. Priority is reported and does not change this order.
+    loops.sort(
+        key=lambda item: (
+            (0, item.due_date, item.path, item.line)
+            if item.due_date
+            else (1, item.note_date or "9999-99-99", item.path, item.line)
+        )
+    )
 
     return {
         "schema_version": SCHEMA_VERSION,

@@ -31,9 +31,11 @@ HELPERS = {
 # only stops `invalid choice` from reading as "no such capability".
 PEER_SKILL = "obsidian-knowledge-base"
 PEER_HELPERS = frozenset({
+    "append-entry",
     "archive-source",
     "audit-vault",
     "capture-receipt",
+    "complete-loop",
     "create-category",
     "create-note",
     "detect-index",

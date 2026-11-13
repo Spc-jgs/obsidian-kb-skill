@@ -20,8 +20,10 @@ ROOT = Path(__file__).resolve().parent.parent
 STANDARD_SKILL = ROOT / "skills" / "obsidian-knowledge-base"
 RETRIEVAL_SKILL = ROOT / "skills" / "obsidian-knowledge-retrieval"
 HELPERS = (
+    "append-entry",
     "audit-vault",
     "capture-receipt",
+    "complete-loop",
     "archive-source",
     "create-category",
     "create-note",
