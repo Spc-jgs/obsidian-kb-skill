@@ -337,6 +337,57 @@ def test_the_same_open_text_is_ambiguous_and_a_finished_row_is_not(capsys, tmp_p
     assert "- [ ] 买牛奶" in sections(vault)["没定日子"]
 
 
+def test_a_second_due_marker_stays_part_of_the_text(capsys, tmp_path):
+    """The parser already removed the line's one trailing marker."""
+    vault = vault_of(tmp_path)
+    write_board(vault, {
+        "今天": ["- [ ] task 📅 2026-11-01 📅 2026-11-20"],
+        "备忘": ["- 2026-11-13 09:00 停车 📅 2026-11-01"],
+    })
+    before = (vault / BOARD_PATH).read_bytes()
+    code, payload = invoke(
+        capsys, vault, "tick", "--text", "task", "--today", TODAY, "--json",
+    )
+    assert code == 2
+    assert payload["error"]["code"] == "board-no-match"
+    assert (vault / BOARD_PATH).read_bytes() == before
+    code, payload = invoke(
+        capsys, vault,
+        "capture", "--kind", "memo", "--text", "停车",
+        "--today", TODAY, "--at", "09:00", "--json",
+    )
+    assert code == 0
+    assert payload["applied"] is False
+
+
+def test_an_in_vault_symlink_parent_backs_up_the_board_path(capsys, tmp_path):
+    vault = vault_of(tmp_path)
+    actual = vault / "Actual"
+    actual.mkdir()
+    (vault / "15-Daily").symlink_to(actual, target_is_directory=True)
+    board = vault / BOARD_PATH
+    board.write_text(
+        render_board(TODAY, {"没定日子": ["- [ ] 收拾书桌"]}),
+        encoding="utf-8",
+    )
+    original = board.read_bytes()
+    old = vault / ".obsidian-kb-backups" / "2026-11-01-010101" / BOARD_PATH
+    old.parent.mkdir(parents=True)
+    old.write_bytes(b"old")
+    code, payload = invoke(
+        capsys, vault, "tick", "--text", "收拾书桌", "--today", TODAY,
+        "--apply", "--json",
+    )
+    assert code == 0
+    assert payload["backup"].endswith("15-Daily/待办.md")
+    assert "/Actual/" not in payload["backup"]
+    assert (vault / payload["backup"]).read_bytes() == original
+    assert payload["backup_cleanup"]["warnings"] == []
+    assert payload["backup_cleanup"]["deleted"] == 1
+    assert not old.exists()
+    assert "勾掉：收拾书桌" in board.read_text(encoding="utf-8")
+
+
 def test_a_substring_does_not_match(capsys, tmp_path):
     vault = vault_of(tmp_path)
     write_board(vault, {"今天": [SAMPLE_LINES[0]]})

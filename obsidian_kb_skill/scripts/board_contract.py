@@ -80,7 +80,13 @@ def contains_due_marker(text: str) -> bool:
 
 
 def comparison_key(text: str) -> str:
-    """Body used for equality: drop one trailing due marker, then strip."""
+    """Drop one trailing due marker from a raw line, then strip.
+
+    ``parse_board`` already stored that marker on ``BoardRow.due`` and left
+    the rest in ``row.text``. Matching a parsed row with this function removes
+    a second marker that is part of the body, so ``task`` would hit
+    ``task 📅 2026-11-01``. Callers compare ``row.text.strip()`` instead.
+    """
     return _DUE_MARKER.sub("", text).strip()
 
 

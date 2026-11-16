@@ -16,7 +16,6 @@ from obsidian_kb_skill.scripts.board_contract import (
     Board,
     BoardMalformed,
     BoardRow,
-    comparison_key,
     contains_due_marker,
     is_civil_date,
     is_clock,
@@ -148,7 +147,7 @@ def _open_matches(board: Board, text: str) -> list[BoardRow]:
     found: list[BoardRow] = []
     for name in OPEN_SECTIONS:
         for row in board.rows[name]:
-            if comparison_key(row.text) == text:
+            if row.text.strip() == text:
                 found.append(row)
     return found
 
@@ -157,7 +156,7 @@ def _closed_matches(board: Board, text: str) -> list[BoardRow]:
     found: list[BoardRow] = []
     for name in ("备忘", "已完成"):
         for row in board.rows[name]:
-            if comparison_key(row.text) == text:
+            if row.text.strip() == text:
                 found.append(row)
     return found
 
@@ -195,7 +194,7 @@ def _match(board: Board | None, args: argparse.Namespace) -> BoardRow | None | i
         found = [
             row
             for row in board.rows["备忘"]
-            if comparison_key(row.text) == args.text and row.at == stamp
+            if row.text.strip() == args.text and row.at == stamp
         ]
     elif args.operation == "capture":
         found = _open_matches(board, args.text)
@@ -525,7 +524,10 @@ def run(args: argparse.Namespace) -> int:
             backup_cleanup=None,
         )
     try:
-        backup_path = backup_note(root, note)
+        # The resolved path can sit behind an in-vault symlink, so its
+        # relative path is not BOARD_PATH. Backups and cleanup are keyed on
+        # the board's own relative path. read_bytes follows the symlink.
+        backup_path = backup_note(root, root / BOARD_PATH)
     except VaultPathError as exc:
         return report_cli_violation(exc, param="backup", json_mode=args.json)
     except OSError as exc:
