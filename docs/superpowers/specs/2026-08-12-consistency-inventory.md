@@ -341,3 +341,4 @@ complete.
 | 85 | 写入模块不在检索允许列表和构建产物里 | `test_the_board_writer_is_not_in_the_retrieval_bundle`。临时把 `todo_board.py` 放进 `RETRIEVAL_HELPER_FILES` 时能看见它红 |
 | 86 | 决策点导入 `BOARD_TYPE`；`VALID_NOTE_TYPES` 的显式并集用这个常量 | `test_board_type_is_imported_not_inlined`。扫描 `audit_vault.py`、`create_note.py`、`note_catalog.py`、`review_open_loops.py`、`list_board.py`，出现 `"todo-board"` 字面量则红。`todo_board.py` 不在扫描里：它的 `command` 字符串是命令名，与类型同形，不从 `BOARD_TYPE` 取值 |
 | 87 | 两个 helper 的码交集 ↔ 两份参考 | `test_board_code_intersection_is_documented_on_both_sides` |
+| 88 | 列出读到的换行 ↔ 写入解析的换行 | `test_a_crlf_board_is_the_same_board_the_list_reads`。`list_board` 用 `read_text`，CRLF 在进 `parse_board` 之前已经是 LF。写入若按原始字节解析，同一篇是 `board-malformed` / `frontmatter`，Windows 上 `Path.write_text` 的默认换行会整组打红。见红时退出码 2，reason 是 `frontmatter`。写回仍是 LF；字节因此不同，所以先备份原文 |

@@ -369,6 +369,7 @@ def test_an_in_vault_symlink_parent_backs_up_the_board_path(capsys, tmp_path):
     board.write_text(
         render_board(TODAY, {"没定日子": ["- [ ] 收拾书桌"]}),
         encoding="utf-8",
+        newline="\n",
     )
     original = board.read_bytes()
     old = vault / ".obsidian-kb-backups" / "2026-11-01-010101" / BOARD_PATH
@@ -457,6 +458,31 @@ def test_the_first_create_has_no_backup_and_the_second_apply_does(capsys, tmp_pa
     stamp = Path(second["backup"]).parts[1]
     assert STAMP_RE.fullmatch(stamp)
     assert second["backup_cleanup"]["keep_per_note"] == DEFAULT_KEEP_PER_NOTE
+
+
+def test_a_crlf_board_is_the_same_board_the_list_reads(capsys, tmp_path):
+    """Row 88. Listing translates newlines. Writing must parse that same text."""
+    vault = vault_of(tmp_path)
+    path = vault / BOARD_PATH
+    path.parent.mkdir()
+    lf = render_board(TODAY, {"没定日子": ["- [ ] 收拾书桌"]})
+    path.write_bytes(lf.replace("\n", "\r\n").encode("utf-8"))
+    before = path.read_bytes()
+    list_code = list_main([str(vault), "--today", TODAY, "--view", "todos", "--json"])
+    listed = json.loads(capsys.readouterr().out)
+    assert list_code == 0
+    assert listed["counts"]["没定日子"] == 1
+    code, payload = invoke(
+        capsys, vault, "tick", "--text", "收拾书桌", "--today", TODAY,
+        "--apply", "--json",
+    )
+    assert code == 0, payload
+    assert payload["applied"] is True
+    assert (vault / payload["backup"]).read_bytes() == before
+    rewritten = path.read_bytes()
+    assert b"\r" not in rewritten
+    assert sections(vault)["没定日子"] == []
+    assert sections(vault)["已完成"] == [f"- {TODAY} 勾掉：收拾书桌"]
 
 
 def test_an_unchanged_apply_does_not_write_or_back_up(capsys, tmp_path, monkeypatch):

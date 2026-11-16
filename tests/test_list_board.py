@@ -56,7 +56,7 @@ def vault_of(tmp_path: Path) -> Path:
 def write_board(vault: Path, sections: dict[str, list[str]], today: str = TODAY) -> Path:
     path = vault / BOARD_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_board(today, sections), encoding="utf-8")
+    path.write_text(render_board(today, sections), encoding="utf-8", newline="\n")
     return path
 
 

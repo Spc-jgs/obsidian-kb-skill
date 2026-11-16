@@ -447,7 +447,14 @@ def _load(root: Path) -> tuple[Path, bool, bytes | None, Board | None]:
         if note.stat().st_size > MAX_NOTE_BYTES:
             raise BoardMalformed("size")
         original = note.read_bytes()
-        return note, True, original, parse_board(original.decode("utf-8"))
+        # Listing reads with ``Path.read_text``, which turns CRLF and CR into
+        # LF before the parser sees the text. The parser itself requires the
+        # LF grammar (``---\n``). Parsing the raw bytes makes the same file a
+        # board for list and ``frontmatter`` for write. The original bytes
+        # stay intact: a newline-only difference still takes the backup path,
+        # and the rewrite is LF.
+        text = original.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+        return note, True, original, parse_board(text)
     return (
         resolve_target_within_vault(root, BOARD_PATH, label="path"),
         False,
