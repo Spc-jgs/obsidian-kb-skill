@@ -37,6 +37,7 @@ HELPERS = (
 RETRIEVAL_HELPERS = (
     "doctor",
     "explore-neighborhood",
+    "list-board",
     "resume-project",
     "review-captures",
     "review-open-loops",

@@ -879,16 +879,21 @@ def test_retrieval_core_body_is_bounded_too():
     decision about every future call and should not happen by accident. Raise
     it deliberately, or move the material into a reference.
 
-    Raised 129 -> 138 for `review-open-loops` (#87). The eight added lines are
-    a routing pointer — which reference to read, which helper to run, and the
+    Raised 129 -> 138 for `review-open-loops` (#87). Those eight lines are a
+    routing pointer — which reference to read, which helper to run, and the
     one rule the agent must not break (do not grade the items) — not an inlined
-    spec; the spec is the 60-line `review-open-loops.md`, which loads only when
-    that question is asked. That is the trade this bound exists to make
-    explicit, and it was made rather than skipped.
+    spec; the spec is `review-open-loops.md`, which loads only when that
+    question is asked.
+
+    Raised 138 -> 146 for the personal board. Seven of the new lines are the
+    pointer: a title, a blank, four lines of routing, and the blank that
+    separates the section. The eighth tells the open-loop section that
+    "列一下我现在的代办" and "列一下备忘" are not its question. The steps stay
+    in `list-board.md`.
     """
     lines = RETRIEVAL_CORE.read_text(encoding="utf-8").splitlines()
-    assert len(lines) <= 138, (
-        f"always-loaded retrieval body is {len(lines)} lines, was 138. Every "
+    assert len(lines) <= 146, (
+        f"always-loaded retrieval body is {len(lines)} lines, was 146. Every "
         "call pays this. Move the new material into references/, or raise this "
         "number deliberately and say why in the commit."
     )
@@ -908,5 +913,6 @@ def test_retrieval_core_keeps_its_operations_in_reference_pointers():
         "read only `references/search.md`",
         "Read only `references/review-captures.md`",
         "Read only `references/review-open-loops.md`",
+        "references/list-board.md",
     ):
         assert marker in text, f"retrieval core stopped routing to a reference: {marker!r}"

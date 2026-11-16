@@ -26,6 +26,7 @@ RETRIEVAL_REFERENCE_DIR = ROOT / "core" / "retrieval-references"
 # would accept precisely the arrangement this test exists to reject.
 RETRIEVAL_MODULES = {
     "explore_neighborhood.py": RETRIEVAL_REFERENCE_DIR / "explore-neighborhood.md",
+    "list_board.py": RETRIEVAL_REFERENCE_DIR / "list-board.md",
     "resume_project.py": RETRIEVAL_REFERENCE_DIR / "resume-project.md",
     "relatedness.py": RETRIEVAL_REFERENCE_DIR / "directed-links.md",
     "retrieval_views.py": RETRIEVAL_REFERENCE_DIR / "retrieval-views.md",

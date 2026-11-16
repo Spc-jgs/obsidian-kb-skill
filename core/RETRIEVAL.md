@@ -41,9 +41,17 @@ Read only `references/review-captures.md` and run `review-captures <vault>
 never propose deleting a note: the report is feedback on intake practice, not
 a verdict on any capture.
 
+## When the user asks for their own todos or memos
+
+"列一下我现在的代办" and "列一下备忘" read only `15-Daily/待办.md`. Read only
+`references/list-board.md` and run `list-board <vault> --today YYYY-MM-DD`
+then `--view todos --json` or `--view memos --json` as that page says. Do not run `review-open-loops`.
+A list does not grant a write and does not call `todo-board`.
+
 ## When the user asks what is still open
 
-Read only `references/review-open-loops.md` and run `review-open-loops <vault>
+Not these phrases: "列一下我现在的代办" and "列一下备忘" are the section above.
+Read only `references/review-open-loops.md` and run `review-open-loops <vault>`
 --json`. The queue holds only unticked boxes under headings a template declared
 as action-bearing; a heading the author invented is out by design. Lead with the
 count and the per-type split, and **do not grade, rank or categorise the items**

@@ -164,6 +164,13 @@ RETRIEVAL_HELPER_FILES = (
     # dependencies; shipping it is what lets the queue refuse a heading no
     # template declares.
     Path("scripts/action_heading_contract.py"),
+    # Grammar of the one personal board, plus the read-only list. The grammar
+    # imports nothing from this package, so the retrieval bundle can ship it
+    # without the writer. `review_open_loops` imports the path and the type
+    # from here; `list_board` also needs `note_catalog` and `vault_paths`,
+    # which this tuple already carries.
+    Path("scripts/board_contract.py"),
+    Path("scripts/list_board.py"),
     Path("scripts/review_open_loops.py"),
     Path("scripts/review_projects.py"),
     Path("scripts/search_vault.py"),
