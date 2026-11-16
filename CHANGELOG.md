@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.38.0] - 2026-11-16
+
+### Added
+
+- **Personal todos and memos are one standing note, `15-Daily/待办.md`.** The sections, in order, are `今天`, `之后`, `没定日子`, `备忘`, `已完成`. A capture with no date lands in `没定日子`. A dated open item is spoken from its date: due on or before today stays in `今天` and keeps the date; a later date is `之后`. Dated journals stay journals. Nothing here migrates old daily checkboxes, and `review-open-loops` still scans the rest of the Vault. 「列一下我现在的代办」 is not that scan.
+
+- **`list-board` reads the board and does not write it.** `todos` returns the three open checkbox sections. `memos` returns `备忘`, newest by the line's `at`. A dated open row under the wrong `今天` or `之后` heading is misplaced: the count follows `spoken_section`, and `file_section` stays the heading on disk. Listing does not rebucket.
+
+- **`todo-board` is the only writer.** Capture (`--kind todo` or `memo`), tick, cancel, and reschedule. Tick and cancel move the matched open line into `已完成`. Cancel does not move a memo. The match is the stripped line, in file order, and only in the open sections. No open match refuses with `board-no-match`. Two or more refuse with `board-ambiguous` and write nothing. A second due marker inside the text stays part of the text. A memo is a duplicate only when the same day, the same `at`, and the same text are already there. `--apply` defaults off. The first create needs a real `15-Daily` directory and does not create one. Byte-identical content does not back up and does not rewrite. Any other change backs up the logical path `15-Daily/待办.md` — including when `15-Daily` is a symlink inside the Vault — and rewrites LF.
+
+- **List and write parse the same newlines.** `list-board` reads with `Path.read_text`, which has already turned CR and CRLF into LF. The writer decodes the original bytes, applies that same translation, then parses. The parser itself still requires the LF grammar (`---\n`). The backup keeps the original bytes, so a newline-only difference is a real change.
+
+- **`create-note` cannot place this file.** `type: todo-board` exits with `board-fixed-path` and writes nothing. The audit leaves the board out of the connectivity check and out of the open-loop scan. An oversized board stays unreadable and unscanned. There is no second board, no English section name, and no priority, repeat, reminder, or subtask.
+
 ## [1.37.0] - 2026-08-25
 
 ### Added
