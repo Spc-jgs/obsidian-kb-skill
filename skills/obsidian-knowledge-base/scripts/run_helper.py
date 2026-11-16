@@ -19,6 +19,7 @@ HELPERS = {
     "create-category": "obsidian_kb_skill.scripts.create_category",
     "create-note": "obsidian_kb_skill.scripts.create_note",
     "archive-source": "obsidian_kb_skill.scripts.archive_source",
+    "todo-board": "obsidian_kb_skill.scripts.todo_board",
     "update-note": "obsidian_kb_skill.scripts.update_note",
     "vault-info": "obsidian_kb_skill.scripts.vault_info",
     "detect-index": "obsidian_kb_skill.scripts.detect_index",

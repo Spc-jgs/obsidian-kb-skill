@@ -6,7 +6,7 @@
 
 Installed compatibility resources live at `~/.obsidian-kb-skill/skill`; use that directory as `<skill-root>` for references, assets, and bundled helpers.
 
-**Trigger**: Use on explicit save intent ("save to Obsidian", "沉淀", "记一下") or an explicit request to evaluate what from a conversation is worth capturing. Harvest analysis may be read-only; never mutate the Vault without save intent. Never use for unrelated Q&A/debug/chat.
+**Trigger**: Use on explicit save intent ("save to Obsidian", "沉淀", "记一下"), a personal todo or memo （记个待办、备忘一下、勾掉、改到、取消）, or an explicit request to evaluate what from a conversation is worth capturing. Listing （列一下我现在的代办、列一下备忘） belongs to retrieval. Harvest analysis may be read-only; never mutate the Vault without save intent. Never use for unrelated Q&A/debug/chat.
 
 ## Overview
 
@@ -43,3 +43,7 @@ This skill **never writes to the vault on its own**. Write only after **explicit
 Read only `audit-vault.md`. The audit is read-only and reports findings; it
 never repairs a note. Fixing one is a separate request needing its own explicit
 save intent — reporting a finding does not grant authority to act on it.
+
+## When the user names a personal todo or memo
+
+"记个待办：回复客户", "记个待办，今天：回复客户", "记个待办，周五：补测试", "备忘一下：停车在 B2", "把回复客户勾掉", "把补测试改到下周三", and "取消收拾书桌" each read only `todo-board.md` and run the subcommand that page gives for `todo-board <vault>`. Do not invent an argv, do not call `create-note`, and do not add `-2`. "列一下我现在的代办" and "列一下备忘" belong to `obsidian-knowledge-retrieval`: stop, do not answer from memory, and do not call `review-open-loops`.

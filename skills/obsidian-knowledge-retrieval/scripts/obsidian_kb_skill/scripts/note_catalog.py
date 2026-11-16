@@ -1,6 +1,8 @@
 import re
 from dataclasses import dataclass
 
+from obsidian_kb_skill.scripts.board_contract import BOARD_TYPE
+
 # The ceiling on a single note a Vault walker will read into memory. Shared
 # because `search_vault` and `review_projects` each declared their own
 # `2 * 1024 * 1024`, with nothing relating the two: a Vault holding a note one
@@ -181,7 +183,7 @@ VALID_NOTE_TYPES = (
     frozenset(NOTE_TYPES)
     | AUDIT_COMPATIBILITY_TYPES
     | INDEX_TYPES
-    | {SOURCE_ARCHIVE_TYPE}
+    | {SOURCE_ARCHIVE_TYPE, BOARD_TYPE}
 )
 MANAGED_NOTE_FOLDERS = (
     "00-Inbox", "10-Work", "15-Daily", "20-Learning",
