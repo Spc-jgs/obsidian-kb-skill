@@ -1,9 +1,8 @@
 """The personal board is one note, and listing it is not the open-loop queue.
 
-These tests are the read side only. They do not read ``todo-board.md``,
-``todo_board.py``, or a board section of ``core/OBSIDIAN_KB.md``: none of
-those exist on this tree, and a test that needed them would be green for a
-reason that is not on the branch.
+These tests are the read side. The write utterances and the writer are
+covered in ``tests/test_todo_board.py``. Row 80 also reads ``todo-board.md``
+for the same five headings and six sample lines.
 """
 from __future__ import annotations
 
@@ -30,6 +29,7 @@ from tests.test_error_code_contract import _codes_in
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "obsidian_kb_skill" / "scripts"
 REFERENCE = ROOT / "core" / "retrieval-references" / "list-board.md"
+WRITE_REFERENCE = ROOT / "core" / "references" / "todo-board.md"
 RETRIEVAL = ROOT / "core" / "RETRIEVAL.md"
 TODAY = "2026-11-13"
 
@@ -56,7 +56,7 @@ def vault_of(tmp_path: Path) -> Path:
 def write_board(vault: Path, sections: dict[str, list[str]], today: str = TODAY) -> Path:
     path = vault / BOARD_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_board(today, sections), encoding="utf-8")
+    path.write_text(render_board(today, sections), encoding="utf-8", newline="\n")
     return path
 
 
@@ -67,14 +67,18 @@ def invoke(capsys, vault: Path, *args: str) -> tuple[int, dict]:
 
 
 def test_board_sections_are_the_words_the_agent_speaks():
-    """Row 80. The reference, the constant, and the renderer name one board."""
+    """Row 80. Both references, the constant, and the renderer name one board."""
     text = REFERENCE.read_text(encoding="utf-8")
+    write_text = WRITE_REFERENCE.read_text(encoding="utf-8")
     for name in BOARD_SECTIONS:
         assert f"## {name}" in text, name
+        assert f"## {name}" in write_text, name
     for line in SAMPLE_LINES:
         assert line in text, line
+        assert line in write_text, line
     for sentence in WRITE_SUCCESSES:
         assert sentence not in text, sentence
+        assert sentence in write_text, sentence
 
     rendered = render_board(TODAY)
     for name in BOARD_SECTIONS:

@@ -191,6 +191,23 @@ their own knowledge.
 | `empty-source-content` | There is no source text to archive | Acquire the source first, following `web-capture.md`. Never archive a placeholder |
 | `invalid-date` | `--captured` is not an ISO calendar date | Pass `YYYY-MM-DD`, or omit it and let the helper use today |
 
+#### Personal board
+
+`todo-board` writes only `15-Daily/待办.md`. Read `todo-board.md` for the
+subcommand and for the sentence to say. Listing that note is the retrieval
+skill. Do not repair a refusal by writing the note yourself.
+
+| Code | Meaning | Do this |
+|---|---|---|
+| `board-malformed` | The board is over the size limit or does not match the five-section grammar | Stop. For `size` say 待办.md 超过大小上限，我没有改。 Otherwise say 待办.md 的格式不符合看板规则，我没有改。 Do not repair the file |
+| `board-invalid-date` | `--today`, `--due`, or `--at` is missing or not a civil value for this call | Say 日期或时间不对，我没有改。 Fix the flag in `details.parameter`. Do not pass 周五 and do not read the clock |
+| `board-invalid-text` | `--text` is empty, padded, split by a newline, carrying a due marker, or cannot round-trip | Say 待办正文不对，我没有改。 Pass the words only. Put the due date in `--due` |
+| `board-ambiguous` | Two or more open rows have the same text | Say 有两条一样的待办，我没有改。 Ask which row. Do not pick `candidates[0]` |
+| `board-no-match` | Tick, cancel, or reschedule found no open row with that text | Say 看板上没有这条待办，我没有改。 Do not check a box and do not move a memo |
+| `board-duplicate` | Capture found the same open todo, or the same memo at the same minute | Say 看板上已经有这条，我没有改。 Do not write a second copy |
+| `board-folder-missing` | `--apply` would create the board but `15-Daily` is not a real directory | Say 15-Daily 还不是目录，我没有建。 Do not mkdir. A list of a missing board is not this code |
+| `board-fixed-path` | `create-note` was asked to create the board type | Say 待办.md 由看板命令维护，这次没有建笔记。 Run `todo-board` for that note. Do not add `-2` |
+
 ### Audit Findings
 
 The vault auditor reports findings rather than refusing. Fix only files from

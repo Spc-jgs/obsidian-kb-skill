@@ -31,6 +31,7 @@ HELPERS = (
     "scaffold-templates",
     "suggest-links",
     "template-contract",
+    "todo-board",
     "update-note",
     "vault-info",
 )

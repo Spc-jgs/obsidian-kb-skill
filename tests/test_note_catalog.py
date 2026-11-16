@@ -6,6 +6,7 @@ import pytest
 
 import obsidian_kb_skill.scripts.scaffold_templates as scaffold_templates
 
+from obsidian_kb_skill.scripts.board_contract import BOARD_TYPE
 from obsidian_kb_skill.scripts.note_catalog import (
     DEFAULT_TAG_BY_TYPE,
     FOLDER_TO_DEFAULT_TYPE,
@@ -92,8 +93,11 @@ def test_audit_and_folder_sets_are_derived_from_explicit_contracts():
             # Archived sources carry a type so the audit does not call it
             # invalid, but they are never a note anyone creates.
             "source-archive",
+            BOARD_TYPE,
         }
     )
+    assert BOARD_TYPE not in NOTE_TYPES
+    assert BOARD_TYPE not in TYPE_TO_TEMPLATE
     assert MANAGED_NOTE_FOLDERS == (
         "00-Inbox", "10-Work", "15-Daily", "20-Learning",
         "30-Insights", "40-Projects", "50-People", "90-Archive",

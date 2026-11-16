@@ -22,6 +22,7 @@ from typing import Any, Iterator
 
 import yaml
 
+from obsidian_kb_skill.scripts.board_contract import BOARD_TYPE
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.capture_receipt import (
     CAPTURE_DEPTHS,
@@ -763,6 +764,16 @@ def main(argv: list[str] | None = None) -> int:
             given_meta, body_text = split_frontmatter(
                 raw_input, source="--fix-heading-levels"
             )
+
+    if args.type == BOARD_TYPE:
+        print(json.dumps({
+            "error": {
+                "code": "board-fixed-path",
+                "message": "待办.md 由看板命令维护，这次没有建笔记。",
+                "details": {"type": BOARD_TYPE},
+            }
+        }, ensure_ascii=False))
+        return 2
 
     try:
         folder, rendered = build_note(

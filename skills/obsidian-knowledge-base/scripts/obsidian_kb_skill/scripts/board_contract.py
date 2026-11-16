@@ -16,6 +16,7 @@ BOARD_SECTIONS = ("今天", "之后", "没定日子", "备忘", "已完成")
 OPEN_SECTIONS = ("今天", "之后", "没定日子")
 
 _DUE_MARKER = re.compile(r" 📅 (\d{4}-\d{2}-\d{2})$")
+_DUE_MARKER_ANY = re.compile(r" 📅 \d{4}-\d{2}-\d{2}")
 _DATED_OPEN = re.compile(r"^- \[ \] (.*) 📅 (\d{4}-\d{2}-\d{2})$")
 _UNDATED_OPEN = re.compile(r"^- \[ \] (.*)$")
 _MEMO = re.compile(r"^- (\d{4}-\d{2}-\d{2}) ([0-9]{2}):([0-9]{2}) (.*)$")
@@ -61,6 +62,32 @@ def is_civil_date(value: str) -> bool:
     except ValueError:
         return False
     return True
+
+
+def is_clock(value: str) -> bool:
+    """True when ``value`` is ``HH:MM`` with hours 00–23 and minutes 00–59."""
+    matched = re.fullmatch(r"(\d{2}):(\d{2})", value)
+    if matched is None:
+        return False
+    hour = int(matched.group(1))
+    minute = int(matched.group(2))
+    return hour <= 23 and minute <= 59
+
+
+def contains_due_marker(text: str) -> bool:
+    """True when a date-shaped due marker occurs anywhere in ``text``."""
+    return _DUE_MARKER_ANY.search(text) is not None
+
+
+def comparison_key(text: str) -> str:
+    """Drop one trailing due marker from a raw line, then strip.
+
+    ``parse_board`` already stored that marker on ``BoardRow.due`` and left
+    the rest in ``row.text``. Matching a parsed row with this function removes
+    a second marker that is part of the body, so ``task`` would hit
+    ``task 📅 2026-11-01``. Callers compare ``row.text.strip()`` instead.
+    """
+    return _DUE_MARKER.sub("", text).strip()
 
 
 def spoken_section(due: str | None, today: str) -> str:

@@ -49,6 +49,7 @@ from obsidian_kb_skill.scripts.link_graph import (
     without_code_examples as _without_code_examples,
     without_fenced_code as _without_fenced_code,
 )
+from obsidian_kb_skill.scripts.board_contract import BOARD_TYPE
 from obsidian_kb_skill.scripts.note_catalog import (
     DEFAULT_DRAFT_TAGS,
     ENTITY_FOLDERS,
@@ -175,6 +176,11 @@ PERIODIC_TYPES = {"daily-report", "weekly-report"}
 # and `review-captures` already reported 20 of them by asking the stronger
 # question: not whether a capture is linked, but whether it was ever reopened.
 UNCONNECTED_BY_DESIGN = PERIODIC_TYPES | {"web-clip"}
+# A daily note and the personal board are the wrong question for connectivity.
+# Both lists below are fed by one comparison. Putting the board only in
+# UNCONNECTED_BY_DESIGN would hide disconnected-note and still report it as
+# an orphan when nothing links to it.
+_EXCLUDED_FROM_CONNECTIVITY = frozenset({"daily-note", BOARD_TYPE})
 # Findings that describe vault-wide consistency (not a defect of any single note).
 # Excluded from audit_note() so a post-write self-check only reports issues in the
 # note that was just written.
@@ -1433,7 +1439,7 @@ def audit_vault_with_stats(vault: Path) -> tuple[list[Finding], dict[str, Any]]:
             and (not relative.parts or relative.parts[0] != "Templates")
             and relative.name != "INDEX.md"
             and metadata.get("type") not in INDEX_TYPES
-            and metadata.get("type") != "daily-note"
+            and metadata.get("type") not in _EXCLUDED_FROM_CONNECTIVITY
         ):
             candidate_notes.append(path)
             if metadata.get("type") not in UNCONNECTED_BY_DESIGN:

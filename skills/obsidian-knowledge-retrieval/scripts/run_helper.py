@@ -42,6 +42,7 @@ PEER_HELPERS = frozenset({
     "scaffold-templates",
     "suggest-links",
     "template-contract",
+    "todo-board",
     "update-note",
 })
 
