@@ -1,5 +1,9 @@
 # review-open-loops
 
+If the user said "列一下我现在的代办" or "列一下备忘", stop. Those two phrases
+are the personal board, not this queue. Read `list-board.md` and do not run
+this command.
+
 Collect the unticked boxes the author left under a heading a template declared
 as holding action items. Read-only; it never ticks, closes, moves or rewrites
 anything.

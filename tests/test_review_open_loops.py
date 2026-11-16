@@ -38,6 +38,23 @@ def texts(report: dict) -> list[str]:
     return [item["text"] for item in report["items"]]
 
 
+def test_the_personal_board_is_not_an_open_loop(tmp_path):
+    """A template heading inside the standing board is still not this queue.
+
+    ``待办事项`` is an action heading. Without a path check the box below
+    would be reported as open work, which is the wrong product: that file is
+    the personal list, and a hand edit must not move it into this scan.
+    """
+    vault = vault_with(
+        tmp_path,
+        ("15-Daily/待办.md", "## 待办事项\n\n- [ ] 路径排除\n"),
+        ("a.md", "## 后续行动\n\n- [ ] 剪藏里的下一步\n"),
+    )
+    report = review_open_loops(vault)
+    assert texts(report) == ["剪藏里的下一步"]
+    assert report["scanned"] == 2
+
+
 def test_an_unticked_box_under_a_template_action_heading_is_collected(tmp_path):
     vault = vault_with(tmp_path, ("a.md", "## 影响与后续行动\n\n- [ ] 补一条回归测试\n"))
     report = review_open_loops(vault)

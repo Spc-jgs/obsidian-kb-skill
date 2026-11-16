@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from obsidian_kb_skill.scripts.action_heading_contract import is_action_heading
+from obsidian_kb_skill.scripts.board_contract import BOARD_PATH, BOARD_TYPE
 from obsidian_kb_skill.scripts.console import configure_utf8_stdio
 from obsidian_kb_skill.scripts.link_graph import blank_code_examples
 from obsidian_kb_skill.scripts.note_catalog import MAX_NOTE_BYTES
@@ -149,6 +150,13 @@ def review_open_loops(
         metadata = head.group(1) if head else ""
         type_match = _TYPE.search(metadata)
         note_type = type_match.group(1) if type_match else "(untyped)"
+        # The personal board is a list the reader asks for by name. Its boxes
+        # are not loops the author left under a template heading, even when a
+        # hand edit puts one of those headings into the file. Path and type
+        # are both checked so a copy at another path is still out. The file
+        # was read, so it counts as scanned; it contributes no items.
+        if relative == BOARD_PATH or note_type == BOARD_TYPE:
+            continue
         if note_types and note_type not in note_types:
             continue
         date_match = _DATE.search(metadata)
